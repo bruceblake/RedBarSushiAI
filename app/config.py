@@ -50,4 +50,4 @@ DELIVERECT_CLIENT_SECRET = 'byOTwZy7CvhgFgQBuvdGVZVcWoxlfTj1'
 # ------------------------------
 # Local File Paths
 # ------------------------------
-MENU_FILE_PATH = "/home/pegasus/mysite/menu_data.json"
+MENU_FILE_PATH = "/RedBarSushiAI/menu_data.json"
