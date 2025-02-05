@@ -28,7 +28,7 @@ def receive_call():
         language="en-US",
         speech_timeout="auto"
     ) as g:
-        g.say("Hello! Thank you for calling Red Bar Sushi. May I have your name, please?")
+        g.say("Hello World! Thank you for calling Red Bar Sushi. May I have your name, please?")
     return Response(str(response), mimetype='text/xml')
 
 @voice_bp.route('/take_name', methods=['POST'])
