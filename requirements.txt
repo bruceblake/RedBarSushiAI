@@ -126,7 +126,6 @@ PyYAML==6.0.2
 questionary==1.10.0
 randomname==0.1.5
 RapidFuzz==3.11.0
-rasa-sdk==3.6.2
 redis==4.6.0
 redis-cli==1.0.1
 regex==2022.10.31
