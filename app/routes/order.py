@@ -210,7 +210,7 @@ def new_modify_order():
         from app.config import OPENAI_API_KEY
         openai.api_key = OPENAI_API_KEY
         messages = [{"role": "system", "content": modification_prompt}]
-        response_ai = openai.ChatCompletion.create(
+        response_ai = openai.chat.completions.create(
             model="gpt-4",
             messages=messages,
             max_tokens=300,
@@ -418,4 +418,3 @@ def register_channel_route():
         "courierUpdateURL": "https://yourdomain.com/courierUpdate"
     }
     return jsonify(response_body), 200
-
