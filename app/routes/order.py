@@ -1,4 +1,8 @@
 # app/routes/order.py
+
+from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET
+import requests
+from app.utils.deliverect import build_deliverect_order, get_deliverect_headers
 import json
 import uuid
 import time
@@ -160,14 +164,41 @@ def confirm_order_from_initial():
             response.say(
                 "Sorry, we encountered a database issue. Please try again later.")
             return Response(str(response), mimetype='text/xml')
-        # Offload SMS confirmation to Celery
-        from tasks import send_confirmation_sms_task
-        send_confirmation_sms_task.delay(order_id, session.get(
-            'order_message', ''), sender, caller_name, session.get('bill_amount', 0), order_items)
-        time_taken = 20 + (1 * len(order_items))
-        response.say(
-            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text will be sent. Thank you!")
-        response.hangup()
+
+    # In app/routes/order.py, after order confirmation and before sending SMS confirmation
+    # Assume total_price is stored in session['total_price'] (a float)
+    total_price = session.get('total_price', 0.0)
+
+    # Build the Deliverect payload
+    deliverect_payload = build_deliverect_order(
+        sender=sender,
+        caller_name=caller_name,
+        order_items=order_items,
+        total_price=total_price,
+        order_id=order_id
+    )
+
+    # (Optional) Log or send the payload to Deliverect via requests.post
+    # Replace with your actual endpoint
+    deliverect_url = 'https://api.staging.deliverect.com/nextgen/order/66e88f33475a66c53e90e62b'
+
+    try:
+
+        response_deliv = requests.post(
+            deliverect_url, json=deliverect_payload, headers=get_deliverect_headers())
+
+        log_info(f"Deliverect response: {response_deliv.text}")
+    except Exception as e:
+        log_info(f"Error sending order to Deliverect: {e}")
+
+    # Offload SMS confirmation to Celery
+    from tasks import send_confirmation_sms_task
+    send_confirmation_sms_task.delay(order_id, session.get(
+        'order_message', ''), sender, caller_name, session.get('bill_amount', 0), order_items)
+    time_taken = 20 + (1 * len(order_items))
+    response.say(
+        f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text will be sent. Thank you!")
+    response.hangup()
     elif interpreted == "no":
         session['modification_in_progress'] = True
         with response.gather(
