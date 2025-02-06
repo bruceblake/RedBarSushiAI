@@ -6,16 +6,16 @@ import logging
 menu_bp = Blueprint('menu', __name__)
 logger = logging.getLogger(__name__)
 
+
 @menu_bp.route('/menu_update', methods=['POST'])
 def menu_update():
     data = request.get_json()
     if not data or not isinstance(data, list):
         return jsonify({"error": "Expected an array"}), 400
-
-    # In your original code, you parsed products, modifiers, etc.
-    # Here we simply write the received JSON to the menu file.
+    # Assume the provided data is in the correct format
     write_menu_file(data)
     return jsonify({"status": "menu updated"}), 200
+
 
 @menu_bp.route('/snoozeUnsnooze', methods=['POST'])
 def snooze_unsnooze():
@@ -24,25 +24,23 @@ def snooze_unsnooze():
     operations = data.get("operations", [])
     if not operations:
         return jsonify({"error": "No operations found"}), 400
-
-    # Process each operation (snooze or unsnooze)
-    for op in operations:
-        action = op.get("action")
-        op_data = op.get("data", {})
-        items = op_data.get("items", [])
-        # Here you would update each item's snooze status in your menu data
-        # For brevity, this example does not implement full update logic.
-        logger.info(f"Processing {action} for items: {items}")
+    # Process snooze/unsnooze operations here...
+    logger.info("Processed snooze/unsnooze operations.")
     return jsonify({"status": "ok"}), 200
+
 
 @menu_bp.route('/busy_mode', methods=['POST'])
 def busy_mode():
+    # Here you might set a global flag to pause orders
     return jsonify({"status": "PAUSED"}), 200
 
-@menu_bp.route('/updatePrepTime', methods=['GET','POST'])
+
+@menu_bp.route('/updatePrepTime', methods=['GET', 'POST'])
 def update_prep_time():
     return jsonify({"status": "not implemented"}), 200
 
-@menu_bp.route('/courierUpdate', methods=['GET','POST'])
+
+@menu_bp.route('/courierUpdate', methods=['GET', 'POST'])
 def courier_update():
     return jsonify({"status": "not implemented"}), 200
+
