@@ -5,11 +5,13 @@ import time
 import datetime
 import logging
 from app.config import MENU_FILE_PATH
+MENU_CACHE_DURATION = 10
+
 
 logger = logging.getLogger(__name__)
-
 _last_load_time = 0
 _cached_data = None
+
 
 def write_menu_file(all_items_data):
     try:
@@ -18,6 +20,7 @@ def write_menu_file(all_items_data):
         logger.info(f"Menu data written to {MENU_FILE_PATH}.")
     except Exception as e:
         logger.error(f"Error writing menu data file: {e}")
+
 
 def parse_utc_timestamp(ts_str):
     if not ts_str:
@@ -29,9 +32,10 @@ def parse_utc_timestamp(ts_str):
     except Exception:
         return None
 
+
 def is_item_snoozed_timebased(item_obj):
     s_start_str = item_obj.get("snoozeStart")
-    s_end_str   = item_obj.get("snoozeEnd")
+    s_end_str = item_obj.get("snoozeEnd")
     if not s_start_str or not s_end_str:
         return False
     start = parse_utc_timestamp(s_start_str)
@@ -40,6 +44,7 @@ def is_item_snoozed_timebased(item_obj):
         return False
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     return (start <= now_utc <= end)
+
 
 def is_item_currently_available_by_schedule(item_obj):
     all_blocks = item_obj.get("availabilities", [])
@@ -70,11 +75,12 @@ def is_item_currently_available_by_schedule(item_obj):
         logger.info("No matching day/time => item is unavailable right now.")
     return found_match
 
+
 def load_menu_data(force_refresh=False):
     global _last_load_time, _cached_data
     if force_refresh:
         _cached_data = None
-    if _cached_data is not None and (time.time() - _last_load_time < 10):
+    if _cached_data is not None and (time.time() - _last_load_time < MENU_CACHE_DURATION):
         return _cached_data
     if not os.path.exists(MENU_FILE_PATH):
         logger.info("No menu_data.json found, returning empty.")
@@ -82,6 +88,7 @@ def load_menu_data(force_refresh=False):
     try:
         with open(MENU_FILE_PATH, "r") as f:
             data = json.load(f)
+        # Update each item with its availability
         for it in data.get("items", []):
             snoozed = is_item_snoozed_timebased(it)
             schedule_ok = is_item_currently_available_by_schedule(it)
@@ -94,3 +101,4 @@ def load_menu_data(force_refresh=False):
     except Exception as e:
         logger.error(f"Error reading menu data file: {e}")
         return {"items": [], "modifiers": [], "modifierGroups": []}
+
