@@ -14,11 +14,17 @@ db = SQLAlchemy()
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 stripe.api_key = STRIPE_API_KEY
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__)
+    
+    # Default configuration
     app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = SQLALCHEMY_TRACK_MODIFICATIONS
     app.secret_key = APP_SECRET_KEY
+    
+    # Override with test config if provided
+    if test_config:
+        app.config.update(test_config)
 
     # Initialize the database
     db.init_app(app)

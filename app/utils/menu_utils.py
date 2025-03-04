@@ -4,9 +4,10 @@ import os
 import time
 import datetime
 import logging
+from flask import current_app
 from app.config import MENU_FILE_PATH
-MENU_CACHE_DURATION = 10
 
+MENU_CACHE_DURATION = 10
 
 logger = logging.getLogger(__name__)
 _last_load_time = 0
@@ -14,10 +15,26 @@ _cached_data = None
 
 
 def write_menu_file(all_items_data):
+    """
+    Write menu data to file. In test environment, uses the file path from app config.
+    In production, uses the path from module-level config.
+    """
     try:
-        with open(MENU_FILE_PATH, "w") as f:
+        # Try to get file path from current app context for tests
+        try:
+            file_path = current_app.config.get('MENU_FILE_PATH', MENU_FILE_PATH)
+        except:
+            # If not in app context, fall back to module config
+            file_path = MENU_FILE_PATH
+            
+        # Ensure directory exists
+        directory = os.path.dirname(file_path)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+            
+        with open(file_path, "w") as f:
             json.dump(all_items_data, f)
-        logger.info(f"Menu data written to {MENU_FILE_PATH}.")
+        logger.info(f"Menu data written to {file_path}.")
     except Exception as e:
         logger.error(f"Error writing menu data file: {e}")
 
@@ -77,16 +94,27 @@ def is_item_currently_available_by_schedule(item_obj):
 
 
 def load_menu_data(force_refresh=False):
+    """
+    Load menu data from file or cache. Handles both test and production environments.
+    """
     global _last_load_time, _cached_data
     if force_refresh:
         _cached_data = None
     if _cached_data is not None and (time.time() - _last_load_time < MENU_CACHE_DURATION):
         return _cached_data
-    if not os.path.exists(MENU_FILE_PATH):
-        logger.info("No menu_data.json found, returning empty.")
+    
+    # Try to get file path from current app context for tests
+    try:
+        file_path = current_app.config.get('MENU_FILE_PATH', MENU_FILE_PATH)
+    except:
+        # If not in app context, fall back to module config
+        file_path = MENU_FILE_PATH
+    
+    if not os.path.exists(file_path):
+        logger.info(f"No menu file found at {file_path}, returning empty.")
         return {"items": [], "modifiers": [], "modifierGroups": []}
     try:
-        with open(MENU_FILE_PATH, "r") as f:
+        with open(file_path, "r") as f:
             data = json.load(f)
         # Update each item with its availability
         for it in data.get("items", []):
@@ -101,4 +129,3 @@ def load_menu_data(force_refresh=False):
     except Exception as e:
         logger.error(f"Error reading menu data file: {e}")
         return {"items": [], "modifiers": [], "modifierGroups": []}
-

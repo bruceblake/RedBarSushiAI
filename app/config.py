@@ -46,8 +46,14 @@ STRIPE_PRODUCT_ID = 'prod_QbXflydy7HavBH'
 # ------------------------------
 DELIVERECT_CLIENT_ID = 'w2ajqOd1CMUsRBPF'
 DELIVERECT_CLIENT_SECRET = 'byOTwZy7CvhgFgQBuvdGVZVcWoxlfTj1'
+DELIVERECT_API_URL = 'https://api.staging.deliverect.com/orders'
 
 # ------------------------------
 # Local File Paths
 # ------------------------------
 MENU_FILE_PATH = "/home/pegasus/RedBarSushiAI/menu_data.json"
+
+# ------------------------------
+# Base URL Configuration
+# ------------------------------
+BASE_URL = os.environ.get('BASE_URL', 'https://redbarsushi.pythonanywhere.com')

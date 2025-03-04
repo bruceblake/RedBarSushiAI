@@ -107,21 +107,43 @@ def build_order_description(order_items):
     return description
 
 
-def calculate_bill_amount(order_items):
+def calculate_bill_amount(order_items, tax_rate=0.0):
     """
     Calculates the total bill amount based on order items.
     Stores the total in the session.
+    
+    Args:
+        order_items: List of order items with quantities and prices
+        tax_rate: Optional sales tax rate as a decimal (e.g., 0.08 for 8%)
     """
-    total = 0.0
+    subtotal = 0.0
     for item in order_items:
         base_price = item.get("price", 0.0) or 0.0
         quantity = item.get("quantity", 1)
-        total += base_price * quantity
+        item_total = base_price * quantity
+        
+        # Add modifier costs
         for mod in item.get("modifier", []):
             mod_price = mod.get("price", 0.0) or 0.0
             mod_quantity = mod.get("quantity", 1)
-            total += mod_price * mod_quantity
-    session['total_price'] = total
+            item_total += mod_price * mod_quantity
+            
+        subtotal += item_total
+    
+    # Store the subtotal
+    session['subtotal'] = round(subtotal, 2)
+    
+    # Calculate and store tax amount if applicable
+    tax_amount = 0.0
+    if tax_rate > 0:
+        tax_amount = subtotal * tax_rate
+        session['tax_amount'] = round(tax_amount, 2)
+    
+    # Calculate final total with tax
+    total = subtotal + tax_amount
+    
+    # Round to avoid floating point issues
+    session['total_price'] = round(total, 2)
 
 
 def find_menu_item(user_input, threshold=35):
