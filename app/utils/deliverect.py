@@ -73,13 +73,13 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
             "phone": sender
         },
         "items": [],
-        "total": int(total_price * 100),  # Convert to cents
+        "total": int(round(total_price * 100)),  # Convert to cents with proper rounding
         "status": "NEW",
         "channelOrderId": str(order_id),
         "orderType": 1,
         "channelOrderDisplayId": str(order_id),
         "payment": {
-            "amount": int(total_with_tax * 100),
+            "amount": int(round(total_with_tax * 100)),  # Round properly
             "type": 0  # Assuming 0 means unpaid
         },
         "deliveryIsAsap": False,
@@ -89,7 +89,7 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
         "taxes": [
             {
                 "name": "taxes",
-                "total": int(total_price * sales_tax * 100)
+                "total": int(round(total_price * sales_tax * 100))  # Round properly
             }
         ]
     }
@@ -101,7 +101,7 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
             # Unique product identifier
             "plu": item.get("reference_handler", ""),
             "quantity": item.get("quantity", 1),
-            "price": int(item.get("price", 0.0) * 100),
+            "price": int(round(item.get("price", 0.0) * 100)),  # Round properly
             "subItems": []
         }
         # Process any modifiers for this item
@@ -110,7 +110,7 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
                 "name": mod.get("name", "").lower(),
                 "plu": mod.get("plu", "UNKNOWN-PLU"),
                 "quantity": mod.get("quantity", 1),
-                "price": int(mod.get("price", 0.0) * 100)
+                "price": int(round(mod.get("price", 0.0) * 100))  # Round properly
             }
             del_item["subItems"].append(sub_item)
         order_payload["items"].append(del_item)

@@ -1,46 +1,3 @@
-@order_bp.route('/handle_newly_snoozed_in_checkout', methods=['POST'])
-def handle_newly_snoozed_in_checkout():
-    """Handle the case where items become unavailable during checkout"""
-    user_resp = request.form.get('SpeechResult', '')
-    dtmf_input = request.form.get('Digits', '')
-    
-    response = VoiceResponse()
-    
-    # Check if user wants to remove unavailable items (1) or cancel (2)
-    if dtmf_input == '1' or user_said_yes(user_resp):
-        # Remove snoozed items from order
-        order_items = json.loads(session.get('order_items_json', '[]'))
-        updated_items = [item for item in order_items if not is_item_snoozed_timebased(item)]
-        
-        if not updated_items:
-            response.say("All items in your order are now unavailable. We apologize for the inconvenience. Goodbye.")
-            response.hangup()
-            return Response(str(response), mimetype='text/xml')
-            
-        # Update the order
-        session['order_items_json'] = json.dumps(updated_items)
-        calculate_bill_amount(updated_items)
-        session['bill_amount'] = int(session['total_price'] * 100)
-        order_description = build_order_description(updated_items)
-        session['order_message'] = f"{order_description}\nYour total is ${session['total_price']:.2f}."
-        
-        # Confirm the updated order
-        with response.gather(
-            input='speech dtmf',
-            action='/confirm_order_after_modification',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            num_digits=1
-        ) as g:
-            g.say(f"Your updated order is: {session['order_message']} If correct, say yes or press 1. If you need changes, say no or press 2.")
-    else:
-        # Cancel the order
-        response.say("We're sorry about that. Your order has been cancelled. Goodbye.")
-        response.hangup()
-        
-    return Response(str(response), mimetype='text/xml')
 # app/routes/order.py
 
 import json
@@ -52,7 +9,7 @@ import requests
 from collections import defaultdict
 from flask import Blueprint, request, session, Response, jsonify
 from twilio.twiml.voice_response import VoiceResponse
-from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET, DELIVERECT_API_URL
+from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET, BASE_URL, DELIVERECT_API_URL
 from app.utils.deliverect import build_deliverect_order, get_deliverect_headers
 from app.utils.order_utils import (
     analyze_user_input,
@@ -558,3 +515,47 @@ def register_channel_route():
         "courierUpdateURL": f"{base_url}/courierUpdate"
     }
     return jsonify(response_body), 200
+
+@order_bp.route('/handle_newly_snoozed_in_checkout', methods=['POST'])
+def handle_newly_snoozed_in_checkout():
+    """Handle the case where items become unavailable during checkout"""
+    user_resp = request.form.get('SpeechResult', '')
+    dtmf_input = request.form.get('Digits', '')
+    
+    response = VoiceResponse()
+    
+    # Check if user wants to remove unavailable items (1) or cancel (2)
+    if dtmf_input == '1' or user_said_yes(user_resp):
+        # Remove snoozed items from order
+        order_items = json.loads(session.get('order_items_json', '[]'))
+        updated_items = [item for item in order_items if not is_item_snoozed_timebased(item)]
+        
+        if not updated_items:
+            response.say("All items in your order are now unavailable. We apologize for the inconvenience. Goodbye.")
+            response.hangup()
+            return Response(str(response), mimetype='text/xml')
+            
+        # Update the order
+        session['order_items_json'] = json.dumps(updated_items)
+        calculate_bill_amount(updated_items)
+        session['bill_amount'] = int(session['total_price'] * 100)
+        order_description = build_order_description(updated_items)
+        session['order_message'] = f"{order_description}\nYour total is ${session['total_price']:.2f}."
+        
+        # Confirm the updated order
+        with response.gather(
+            input='speech dtmf',
+            action='/confirm_order_after_modification',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            num_digits=1
+        ) as g:
+            g.say(f"Your updated order is: {session['order_message']} If correct, say yes or press 1. If you need changes, say no or press 2.")
+    else:
+        # Cancel the order
+        response.say("We're sorry about that. Your order has been cancelled. Goodbye.")
+        response.hangup()
+        
+    return Response(str(response), mimetype='text/xml')
