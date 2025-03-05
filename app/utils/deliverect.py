@@ -363,7 +363,7 @@ def get_location_webhook_urls(location_id):
         if not location or not location.webhook_base:
             # Use default URLs if location not found
             from app.config import BASE_URL
-            base_url = BASE_URL
+            base_url = "https://redbarsushi.pythonanywhere.com"
             # For non-existent locations, use the regular endpoints without the location prefix
             return {
                 "statusUpdateURL": f"{base_url}/order_status",
@@ -374,7 +374,7 @@ def get_location_webhook_urls(location_id):
                 "courierUpdateURL": f"{base_url}/courierUpdate"
             }
         else:
-            base_url = location.webhook_base
+            base_url = "https://redbarsushi.pythonanywhere.com"
             # For existing locations, use the location-specific endpoints
             return {
                 "statusUpdateURL": f"{base_url}/location/{location_id}/order_status",

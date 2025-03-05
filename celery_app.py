@@ -1,7 +1,5 @@
 # celery_app.py
 
-# Import your tasks so that Celery can discover them
-import tasks
 import os
 from celery import Celery, Task
 from app import create_app  # Import the Flask app factory
@@ -14,15 +12,16 @@ def make_celery(app):
     redis_url = "redis-13448.c280.us-central1-2.gce.redns.redis-cloud.com:13448"
 
     celery = Celery(
-        'tasks',
+        app.import_name,
         broker="redis://127.0.0.1:6379/0",   # Use Redis as the message broker
-        backend="redis://127.0.0.1:6379/0",
-        include=['tasks']   # Ensure Celery autodiscovers tasks in the tasks module
+        backend="redis://127.0.0.1:6379/0"
     )
 
     # Update Celery configuration with Flask's config
     celery.conf.update(app.config)
-    celery.autodiscover_tasks(['tasks'])
+    
+    # Set task module name
+    celery.conf.imports = ('tasks',)
 
     # Create a custom Task base that pushes the Flask app context
     class FlaskTask(Task):
