@@ -46,7 +46,7 @@ STRIPE_PRODUCT_ID = 'prod_QbXflydy7HavBH'
 # ------------------------------
 DELIVERECT_CLIENT_ID = 'w2ajqOd1CMUsRBPF'
 DELIVERECT_CLIENT_SECRET = 'byOTwZy7CvhgFgQBuvdGVZVcWoxlfTj1'
-DELIVERECT_API_URL = 'https://api.staging.deliverect.com/orders'
+DELIVERECT_API_URL = 'https://api.staging.deliverect.com/nextgen/order/66e88f33475a66c53e90e62b'
 
 # ------------------------------
 # Local File Paths
