@@ -18,3 +18,26 @@
  * Running on http://127.0.0.1:5000
  * Running on http://172.17.86.233:5000
 2025-03-03 17:37:48,799 - INFO - [33mPress CTRL+C to quit[0m
+2025-03-05 14:09:13,535 - INFO - Visit me at http://0.0.0.0:5555
+2025-03-05 14:09:13,550 - INFO - Broker: redis://127.0.0.1:6379/0
+2025-03-05 14:09:13,552 - INFO - Registered tasks: 
+['celery.accumulate',
+ 'celery.backend_cleanup',
+ 'celery.chain',
+ 'celery.chord',
+ 'celery.chord_unlock',
+ 'celery.chunks',
+ 'celery.group',
+ 'celery.map',
+ 'celery.starmap',
+ 'tasks.send_confirmation_sms_task',
+ 'tasks.send_order_status_update_task']
+2025-03-05 14:09:13,565 - INFO - Connected to redis://127.0.0.1:6379/0
+2025-03-05 14:09:14,603 - WARNING - Inspect method scheduled failed
+2025-03-05 14:09:14,604 - WARNING - Inspect method stats failed
+2025-03-05 14:09:14,606 - WARNING - Inspect method reserved failed
+2025-03-05 14:09:14,607 - WARNING - Inspect method registered failed
+2025-03-05 14:09:14,607 - WARNING - Inspect method active_queues failed
+2025-03-05 14:09:14,607 - WARNING - Inspect method active failed
+2025-03-05 14:09:14,608 - WARNING - Inspect method revoked failed
+2025-03-05 14:09:14,608 - WARNING - Inspect method conf failed

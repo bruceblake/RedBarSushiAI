@@ -33,10 +33,12 @@ def create_app(test_config=None):
     from app.routes.voice import voice_bp
     from app.routes.menu import menu_bp
     from app.routes.order import order_bp
+    from app.routes.location import location_bp
 
     app.register_blueprint(voice_bp)
     app.register_blueprint(menu_bp)
     app.register_blueprint(order_bp)
+    app.register_blueprint(location_bp)
 
     # Configure logging
     logging.basicConfig(
