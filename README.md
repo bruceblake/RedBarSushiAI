@@ -5,7 +5,7 @@ This repository implements a restaurant order processing system that integrates 
 - **Flask** for handling HTTP requests, Twilio voice calls, and webhooks.
 - **SQLAlchemy** for interacting with a MySQL database.
 - **Twilio** for voice and SMS messaging.
-- **OpenAI** (GPT-4) for natural language processing of spoken orders.
+- **OpenAI** (GPT-4o-2024-11-20) for natural language processing of spoken orders.
 - **Stripe** for creating payment links.
 - **Deliverect** for external order management.
 - **Celery** for background task processing.
@@ -81,7 +81,7 @@ Below is a detailed explanation of how the program works and how its components 
 - **Stripe Setup:**  
   The Stripe API key is set from credentials.  
 - **Payment Link Generation:**  
-  When an order is confirmed, the system calls Stripe’s API to create a price and a payment link. This link is then appended to the confirmation SMS message for customer payment.
+  When an order is confirmed, the system calls Stripe's API to create a price and a payment link. This link is then appended to the confirmation SMS message for customer payment.
 
 ### c. Twilio Integration
 
@@ -89,7 +89,7 @@ Below is a detailed explanation of how the program works and how its components 
   The Twilio client is configured using your account SID and auth token.
   
 - **Voice and SMS:**  
-  The application uses Twilio’s `VoiceResponse` to build XML responses for phone calls and uses the Twilio messaging API to send SMS (and optionally WhatsApp) messages.
+  The application uses Twilio's `VoiceResponse` to build XML responses for phone calls and uses the Twilio messaging API to send SMS (and optionally WhatsApp) messages.
 
 ---
 
@@ -98,7 +98,7 @@ Below is a detailed explanation of how the program works and how its components 
 ### a. Order Calculation and Confirmation
 
 - **analyze_user_input():**  
-  This function sends the customer’s spoken order to OpenAI’s GPT-4 to extract intent and order details in a structured format.
+  This function sends the customer's spoken order to OpenAI's GPT-4o-2024-11-20 to extract intent and order details in a structured format.
   
 - **Fuzzy Matching:**  
   Functions like `find_menu_item()` and `find_menu_item_any_status()` use Levenshtein distance to match spoken orders with menu items.
@@ -134,7 +134,7 @@ The system offloads long-running operations to background tasks using Celery. Tw
   - **Purpose:**  
     Generates a Stripe payment link, sends a confirmation SMS (and optionally a WhatsApp message), and saves the order to the database.
   - **Workflow:**  
-    This task runs in the background, ensuring that generating payment links and sending messages does not delay the customer’s call.
+    This task runs in the background, ensuring that generating payment links and sending messages does not delay the customer's call.
 
 - **send_order_status_update_task:**  
   - **Purpose:**  
@@ -159,7 +159,7 @@ The system offloads long-running operations to background tasks using Celery. Tw
   When a call is received via Twilio, this route gathers the caller's name and sets up session variables.
 
 - **/take_name and /main_menu Routes:**  
-  These routes capture the caller’s name and present options (e.g., to place an order, ask for the menu, or speak to a live person).
+  These routes capture the caller's name and present options (e.g., to place an order, ask for the menu, or speak to a live person).
 
 ### b. Order Taking Flow
 

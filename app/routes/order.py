@@ -290,7 +290,7 @@ def get_order_modifications(user_input, current_order_items):
         openai.api_key = OPENAI_API_KEY
         messages = [{"role": "system", "content": modification_prompt}]
         response_ai = openai.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-2024-11-20",
             messages=messages,
             max_tokens=300,
             temperature=0.0,
