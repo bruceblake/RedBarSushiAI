@@ -9,6 +9,20 @@ class Order(db.Model):
     message = db.Column(db.String(500), nullable=False)
     status = db.Column(db.String(20), default='NEW')
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+    location_id = db.Column(db.String(36), nullable=True)
 
     def __repr__(self):
         return f"<Order {self.id} - {self.sender} - {self.caller_name} - {self.message}>"
+
+class Location(db.Model):
+    __tablename__ = 'location'
+    id = db.Column(db.String(36), primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    status = db.Column(db.String(20), default='inactive')  # registered, active, inactive
+    webhook_base = db.Column(db.String(255), nullable=True)
+    api_key = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+    def __repr__(self):
+        return f"<Location {self.id} - {self.name} - {self.status}>"

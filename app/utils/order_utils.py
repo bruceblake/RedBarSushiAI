@@ -4,6 +4,7 @@ import Levenshtein
 from flask import session
 # Ensure this function is defined in your helpers module
 from app.utils.helpers import log_info
+from app.utils.menu_utils import validate_modifier_constraints, process_meal_deal
 
 # --- Analyze User Input using OpenAI ---
 
