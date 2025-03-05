@@ -2,18 +2,21 @@
 import logging
 import stripe
 import requests
-from celery_app import celery, application
-from app import db, twilio_client
+from app import db, twilio_client, create_app
 from app.models import Order
 from app.utils.helpers import log_info, commit_with_retry
 import app.config as config
+
+# Import celery instance after it's fully defined
+from celery_app import celery
 
 TWILIO_PHONE_NUMBER = config.TWILIO_NUMBER
 OWNER_WHATSAPP_NUMBER = 'whatsapp:+17032972632'
 
 @celery.task(name="tasks.send_confirmation_sms_task")
 def send_confirmation_sms_task(order_id, order_message, sender, caller_name, bill_amount, order_items, location_id=None):
-    with application.app_context():
+    app = create_app()
+    with app.app_context():
         text_msg = order_message
         
         # Add location to the message if provided
@@ -102,7 +105,8 @@ def send_confirmation_sms_task(order_id, order_message, sender, caller_name, bil
 
 @celery.task(name="tasks.send_order_status_update_task")
 def send_order_status_update_task(order_id, status_message, location_id=None):
-    with application.app_context():
+    app = create_app()
+    with app.app_context():
         order = db.session.get(Order, order_id)
         if not order:
             logging.info(f"Order {order_id} not found for status update.")
