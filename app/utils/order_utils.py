@@ -44,7 +44,7 @@ def analyze_user_input(user_input):
     ]
     try:
         response = openai.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-2024-11-20",
             messages=messages,
             max_tokens=500,
             temperature=0.0
