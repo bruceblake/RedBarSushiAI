@@ -287,22 +287,50 @@ def get_order_modifications(user_input, current_order_items):
     try:
         import openai
         from app.config import OPENAI_API_KEY
+        
+        # Verify API key is available
+        if not OPENAI_API_KEY:
+            logging.error("OpenAI API key not found")
+            return {}
+            
         openai.api_key = OPENAI_API_KEY
         messages = [{"role": "system", "content": modification_prompt}]
+        
+        # Use a currently available model
         response_ai = openai.chat.completions.create(
-            model="gpt-4o-2024-11-20",
+            model="o3-mini-2025-01-31",  # Use a model that exists
             messages=messages,
             max_tokens=300,
             temperature=0.0,
             timeout=15
         )
+        
         reply = response_ai.choices[0].message.content.strip()
-        modifications = json.loads(reply)
-        log_info(f"Received modifications from AI: {modifications}")
-        return modifications
+        
+        # Add safeguards for JSON parsing
+        try:
+            modifications = json.loads(reply)
+            logging.info(f"Received modifications from AI: {modifications}")
+            
+            # Validate expected structure
+            if not isinstance(modifications, dict) or not all(k in modifications for k in ['additions', 'removals']):
+                logging.warning(f"Invalid modification structure: {modifications}")
+                return {"additions": [], "removals": []}
+                
+            return modifications
+        except json.JSONDecodeError as json_err:
+            logging.error(f"Failed to parse AI response as JSON: {json_err}")
+            return {"additions": [], "removals": []}
+            
+    except openai.error.Timeout:
+        logging.error("OpenAI API request timed out")
+        return {"additions": [], "removals": []}
+    except openai.error.APIError as api_err:
+        logging.error(f"OpenAI API error: {api_err}")
+        return {"additions": [], "removals": []}
     except Exception as e:
-        log_info(f"Modification AI error: {e}")
-        return {}
+        logging.error(f"Unexpected error in order modification: {e}")
+        return {"additions": [], "removals": []}
 
 def apply_modifications(current_order, modifications):
     """Apply the modifications to the current order"""
