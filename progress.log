@@ -100,3 +100,13 @@ ModuleNotFoundError: No module named 'tasks'
 2025-03-05 14:20:12,306 - WARNING - Inspect method conf failed
 2025-03-05 14:20:12,306 - WARNING - Inspect method revoked failed
 2025-03-05 14:20:12,307 - WARNING - Inspect method registered failed
+2025-03-06 00:16:42,319 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.17.86.233:5000
+2025-03-06 00:16:42,320 - INFO - [33mPress CTRL+C to quit[0m
+2025-03-06 00:18:11,562 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.17.86.233:5000
+2025-03-06 00:18:11,563 - INFO - [33mPress CTRL+C to quit[0m

@@ -64,18 +64,18 @@ def analyze_user_input(user_input):
 
 def user_said_yes(u):
     """
-    Checks if the user’s input contains an affirmative phrase.
+    Checks if the user's input contains an affirmative phrase.
     """
     affirmatives = ["yes", "yeah", "yep", "correct",
-                    "that's right", "sure", "ok", "okay"]
+                    "that's right", "sure", "ok", "okay", "sounds good"]
     return any(a in u.lower() for a in affirmatives)
 
 
 def user_said_no(u):
     """
-    Checks if the user’s input contains a negative phrase.
+    Checks if the user's input contains a negative phrase.
     """
-    negatives = ["no", "nope", "nah", "not correct", "that's not right"]
+    negatives = ["no", "nope", "nah", "not correct", "that's not right", "that's incorrect", "make changes", "need changes"]
     return any(n in u.lower() for n in negatives)
 
 
