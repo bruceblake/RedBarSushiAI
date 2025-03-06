@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # app/config.py
 import os
 
@@ -118,4 +117,3 @@ MENU_FILE_PATH = "/home/pegasus/mysite/RedBarSushiAI/redbar_menu_data.json"
 # Base URL Configuration
 # ------------------------------
 BASE_URL = os.environ.get('BASE_URL', 'https://redbarsushi.pythonanywhere.com')
->>>>>>> 84aac7d3d19a422fd980d34d8b45a921bd24f481
