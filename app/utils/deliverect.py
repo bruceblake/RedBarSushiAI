@@ -363,7 +363,7 @@ def get_location_webhook_urls(location_id):
         if not location or not location.webhook_base:
             # Use default URLs if location not found
             from app.config import BASE_URL
-            base_url = "https://redbarsushi.pythonanywhere.com"
+            base_url = "https://pegasus.pythonanywhere.com"
             # For non-existent locations, use the regular endpoints without the location prefix
             return {
                 "statusUpdateURL": f"{base_url}/order_status",
