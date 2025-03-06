@@ -16,47 +16,64 @@ def analyze_user_input(user_input):
     """
     import openai
     from app.config import OPENAI_API_KEY
-    openai.api_key = OPENAI_API_KEY
-
-    log_info(f"Analyzing user input for intent/entities: {user_input}")
-
-    system_prompt = (
-        "You are an AI assistant for a restaurant. "
-        "Analyze the customer's message and do two things:\n"
-        "1) Provide an intent from [order_food, ask_menu, provide_name, list_menu_items, "
-        "get_menu_item_price, describe_menu_item, modify_order, other].\n"
-        "2) If intent is 'order_food', parse the items in a JSON format with the following structure:\n"
-        "{\n"
-        '  "intent": "order_food",\n'
-        '  "menu_items": [\n'
-        '    {"name": "Chicken Sate", "quantity": 1, "modifier": [\n'
-        '       {"name": "White Rice", "quantity": 1, "price": 1.50}\n'
-        '     ], "price": 8.00}\n'
-        '  ],\n'
-        '  "caller_name": "John Doe"\n'
-        "}\n"
-        "Make sure to include any modifiers and their quantities. "
-        "Modifiers should be attached to the base food item. Only output valid JSON and nothing else."
-        "If intent is unknown but there are common food items then the intent is most likely order_food"
-    )
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_input}
-    ]
+    
     try:
-        response = openai.chat.completions.create(
-            model="gpt-4o-2024-11-20",
-            messages=messages,
-            max_tokens=500,
-            temperature=0.0
+        openai.api_key = OPENAI_API_KEY
+        log_info(f"API Key: {'Valid' if OPENAI_API_KEY else 'Missing'}")
+        
+        log_info(f"Analyzing user input for intent/entities: {user_input}")
+
+        system_prompt = (
+            "You are an AI assistant for a restaurant. "
+            "Analyze the customer's message and do two things:\n"
+            "1) Provide an intent from [order_food, ask_menu, provide_name, list_menu_items, "
+            "get_menu_item_price, describe_menu_item, modify_order, other].\n"
+            "2) If intent is 'order_food', parse the items in a JSON format with the following structure:\n"
+            "{\n"
+            '  "intent": "order_food",\n'
+            '  "menu_items": [\n'
+            '    {"name": "Chicken Sate", "quantity": 1, "modifier": [\n'
+            '       {"name": "White Rice", "quantity": 1, "price": 1.50}\n'
+            '     ], "price": 8.00}\n'
+            '  ],\n'
+            '  "caller_name": "John Doe"\n'
+            "}\n"
+            "Make sure to include any modifiers and their quantities. "
+            "Modifiers should be attached to the base food item. Only output valid JSON and nothing else."
+            "If intent is unknown but there are common food items then the intent is most likely order_food"
         )
-        reply = response.choices[0].message.content.strip()
-        data = json.loads(reply)
-        log_info(f"OpenAI analysis: {data}")
-        return data
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input}
+        ]
+        
+        try:
+            log_info("Making OpenAI API call...")
+            response = openai.chat.completions.create(
+                model="gpt-4o-2024-11-20",
+                messages=messages,
+                max_tokens=500,
+                temperature=0.0
+            )
+            log_info("OpenAI API call successful")
+            
+            reply = response.choices[0].message.content.strip()
+            log_info(f"OpenAI raw response: {reply}")
+            
+            data = json.loads(reply)
+            log_info(f"OpenAI analysis: {data}")
+            return data
+            
+        except json.JSONDecodeError as je:
+            log_info(f"JSON decode error: {je}, Response: {reply}")
+            return {"intent": "other"}
+            
+        except Exception as e:
+            log_info(f"OpenAI call error: {str(e)}")
+            return {"intent": "other"}
     except Exception as e:
-        log_info(f"OpenAI error: {e}")
+        log_info(f"Overall OpenAI error: {str(e)}")
         return {"intent": "other"}
 
 
@@ -64,18 +81,18 @@ def analyze_user_input(user_input):
 
 def user_said_yes(u):
     """
-    Checks if the user’s input contains an affirmative phrase.
+    Checks if the user's input contains an affirmative phrase.
     """
     affirmatives = ["yes", "yeah", "yep", "correct",
-                    "that's right", "sure", "ok", "okay"]
+                    "that's right", "sure", "ok", "okay", "sounds good"]
     return any(a in u.lower() for a in affirmatives)
 
 
 def user_said_no(u):
     """
-    Checks if the user’s input contains a negative phrase.
+    Checks if the user's input contains a negative phrase.
     """
-    negatives = ["no", "nope", "nah", "not correct", "that's not right"]
+    negatives = ["no", "nope", "nah", "not correct", "that's not right", "that's incorrect", "make changes", "need changes"]
     return any(n in u.lower() for n in negatives)
 
 
