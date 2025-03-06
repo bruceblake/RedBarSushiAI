@@ -142,7 +142,7 @@ def load_menu_data(force_refresh=False, location_id=None):
             filename = os.path.basename(base_path)
             file_path = os.path.join(directory, f"{location_id}_{filename}")
         else:
-            file_path = current_app.config.get('MENU_FILE_PATH', MENU_FILE_PATH)
+            file_path = MENU_FILE_PATH
     except:
         # If not in app context, fall back to module config
         if location_id:
