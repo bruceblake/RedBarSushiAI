@@ -12,8 +12,9 @@ def make_celery(app):
     redis_url = "redis-13448.c280.us-central1-2.gce.redns.redis-cloud.com:13448"
 
     celery = Celery(
-        app.import_name,
-        broker="redis://localhost:6379/0",   # Use Redis as the message broker
+        "tasks" ,
+        broker="redis://localhost:6379/0",
+        backend="redis://localhost:6379/0"# Use Redis as the message broker
     )
 
     # Update Celery configuration with Flask's config
