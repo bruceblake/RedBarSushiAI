@@ -13,8 +13,7 @@ def make_celery(app):
 
     celery = Celery(
         "tasks" ,
-        broker="redis://127.0.0.1:6379",
-        backend="redis://127.0.0.1:6379"# Use Redis as the message broker
+        broker="amqps://mvfujzvj:qJH0m03hRpaG31WqfMoU4enFbI_z28z_@horse.lmq.cloudamqp.com/mvfujzvj",
     )
 
     # Update Celery configuration with Flask's config
