@@ -100,3 +100,8 @@ ModuleNotFoundError: No module named 'tasks'
 2025-03-05 14:20:12,306 - WARNING - Inspect method conf failed
 2025-03-05 14:20:12,306 - WARNING - Inspect method revoked failed
 2025-03-05 14:20:12,307 - WARNING - Inspect method registered failed
+2025-03-06 01:05:32,712 - WARNING -  * Debugger is active!
+2025-03-06 01:05:32,712 - INFO -  * Debugger PIN: 250-185-618
+2025-03-06 01:08:14,905 - INFO -  * Detected change in '/home/proxyie/MySoftware/RedBarSushiAI/app/config.py', reloading
+2025-03-06 01:08:16,339 - WARNING -  * Debugger is active!
+2025-03-06 01:08:16,339 - INFO -  * Debugger PIN: 250-185-618
