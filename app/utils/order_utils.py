@@ -37,6 +37,7 @@ def analyze_user_input(user_input):
         "}\n"
         "Make sure to include any modifiers and their quantities. "
         "Modifiers should be attached to the base food item. Only output valid JSON and nothing else."
+        "If intent is unknown but there are common food items then the intent is most likely order_food"
     )
 
     messages = [
