@@ -504,7 +504,7 @@ def register_channel_route():
         
     # Get base URL from configuration instead of hardcoding
     from app.config import BASE_URL
-    base_url = BASE_URL or "https://yourdomain.com"
+    base_url = "https://pegasus.pythonanywhere.com"
     
     response_body = {
         "statusUpdateURL": f"{base_url}/order_status",
