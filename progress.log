@@ -116,3 +116,10 @@ ModuleNotFoundError: No module named 'tasks'
 2025-03-06 01:15:06,382 - WARNING -  * Debugger is active!
 2025-03-06 01:15:06,382 - INFO -  * Debugger PIN: 250-185-618
 2025-03-06 01:25:15,834 - INFO -  * Detected change in '/home/proxyie/MySoftware/RedBarSushiAI/app/config.py', reloading
+2025-03-06 01:25:17,670 - WARNING -  * Debugger is active!
+2025-03-06 01:25:17,671 - INFO -  * Debugger PIN: 250-185-618
+2025-03-15 20:24:27,086 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.17.86.233:5000
+2025-03-15 20:24:27,086 - INFO - [33mPress CTRL+C to quit[0m
