@@ -288,6 +288,7 @@ def get_order_modifications(user_input, current_order_items=None):
         current_order_info +
         "\nThe customer says: \"" + user_input + "\".\n"
         "Output a JSON object with two keys: 'additions' and 'removals'. Each is a list of items with 'name', 'quantity', and optionally 'modifier' (with each modifier having 'name' and 'quantity')."
+        "\nIMPORTANT: Return ONLY valid JSON with double quotes, not single quotes. Do not include any explanatory text."
     )
     
     # For testing purposes, handle simple cases directly
@@ -331,9 +332,16 @@ def get_order_modifications(user_input, current_order_items=None):
         reply = response_ai.choices[0].message.content.strip()
         log_info(f"Raw OpenAI response: {reply}")
         
+        # Extract JSON from the response
+        json_text = extract_json_from_text(reply)
+        log_info(f"Extracted JSON text: {json_text}")
+        
         # Add safeguards for JSON parsing
         try:
-            modifications = json.loads(reply)
+            # Try to fix common JSON issues before parsing
+            json_text = json_text.replace("'", '"')  # Replace single quotes with double quotes
+            
+            modifications = json.loads(json_text)
             log_info(f"Received modifications from AI: {modifications}")
             
             # Validate expected structure
@@ -344,11 +352,36 @@ def get_order_modifications(user_input, current_order_items=None):
             return modifications
         except json.JSONDecodeError as json_err:
             log_info(f"Failed to parse AI response as JSON: {json_err}")
-            return {"additions": [], "removals": []}
+            # Fallback to a simple pattern-based extraction
+            if "add" in lower_input:
+                log_info("Falling back to simple pattern matching for additions")
+                return {"additions": [{"name": user_input, "quantity": 1, "modifier": []}], "removals": []}
+            elif "remove" in lower_input or "cancel" in lower_input:
+                log_info("Falling back to simple pattern matching for removals")
+                return {"additions": [], "removals": [{"name": user_input, "quantity": 1}]}
+            else:
+                return {"additions": [], "removals": []}
             
     except Exception as e:
         log_info(f"Unexpected error in order modification: {e}")
         return {"additions": [], "removals": []}
+
+def extract_json_from_text(text):
+    """Extract JSON object from text that might contain markdown or other formatting"""
+    import re
+    
+    # Try to find JSON between triple backticks
+    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
+    if json_match:
+        return json_match.group(1).strip()
+    
+    # Try to find JSON between curly braces
+    json_match = re.search(r'(\{[\s\S]*\})', text)
+    if json_match:
+        return json_match.group(1).strip()
+    
+    # Return the original text if no pattern matches
+    return text
 
 def apply_modifications(current_order, modifications):
     """Apply the modifications to the current order"""

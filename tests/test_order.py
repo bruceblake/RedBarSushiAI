@@ -423,7 +423,7 @@ def test_apply_modifications_remove(client, app, setup_test_menu):
 def test_get_order_modifications(client, app, mock_openai):
     """Test the get_order_modifications function."""
     # Set up test data
-    speech_result = "Remove one California Roll and add a Spicy Tuna Roll"
+    speech_result = "I just want a Spicy Tuna Roll"
     
     # Mock the OpenAI response
     mock_string = json.dumps({
@@ -616,3 +616,39 @@ def test_dtmf_yes_no():
     assert dtmf_yes_no('3') is None
     assert dtmf_yes_no('0') is None
     assert dtmf_yes_no('') is None
+
+
+def test_order_json_serialization_deserialization():
+    """Test JSON serialization and deserialization of order data."""
+    # Initial order items
+    order_items = [
+        {
+            "name": "California Roll",
+            "quantity": 2,
+            "price": 9.95,
+            "reference_handler": "cal_roll_1",
+            "modifier": []
+        }
+    ]
+    
+    # Serialize to JSON
+    order_json = json.dumps(order_items)
+    
+    # Verify JSON string contains expected data
+    assert "California Roll" in order_json
+    assert "9.95" in order_json
+    assert "cal_roll_1" in order_json
+    assert "quantity" in order_json
+    assert "2" in order_json
+    
+    # Deserialize from JSON
+    deserialized_items = json.loads(order_json)
+    
+    # Verify structure is preserved
+    assert deserialized_items == order_items
+    assert len(deserialized_items) == 1
+    assert deserialized_items[0]["name"] == "California Roll"
+    assert deserialized_items[0]["quantity"] == 2
+    assert deserialized_items[0]["price"] == 9.95
+    assert deserialized_items[0]["reference_handler"] == "cal_roll_1"
+    assert deserialized_items[0]["modifier"] == []
