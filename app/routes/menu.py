@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify
 from app.utils.menu_utils import write_menu_file, load_menu_data
 import logging
+from app.utils.helpers import log_info, commit_with_retry
 
 menu_bp = Blueprint('menu', __name__)
 logger = logging.getLogger(__name__)
@@ -10,6 +11,7 @@ logger = logging.getLogger(__name__)
 @menu_bp.route('/menu_update', methods=['POST'])
 def menu_update():
     data = request.get_json()
+    log_info(f"data: {data}")
     if not data:
         return jsonify({"error": "No data provided"}), 400
     
