@@ -59,7 +59,7 @@ def take_order():
         return Response(str(response), mimetype='text/xml')
 
     data = load_menu_data()
-    # Check for items with availabilities field instead of available field
+    # We now consider all items with names as available - this is a crucial fix
     available_items = []
     for item in data.get("items", []):
         # Skip items with missing names
@@ -67,8 +67,10 @@ def take_order():
             continue
             
         # Debug log to see what's in the items
-        logging.info(f"DEBUG Item {item.get('name')}: has availabilities: {'availabilities' in item}, snoozed: {item.get('snoozed', False)}")
-        if "availabilities" in item and not item.get("snoozed", False):
+        logging.info(f"DEBUG Item {item.get('name')}: has name, price: {item.get('price')}")
+        
+        # Any item with a name and not explicitly snoozed is available
+        if not item.get("snoozed", False):
             available_items.append(item)
     response = VoiceResponse()
     if not available_items:
@@ -104,10 +106,10 @@ def take_order():
             response.hangup()
             return Response(str(response), mimetype='text/xml')
         # Log matched item details for debugging
-        logger.info(f"Matched item '{matched_item.get('name')}': availabilities present: {'availabilities' in matched_item}, snoozed: {matched_item.get('snoozed', False)}")
+        logger.info(f"Matched item '{matched_item.get('name')}': price: {matched_item.get('price')}, snoozed: {matched_item.get('snoozed', False)}")
         
-        # Check if item has availabilities but is snoozed
-        if matched_item.get("snoozed", False) or not matched_item.get("availabilities"):
+        # Only check if item is explicitly snoozed
+        if matched_item.get("snoozed", False):
             response.say(
                 f"Sorry, {matched_item['name']} is not available right now. Goodbye!")
             response.hangup()

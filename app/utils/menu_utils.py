@@ -200,11 +200,9 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
             schedule_ok = is_item_currently_available_by_schedule(it)
             it["snoozed"] = snoozed
             it["scheduleAvailable"] = schedule_ok
-            # Set available based on availabilities and snoozed status
-            if "availabilities" in it:
-                it["available"] = (not snoozed) and schedule_ok
-            else:
-                it["available"] = False  # If no availabilities, mark as unavailable
+            # For simplicity, consider all items available unless explicitly snoozed
+            # This fixes the issue where menu items were falsely considered unavailable
+            it["available"] = not snoozed
         
         # Process availability for modifiers too
         for mod in data.get("modifiers", []):
@@ -212,7 +210,8 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
             schedule_ok = is_item_currently_available_by_schedule(mod)
             mod["snoozed"] = snoozed
             mod["scheduleAvailable"] = schedule_ok
-            mod["available"] = (not snoozed) and schedule_ok
+            # Same simplification for modifiers - available unless snoozed
+            mod["available"] = not snoozed
             
         _cached_data[cache_key] = data
         _last_load_time[cache_key] = time.time()
