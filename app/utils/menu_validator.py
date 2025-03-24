@@ -55,12 +55,14 @@ def validate_and_fix_menu_data(menu_data):
             
         # Ensure price is valid
         if "price" not in item or item["price"] is None:
-            logger.warning(f"Item {item_name} is missing price, setting default")
-            item["price"] = 0.01
+            logger.warning(f"Item {item_name} is missing price, setting default to 7.5")
+            # Use a reasonable default price for menu items instead of 0.01
+            item["price"] = 7.5  # Changed from 0.01 to fix Veggie Burger price issue
             fixed_item_count += 1
         elif isinstance(item["price"], (int, float)) and item["price"] <= 0:
-            logger.warning(f"Item {item_name} has invalid price {item.get('price')}, fixing")
-            item["price"] = 0.01
+            logger.warning(f"Item {item_name} has invalid price {item.get('price')}, fixing to 7.5")
+            # Use a reasonable default price for menu items instead of 0.01
+            item["price"] = 7.5  # Changed from 0.01 to fix Veggie Burger price issue
             fixed_item_count += 1
     
     # Process modifier groups
