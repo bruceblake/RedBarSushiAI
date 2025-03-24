@@ -33,13 +33,15 @@ def analyze_user_input(user_input):
             '  "intent": "order_food",\n'
             '  "menu_items": [\n'
             '    {"name": "Chicken Sate", "quantity": 1, "modifier": [\n'
-            '       {"name": "White Rice", "quantity": 1, "price": 1.50}\n'
-            '     ], "price": 8.00}\n'
+            '       {"name": "White Rice", "quantity": 1}\n'
+            '     ]}\n'
             '  ],\n'
             '  "caller_name": "John Doe"\n'
             "}\n"
-            "Make sure to include any modifiers and their quantities. "
-            "Modifiers should be attached to the base food item. Only output valid JSON and nothing else."
+            "IMPORTANT: DO NOT include prices in the response. Our system will automatically look up the "
+            "correct prices from our menu database. If you include prices, they will be ignored and may cause problems.\n"
+            "Make sure to include items and any modifiers with their quantities, but no prices. "
+            "Modifiers should be attached to the base food item. Only output valid JSON and nothing else. "
             "If intent is unknown but there are common food items then the intent is most likely order_food"
         )
 
