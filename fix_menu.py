@@ -50,7 +50,11 @@ def fix_menu_file(file_path):
                 fixed_item_count += 1
                 
             # Ensure price is a valid number
-            if item.get('price', 0) <= 0:
+            if 'price' not in item or item['price'] is None:
+                logger.warning(f"Item {item_name} is missing price, setting default...")
+                item['price'] = 0.01
+                fixed_item_count += 1
+            elif isinstance(item['price'], (int, float)) and item['price'] <= 0:
                 logger.warning(f"Item {item_name} has zero or negative price: {item.get('price')}, fixing...")
                 # Set a default price if needed
                 item['price'] = 0.01
