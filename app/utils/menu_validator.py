@@ -33,7 +33,7 @@ def validate_and_fix_menu_data(menu_data):
     if "modifierGroups" not in menu_data:
         menu_data["modifierGroups"] = []
     
-    # We'll use a simpler approach to avoid recursion
+    # Build map of existing items for reference
     existing_items = {}
     
     # Load common prices for fallback
@@ -41,18 +41,56 @@ def validate_and_fix_menu_data(menu_data):
     
     # Process items
     fixed_item_count = 0
+    
+    # First pass - build map of existing items by name for reference preservation
+    for item in menu_data.get("items", []):
+        if item.get("name"):
+            item_name_lower = item.get("name", "").lower()
+            existing_items[item_name_lower] = item
+            
+            # Also map by _id if present (handles different JSON formats)
+            if item.get("_id"):
+                existing_items[f"id:{item.get('_id')}"] = item
+            if item.get("id"):
+                existing_items[f"id:{item.get('id')}"] = item
+    
+    # Second pass - fix all issues with items
     for item in menu_data.get("items", []):
         item_id = item.get("id")
         item_name = item.get("name", "unknown")
         item_name_lower = item_name.lower()
         
+        # Track if we've fixed anything (for logging)
+        item_fixed = False
+        
+        # Fix missing name - critical for functionality
+        if not item.get("name"):
+            # Try to get name from reference_handler if available
+            ref = item.get("reference_handler", "")
+            if ref:
+                item["name"] = f"Item-{ref[-8:]}"
+            elif item.get("_id"):
+                item["name"] = f"Item-{item.get('_id')[-8:]}"
+            elif item.get("id"):
+                item["name"] = f"Item-{item.get('id')[-8:]}"
+            else:
+                item["name"] = f"Unnamed Item {menu_data.get('items', []).index(item) + 1}"
+            logger.warning(f"[MENU-FIX] Fixed missing name for item: '{item.get('name')}'")
+            item_fixed = True
+        
         # Fix missing item ID
         if not item_id:
-            # Generate a consistent ID based on name
-            new_item_id = f"ITEM-{hashlib.md5(item_name.encode()).hexdigest()[:8]}"
-            logger.warning(f"Item '{item_name}' is missing ID, setting to: {new_item_id}")
-            item["id"] = new_item_id
-            fixed_item_count += 1
+            # Check if _id exists but id doesn't (document format conversion)
+            if item.get("_id"):
+                # Use _id as id for consistency
+                item["id"] = item.get("_id")
+                logger.info(f"[MENU-FIX] Converted _id to id for: '{item_name}'")
+            else:
+                # Generate a consistent ID based on name
+                new_item_id = f"ITEM-{hashlib.md5(item_name.encode()).hexdigest()[:8]}"
+                logger.warning(f"[MENU-FIX] Item '{item_name}' is missing ID, setting to: {new_item_id}")
+                item["id"] = new_item_id
+            item_fixed = True
         
         # Fix reference handler if missing - prioritize preserving existing reference handlers
         if not item.get("reference_handler"):
@@ -60,19 +98,19 @@ def validate_and_fix_menu_data(menu_data):
             if item_name_lower in existing_items and existing_items[item_name_lower].get("reference_handler"):
                 # Preserve the existing reference handler
                 item["reference_handler"] = existing_items[item_name_lower]["reference_handler"]
-                logger.info(f"Preserved existing reference_handler for {item_name}")
+                logger.info(f"[MENU-FIX] Preserved existing reference_handler for {item_name}")
             # Check common prices as a fallback
             elif any(key == item_name_lower or key in item_name_lower for key in common_prices.keys()):
                 for key, price_info in common_prices.items():
                     if key == item_name_lower or key in item_name_lower:
                         item["reference_handler"] = price_info.get("reference_handler", f"FB-{item_name_lower[:8]}")
-                        logger.info(f"Set reference_handler for {item_name} to common price entry: {item['reference_handler']}")
+                        logger.info(f"[MENU-FIX] Set reference_handler for {item_name} to common price entry: {item['reference_handler']}")
                         break
             # Last resort: generate a new reference handler
             else:
                 item["reference_handler"] = generate_consistent_reference_id(item_name)
-                logger.warning(f"Item {item_name} is missing reference_handler, setting to: {item['reference_handler']}")
-            fixed_item_count += 1
+                logger.warning(f"[MENU-FIX] Item {item_name} is missing reference_handler, setting to: {item['reference_handler']}")
+            item_fixed = True
             
         # Ensure price is valid - prioritize preserving existing prices
         if "price" not in item or item["price"] is None or (isinstance(item["price"], (int, float)) and item["price"] <= 0):
@@ -80,17 +118,32 @@ def validate_and_fix_menu_data(menu_data):
             if item_name_lower in existing_items and existing_items[item_name_lower].get("price"):
                 # Preserve the existing price
                 item["price"] = existing_items[item_name_lower]["price"]
-                logger.info(f"Preserved existing price for {item_name}: {item['price']}")
+                logger.info(f"[MENU-FIX] Preserved existing price for {item_name}: {item['price']}")
             # Check common prices as a fallback
             elif any(key == item_name_lower or key in item_name_lower for key in common_prices.keys()):
                 for key, price_info in common_prices.items():
                     if key == item_name_lower or key in item_name_lower:
                         item["price"] = price_info.get("price", 7.5)
-                        logger.info(f"Set price for {item_name} to common price: {item['price']}")
+                        logger.info(f"[MENU-FIX] Set price for {item_name} to common price: {item['price']}")
                         break
             else:
-                logger.warning(f"Item {item_name} has missing or invalid price, setting default to 7.5")
+                logger.warning(f"[MENU-FIX] Item {item_name} has missing or invalid price, setting default to 7.5")
                 item["price"] = 7.5  # Default price
+            item_fixed = True
+            
+        # Ensure description exists (can be empty)
+        if "description" not in item:
+            item["description"] = ""
+            item_fixed = True
+            
+        # Ensure availability is properly initialized
+        if "available" not in item:
+            # Default to available unless explicitly snoozed
+            item["available"] = not item.get("snoozed", False)
+            item_fixed = True
+            
+        # Track total fixes
+        if item_fixed:
             fixed_item_count += 1
     
     # Process modifier groups

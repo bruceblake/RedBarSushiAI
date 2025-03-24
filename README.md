@@ -47,22 +47,35 @@ Below is a detailed explanation of how the program works and how its components 
   - `write_menu_file(all_items_data)`: Saves updated menu data to the file.  
   - `load_menu_data(force_refresh=False)`: Loads (and caches) menu data to minimize disk reads.
 
-### b. Parsing Functions
+### b. Menu Item Matching for Voice Orders
+
+The system uses several strategies to match spoken menu items to the actual menu:
+
+- **Name Variants Dictionary:**  
+  During menu processing, common variations are automatically generated (e.g., "hamburger" → "Burger").
+
+- **Multi-Strategy Matching:**  
+  When a customer orders an item, the system tries to find it using:
+  1. Direct lookup in name variants dictionary
+  2. Exact case-insensitive matching
+  3. Normalized Levenshtein distance for fuzzy matching
+  4. Substring matching
+  5. Word-level matching
+  
+This ensures that even if a customer uses different wording than what's in the menu (saying "burger" instead of "hamburger" or "fries" instead of "french fries"), the system can still find the correct item.
+
+### c. Parsing Functions
 
 - **Availability and Snooze Checks:**  
   Functions like `parse_utc_timestamp()`, `is_item_snoozed_timebased()`, and `is_item_currently_available_by_schedule()` ensure that each menu item is available based on its schedule and whether it has been "snoozed."
 
-- **parse_product():**  
-  This recursive function processes each product in the menu data. It distinguishes among three product types:
+- **process_deliverect_menu():**  
+  This function processes menu data from Deliverect, preserving exact PLUs (reference handlers) and creating name variants for common voice orders. It handles:
   
-  - **Product Type 1 (Standard Items):**  
-    Processes normal menu items, including any nested sub-products.
-  
-  - **Product Type 2 (Modifiers):**  
-    Processes modifiers such as extra cheese or bacon.
-  
-  - **Product Type 3 (Modifier Groups):**  
-    Processes modifier groups and iterates over `"subProducts"` to recursively parse nested modifiers. For each modifier in a group, it sets a `parent_group_id` and stores the modifier in a global lookup (`GLOBAL_MODIFIERS`).
+  - Standard menu items with prices and availability
+  - Modifier groups with min/max constraints
+  - Name variants for improved voice recognition
+  - Availability schedules
 
 ---
 

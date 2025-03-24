@@ -44,12 +44,33 @@ def get_common_prices():
         
         # Core fallback items (only used if menu loading completely fails)
         fallback = {
-            "hamburger": {"price": 8.0, "reference_handler": "BRG-01"},
-            "veggie burger": {"price": 7.5, "reference_handler": "BRG-02"}, 
-            "cheeseburger": {"price": 8.5, "reference_handler": "BRG-03"},
-            "french fries": {"price": 2.0, "reference_handler": "P-FRS-S"},
-            "coca cola": {"price": 4.0, "reference_handler": "DRK-01"},
-            "diet coke": {"price": 4.0, "reference_handler": "DRK-02"},
+            # Burgers
+            "hamburger": {"price": 8.0, "reference_handler": "BRG-01", "full_name": "Hamburger"},
+            "burger": {"price": 8.0, "reference_handler": "BRG-01", "full_name": "Hamburger"},
+            "veggie burger": {"price": 7.5, "reference_handler": "BRG-02", "full_name": "Veggie Burger"}, 
+            "cheeseburger": {"price": 8.5, "reference_handler": "BRG-03", "full_name": "Cheeseburger"},
+            
+            # Sides
+            "french fries": {"price": 2.0, "reference_handler": "P-FRS-S", "full_name": "French Fries"},
+            "fries": {"price": 2.0, "reference_handler": "P-FRS-S", "full_name": "French Fries"},
+            "side": {"price": 3.5, "reference_handler": "SIDE-01", "full_name": "Side Dish"},
+            "salad": {"price": 6.0, "reference_handler": "SLD-001", "full_name": "Garden Salad"},
+            "rice": {"price": 2.5, "reference_handler": "SIDE-03", "full_name": "Steamed Rice"},
+            "noodles": {"price": 4.0, "reference_handler": "SIDE-04", "full_name": "Noodles"},
+            
+            # Drinks
+            "coca cola": {"price": 4.0, "reference_handler": "DRK-01", "full_name": "Coca Cola"},
+            "coke": {"price": 4.0, "reference_handler": "DRK-01", "full_name": "Coca Cola"},
+            "diet coke": {"price": 4.0, "reference_handler": "DRK-02", "full_name": "Diet Coke"},
+            "drink": {"price": 2.0, "reference_handler": "DRK-GEN", "full_name": "Soft Drink"},
+            "soda": {"price": 2.0, "reference_handler": "DRK-GEN", "full_name": "Soda"},
+            "water": {"price": 0.0, "reference_handler": "DRK-WAT", "full_name": "Water"},
+            
+            # Extra categories for common items
+            "chicken": {"price": 6.5, "reference_handler": "ENT-CHK", "full_name": "Chicken Entree"},
+            "beef": {"price": 8.0, "reference_handler": "ENT-BEEF", "full_name": "Beef Entree"},
+            "fish": {"price": 9.0, "reference_handler": "ENT-FISH", "full_name": "Fish Entree"},
+            "sandwich": {"price": 6.5, "reference_handler": "SND-GEN", "full_name": "Sandwich"}
         }
         
         # Try to load actual prices from menu data
@@ -79,8 +100,24 @@ def get_common_prices():
                 # Store the item info by name for exact matching
                 result[item_name] = {
                     "price": price,
-                    "reference_handler": ref_handler
+                    "reference_handler": ref_handler,
+                    "full_name": item.get('name', '')  # Store original case
                 }
+                
+                # Add common alternates to handle voice recognition variants
+                # Example: "hamburger" when menu has "Hamburger" 
+                if "burger" in item_name and "hamburger" not in result:
+                    result["hamburger"] = {
+                        "price": price,
+                        "reference_handler": ref_handler,
+                        "full_name": item.get('name', '')
+                    }
+                if "french fries" in item_name and "fries" not in result:
+                    result["fries"] = {
+                        "price": price,
+                        "reference_handler": ref_handler,
+                        "full_name": item.get('name', '')
+                    }
                 
                 # Also store name fragments for fuzzy matching
                 words = item_name.split()
@@ -89,7 +126,7 @@ def get_common_prices():
                         result[word] = {
                             "price": price,
                             "reference_handler": ref_handler,
-                            "full_name": item_name  # Store original name for reference
+                            "full_name": item.get('name', '')  # Store original case
                         }
             
             # Only return the built dictionary if it has items
