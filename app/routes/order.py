@@ -62,6 +62,10 @@ def take_order():
     # Check for items with availabilities field instead of available field
     available_items = []
     for item in data.get("items", []):
+        # Skip items with missing names
+        if not item.get("name"):
+            continue
+            
         # Debug log to see what's in the items
         logging.info(f"DEBUG Item {item.get('name')}: has availabilities: {'availabilities' in item}, snoozed: {item.get('snoozed', False)}")
         if "availabilities" in item and not item.get("snoozed", False):
