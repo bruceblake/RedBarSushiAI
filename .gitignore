@@ -24,3 +24,6 @@ build/
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# Python files
+config.py
