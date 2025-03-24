@@ -203,10 +203,11 @@ def find_menu_item(user_input, threshold=35):
     """
     Enhanced menu item search with improved matching algorithms.
     Uses multiple strategies to find the best match:
-    1. Exact match (case-insensitive)
-    2. Normalized Levenshtein distance with similarity scoring
-    3. Substring matching
-    4. Word-level matching
+    1. Name variants match (from menu_data.name_variants)
+    2. Exact match (case-insensitive)
+    3. Normalized Levenshtein distance with similarity scoring
+    4. Substring matching
+    5. Word-level matching
     
     Args:
         user_input: The user's input text to match with menu items
@@ -228,7 +229,19 @@ def find_menu_item(user_input, threshold=35):
     # Log the search request
     log_info(f"[MENU-SEARCH] Looking for '{user_input}' in {len(all_items)} menu items")
     
-    # Step 1: Check for an exact match first (case-insensitive)
+    # NEW: Step 0 - Check for exact match in name_variants dictionary
+    name_variants = data.get("name_variants", {})
+    if name_variants and user_lower in name_variants:
+        original_name = name_variants[user_lower]
+        log_info(f"[MENU-MATCH] Found name variant match: '{user_input}' -> '{original_name}'")
+        
+        # Find the actual menu item with this name
+        for item in all_items:
+            if item.get("name") == original_name:
+                log_info(f"[MENU-VARIANT] Found menu item for variant '{user_input}' -> '{original_name}'")
+                return item, 0
+    
+    # Step 1: Check for an exact match (case-insensitive)
     for item in all_items:
         item_name = item.get("name", "")
         if not item_name:  # Skip items with no name
@@ -240,7 +253,7 @@ def find_menu_item(user_input, threshold=35):
     
     # Step 2: Try Levenshtein distance with normalized similarity score
     best_item = None
-    best_similarity = 0.6  # Minimum similarity threshold (0-1)
+    best_similarity = 0.5  # Reduced threshold to be more lenient (was 0.6)
     
     for item in all_items:
         item_name = item.get("name", "")
@@ -266,7 +279,7 @@ def find_menu_item(user_input, threshold=35):
             best_item = item
     
     # Return the best fuzzy match if it's good enough
-    if best_item and best_similarity > 0.6:
+    if best_item and best_similarity > 0.5:  # Reduced threshold to be more lenient (was 0.6)
         log_info(f"[MENU-MATCH] Found fuzzy match: '{user_input}' -> '{best_item.get('name')}' (similarity: {best_similarity:.2f})")
         # Return distance for backward compatibility
         distance = Levenshtein.distance(user_lower, best_item.get("name", "").lower())
@@ -312,7 +325,7 @@ def find_menu_item(user_input, threshold=35):
         common_words = set(user_words) & set(item_words)
         if common_words:
             match_quality = len(common_words) / max(len(user_words), len(item_words))
-            if match_quality > 0.3:  # Require at least some meaningful overlap
+            if match_quality > 0.25:  # Reduced threshold to be more lenient (was 0.3)
                 word_matches.append((item, match_quality))
     
     # Return the best word-level match if found
@@ -322,6 +335,38 @@ def find_menu_item(user_input, threshold=35):
         log_info(f"[MENU-MATCH] Found word-level match: '{user_input}' -> '{best_item.get('name')}' (quality: {quality:.2f})")
         # Return pseudo-distance for backward compatibility
         return best_item, int((1.0 - quality) * 25)  # Convert quality to a distance-like value
+    
+    # Step 5: Last resort - try partial word matching
+    # This helps with typos or shortened versions of words
+    if len(user_lower) >= 3:  # Only try for inputs with at least 3 characters
+        partial_matches = []
+        for item in all_items:
+            item_name = item.get("name", "").lower()
+            if not item_name:
+                continue
+                
+            # Check if the first few characters match any word in the item name
+            item_words = item_name.split()
+            for word in item_words:
+                if len(word) >= 4 and (word.startswith(user_lower[:3]) or user_lower.startswith(word[:3])):
+                    # Calculate match quality based on the length of matching prefix
+                    match_len = 0
+                    for i in range(min(len(user_lower), len(word))):
+                        if user_lower[i] == word[i]:
+                            match_len += 1
+                        else:
+                            break
+                    
+                    if match_len >= 3:  # Require at least 3 matching characters
+                        quality = match_len / max(len(user_lower), len(word))
+                        partial_matches.append((item, quality))
+                        break  # Found a match in this item, no need to check other words
+        
+        if partial_matches:
+            partial_matches.sort(key=lambda x: -x[1])  # Sort by match quality (descending)
+            best_item, quality = partial_matches[0]
+            log_info(f"[MENU-MATCH] Found partial word match: '{user_input}' -> '{best_item.get('name')}' (quality: {quality:.2f})")
+            return best_item, int((1.0 - quality) * 30)
         
     # No match found with any method
     log_info(f"[MENU-SEARCH] No match found for '{user_input}'")

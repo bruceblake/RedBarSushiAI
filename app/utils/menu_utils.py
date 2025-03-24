@@ -136,6 +136,9 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
     if not isinstance(_last_load_time, dict):
         _last_load_time = {}
     
+    # Try multiple potential paths to find the menu file
+    potential_paths = []
+    
     # Try to get file path from current app context for tests
     try:
         if location_id:
@@ -143,20 +146,45 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
             base_path = current_app.config.get('MENU_FILE_PATH', MENU_FILE_PATH)
             directory = os.path.dirname(base_path)
             filename = os.path.basename(base_path)
-            file_path = os.path.join(directory, f"{location_id}_{filename}")
+            potential_paths.append(os.path.join(directory, f"{location_id}_{filename}"))
         else:
-            file_path = MENU_FILE_PATH
+            base_path = current_app.config.get('MENU_FILE_PATH', MENU_FILE_PATH)
+            potential_paths.append(base_path)
     except:
         # If not in app context, fall back to module config
         if location_id:
             directory = os.path.dirname(MENU_FILE_PATH)
             filename = os.path.basename(MENU_FILE_PATH)
-            file_path = os.path.join(directory, f"{location_id}_{filename}")
+            potential_paths.append(os.path.join(directory, f"{location_id}_{filename}"))
         else:
-            file_path = MENU_FILE_PATH
+            potential_paths.append(MENU_FILE_PATH)
     
-    if not os.path.exists(file_path):
-        logger.info(f"No menu file found at {file_path}, returning empty.")
+    # Add common fallback paths
+    potential_paths.extend([
+        # Common production paths
+        "/home/pegasus/mysite/RedBarSushiAI/menu_data.json",
+        "/home/proxyie/MySoftware/RedBarSushiAI/menu_data.json",
+        
+        # Try current directory and parent
+        os.path.join(os.getcwd(), "menu_data.json"),
+        os.path.join(os.path.dirname(os.getcwd()), "menu_data.json"),
+        
+        # Try relative to script location
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "menu_data.json"),
+    ])
+    
+    # Try each path until we find one that exists
+    file_path = None
+    for path in potential_paths:
+        if os.path.exists(path):
+            file_path = path
+            logger.info(f"Found menu file at {path}")
+            break
+            
+    # If no file found, return empty data
+    if not file_path or not os.path.exists(file_path):
+        paths_str = ", ".join(potential_paths)
+        logger.warning(f"No menu file found at any of these paths: {paths_str}")
         empty_data = {"items": [], "modifiers": [], "modifierGroups": []}
         _cached_data[cache_key] = empty_data
         _last_load_time[cache_key] = time.time()
@@ -676,12 +704,16 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         existing_by_name = {item.get("name", "").lower(): item for item in existing_menu.get("items", []) if item.get("name")}
         existing_by_plu = {item.get("reference_handler", ""): item for item in existing_menu.get("items", []) if item.get("reference_handler")}
         
-        logger.info(f"[MENU-TRANSITION] Found {len(existing_by_id)} items by ID, {len(existing_by_name)} by name, {len(existing_by_plu)} by PLU")
+        # Preserve existing name variants if available
+        existing_variants = existing_menu.get("name_variants", {})
+        
+        logger.info(f"[MENU-TRANSITION] Found {len(existing_by_id)} items by ID, {len(existing_by_name)} by name, {len(existing_by_plu)} by PLU, {len(existing_variants)} existing variants")
     except Exception as e:
         logger.warning(f"[MENU-TRANSITION] Could not load existing menu: {e}")
         existing_by_id = {}
         existing_by_name = {}
         existing_by_plu = {}
+        existing_variants = {}
     
     result = {
         "items": [],
@@ -697,7 +729,8 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     plu_map = {}
     
     # Add name variants dictionary to handle common search variants
-    name_variants = {}
+    # Start with existing variants to preserve manual additions
+    name_variants = existing_variants.copy()
     
     # Track menu transitions for reporting
     transition_map = {
@@ -810,6 +843,67 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     combined = words[0] + words[1]
                     if combined not in name_variants:
                         name_variants[combined] = prod_name
+                        
+                # NEW: Handle order variations (e.g., "bacon cheeseburger" ↔ "cheeseburger bacon")
+                if len(words) > 1 and len(words) <= 4:  # Don't do this for very long names
+                    # Generate variations with word order changes
+                    import itertools
+                    for word_subset in itertools.permutations(words, len(words)):
+                        variant = " ".join(word_subset)
+                        if variant != prod_name_lower and variant not in name_variants:
+                            name_variants[variant] = prod_name
+                            
+            # NEW: Add common short forms and abbreviations
+            # French Fries → Fries
+            if "french fries" in prod_name_lower:
+                name_variants["fries"] = prod_name
+                name_variants["frys"] = prod_name  # Common misspelling
+                
+            # Hamburger → Burger, Hamburger → Ham
+            if "hamburger" in prod_name_lower:
+                name_variants["burger"] = prod_name
+                name_variants["ham"] = prod_name
+                
+            # Cheeseburger → Cheese
+            if "cheeseburger" in prod_name_lower:
+                name_variants["cheese"] = prod_name
+                
+            # Coca-Cola/Coca Cola → Coke
+            if "coca" in prod_name_lower and "cola" in prod_name_lower:
+                name_variants["coke"] = prod_name
+                name_variants["cola"] = prod_name
+                
+            # Mountain Dew → Dew
+            if "mountain dew" in prod_name_lower:
+                name_variants["dew"] = prod_name
+                name_variants["mt dew"] = prod_name
+                
+            # NEW: Add common typo handling for frequent words
+            common_typos = {
+                "hamburger": ["hambuger", "hamberger", "hamburgar"],
+                "cheeseburger": ["cheseburger", "cheesburger", "cheezburger"],
+                "sandwich": ["sandwitch", "sandwhich", "sandwish"],
+                "chicken": ["chiken", "chiken", "chick"],
+                "coffee": ["coffe", "cofee", "coffie"],
+                "salad": ["sallad", "salid", "salud"],
+                "pizza": ["piza", "pizzza", "pizzaa"],
+                "bacon": ["bakon", "baccon"],
+                "cheese": ["chese", "cheez", "chees"],
+                "fries": ["frys", "friess", "fris"]
+            }
+            
+            # Check if any common words with typos appear in this product
+            for correct_word, typos in common_typos.items():
+                if correct_word in prod_name_lower:
+                    # Add all typo variations
+                    for typo in typos:
+                        # Replace the correct word with the typo in the full name
+                        typo_name = prod_name_lower.replace(correct_word, typo)
+                        name_variants[typo_name] = prod_name
+                        
+                        # Also add the typo as a standalone variant if it's not too short
+                        if len(typo) >= 4 and typo not in name_variants:
+                            name_variants[typo] = prod_name
                 
             # Handle menu transitions - check if this is a new or updated item
             is_new = True
