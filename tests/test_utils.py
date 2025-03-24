@@ -228,11 +228,21 @@ def test_find_menu_item(app, setup_test_menu, mock_menu_data):
     with app.app_context():
         # Setup mock for the menu data
         with patch('app.utils.menu_utils.load_menu_data') as mock_load:
-            mock_load.return_value = mock_menu_data
+            # Add common items to our mock menu data
+            mock_menu_data["items"].append({
+                "name": "Hamburger", 
+                "price": 8.0, 
+                "reference_handler": "BRG-01", 
+                "available": True
+            })
+            mock_menu_data["items"].append({
+                "name": "French Fries", 
+                "price": 3.5, 
+                "reference_handler": "P-FRS-S", 
+                "available": True
+            })
             
-            # Create a special menu data with a "nonexistent item" that has 
-            # a very high Levenshtein distance to all real items
-            menu_data_with_nonexistent = mock_menu_data.copy()
+            mock_load.return_value = mock_menu_data
             
             # Now test with our mock data
             # Exact match
@@ -246,11 +256,21 @@ def test_find_menu_item(app, setup_test_menu, mock_menu_data):
             assert item2["name"] == "Spicy Tuna Roll"
             assert distance < 35  # Within threshold
             
+            # Test hamburger match (common item)
+            item3, _ = find_menu_item("Hamburger")
+            assert item3 is not None
+            assert item3["name"] == "Hamburger"
+            
+            # Test french fries match (common item)
+            item4, _ = find_menu_item("French Fries")
+            assert item4 is not None
+            assert item4["name"] == "French Fries"
+            
             # For the "no match" scenario, we need a very unique name that won't match anything
             with patch('app.utils.order_utils.find_menu_item') as mock_find:
                 mock_find.return_value = (None, None)
-                item3, _ = mock_find("zzzzzzzzzznonexistentitem")
-                assert item3 is None
+                item5, _ = mock_find("zzzzzzzzzznonexistentitem")
+                assert item5 is None
 
 
 def test_find_menu_item_any_status(app, setup_test_menu, mock_menu_data):

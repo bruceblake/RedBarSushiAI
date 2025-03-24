@@ -171,9 +171,32 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
         if file_mtime > last_load_time:
             logger.info(f"Menu file {file_path} has changed, forcing refresh")
             force_refresh = True
-            
-        with open(file_path, "r") as f:
-            data = json.load(f)
+        
+        # Safely load the JSON file with better error handling
+        try:
+            with open(file_path, "r") as f:
+                # Read first to validate before parsing JSON
+                file_content = f.read()
+                if not file_content.strip():
+                    logger.error(f"Menu file {file_path} is empty")
+                    raise ValueError("Menu file is empty")
+                    
+                # Try parsing the JSON
+                data = json.loads(file_content)
+                
+                # Verify the expected structure exists
+                if not isinstance(data, dict):
+                    logger.error(f"Menu file {file_path} is not a valid JSON object")
+                    raise ValueError("Menu file is not a valid JSON object")
+                    
+                # Verify menu has required top-level keys
+                for key in ["items", "modifiers", "modifierGroups"]:
+                    if key not in data:
+                        logger.warning(f"Menu file {file_path} is missing required key '{key}', adding empty array")
+                        data[key] = []
+        except json.JSONDecodeError as json_err:
+            logger.error(f"Invalid JSON in menu file {file_path}: {json_err}")
+            raise ValueError(f"Invalid JSON in menu file: {json_err}")
         
         # Only validate if not already in a validation process and validation is not skipped
         if not _validation_in_progress and not skip_validation:
@@ -185,7 +208,10 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
                 _validation_in_progress = False
             
         # ---- Comprehensive menu item validation and enrichment -----
+        items_fixed = 0
         for i, item in enumerate(data.get("items", [])):
+            needs_fix = False
+            
             # Step 1: Fix missing names - critical for functionality
             if not item.get("name"):
                 # Try to get name from reference_handler if available
@@ -195,6 +221,7 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
                 else:
                     item["name"] = f"Unnamed Item {i+1}"
                 logger.warning(f"[MENU-FIX] Fixed missing name for item {i}: '{item.get('name')}'")
+                needs_fix = True
             
             # Step 2: Ensure all items have reference handlers - critical for integrations
             if not item.get("reference_handler"):
@@ -202,11 +229,39 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
                 from app.utils.helpers import generate_consistent_reference_id
                 item["reference_handler"] = generate_consistent_reference_id(item.get("name", f"item-{i}"))
                 logger.warning(f"[MENU-FIX] Generated reference_handler for '{item.get('name')}': {item['reference_handler']}")
+                needs_fix = True
                 
             # Step 3: Ensure prices are valid numbers
             if not isinstance(item.get("price"), (int, float)) or item.get("price") is None:
                 item["price"] = 0.0  # Default price
                 logger.warning(f"[MENU-FIX] Fixed invalid price for '{item.get('name')}', set to {item['price']}")
+                needs_fix = True
+                
+            # Step 4: Ensure item has a description (can be empty but should exist)
+            if "description" not in item:
+                item["description"] = ""
+                needs_fix = True
+                
+            # Step 5: Ensure item has an ID field
+            if not item.get("id") and not item.get("_id"):
+                from app.utils.helpers import generate_consistent_reference_id
+                new_id = f"ITEM-{generate_consistent_reference_id(item.get('name', f'item-{i}'))[-8:]}"
+                item["id"] = new_id
+                logger.warning(f"[MENU-FIX] Generated ID for '{item.get('name')}': {new_id}")
+                needs_fix = True
+                
+            # Convert _id to id if needed (compatibility fix for different JSON formats)
+            if not item.get("id") and item.get("_id"):
+                item["id"] = item["_id"]
+                needs_fix = True
+                
+            if needs_fix:
+                items_fixed += 1
+                
+        # Log fixes summary
+        if items_fixed > 0:
+            logger.info(f"[MENU-FIX] Fixed {items_fixed} items during loading")
+                
         # Update each item with its availability - Check availabilities field
         for it in data.get("items", []):
             snoozed = is_item_snoozed_timebased(it)
@@ -231,10 +286,16 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
         return data
     except Exception as e:
         logger.error(f"Error reading menu data file: {e}")
-        empty_data = {"items": [], "modifiers": [], "modifierGroups": []}
-        _cached_data[cache_key] = empty_data
-        _last_load_time[cache_key] = time.time()
-        return empty_data
+        # Don't return empty data on all errors - try to recover if possible
+        if force_refresh and cache_key in _cached_data:
+            logger.warning(f"Using cached menu data despite refresh request due to error: {e}")
+            return _cached_data[cache_key]
+        else:
+            # Create a minimal valid structure
+            empty_data = {"items": [], "modifiers": [], "modifierGroups": []}
+            _cached_data[cache_key] = empty_data
+            _last_load_time[cache_key] = time.time()
+            return empty_data
 
 
 def validate_modifier_constraints(order_items):
@@ -635,6 +696,9 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     # Create a master PLU mapping (id -> reference_handler) to maintain consistency
     plu_map = {}
     
+    # Add name variants dictionary to handle common search variants
+    name_variants = {}
+    
     # Track menu transitions for reporting
     transition_map = {
         "new_items": [],
@@ -694,9 +758,59 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 "imageUrl": product.get("imageUrl", ""),
                 "snoozed": not product.get("available", True),  # Convert to our snoozed paradigm
                 "category": cat_name,
-                "categoryId": cat_id
+                "categoryId": cat_id,
+                "available": product.get("available", True)  # CRITICAL: Preserve available flag exactly as provided
             }
             
+            # Create name variants for this item using intelligent algorithmic generation
+            # rather than hardcoded values
+            prod_name_lower = prod_name.lower()
+            name_variants[prod_name_lower] = prod_name  # Store base name
+            
+            # Generate word-level variants
+            words = prod_name_lower.split()
+            
+            # Store single-word items directly
+            if len(words) == 1 and len(words[0]) > 3:
+                # No variants needed for single words, already captured above
+                pass
+                
+            # For multi-word items, generate common variations
+            elif len(words) > 1:
+                # Add the first word if it's meaningful (not an article/etc)
+                if len(words[0]) > 3 and words[0] not in ["with", "and", "the"]:
+                    if words[0] not in name_variants:
+                        name_variants[words[0]] = prod_name
+                
+                # Add the last word if it's meaningful
+                if len(words[-1]) > 3 and words[-1] not in ["with", "and", "the"]:
+                    if words[-1] not in name_variants:
+                        name_variants[words[-1]] = prod_name
+                        
+                # Store key descriptive terms if they're not already taken
+                for i, word in enumerate(words):
+                    if (len(word) > 3 and 
+                        word not in ["with", "and", "the", "for", "or"] and
+                        word not in name_variants):
+                        
+                        # Check if this word is already the name of another item
+                        word_collision = False
+                        for existing_item in result.get("items", []):
+                            if existing_item.get("name", "").lower() == word:
+                                word_collision = True
+                                break
+                        
+                        if not word_collision:
+                            # Only add if it doesn't collide with another menu item
+                            name_variants[word] = prod_name
+                
+                # Add combined terms for things that might have spaces vs no spaces
+                # e.g., "ice cream" ↔ "icecream", "coca cola" ↔ "cocacola"
+                if len(words) == 2:
+                    combined = words[0] + words[1]
+                    if combined not in name_variants:
+                        name_variants[combined] = prod_name
+                
             # Handle menu transitions - check if this is a new or updated item
             is_new = True
             if prod_id in existing_by_id:
@@ -763,8 +877,16 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                         "name": group.get("name"),
                         "min": group.get("minAmount", 0),
                         "max": group.get("maxAmount", 999),
+                        "minAllowed": group.get("minAmount", 0),  # Also set standardized names
+                        "maxAllowed": group.get("maxAmount", 999),
                         "modifiers": []
                     }
+                    
+                    # Ensure min <= max
+                    if new_group["min"] > new_group["max"]:
+                        logger.warning(f"[MENU-FIX] Fixed invalid min/max constraint for {new_group['name']}: {new_group['min']} > {new_group['max']}")
+                        new_group["min"] = min(new_group["min"], new_group["max"])
+                        new_group["minAllowed"] = new_group["min"]
                     
                     # Process modifiers in this group
                     for modifier in group.get("modifiers", []):
@@ -781,6 +903,7 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                             "name": mod_name,
                             "price": modifier.get("price", 0) / 100,
                             "snoozed": not modifier.get("available", True),
+                            "available": modifier.get("available", True),  # Keep original available flag
                             "reference_handler": mod_plu
                         })
                     
@@ -806,12 +929,19 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         if name and ref:
             plu_reference[name.lower()] = ref
             
-    # Log a sample of PLU mappings
+    # Add name variants to separate section in result for easier matching
+    result["name_variants"] = name_variants
+            
+    # Log a sample of PLU mappings and name variants
     sample_items = list(plu_reference.items())[:5]
     for name, ref in sample_items:
         logger.info(f"[DELIVERECT-PLU] '{name}' = '{ref}'")
+        
+    sample_variants = list(name_variants.items())[:5]
+    for variant, original in sample_variants:
+        logger.info(f"[NAME-VARIANT] '{variant}' → '{original}'")
     
-    logger.info(f"[DELIVERECT] Processed: {len(result['items'])} items, {len(result['modifierGroups'])} modifier groups")
+    logger.info(f"[DELIVERECT] Processed: {len(result['items'])} items, {len(result['modifierGroups'])} modifier groups, {len(name_variants)} name variants")
     return result
 
 
