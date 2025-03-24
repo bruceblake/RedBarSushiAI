@@ -183,7 +183,7 @@ def find_menu_item(user_input, threshold=35):
     best_item = None
     best_distance = 9999
     for item in all_items:
-        distance = Levenshtein.distance(user_lower, item["name"].lower())
+        distance = Levenshtein.distance(user_lower, item.get("name", "").lower())
         if distance < best_distance:
             best_distance = distance
             best_item = item
