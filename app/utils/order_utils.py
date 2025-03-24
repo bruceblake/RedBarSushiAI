@@ -137,13 +137,35 @@ def calculate_bill_amount(order_items, tax_rate=0.0):
     """
     subtotal = 0.0
     for item in order_items:
-        base_price = item.get("price", 0.0) or 0.0
+        # Get the price, ensuring we handle falsy values properly
+        price_value = item.get("price")
+        if price_value is None:
+            base_price = 0.0
+        else:
+            # Ensure price is a float
+            try:
+                base_price = float(price_value)
+            except (ValueError, TypeError):
+                base_price = 0.0
+                
+        # Log the price for debugging
+        log_info(f"Item: {item.get('name')}, Original price: {price_value}, Used price: {base_price}")
+        
         quantity = item.get("quantity", 1)
         item_total = base_price * quantity
         
         # Add modifier costs
         for mod in item.get("modifier", []):
-            mod_price = mod.get("price", 0.0) or 0.0
+            # Handle modifier prices the same way
+            mod_price_value = mod.get("price")
+            if mod_price_value is None:
+                mod_price = 0.0
+            else:
+                try:
+                    mod_price = float(mod_price_value)
+                except (ValueError, TypeError):
+                    mod_price = 0.0
+                    
             mod_quantity = mod.get("quantity", 1)
             item_total += mod_price * mod_quantity
             
