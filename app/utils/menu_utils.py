@@ -6,6 +6,7 @@ import datetime
 import logging
 from flask import current_app, session
 from app.config import MENU_FILE_PATH
+from app.utils.helpers import get_common_prices, generate_consistent_reference_id
 
 MENU_CACHE_DURATION = 10
 
@@ -160,8 +161,22 @@ def load_menu_data(force_refresh=False, location_id=None):
         return empty_data
         
     try:
+        # Check if file has been modified since we last loaded it
+        file_mtime = os.path.getmtime(file_path)
+        last_load_time = _last_load_time.get(cache_key, 0)
+        
+        # Force refresh if file has been modified
+        if file_mtime > last_load_time:
+            logger.info(f"Menu file {file_path} has changed, forcing refresh")
+            force_refresh = True
+            
         with open(file_path, "r") as f:
             data = json.load(f)
+            
+        # Validate and fix any data issues
+        from app.utils.menu_validator import validate_and_fix_menu_data
+        data = validate_and_fix_menu_data(data)
+            
         # Update each item with its availability
         for it in data.get("items", []):
             snoozed = is_item_snoozed_timebased(it)
@@ -308,6 +323,77 @@ def build_nested_modifiers(modifier, menu_data):
         
     return result
 
+def verify_and_update_menu_item(item_name, item_data, location_id=None):
+    """
+    Verifies and updates prices and reference IDs for a menu item.
+    
+    Args:
+        item_name: Name of the menu item
+        item_data: Dictionary containing item data (price, reference_handler, etc.)
+        location_id: Optional location ID for location-specific data
+        
+    Returns:
+        dict: Updated item data with verified price and reference_handler
+    """
+    menu_data = load_menu_data(location_id=location_id)
+    
+    # Find the item in the menu data
+    menu_item = next((item for item in menu_data.get("items", []) 
+                     if item.get("name", "").lower() == item_name.lower()), None)
+    
+    updated_data = item_data.copy()
+    
+    if menu_item:
+        # Verify and update the price
+        if "price" not in updated_data or updated_data.get("price") is None or updated_data.get("price") <= 0:
+            updated_data["price"] = menu_item.get("price", 7.5)
+            
+        # Verify and update the reference handler
+        if "reference_handler" not in updated_data or not updated_data.get("reference_handler"):
+            updated_data["reference_handler"] = menu_item.get("reference_handler", 
+                                              menu_item.get("plu", f"PLU-{menu_item.get('id', '')}"))
+    else:
+        # Item not found in menu, use fallback system
+        updated_data = apply_fallback_pricing(item_name, updated_data)
+        
+    return updated_data
+
+def apply_fallback_pricing(item_name, item_data):
+    """
+    Apply fallback pricing and reference ID system for items not found in the menu.
+    
+    Args:
+        item_name: Name of the menu item
+        item_data: Current item data
+        
+    Returns:
+        dict: Updated item data with fallback values
+    """
+    # Load common prices from a managed dictionary
+    common_prices = get_common_prices()
+    
+    updated_data = item_data.copy()
+    item_lower = item_name.lower()
+    
+    # Check if we have a price defined in our common prices
+    for key, price_info in common_prices.items():
+        if key == item_lower or key in item_lower:
+            if "price" not in updated_data or updated_data["price"] is None or updated_data["price"] <= 0:
+                updated_data["price"] = price_info.get("price", 7.5)
+            if "reference_handler" not in updated_data or not updated_data["reference_handler"]:
+                updated_data["reference_handler"] = price_info.get("reference_handler", f"FB-{item_lower[:8]}")
+            return updated_data
+            
+    # No match found, generate a consistent reference handler and use default price
+    if "price" not in updated_data or updated_data["price"] is None or updated_data["price"] <= 0:
+        updated_data["price"] = 7.5  # Default price
+        
+    if "reference_handler" not in updated_data or not updated_data["reference_handler"]:
+        # Generate a consistent reference handler based on the item name
+        updated_data["reference_handler"] = generate_consistent_reference_id(item_name)
+        
+    return updated_data
+
 
 def process_deliverect_menu(deliverect_menu, location_id=None):
     """
@@ -332,6 +418,14 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     # Keep track of processed IDs to avoid duplicates
     processed_item_ids = set()
     processed_modifier_group_ids = set()
+    
+    # Load existing menu data to preserve reference handlers
+    try:
+        existing_menu = load_menu_data(location_id=location_id)
+        existing_items = {item.get("name", "").lower(): item for item in existing_menu.get("items", [])}
+    except Exception as e:
+        logger.warning(f"Could not load existing menu for reference preservation: {e}")
+        existing_items = {}
     
     logger.info(f"Processing Deliverect menu with {len(deliverect_menu.get('categories', []))} categories")
     
@@ -367,6 +461,14 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 "sequence": product.get("sequence", 0),
                 "categorySequence": cat_sequence
             }
+            
+            # Try to preserve the reference handler if it exists in current menu
+            item_name_lower = product.get("name", "").lower()
+            if item_name_lower in existing_items and "reference_handler" in existing_items[item_name_lower]:
+                # Keep the existing reference handler unless explicitly provided
+                if not product.get("plu"):
+                    prod["reference_handler"] = existing_items[item_name_lower]["reference_handler"]
+                    logger.info(f"Preserved existing reference_handler for {product.get('name')}")
             
             # Process availability
             if "availability" in product:
@@ -687,3 +789,58 @@ def update_menu_ordering(ordering_changes, location_id=None):
     # Save updated menu
     write_menu_file(menu_data)
     return True
+
+def sync_reference_handlers(source_location_id=None, target_location_id=None):
+    """
+    Synchronizes reference handlers between different menu sources.
+    This ensures consistency across different menu versions.
+    
+    Args:
+        source_location_id: Optional location ID to use as reference source
+        target_location_id: Optional location ID to update
+        
+    Returns:
+        dict: Stats about the synchronization
+    """
+    # Load source menu
+    source_menu = load_menu_data(location_id=source_location_id, force_refresh=True)
+    source_items = {item.get("name", "").lower(): item for item in source_menu.get("items", [])}
+    
+    # If target is specified, load it, otherwise update the same menu
+    if target_location_id and target_location_id != source_location_id:
+        target_menu = load_menu_data(location_id=target_location_id, force_refresh=True)
+        save_target = True
+    else:
+        target_menu = source_menu
+        save_target = False
+    
+    # Track stats
+    stats = {
+        "items_checked": 0,
+        "references_updated": 0,
+        "prices_updated": 0,
+        "modifiers_checked": 0,
+        "modifier_references_updated": 0
+    }
+    
+    # Check for missing reference handlers in all items
+    for item in target_menu.get("items", []):
+        stats["items_checked"] += 1
+        item_name = item.get("name", "").lower()
+        
+        # Skip if it already has a valid reference handler
+        if item.get("reference_handler"):
+            continue
+            
+        # Check if it exists in source menu
+        if item_name in source_items and source_items[item_name].get("reference_handler"):
+            item["reference_handler"] = source_items[item_name]["reference_handler"]
+            stats["references_updated"] += 1
+            logger.info(f"Updated reference handler for {item.get('name')} to {item['reference_handler']}")
+    
+    # Save the target menu if needed
+    if save_target and (stats["references_updated"] > 0 or stats["prices_updated"] > 0):
+        write_menu_file(target_menu)
+        load_menu_data(location_id=target_location_id, force_refresh=True)
+        
+    return stats

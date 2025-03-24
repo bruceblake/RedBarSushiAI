@@ -234,7 +234,7 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
         del_item = {
             "name": item["name"],
             # Unique product identifier
-            "plu": item.get("reference_handler", ""),
+            "plu": item["reference_handler"],
             "quantity": item.get("quantity", 1),
             "price": int(round(item.get("price", 0.0) * 100)),  # Round properly
             "subItems": []

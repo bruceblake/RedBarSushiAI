@@ -13,6 +13,42 @@ from celery_app import celery
 TWILIO_PHONE_NUMBER = config.TWILIO_NUMBER
 OWNER_WHATSAPP_NUMBER = 'whatsapp:+17032972632'
 
+@celery.task(name="tasks.sync_menu_references")
+def sync_menu_references():
+    """
+    Periodic task to ensure menu reference handlers and prices are synchronized
+    across all locations.
+    
+    This task ensures that all menu items have consistent reference handlers
+    and prices, keeping the menu data in a valid state.
+    """
+    app = create_app()
+    with app.app_context():
+        from app.utils.menu_utils import sync_reference_handlers
+        
+        logging.info("Starting menu reference synchronization task")
+        
+        # Get all location IDs
+        try:
+            from app.models import Location
+            
+            locations = db.session.query(Location).all()
+            location_ids = [loc.id for loc in locations]
+            
+            # First sync the default menu
+            stats = sync_reference_handlers()
+            logging.info(f"Default menu sync stats: {stats}")
+            
+            # Then sync each location-specific menu
+            for loc_id in location_ids:
+                loc_stats = sync_reference_handlers(target_location_id=loc_id)
+                logging.info(f"Location {loc_id} menu sync stats: {loc_stats}")
+                
+            return True
+        except Exception as e:
+            logging.error(f"Error during menu sync: {e}")
+            return False
+
 @celery.task(name="tasks.send_confirmation_sms_task")
 def send_confirmation_sms_task(order_id, order_message, sender, caller_name, bill_amount, order_items, location_id=None):
     app = create_app()

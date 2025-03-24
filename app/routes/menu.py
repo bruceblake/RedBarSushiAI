@@ -1,6 +1,6 @@
 # app/routes/menu.py
 from flask import Blueprint, request, jsonify
-from app.utils.menu_utils import write_menu_file, load_menu_data, process_deliverect_menu
+from app.utils.menu_utils import write_menu_file, load_menu_data, process_deliverect_menu, sync_reference_handlers
 import logging
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.menu_validator import validate_and_fix_menu_data
@@ -116,3 +116,59 @@ def update_prep_time():
 @menu_bp.route('/courierUpdate', methods=['GET', 'POST'])
 def courier_update():
     return jsonify({"status": "not implemented"}), 200
+
+
+@menu_bp.route('/update_reference', methods=['POST'])
+def update_reference():
+    """
+    Endpoint to update a menu item's reference handler
+    """
+    data = request.get_json()
+    if not data or not isinstance(data, dict):
+        return jsonify({"error": "Invalid data format"}), 400
+        
+    item_name = data.get("item_name")
+    reference_handler = data.get("reference_handler")
+    
+    if not item_name or not reference_handler:
+        return jsonify({"error": "Missing item_name or reference_handler"}), 400
+    
+    # Load menu data
+    menu_data = load_menu_data(force_refresh=True)
+    
+    # Find and update the item
+    item_found = False
+    for item in menu_data.get("items", []):
+        if item.get("name", "").lower() == item_name.lower():
+            old_ref = item.get("reference_handler", "")
+            item["reference_handler"] = reference_handler
+            item_found = True
+            logger.info(f"Updated reference handler for {item_name} from {old_ref} to {reference_handler}")
+            break
+            
+    if not item_found:
+        return jsonify({"error": f"Item '{item_name}' not found in menu"}), 404
+        
+    # Save updated menu
+    write_menu_file(menu_data)
+    load_menu_data(force_refresh=True)  # Refresh cache
+    
+    return jsonify({"status": "success", "message": f"Updated reference handler for {item_name}"}), 200
+
+
+@menu_bp.route('/sync_references', methods=['POST'])
+def sync_menu_references():
+    """
+    Endpoint to synchronize reference handlers across menu data
+    """
+    data = request.get_json() or {}
+    source_location = data.get("source_location")
+    target_location = data.get("target_location")
+    
+    try:
+        stats = sync_reference_handlers(source_location_id=source_location, target_location_id=target_location)
+        logger.info(f"Menu reference synchronization completed: {stats}")
+        return jsonify({"status": "success", "stats": stats}), 200
+    except Exception as e:
+        logger.error(f"Error synchronizing menu references: {e}")
+        return jsonify({"error": f"Synchronization failed: {str(e)}"}), 500

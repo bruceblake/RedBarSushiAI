@@ -21,6 +21,14 @@ def make_celery(app):
     
     # Set task module name
     celery.conf.imports = ('tasks',)
+    
+    # Set up periodic tasks
+    celery.conf.beat_schedule = {
+        'sync-menu-references-every-hour': {
+            'task': 'tasks.sync_menu_references',
+            'schedule': 3600.0,  # Run every hour
+        }
+    }
 
     # Create a custom Task base that pushes the Flask app context
     class FlaskTask(Task):

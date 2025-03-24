@@ -143,21 +143,25 @@ def calculate_bill_amount(order_items, tax_rate=0.0):
         
         # If the price seems incorrect, verify it with the menu data
         if price_value is None or (isinstance(price_value, (int, float)) and price_value <= 0.1):
-            # Check for fixed prices for known items
-            verified_price = get_verified_menu_price(item_name)
+            # Use our improved verification system
+            from app.utils.menu_utils import verify_and_update_menu_item
+            verified_data = verify_and_update_menu_item(item_name, item)
             
-            # Update the item's price with the verified price
-            item["price"] = verified_price
-            base_price = verified_price
-            log_info(f"Price verification: Item {item_name} price updated from {price_value} to {verified_price}")
+            # Update the item with verified data
+            item["price"] = verified_data.get("price")
+            item["reference_handler"] = verified_data.get("reference_handler")
+            base_price = item["price"]
+            log_info(f"Price verification: Item {item_name} price updated to {base_price}, ref: {item['reference_handler']}")
         else:
             # Use the provided price if it seems valid
             try:
                 base_price = float(price_value)
             except (ValueError, TypeError):
-                # If conversion fails, verify with menu data
-                base_price = get_verified_menu_price(item_name)
-                item["price"] = base_price
+                # If conversion fails, verify with our system
+                verified_data = verify_and_update_menu_item(item_name, item)
+                item["price"] = verified_data.get("price")
+                item["reference_handler"] = verified_data.get("reference_handler")
+                base_price = item["price"]
                 
         # Log the price for debugging
         log_info(f"Item: {item.get('name')}, Original price: {price_value}, Used price: {base_price}")
@@ -244,37 +248,14 @@ def get_verified_menu_price(item_name, default_price=7.5):
     Returns:
         float: The verified price from the menu data
     """
-    from app.utils.menu_utils import load_menu_data
+    from app.utils.menu_utils import verify_and_update_menu_item
     
-    # Load menu data directly
+    # Use our centralized verification function
     try:
-        menu_data = load_menu_data()
-        
-        # Find exact match first
-        for item in menu_data.get("items", []):
-            if item.get("name", "").lower() == item_name.lower():
-                price = item.get("price")
-                if price is not None and isinstance(price, (int, float)) and price > 0:
-                    log_info(f"Found verified menu price for {item_name}: ${price}")
-                    return float(price)
-                    
-        # If no exact match or no valid price, use hardcoded prices for common items
-        common_prices = {
-            "veggie burger": 7.5,
-            "cheeseburger": 8.5,
-            "french fries": 2.0,
-            "curly fries": 2.0,
-            "seasoned fries": 2.5,
-            "coca cola": 4.0,
-            "diet coke": 4.0,
-            "ginger beer": 4.0
-        }
-        
-        item_lower = item_name.lower()
-        for key, price in common_prices.items():
-            if key == item_lower or key in item_lower:
-                log_info(f"Using hardcoded price for {item_name}: ${price}")
-                return price
+        verified_data = verify_and_update_menu_item(item_name, {"name": item_name})
+        price = verified_data.get("price", default_price)
+        log_info(f"Verified menu price for {item_name}: ${price}")
+        return float(price)
     except Exception as e:
         log_info(f"Error getting verified menu price: {e}")
     
