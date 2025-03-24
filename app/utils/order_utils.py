@@ -176,6 +176,7 @@ def find_menu_item(user_input, threshold=35):
     user_lower = user_input.lower().strip()
     # Check for an exact match first.
     for item in all_items:
+        log_info(f"name: ${item["name"]}")
         if item["name"].lower() == user_lower:
             return item, 0
     # Fuzzy search: find the best match.
