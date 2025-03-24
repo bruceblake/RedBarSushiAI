@@ -46,7 +46,6 @@ def get_common_prices():
         fallback = {
             "veggie burger": {"price": 7.5, "reference_handler": "PLU-01"}, 
             "cheeseburger": {"price": 8.5, "reference_handler": "PLU-02"},
-            "hamburger": {"price": 7.0, "reference_handler": "PLU-03"},
             "french fries": {"price": 2.0, "reference_handler": "P-FRS-S-#U#-"},
         }
         
