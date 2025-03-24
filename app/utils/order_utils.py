@@ -146,8 +146,8 @@ def calculate_bill_amount(order_items, tax_rate=0.0):
         # ALWAYS verify with the menu data regardless of what price was provided
         from app.utils.menu_utils import verify_and_update_menu_item
         
-        # Debug print original values before verification
-        log_info(f"DEBUG - BEFORE VERIFICATION - Item: {item_name}, Original price: {price_value}")
+        # Structured log of item verification
+        log_info(f"[PRICE-VERIFY] Processing '{item_name}', initial price: {price_value}")
         
         # Use our improved verification system always, regardless of the original price
         verified_data = verify_and_update_menu_item(item_name, item)
@@ -157,11 +157,11 @@ def calculate_bill_amount(order_items, tax_rate=0.0):
         item["reference_handler"] = verified_data.get("reference_handler")
         base_price = item["price"]
         
-        # Debug what happened during verification
-        log_info(f"DEBUG - AFTER VERIFICATION - Item {item_name} price updated to {base_price}, ref: {item['reference_handler']}")
-                
-        # Log the price for debugging
-        log_info(f"Item: {item.get('name')}, Original price: {price_value}, Used price: {base_price}")
+        # Concise but informative summary of results
+        if price_value != base_price:
+            log_info(f"[PRICE-UPDATED] '{item_name}': ${price_value} → ${base_price}")
+        else:
+            log_info(f"[PRICE-CONFIRMED] '{item_name}': ${base_price}")
         
         quantity = item.get("quantity", 1)
         item_total = base_price * quantity
@@ -201,46 +201,130 @@ def calculate_bill_amount(order_items, tax_rate=0.0):
 
 def find_menu_item(user_input, threshold=35):
     """
-    Searches for a menu item whose name best matches the user input.
-    Uses Levenshtein distance to compute a match if an exact match is not found.
+    Enhanced menu item search with improved matching algorithms.
+    Uses multiple strategies to find the best match:
+    1. Exact match (case-insensitive)
+    2. Normalized Levenshtein distance with similarity scoring
+    3. Substring matching
+    4. Word-level matching
+    
+    Args:
+        user_input: The user's input text to match with menu items
+        threshold: Maximum acceptable distance for fuzzy matching
+        
+    Returns:
+        (item, score): Matched menu item and score (0 is perfect match)
     """
     from app.utils.menu_utils import load_menu_data
     data = load_menu_data()
     all_items = data.get("items", [])
     user_lower = user_input.lower().strip()
     
-    # Debug the search
-    log_info(f"Searching for menu item: '{user_input}', lowercase: '{user_lower}'")
+    # Skip empty input
+    if not user_input.strip():
+        log_info("[MENU-SEARCH] Empty input, cannot search for menu items")
+        return None, None
     
-    # Check for an exact match first.
+    # Log the search request
+    log_info(f"[MENU-SEARCH] Looking for '{user_input}' in {len(all_items)} menu items")
+    
+    # Step 1: Check for an exact match first (case-insensitive)
     for item in all_items:
         item_name = item.get("name", "")
         if not item_name:  # Skip items with no name
             continue
             
         if item_name.lower() == user_lower:
-            log_info(f"Found exact match for '{user_input}': '{item_name}'")
+            log_info(f"[MENU-MATCH] Found exact match: '{user_input}' -> '{item_name}'")
             return item, 0
-            
-    # Fuzzy search: find the best match.
+    
+    # Step 2: Try Levenshtein distance with normalized similarity score
     best_item = None
-    best_distance = 9999
+    best_similarity = 0.6  # Minimum similarity threshold (0-1)
+    
     for item in all_items:
         item_name = item.get("name", "")
         if not item_name:  # Skip items with no name
             continue
             
-        distance = Levenshtein.distance(user_lower, item_name.lower())
-        log_info(f"Distance between '{user_lower}' and '{item_name.lower()}': {distance}")
-        if distance < best_distance:
-            best_distance = distance
-            best_item = item
-            
-    if best_item and best_distance <= threshold:
-        log_info(f"Found fuzzy match for '{user_input}': '{best_item.get('name')}' with distance {best_distance}")
-        return best_item, best_distance
+        item_lower = item_name.lower()
         
-    log_info(f"No match found for '{user_input}'")
+        # Calculate normalized similarity score (0-1)
+        max_len = max(len(user_lower), len(item_lower))
+        if max_len == 0:
+            continue
+            
+        distance = Levenshtein.distance(user_lower, item_lower)
+        similarity = 1.0 - (distance / max_len)
+        
+        # Log details for top matches
+        if similarity > 0.5:
+            log_info(f"[MENU-SIM] '{user_lower}' vs '{item_lower}': {similarity:.2f}")
+        
+        if similarity > best_similarity:
+            best_similarity = similarity
+            best_item = item
+    
+    # Return the best fuzzy match if it's good enough
+    if best_item and best_similarity > 0.6:
+        log_info(f"[MENU-MATCH] Found fuzzy match: '{user_input}' -> '{best_item.get('name')}' (similarity: {best_similarity:.2f})")
+        # Return distance for backward compatibility
+        distance = Levenshtein.distance(user_lower, best_item.get("name", "").lower())
+        return best_item, distance
+    
+    # Step 3: Try substring matching
+    substring_matches = []
+    for item in all_items:
+        item_name = item.get("name", "")
+        if not item_name:
+            continue
+            
+        item_lower = item_name.lower()
+        
+        # Check if one string contains the other
+        if user_lower in item_lower or item_lower in user_lower:
+            # Calculate a score based on length difference
+            len_diff = abs(len(user_lower) - len(item_lower))
+            match_quality = 1.0 - (len_diff / max(len(user_lower), len(item_lower)))
+            substring_matches.append((item, match_quality))
+    
+    # Sort matches by quality and return the best one
+    if substring_matches:
+        substring_matches.sort(key=lambda x: -x[1])  # Sort by match quality (descending)
+        best_item, quality = substring_matches[0]
+        log_info(f"[MENU-MATCH] Found substring match: '{user_input}' -> '{best_item.get('name')}' (quality: {quality:.2f})")
+        # Return pseudo-distance for backward compatibility
+        return best_item, int((1.0 - quality) * 20)  # Convert quality to a distance-like value
+    
+    # Step 4: Try word-level matching (useful for compound items)
+    user_words = user_lower.split()
+    word_matches = []
+    
+    for item in all_items:
+        item_name = item.get("name", "")
+        if not item_name:
+            continue
+            
+        item_lower = item_name.lower()
+        item_words = item_lower.split()
+        
+        # Count matching words
+        common_words = set(user_words) & set(item_words)
+        if common_words:
+            match_quality = len(common_words) / max(len(user_words), len(item_words))
+            if match_quality > 0.3:  # Require at least some meaningful overlap
+                word_matches.append((item, match_quality))
+    
+    # Return the best word-level match if found
+    if word_matches:
+        word_matches.sort(key=lambda x: -x[1])  # Sort by match quality (descending)
+        best_item, quality = word_matches[0]
+        log_info(f"[MENU-MATCH] Found word-level match: '{user_input}' -> '{best_item.get('name')}' (quality: {quality:.2f})")
+        # Return pseudo-distance for backward compatibility
+        return best_item, int((1.0 - quality) * 25)  # Convert quality to a distance-like value
+        
+    # No match found with any method
+    log_info(f"[MENU-SEARCH] No match found for '{user_input}'")
     return None, None
 
 
