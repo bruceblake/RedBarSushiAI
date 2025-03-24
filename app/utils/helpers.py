@@ -42,11 +42,14 @@ def get_common_prices():
     try:
         from app.config import MENU_FILE_PATH
         
-        # This is just a fallback dictionary used if menu loading fails
+        # Core fallback items (only used if menu loading completely fails)
         fallback = {
-            "veggie burger": {"price": 7.5, "reference_handler": "PLU-01"}, 
-            "cheeseburger": {"price": 8.5, "reference_handler": "PLU-02"},
-            "french fries": {"price": 2.0, "reference_handler": "P-FRS-S-#U#-"},
+            "hamburger": {"price": 8.0, "reference_handler": "BRG-01"},
+            "veggie burger": {"price": 7.5, "reference_handler": "BRG-02"}, 
+            "cheeseburger": {"price": 8.5, "reference_handler": "BRG-03"},
+            "french fries": {"price": 2.0, "reference_handler": "P-FRS-S"},
+            "coca cola": {"price": 4.0, "reference_handler": "DRK-01"},
+            "diet coke": {"price": 4.0, "reference_handler": "DRK-02"},
         }
         
         # Try to load actual prices from menu data
@@ -56,23 +59,48 @@ def get_common_prices():
                 
             # Build a comprehensive price map from actual menu data
             result = {}
+            
+            # Process all items with valid names and prices
             for item in menu_data.get('items', []):
                 item_name = item.get('name', '').lower()
-                if item_name and 'price' in item:
-                    result[item_name] = {
-                        "price": item.get('price'),
-                        "reference_handler": item.get('reference_handler', '')
-                    }
+                if not item_name:
+                    continue
+                    
+                # Ensure we have a valid price
+                price = item.get('price')
+                if not isinstance(price, (int, float)) or price is None:
+                    price = 0.0
+                    
+                # Extract or generate reference handler
+                ref_handler = item.get('reference_handler', '')
+                if not ref_handler:
+                    ref_handler = generate_consistent_reference_id(item_name)
+                    
+                # Store the item info by name for exact matching
+                result[item_name] = {
+                    "price": price,
+                    "reference_handler": ref_handler
+                }
+                
+                # Also store name fragments for fuzzy matching
+                words = item_name.split()
+                for word in words:
+                    if len(word) > 3 and word not in result:  # Only meaningful words
+                        result[word] = {
+                            "price": price,
+                            "reference_handler": ref_handler,
+                            "full_name": item_name  # Store original name for reference
+                        }
             
             # Only return the built dictionary if it has items
             if result:
-                logging.info(f"Loaded {len(result)} items from menu_data.json")
+                logging.info(f"[MENU-PRICES] Loaded {len(result)} price entries from menu data")
                 return result
     except Exception as e:
-        logging.error(f"Error loading menu data for common prices: {e}")
+        logging.error(f"[MENU-ERROR] Error loading menu data for prices: {e}")
     
     # Return fallback prices if menu loading fails
-    logging.warning("Using fallback prices instead of menu data")
+    logging.warning("[MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable")
     return fallback
 
 def generate_consistent_reference_id(item_name):
