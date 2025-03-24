@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from app.utils.menu_utils import write_menu_file, load_menu_data, process_deliverect_menu
 import logging
 from app.utils.helpers import log_info, commit_with_retry
+from app.utils.menu_validator import validate_and_fix_menu_data
 
 menu_bp = Blueprint('menu', __name__)
 logger = logging.getLogger(__name__)
@@ -39,8 +40,11 @@ def menu_update():
             if "modifierGroups" not in processed_data:
                 processed_data["modifierGroups"] = []
         
+        # Validate and fix any issues in the menu data
+        validated_data = validate_and_fix_menu_data(processed_data)
+        
         # Write the processed menu data to file
-        write_menu_file(processed_data)
+        write_menu_file(validated_data)
         load_menu_data(force_refresh=True)  # Refresh the cache with new data
         
         log_info("Menu updated successfully")

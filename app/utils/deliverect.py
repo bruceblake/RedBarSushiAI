@@ -244,10 +244,15 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
         for mod in item.get("modifier", []):
             sub_item = {
                 "name": mod.get("name", "").lower(),
-                "plu": mod.get("plu", "UNKNOWN-PLU"),
+                "plu": mod.get("reference_handler", mod.get("plu", "")),  # Try reference_handler first, then fallback to plu
                 "quantity": mod.get("quantity", 1),
                 "price": int(round(mod.get("price", 0.0) * 100))  # Round properly
             }
+            
+            # Log if price seems incorrect
+            if sub_item["price"] <= 0 and "price" in mod:
+                logger.warning(f"Found zero or negative price for modifier {mod.get('name')}, raw value: {mod.get('price')}")
+                
             del_item["subItems"].append(sub_item)
             
         # Process any child items (for meal deals)
@@ -265,10 +270,15 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
                 for mod in child.get("modifier", []):
                     sub_item = {
                         "name": mod.get("name", "").lower(),
-                        "plu": mod.get("plu", "UNKNOWN-PLU"),
+                        "plu": mod.get("reference_handler", mod.get("plu", "")),  # Try reference_handler first, then fallback to plu
                         "quantity": mod.get("quantity", 1),
                         "price": int(round(mod.get("price", 0.0) * 100))
                     }
+                    
+                    # Log if price seems incorrect
+                    if sub_item["price"] <= 0 and "price" in mod:
+                        logger.warning(f"Found zero or negative price for child modifier {mod.get('name')}, raw value: {mod.get('price')}")
+                        
                     child_item["subItems"].append(sub_item)
                     
                 del_item["subItems"].append(child_item)
