@@ -54,11 +54,11 @@ def validate_and_fix_menu_data(menu_data):
             fixed_item_count += 1
             
         # Ensure price is valid
-        if not item.get("price"):
+        if "price" not in item or item["price"] is None:
             logger.warning(f"Item {item_name} is missing price, setting default")
             item["price"] = 0.01
             fixed_item_count += 1
-        elif item.get("price") <= 0:
+        elif isinstance(item["price"], (int, float)) and item["price"] <= 0:
             logger.warning(f"Item {item_name} has invalid price {item.get('price')}, fixing")
             item["price"] = 0.01
             fixed_item_count += 1
@@ -114,8 +114,12 @@ def validate_and_fix_menu_data(menu_data):
                 fixed_modifier_count += 1
                 
             # Ensure price is valid
-            if not modifier.get("price") and modifier.get("price") != 0:
+            if "price" not in modifier or modifier["price"] is None:
                 logger.warning(f"Modifier {mod_name} is missing price, setting default")
+                modifier["price"] = 0.0
+                fixed_modifier_count += 1
+            elif isinstance(modifier["price"], (int, float)) and modifier["price"] < 0:
+                logger.warning(f"Modifier {mod_name} has negative price {modifier.get('price')}, fixing")
                 modifier["price"] = 0.0
                 fixed_modifier_count += 1
     
