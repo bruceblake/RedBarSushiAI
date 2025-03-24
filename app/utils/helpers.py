@@ -2,6 +2,8 @@
 import logging
 import time
 import hashlib
+import os
+import json
 from sqlalchemy.exc import OperationalError
 
 def log_info(msg):
@@ -31,30 +33,48 @@ def commit_with_retry(session, max_retries=3):
 
 def get_common_prices():
     """
-    Returns a dictionary of common menu items with their prices and reference handlers.
-    This centralizes the pricing information for common items.
+    Loads actual prices directly from menu_data.json to ensure we always
+    have the latest prices and reference handlers.
     
     Returns:
         dict: Mapping of item names to price info
     """
-    return {
-        "veggie burger": {"price": 7.5, "reference_handler": "FB-VEG01"},
-        "cheeseburger": {"price": 8.5, "reference_handler": "FB-CHSBGR"},
-        "hamburger": {"price": 7.0, "reference_handler": "FB-HMBGR"},
-        "french fries": {"price": 2.0, "reference_handler": "FB-FRFRY"},
-        "curly fries": {"price": 2.0, "reference_handler": "FB-CRLFRY"},
-        "seasoned fries": {"price": 2.5, "reference_handler": "FB-SESFRY"},
-        "coca cola": {"price": 4.0, "reference_handler": "FB-COKE"},
-        "diet coke": {"price": 4.0, "reference_handler": "FB-DIECOK"},
-        "ginger beer": {"price": 4.0, "reference_handler": "FB-GINGBR"},
-        "water": {"price": 2.0, "reference_handler": "FB-WATER"},
-        "california roll": {"price": 9.5, "reference_handler": "FB-CALROL"},
-        "spicy tuna roll": {"price": 11.0, "reference_handler": "FB-SPCTRL"},
-        "philadelphia roll": {"price": 10.5, "reference_handler": "FB-PHIROL"},
-        "salmon roll": {"price": 10.0, "reference_handler": "FB-SALROL"},
-        "edamame": {"price": 4.0, "reference_handler": "FB-EDAMAM"},
-        "miso soup": {"price": 3.5, "reference_handler": "FB-MISOSUP"}
-    }
+    try:
+        from app.config import MENU_FILE_PATH
+        
+        # This is just a fallback dictionary used if menu loading fails
+        fallback = {
+            "veggie burger": {"price": 7.5, "reference_handler": "PLU-01"}, 
+            "cheeseburger": {"price": 8.5, "reference_handler": "PLU-02"},
+            "hamburger": {"price": 7.0, "reference_handler": "PLU-03"},
+            "french fries": {"price": 2.0, "reference_handler": "P-FRS-S-#U#-"},
+        }
+        
+        # Try to load actual prices from menu data
+        if os.path.exists(MENU_FILE_PATH):
+            with open(MENU_FILE_PATH, 'r') as f:
+                menu_data = json.load(f)
+                
+            # Build a comprehensive price map from actual menu data
+            result = {}
+            for item in menu_data.get('items', []):
+                item_name = item.get('name', '').lower()
+                if item_name and 'price' in item:
+                    result[item_name] = {
+                        "price": item.get('price'),
+                        "reference_handler": item.get('reference_handler', '')
+                    }
+            
+            # Only return the built dictionary if it has items
+            if result:
+                logging.info(f"Loaded {len(result)} items from menu_data.json")
+                return result
+    except Exception as e:
+        logging.error(f"Error loading menu data for common prices: {e}")
+    
+    # Return fallback prices if menu loading fails
+    logging.warning("Using fallback prices instead of menu data")
+    return fallback
 
 def generate_consistent_reference_id(item_name):
     """
