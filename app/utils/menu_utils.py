@@ -320,11 +320,20 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     Returns:
         dict: Processed menu in our format
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     result = {
         "items": [],
         "modifiers": [],
         "modifierGroups": []
     }
+    
+    # Keep track of processed IDs to avoid duplicates
+    processed_item_ids = set()
+    processed_modifier_group_ids = set()
+    
+    logger.info(f"Processing Deliverect menu with {len(deliverect_menu.get('categories', []))} categories")
     
     # Process categories and products
     for category in deliverect_menu.get("categories", []):
@@ -332,10 +341,21 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         cat_name = category.get("name")
         cat_sequence = category.get("sequence", 0)
         
+        logger.info(f"Processing category: {cat_name} with {len(category.get('products', []))} products")
+        
         # Process products in this category
         for product in category.get("products", []):
+            prod_id = product.get("id")
+            
+            # Skip if already processed
+            if prod_id in processed_item_ids:
+                logger.info(f"Skipping duplicate product ID: {prod_id}")
+                continue
+                
+            processed_item_ids.add(prod_id)
+            
             prod = {
-                "id": product.get("id"),
+                "id": prod_id,
                 "name": product.get("name"),
                 "price": product.get("price", 0.0) / 100,  # Convert from cents
                 "reference_handler": product.get("plu", ""),
@@ -363,26 +383,48 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
             # Process modifier groups
             mod_groups = []
             for group in product.get("modifierGroups", []):
-                mod_groups.append(group.get("id"))
+                group_id = group.get("id")
+                mod_groups.append(group_id)
                 
                 # Add to modifierGroups if not already there
-                if not any(g.get("id") == group.get("id") for g in result["modifierGroups"]):
-                    result["modifierGroups"].append({
-                        "id": group.get("id"),
+                if group_id not in processed_modifier_group_ids:
+                    processed_modifier_group_ids.add(group_id)
+                    
+                    # Create the modifier group record
+                    new_group = {
+                        "id": group_id,
                         "name": group.get("name"),
                         "minAllowed": group.get("minAmount", 0),
                         "maxAllowed": group.get("maxAmount", 999),
                         "modifiers": []
-                    })
+                    }
                     
                     # Process modifiers in this group
-                    group_index = next(i for i, g in enumerate(result["modifierGroups"]) if g.get("id") == group.get("id"))
                     for modifier in group.get("modifiers", []):
-                        result["modifierGroups"][group_index]["modifiers"].append({
+                        new_group["modifiers"].append({
                             "id": modifier.get("id"),
                             "name": modifier.get("name"),
-                            "price": modifier.get("price", 0.0) / 100
+                            "price": modifier.get("price", 0.0) / 100,
+                            "available": modifier.get("available", True),
+                            "reference_handler": modifier.get("plu", "")
                         })
+                    
+                    result["modifierGroups"].append(new_group)
+                else:
+                    # Update existing modifier group if needed
+                    existing_group = next((g for g in result["modifierGroups"] if g.get("id") == group_id), None)
+                    if existing_group:
+                        # Check for new modifiers and add them
+                        existing_modifier_ids = {m.get("id") for m in existing_group.get("modifiers", [])}
+                        for modifier in group.get("modifiers", []):
+                            if modifier.get("id") not in existing_modifier_ids:
+                                existing_group["modifiers"].append({
+                                    "id": modifier.get("id"),
+                                    "name": modifier.get("name"),
+                                    "price": modifier.get("price", 0.0) / 100,
+                                    "available": modifier.get("available", True),
+                                    "reference_handler": modifier.get("plu", "")
+                                })
             
             # Process child products (meal deals)
             if "childProducts" in product:
@@ -392,8 +434,36 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                         "id": child.get("id"),
                         "name": child.get("name"),
                         "included": child.get("included", True),
+                        "reference_handler": child.get("plu", ""),
                         "modifierGroups": child.get("modifierGroups", [])
                     }
+                    
+                    # Add child product modifier groups if any
+                    child_mod_groups = []
+                    for child_group in child.get("modifierGroups", []):
+                        child_group_id = child_group.get("id")
+                        child_mod_groups.append(child_group_id)
+                        
+                        # Process the child's modifier groups similar to product modifier groups
+                        if child_group_id not in processed_modifier_group_ids:
+                            processed_modifier_group_ids.add(child_group_id)
+                            
+                            result["modifierGroups"].append({
+                                "id": child_group_id,
+                                "name": child_group.get("name"),
+                                "minAllowed": child_group.get("minAmount", 0),
+                                "maxAllowed": child_group.get("maxAmount", 999),
+                                "modifiers": [{
+                                    "id": mod.get("id"),
+                                    "name": mod.get("name"),
+                                    "price": mod.get("price", 0.0) / 100,
+                                    "reference_handler": mod.get("plu", "")
+                                } for mod in child_group.get("modifiers", [])]
+                            })
+                    
+                    if child_mod_groups:
+                        child_prod["modifierGroups"] = child_mod_groups
+                        
                     child_products.append(child_prod)
                 
                 if child_products:
@@ -405,6 +475,21 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 
             result["items"].append(prod)
     
+    # Process standalone modifiers
+    for modifier in deliverect_menu.get("modifiers", []):
+        mod_id = modifier.get("id")
+        
+        # Add to modifiers list if not already included in a group
+        if not any(mod.get("id") == mod_id for group in result["modifierGroups"] for mod in group.get("modifiers", [])):
+            result["modifiers"].append({
+                "id": mod_id,
+                "name": modifier.get("name"),
+                "price": modifier.get("price", 0.0) / 100,
+                "available": modifier.get("available", True),
+                "reference_handler": modifier.get("plu", "")
+            })
+    
+    logger.info(f"Processed Deliverect menu: {len(result['items'])} items, {len(result['modifierGroups'])} modifier groups, {len(result['modifiers'])} standalone modifiers")
     return result
 
 

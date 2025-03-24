@@ -1,6 +1,6 @@
 # app/routes/menu.py
 from flask import Blueprint, request, jsonify
-from app.utils.menu_utils import write_menu_file, load_menu_data
+from app.utils.menu_utils import write_menu_file, load_menu_data, process_deliverect_menu
 import logging
 from app.utils.helpers import log_info, commit_with_retry
 
@@ -11,29 +11,43 @@ logger = logging.getLogger(__name__)
 @menu_bp.route('/menu_update', methods=['POST'])
 def menu_update():
     data = request.get_json()
-    log_info(f"data: {data}")
+    log_info(f"Received menu update data: {data}")
     if not data:
         return jsonify({"error": "No data provided"}), 400
     
-    # If data is a list, wrap it in a dict for compatible structure
-    if isinstance(data, list):
-        data = {"items": data}
-    elif not isinstance(data, dict):
-        return jsonify({"error": "Expected an array or object"}), 400
+    try:
+        # Check if data is coming from Deliverect (has categories structure)
+        if "categories" in data:
+            # Process data from Deliverect format to our internal format
+            log_info("Processing Deliverect menu format")
+            processed_data = process_deliverect_menu(data)
+        else:
+            # Handle direct menu updates (non-Deliverect format)
+            log_info("Processing direct menu update")
+            # If data is a list, wrap it in a dict for compatible structure
+            if isinstance(data, list):
+                data = {"items": data}
+            elif not isinstance(data, dict):
+                return jsonify({"error": "Expected an array or object"}), 400
+                
+            # Make sure we have the expected structure
+            processed_data = data.copy()
+            if "items" not in processed_data:
+                processed_data["items"] = []
+            if "modifiers" not in processed_data:
+                processed_data["modifiers"] = []
+            if "modifierGroups" not in processed_data:
+                processed_data["modifierGroups"] = []
         
-    # Make sure we have the expected structure
-    if "items" not in data:
-        data["items"] = []
-    if "modifiers" not in data:
-        data["modifiers"] = []
-    if "modifierGroups" not in data:
-        data["modifierGroups"] = []
+        # Write the processed menu data to file
+        write_menu_file(processed_data)
+        load_menu_data(force_refresh=True)  # Refresh the cache with new data
         
-    # Write the menu data to file
-    write_menu_file(data)
-    load_menu_data(force_refresh=True)  # Refresh the cache with new data
-    
-    return jsonify({"status": "menu updated"}), 200
+        log_info("Menu updated successfully")
+        return jsonify({"status": "menu updated"}), 200
+    except Exception as e:
+        logger.error(f"Error updating menu: {e}")
+        return jsonify({"error": f"Menu update failed: {str(e)}"}), 500
 
 
 @menu_bp.route('/snoozeUnsnooze', methods=['POST'])

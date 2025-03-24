@@ -93,16 +93,41 @@ def register_channel_per_location(location_id):
 def menu_update_per_location(location_id):
     """Handle menu updates from Deliverect for a specific location."""
     data = request.get_json()
+    log_info(f"Received menu update data for location {location_id}: {data}")
     if not data:
         return jsonify({"error": "No data provided"}), 400
     
     try:
-        # Process the incoming menu data for this location
-        processed_data = process_deliverect_menu(data, location_id)
-        
+        # Handle different menu update formats
+        if "categories" in data:
+            # If data has categories, it's coming from Deliverect
+            log_info(f"Processing Deliverect menu format for location {location_id}")
+            processed_data = process_deliverect_menu(data, location_id)
+        else:
+            # Direct menu update (already in our format)
+            log_info(f"Processing direct menu update for location {location_id}")
+            # Ensure the data has our expected structure
+            processed_data = data.copy()
+            if isinstance(processed_data, list):
+                processed_data = {"items": processed_data}
+            if not isinstance(processed_data, dict):
+                return jsonify({"error": "Expected an array or object"}), 400
+            
+            # Ensure required keys exist
+            if "items" not in processed_data:
+                processed_data["items"] = []
+            if "modifiers" not in processed_data:
+                processed_data["modifiers"] = []
+            if "modifierGroups" not in processed_data:
+                processed_data["modifierGroups"] = []
+            
         # Save the updated menu with location-specific filename
         from app.utils.menu_utils import write_menu_file
         write_menu_file(processed_data)
+        
+        # Force refresh the cache to make new menu available immediately
+        from app.utils.menu_utils import load_menu_data
+        load_menu_data(force_refresh=True, location_id=location_id)
         
         log_info(f"Menu updated successfully for location {location_id}")
         return jsonify({"success": True}), 200
