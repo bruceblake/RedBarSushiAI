@@ -348,56 +348,80 @@ def verify_and_update_menu_item(item_name, item_data, location_id=None):
     updated_data = item_data.copy()
     item_name_lower = item_name.lower()
     
+    # Debug all items in menu for troubleshooting
+    logger.info(f"DEBUG - Menu item search for '{item_name_lower}'")
+    for idx, item in enumerate(menu_data.get("items", [])):
+        item_menu_name = item.get("name", "").lower()
+        item_menu_price = item.get("price")
+        logger.info(f"DEBUG - Menu item {idx}: name='{item_menu_name}', price={item_menu_price}")
+    
     # Try exact name match first
     menu_item = next((item for item in menu_data.get("items", []) 
                     if item.get("name", "").lower() == item_name_lower), None)
     
     # If found in menu data, use those values
     if menu_item:
-        logger.info(f"Found exact menu match for {item_name}")
+        logger.info(f"DEBUG - Found exact menu match for {item_name}")
         
-        # Update price if needed
+        # ALWAYS update price from menu regardless of what was provided
         menu_price = menu_item.get("price")
-        if menu_price is not None and menu_price > 0:
-            if "price" not in updated_data or updated_data.get("price") is None or updated_data.get("price") <= 0:
-                updated_data["price"] = menu_price
-                logger.info(f"Using menu price for {item_name}: ${menu_price}")
+        if menu_price is not None:
+            updated_data["price"] = menu_price
+            logger.info(f"DEBUG - Using menu price for {item_name}: ${menu_price}")
                 
-        # Update reference handler if needed
+        # ALWAYS update reference handler from menu
         menu_ref = menu_item.get("reference_handler")
         if menu_ref:
-            if "reference_handler" not in updated_data or not updated_data.get("reference_handler"):
-                updated_data["reference_handler"] = menu_ref
-                logger.info(f"Using menu reference_handler for {item_name}: {menu_ref}")
+            updated_data["reference_handler"] = menu_ref
+            logger.info(f"DEBUG - Using menu reference_handler for {item_name}: {menu_ref}")
     else:
-        # If not found in menu, try fuzzy matching
-        # First look for partial name matches
-        potential_items = [item for item in menu_data.get("items", []) 
-                         if item_name_lower in item.get("name", "").lower() or 
-                            item.get("name", "").lower() in item_name_lower]
+        # Case insensitive match
+        menu_item = next((item for item in menu_data.get("items", []) 
+                    if item.get("name", "").lower() == item_name_lower), None)
         
-        if potential_items:
-            # Use the first match (could be improved with better matching logic)
-            logger.info(f"Found fuzzy menu match for {item_name}: {potential_items[0].get('name')}")
-            
-            # Update price if needed
-            menu_price = potential_items[0].get("price")
-            if menu_price is not None and menu_price > 0:
-                if "price" not in updated_data or updated_data.get("price") is None or updated_data.get("price") <= 0:
-                    updated_data["price"] = menu_price
-                    logger.info(f"Using fuzzy match price for {item_name}: ${menu_price}")
-                    
-            # Update reference handler if needed
-            menu_ref = potential_items[0].get("reference_handler")
-            if menu_ref:
-                if "reference_handler" not in updated_data or not updated_data.get("reference_handler"):
-                    updated_data["reference_handler"] = menu_ref
-                    logger.info(f"Using fuzzy match reference_handler for {item_name}: {menu_ref}")
+        if menu_item:
+            logger.info(f"DEBUG - Found case-insensitive match for {item_name}")
+            updated_data["price"] = menu_item.get("price", 7.5)
+            updated_data["reference_handler"] = menu_item.get("reference_handler", "")
         else:
-            # Last resort: use fallback system
-            logger.info(f"No menu match found for {item_name}, using fallback system")
-            updated_data = apply_fallback_pricing(item_name, updated_data)
-        
+            # Try fuzzy match by capitalizing first letter
+            capitalized_name = item_name.title()
+            menu_item = next((item for item in menu_data.get("items", []) 
+                        if item.get("name", "") == capitalized_name), None)
+            
+            if menu_item:
+                logger.info(f"DEBUG - Found capitalized match for {item_name} -> {capitalized_name}")
+                updated_data["price"] = menu_item.get("price", 7.5)
+                updated_data["reference_handler"] = menu_item.get("reference_handler", "")
+            else:
+                # If not found in menu, try fuzzy matching
+                # First look for partial name matches
+                potential_items = [item for item in menu_data.get("items", []) 
+                                 if item_name_lower in item.get("name", "").lower() or 
+                                   item.get("name", "").lower() in item_name_lower]
+                
+                if potential_items:
+                    # Use the first match (could be improved with better matching logic)
+                    logger.info(f"DEBUG - Found fuzzy menu match for {item_name}: {potential_items[0].get('name')}")
+                    
+                    # Always update price from fuzzy match
+                    menu_price = potential_items[0].get("price")
+                    if menu_price is not None:
+                        updated_data["price"] = menu_price
+                        logger.info(f"DEBUG - Using fuzzy match price for {item_name}: ${menu_price}")
+                        
+                    # Always update reference handler from fuzzy match
+                    menu_ref = potential_items[0].get("reference_handler")
+                    if menu_ref:
+                        updated_data["reference_handler"] = menu_ref
+                        logger.info(f"DEBUG - Using fuzzy match reference_handler for {item_name}: {menu_ref}")
+                else:
+                    # Last resort: use fallback system
+                    logger.info(f"DEBUG - No menu match found for {item_name}, using fallback system")
+                    updated_data = apply_fallback_pricing(item_name, updated_data)
+    
+    logger.info(f"DEBUG - Final price decision for {item_name}: {updated_data.get('price')}")
+    
     return updated_data
 
 def apply_fallback_pricing(item_name, item_data):
@@ -417,26 +441,30 @@ def apply_fallback_pricing(item_name, item_data):
     updated_data = item_data.copy()
     item_lower = item_name.lower()
     
+    logger.info(f"DEBUG - Fallback pricing for '{item_lower}'")
+    
+    # Always log all common prices for debugging
+    for key, info in common_prices.items():
+        logger.info(f"DEBUG - Common price entry: '{key}' = ${info.get('price')}")
+    
     # Check if we have a price defined in our common prices
     for key, price_info in common_prices.items():
-        if key == item_lower or key in item_lower:
-            if "price" not in updated_data or updated_data["price"] is None or updated_data["price"] <= 0:
-                updated_data["price"] = price_info.get("price", 7.5)
-                logger.info(f"Using common price for {item_name}: ${updated_data['price']}")
-            if "reference_handler" not in updated_data or not updated_data["reference_handler"]:
-                updated_data["reference_handler"] = price_info.get("reference_handler", f"FB-{item_lower[:8]}")
-                logger.info(f"Using common reference_handler for {item_name}: {updated_data['reference_handler']}")
+        logger.info(f"DEBUG - Checking '{item_lower}' against common price key '{key}'")
+        if key == item_lower or key in item_lower or item_lower in key:
+            logger.info(f"DEBUG - MATCH FOUND: '{item_lower}' matches common price key '{key}'")
+            updated_data["price"] = price_info.get("price", 7.5)
+            updated_data["reference_handler"] = price_info.get("reference_handler", f"FB-{item_lower[:8]}")
+            logger.info(f"DEBUG - Using common price for {item_name}: ${updated_data['price']}")
+            logger.info(f"DEBUG - Using common reference_handler for {item_name}: {updated_data['reference_handler']}")
             return updated_data
-            
+    
     # No match found, generate a consistent reference handler and use default price
-    if "price" not in updated_data or updated_data["price"] is None or updated_data["price"] <= 0:
-        updated_data["price"] = 7.5  # Default price
-        logger.info(f"Using default price for {item_name}: $7.5")
-        
-    if "reference_handler" not in updated_data or not updated_data["reference_handler"]:
-        # Generate a consistent reference handler based on the item name
-        updated_data["reference_handler"] = generate_consistent_reference_id(item_name)
-        logger.info(f"Generated reference_handler for {item_name}: {updated_data['reference_handler']}")
+    updated_data["price"] = 7.5  # Default price
+    logger.info(f"DEBUG - Using default price for {item_name}: $7.5")
+    
+    # Generate a consistent reference handler based on the item name
+    updated_data["reference_handler"] = generate_consistent_reference_id(item_name)
+    logger.info(f"DEBUG - Generated reference_handler for {item_name}: {updated_data['reference_handler']}")
         
     return updated_data
 
