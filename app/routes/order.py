@@ -87,7 +87,7 @@ def take_order():
         return Response(str(response), mimetype='text/xml')
 
     order_items = []
-    for item_entity in analysis['items']:
+    for item_entity in analysis['menu_items']:
         item_name = item_entity.get("name", "")
         matched_item, _ = find_menu_item_any_status(item_name)
         if not matched_item:
