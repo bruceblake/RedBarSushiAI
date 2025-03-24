@@ -1,0 +1,76 @@
+{
+  "items": [
+    {
+      "id": "PROD-001",
+      "name": "Hamburger",
+      "price": 8.00,
+      "description": "Beef patty with lettuce, tomato and secret sauce",
+      "reference_handler": "BRG-01",
+      "available": true,
+      "snoozed": false,
+      "category": "Burgers"
+    },
+    {
+      "id": "PROD-002", 
+      "name": "Cheeseburger",
+      "price": 8.50,
+      "description": "Beef patty with American cheese, lettuce, tomato and secret sauce",
+      "reference_handler": "BRG-03",
+      "available": true,
+      "snoozed": false,
+      "category": "Burgers"
+    },
+    {
+      "id": "PROD-003",
+      "name": "Veggie Burger",
+      "price": 7.50,
+      "description": "Plant-based patty with lettuce, tomato and sauce",
+      "reference_handler": "BRG-02",
+      "available": true,
+      "snoozed": false,
+      "category": "Burgers"
+    },
+    {
+      "id": "PROD-004",
+      "name": "French Fries",
+      "price": 3.50,
+      "description": "Crispy golden fries with sea salt",
+      "reference_handler": "FRS-01",
+      "available": true,
+      "snoozed": false,
+      "category": "Sides"
+    },
+    {
+      "id": "PROD-005",
+      "name": "Onion Rings",
+      "price": 4.50,
+      "description": "Crispy battered onion rings",
+      "reference_handler": "SIDE-01",
+      "available": true,
+      "snoozed": false,
+      "category": "Sides"
+    },
+    {
+      "id": "PROD-006",
+      "name": "Side Salad",
+      "price": 4.00,
+      "description": "Fresh mixed greens with your choice of dressing",
+      "reference_handler": "SIDE-02",
+      "available": true,
+      "snoozed": false,
+      "category": "Sides"
+    },
+    {
+      "id": "PROD-007",
+      "name": "Coca Cola",
+      "price": 2.50,
+      "description": "Classic cola, ice cold",
+      "reference_handler": "DRK-01",
+      "available": true,
+      "snoozed": false,
+      "category": "Drinks"
+    }
+  ],
+  "modifiers": [],
+  "modifierGroups": []
+}

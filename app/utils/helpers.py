@@ -73,66 +73,107 @@ def get_common_prices():
             "sandwich": {"price": 6.5, "reference_handler": "SND-GEN", "full_name": "Sandwich"}
         }
         
-        # Try to load actual prices from menu data
-        if os.path.exists(MENU_FILE_PATH):
-            with open(MENU_FILE_PATH, 'r') as f:
-                menu_data = json.load(f)
+        # Try multiple potential menu file paths - this is critical for production
+        possible_paths = [
+            MENU_FILE_PATH,
+            os.path.join(os.path.dirname(MENU_FILE_PATH), "menu_data.json"),
+            os.path.join(os.path.dirname(MENU_FILE_PATH), "redbar_menu_data.json"),
+            os.path.join(os.path.dirname(os.path.dirname(MENU_FILE_PATH)), "menu_data.json"),
+            "/home/pegasus/mysite/RedBarSushiAI/menu_data.json",  # Hardcoded production path
+            "/home/proxyie/MySoftware/RedBarSushiAI/menu_data.json",  # Test environment path
+            os.path.join(os.getcwd(), "menu_data.json")  # Current directory
+        ]
+        
+        # Try each path until we find an existing file
+        loaded_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                loaded_path = path
+                break
                 
-            # Build a comprehensive price map from actual menu data
-            result = {}
-            
-            # Process all items with valid names and prices
-            for item in menu_data.get('items', []):
-                item_name = item.get('name', '').lower()
-                if not item_name:
-                    continue
+        if loaded_path:
+            logging.info(f"[MENU-LOAD] Loading menu from: {loaded_path}")
+            try:
+                with open(loaded_path, 'r') as f:
+                    file_content = f.read()
                     
-                # Ensure we have a valid price
-                price = item.get('price')
-                if not isinstance(price, (int, float)) or price is None:
-                    price = 0.0
+                    # Check for empty file
+                    if not file_content.strip():
+                        logging.error(f"[MENU-ERROR] Menu file {loaded_path} is empty")
+                        return fallback
+                        
+                    # Parse the JSON
+                    menu_data = json.loads(file_content)
                     
-                # Extract or generate reference handler
-                ref_handler = item.get('reference_handler', '')
-                if not ref_handler:
-                    ref_handler = generate_consistent_reference_id(item_name)
+                    # Build a comprehensive price map from actual menu data
+                    result = {}
                     
-                # Store the item info by name for exact matching
-                result[item_name] = {
-                    "price": price,
-                    "reference_handler": ref_handler,
-                    "full_name": item.get('name', '')  # Store original case
-                }
-                
-                # Add common alternates to handle voice recognition variants
-                # Example: "hamburger" when menu has "Hamburger" 
-                if "burger" in item_name and "hamburger" not in result:
-                    result["hamburger"] = {
-                        "price": price,
-                        "reference_handler": ref_handler,
-                        "full_name": item.get('name', '')
-                    }
-                if "french fries" in item_name and "fries" not in result:
-                    result["fries"] = {
-                        "price": price,
-                        "reference_handler": ref_handler,
-                        "full_name": item.get('name', '')
-                    }
-                
-                # Also store name fragments for fuzzy matching
-                words = item_name.split()
-                for word in words:
-                    if len(word) > 3 and word not in result:  # Only meaningful words
-                        result[word] = {
+                    # First check if the menu has a name_variants section
+                    # This is the fastest path to get accurate mappings
+                    name_variants = menu_data.get('name_variants', {})
+                    if name_variants:
+                        logging.info(f"[MENU-LOAD] Using {len(name_variants)} name variants from menu data")
+                        
+                        # Build a mapping from variants to items with prices
+                        for variant_name, original_name in name_variants.items():
+                            # Find the item with this name
+                            for item in menu_data.get('items', []):
+                                if item.get('name') == original_name:
+                                    # Add to result with full details
+                                    result[variant_name] = {
+                                        "price": item.get('price', 0.0),
+                                        "reference_handler": item.get('reference_handler', ''),
+                                        "full_name": original_name
+                                    }
+                                    break
+                                    
+                    # Process all items with valid names and prices (fallback or to supplement variants)
+                    for item in menu_data.get('items', []):
+                        item_name = item.get('name', '').lower()
+                        if not item_name:
+                            continue
+                            
+                        # Ensure we have a valid price
+                        price = item.get('price')
+                        if not isinstance(price, (int, float)) or price is None:
+                            price = 0.0
+                            
+                        # Extract or generate reference handler
+                        ref_handler = item.get('reference_handler', '')
+                        if not ref_handler:
+                            ref_handler = generate_consistent_reference_id(item_name)
+                            
+                        # Store the item info by name for exact matching
+                        result[item_name] = {
                             "price": price,
                             "reference_handler": ref_handler,
                             "full_name": item.get('name', '')  # Store original case
                         }
-            
-            # Only return the built dictionary if it has items
-            if result:
-                logging.info(f"[MENU-PRICES] Loaded {len(result)} price entries from menu data")
-                return result
+                        
+                        # Also store name fragments for fuzzy matching if not already in variants
+                        if not name_variants:  # Only do this if we don't have name_variants
+                            words = item_name.split()
+                            for word in words:
+                                if len(word) > 3 and word not in result:  # Only meaningful words
+                                    result[word] = {
+                                        "price": price,
+                                        "reference_handler": ref_handler,
+                                        "full_name": item.get('name', '')  # Store original case
+                                    }
+                    
+                    # Only return the built dictionary if it has items
+                    if result:
+                        logging.info(f"[MENU-PRICES] Loaded {len(result)} price entries from menu data at {loaded_path}")
+                        return result
+                        
+            except json.JSONDecodeError as e:
+                logging.error(f"[MENU-ERROR] Invalid JSON in menu file {loaded_path}: {e}")
+            except Exception as e:
+                logging.error(f"[MENU-ERROR] Error loading menu from {loaded_path}: {e}")
+
+        # We couldn't load from any path, log this clearly
+        paths_str = "\n - ".join(possible_paths)
+        logging.error(f"[MENU-ERROR] Could not find valid menu file in any of these locations:\n - {paths_str}")        
     except Exception as e:
         logging.error(f"[MENU-ERROR] Error loading menu data for prices: {e}")
     
