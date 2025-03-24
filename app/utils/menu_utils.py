@@ -184,6 +184,16 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
             finally:
                 _validation_in_progress = False
             
+        # Check for items with missing names and fix them
+        for i, item in enumerate(data.get("items", [])):
+            if not item.get("name"):
+                # Try to get name from reference_handler if available
+                ref = item.get("reference_handler", "")
+                if ref:
+                    item["name"] = f"Item-{ref[-8:]}"
+                else:
+                    item["name"] = f"Unnamed Item {i+1}"
+                logger.warning(f"Fixed missing item name: {item.get("name")}")
         # Update each item with its availability - Check availabilities field
         for it in data.get("items", []):
             snoozed = is_item_snoozed_timebased(it)
@@ -355,13 +365,18 @@ def verify_and_update_menu_item(item_name, item_data, location_id=None):
     # Debug all items in menu for troubleshooting
     logger.info(f"DEBUG - Menu item search for '{item_name_lower}'")
     for idx, item in enumerate(menu_data.get("items", [])):
+        # Skip items with no name to avoid None.lower() issues
+        if not item.get("name"):
+            logger.warning(f"DEBUG - Menu item {idx}: MISSING NAME, price={item.get('price')}")
+            continue
+            
         item_menu_name = item.get("name", "").lower()
         item_menu_price = item.get("price")
         logger.info(f"DEBUG - Menu item {idx}: name='{item_menu_name}', price={item_menu_price}")
     
-    # Try exact name match first
+    # Try exact name match first - skip items with missing names
     menu_item = next((item for item in menu_data.get("items", []) 
-                    if item.get("name", "").lower() == item_name_lower), None)
+                    if item.get("name") and item.get("name", "").lower() == item_name_lower), None)
     
     # If found in menu data, use those values
     if menu_item:
@@ -379,19 +394,19 @@ def verify_and_update_menu_item(item_name, item_data, location_id=None):
             updated_data["reference_handler"] = menu_ref
             logger.info(f"DEBUG - Using menu reference_handler for {item_name}: {menu_ref}")
     else:
-        # Case insensitive match
+        # Case insensitive match - skip items with missing names
         menu_item = next((item for item in menu_data.get("items", []) 
-                    if item.get("name", "").lower() == item_name_lower), None)
+                    if item.get("name") and item.get("name", "").lower() == item_name_lower), None)
         
         if menu_item:
             logger.info(f"DEBUG - Found case-insensitive match for {item_name}")
             updated_data["price"] = menu_item.get("price", 7.5)
             updated_data["reference_handler"] = menu_item.get("reference_handler", "")
         else:
-            # Try fuzzy match by capitalizing first letter
+            # Try fuzzy match by capitalizing first letter - skip items with missing names
             capitalized_name = item_name.title()
             menu_item = next((item for item in menu_data.get("items", []) 
-                        if item.get("name", "") == capitalized_name), None)
+                        if item.get("name") and item.get("name", "") == capitalized_name), None)
             
             if menu_item:
                 logger.info(f"DEBUG - Found capitalized match for {item_name} -> {capitalized_name}")
@@ -399,10 +414,11 @@ def verify_and_update_menu_item(item_name, item_data, location_id=None):
                 updated_data["reference_handler"] = menu_item.get("reference_handler", "")
             else:
                 # If not found in menu, try fuzzy matching
-                # First look for partial name matches
+                # First look for partial name matches - skip items with missing names
                 potential_items = [item for item in menu_data.get("items", []) 
-                                 if item_name_lower in item.get("name", "").lower() or 
-                                   item.get("name", "").lower() in item_name_lower]
+                                 if item.get("name") and (
+                                     item_name_lower in item.get("name", "").lower() or 
+                                     item.get("name", "").lower() in item_name_lower)]
                 
                 if potential_items:
                     # Use the first match (could be improved with better matching logic)

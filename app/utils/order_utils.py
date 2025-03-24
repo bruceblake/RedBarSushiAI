@@ -208,20 +208,39 @@ def find_menu_item(user_input, threshold=35):
     data = load_menu_data()
     all_items = data.get("items", [])
     user_lower = user_input.lower().strip()
+    
+    # Debug the search
+    log_info(f"Searching for menu item: '{user_input}', lowercase: '{user_lower}'")
+    
     # Check for an exact match first.
     for item in all_items:
-        if item.get("name","").lower() == user_lower:
+        item_name = item.get("name", "")
+        if not item_name:  # Skip items with no name
+            continue
+            
+        if item_name.lower() == user_lower:
+            log_info(f"Found exact match for '{user_input}': '{item_name}'")
             return item, 0
+            
     # Fuzzy search: find the best match.
     best_item = None
     best_distance = 9999
     for item in all_items:
-        distance = Levenshtein.distance(user_lower, item.get("name", "").lower())
+        item_name = item.get("name", "")
+        if not item_name:  # Skip items with no name
+            continue
+            
+        distance = Levenshtein.distance(user_lower, item_name.lower())
+        log_info(f"Distance between '{user_lower}' and '{item_name.lower()}': {distance}")
         if distance < best_distance:
             best_distance = distance
             best_item = item
+            
     if best_item and best_distance <= threshold:
+        log_info(f"Found fuzzy match for '{user_input}': '{best_item.get('name')}' with distance {best_distance}")
         return best_item, best_distance
+        
+    log_info(f"No match found for '{user_input}'")
     return None, None
 
 
