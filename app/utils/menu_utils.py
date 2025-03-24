@@ -184,13 +184,17 @@ def load_menu_data(force_refresh=False, location_id=None, skip_validation=False)
             finally:
                 _validation_in_progress = False
             
-        # Update each item with its availability
+        # Update each item with its availability - Check availabilities field
         for it in data.get("items", []):
             snoozed = is_item_snoozed_timebased(it)
             schedule_ok = is_item_currently_available_by_schedule(it)
             it["snoozed"] = snoozed
             it["scheduleAvailable"] = schedule_ok
-            it["available"] = (not snoozed) and schedule_ok
+            # Set available based on availabilities and snoozed status
+            if "availabilities" in it:
+                it["available"] = (not snoozed) and schedule_ok
+            else:
+                it["available"] = False  # If no availabilities, mark as unavailable
         
         # Process availability for modifiers too
         for mod in data.get("modifiers", []):

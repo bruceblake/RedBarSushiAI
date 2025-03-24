@@ -59,8 +59,13 @@ def take_order():
         return Response(str(response), mimetype='text/xml')
 
     data = load_menu_data()
-    available_items = [it for it in data.get(
-        "items", []) if it.get("available")]
+    # Check for items with availabilities field instead of available field
+    available_items = []
+    for item in data.get("items", []):
+        # Debug log to see what's in the items
+        logging.info(f"DEBUG Item {item.get('name')}: has availabilities: {'availabilities' in item}, snoozed: {item.get('snoozed', False)}")
+        if "availabilities" in item and not item.get("snoozed", False):
+            available_items.append(item)
     response = VoiceResponse()
     if not available_items:
         response.say(
@@ -94,7 +99,11 @@ def take_order():
             response.say(f"Sorry, we don't have {item_name} on our menu.")
             response.hangup()
             return Response(str(response), mimetype='text/xml')
-        if not matched_item.get("available", False):
+        # Log matched item details for debugging
+        logger.info(f"Matched item '{matched_item.get('name')}': availabilities present: {'availabilities' in matched_item}, snoozed: {matched_item.get('snoozed', False)}")
+        
+        # Check if item has availabilities but is snoozed
+        if matched_item.get("snoozed", False) or not matched_item.get("availabilities"):
             response.say(
                 f"Sorry, {matched_item['name']} is not available right now. Goodbye!")
             response.hangup()
@@ -486,6 +495,7 @@ def confirm_order_after_modification():
         newly_snoozed = [it["name"]
                          for it in order_items if is_item_snoozed_timebased(it)]
         if newly_snoozed:
+            logger.info(f"Items newly unavailable in checkout: {newly_snoozed}")
             with response.gather(
                 input='speech dtmf',
                 action='/handle_newly_snoozed_in_checkout',
@@ -669,8 +679,11 @@ def handle_newly_snoozed_in_checkout():
     
     # Check if user wants to remove unavailable items (1) or cancel (2)
     if dtmf_input == '1' or user_said_yes(user_resp):
+        logger.info(f"Customer chose to remove unavailable items and continue")
         # Remove snoozed items from order
+        before_count = len(order_items)
         updated_items = [item for item in order_items if not is_item_snoozed_timebased(item)]
+        logger.info(f"Removed {before_count - len(updated_items)} items from order")
         
         if not updated_items:
             response.say(f"All items in your order including {snoozed_items_str} are now unavailable. We apologize for the inconvenience. Goodbye.")
