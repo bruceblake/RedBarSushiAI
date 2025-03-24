@@ -1,1 +1,3349 @@
-{"items": [{"name": "French Fries", "reference_handler": "P-FRS-S-#U#-", "price": 2.0, "description": "Plain fries from France", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": ""}, {"name": "Curly Fries", "reference_handler": "P-FRS-M-#U#-", "price": 2.0, "description": "Spiralised potatoes, fried", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": ""}, {"name": "Seasoned Fries", "reference_handler": "P-FRS-L-#U#-", "price": 2.5, "description": "Plain fries, but a bit fancier", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": ""}, {"name": "Coca Cola", "reference_handler": "DRNK-01-#U#-", "price": 4.0, "description": "Cola flavoured sugar and caffeine", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/kZlALx0v9-hlN7m_sK8OZ6IKS1YfRtSIow_VpDTTjRQ/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY29jYWNvbGEtNjIyODU0YTc4YzUwNmYwMTViZTYwMThhLmpwZWc=.jpg"}, {"name": "Diet Coke", "reference_handler": "DRNK-02-#U#-", "price": 4.0, "description": "Cola flavoured aspartame and caffeine", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/Ff1p7WZlT-NAafcnQ6HygbKb5XFbm-p5Uqyfb_lo4P8/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZGlldGNva2UtNjIyODU0Y2U4YzUwNmYwMTViZTYwMThjLmpwZWc=.jpg"}, {"name": "Ginger Beer", "reference_handler": "DRNK-03-#U#-", "price": 4.0, "description": "Australia's favourite ginger beer!", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/iFUJT73YtMe1pChj29lAFUt_NBknsyTu5Hlr6NvA5NI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZ2luZ2VyYmVlci02MjI4NTU0OGRiNTk4NjAwMWViZjU4ZDEuanBn.jpg"}, {"name": "Burger Combo (Drink not Included)", "reference_handler": "P-BRGR", "price": 9.5, "description": "Combo with Bundles - Modifier Groups as Upsell", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/_ev83UhGkCie31XF8sRPw1Cm0Uw0otg_EiFu-D5zrq4/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvYnVyZ2VyLTYyMjg2YmU3OGM1MDZmMDE1YmU2MDE5MC5qcGVn.jpg"}, {"name": "Chicken Burger", "reference_handler": "P-BURG-CHK", "price": 8.0, "description": "Crispy coated chicken thigh, iceberg lettuce, pickles, slice of cheese & mayo, all in a toasted brioche bun.", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/By5AsW4yrHpO2XEkTpT59gT0ojYuFArr5krZnUIyeAI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hrYnVyZ2VyLTYyMjhjMWRjZGI1OTg2MDAxZWJmNThkZi5qcGVn.jpg"}, {"name": "Delicious Steak Frites", "reference_handler": "STK-01", "price": 15.0, "description": "Basic Example Product with - Modifier groups - min/max variables - default selection - translations", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/QWXAKnkpH1Md-kCY-7OeMO4I23T2VL7f05RSP1CNic4/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvc3RlYWstNjIyODYyNTg4YzUwNmYwMTViZTYwMThlLmpwZWc=.jpg"}, {"name": "Cheeseburger", "reference_handler": "P-BURG-CHE", "price": 8.5, "description": "100% beef patty, cheddar, caramelized onions, mayonnaise, pickles in a Pretzel bun", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/-T3Q86ak_gYss4pfyjoOu0S2ZSz3ivubi9QsNADrk-Q/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hlZXNlYnVyZ2VyLTYyMjg2ZTI2ZGI1OTg2MDAxZWJmNThkNy5qcGc=.jpg"}, {"name": "Veggie Burger", "reference_handler": "P-BURG-VEG", "price": 7.5, "description": "Black bean burgers with sweet potato, mushrooms, quinoa, and pecans.", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/N-0UqHpmHxtWoxLug-amn5fhcOtecxOGuk17nqY9Yu0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvdmVnZ2llYnVyZ2VyLTYyMjg2Y2JhYzcxNWI0MDNiMGViNzI5NC5qcGVn.jpg"}, {"name": "White Rice", "reference_handler": "RICE-01", "price": 4.5, "description": "White coloured rice", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/9ZV8s6bBr11enQLQyFp5x86PDOFtjXVljJdzs_PPpTo/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvbmFzaXB1dGktMTYxMDI5MDE0MDQ5NC5qcGc=.jpg"}, {"name": "Yellow Rice", "reference_handler": "RICE-02", "price": 4.5, "description": "White rice with Saffron", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/lxSc2sAbetJKPew9FqZS2osLw4zdzsGFgNV9L7sS2XU/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvTmFzaS1rdW5pbmctMy0xNjEwMjg5NzI2OTQ2LmpwZw==.jpg"}, {"name": "Egg Noodles", "reference_handler": "NOOD-01", "price": 4.5, "description": "Egg noodles and veggies fried and tossed with a delicious sauce", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/1DOWQmKyNPh0GDpoE-M-V-N6wAkoSBg-PPHNAN3DEWE/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvYmFtaWdvcmVuZy0xNjEwMjg5OTIyOTY5LmpwZw==.jpg"}, {"name": "Ramen Noodles", "reference_handler": "NOOD-02", "price": 4.5, "description": "Chinese-style wheat noodles", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/yS_VH1maHnLv7RLw8bCtxIuHDv1bXUJS6LiuocEpFXI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvTWlob2VuLTItMS0xNjEwMjg5ODcwMTU3LmpwZw==.jpg"}, {"name": "Chicken Sate", "reference_handler": "P-SATE", "price": 4.5, "description": "Product with Nested Modifiers - Multimax variables - Allergens (tags)", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/dLn-Axhl9HkbXMP0hC8yL3t8OZtlGEFNKD-OPD7LdoY/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvc2F0YXktNjIyODRlM2M4YzUwNmYwMTViZTYwMTg0LmpwZWc=.jpg"}, {"name": "6 Pieces", "reference_handler": "VAR-2-#V300#-", "price": 3.0, "description": "", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": ""}, {"name": "9 Pieces", "reference_handler": "VAR-3-#V550#-", "price": 5.5, "description": "", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": ""}, {"name": "Chicken Tenders", "reference_handler": "VAR-PROD-1", "price": 8.0, "description": "Variant prices for different sizes will show cheapaest on top level product", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/RENCGkbBafii4fWRyCwS0VGV6714pL17SxoULs0KgA0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hpY2tlbi02MjI4NWY5MGRiNTk4NjAwMWViZjU4ZDUuanBn.jpg"}, {"name": "Build your own Pizza", "reference_handler": "PIZZ-00", "price": 8.0, "description": "Build your own pizza, first topping is free!", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/GD-rbG2fv0sRMVWVHh4fV5rdYOMTqQ5QyAEyHwedQl0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvcGl6emEtNjIyODUyNWViMzAzZmMwM2ExNDhkZTQ2LmpwZWc=.jpg"}, {"name": "The Hawaiian", "reference_handler": "PIZZ-01", "price": 8.0, "description": "Italy's favourite Pizza!", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/a7Wji9CAymU-3IBjiBeSmrcqMTvHzmsnOeq8K3ldCBM/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvaGF3YWlpYW4tNjIyODU1YzdiMzAzZmMwM2ExNDhkZTQ4LmpwZWc=.jpg"}, {"name": "Yuzu Salmon", "reference_handler": "PRT-01###PRNT-#O0#-", "price": 1.8, "description": "", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": ""}, {"name": "Mini Poke Bowl", "reference_handler": "SZ-01", "price": 8.0, "description": "A little bowl of Poke", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": ""}, {"name": "Yuzu Salmon", "reference_handler": "PRT-01###PRNT-#O1#-", "price": 2.5, "description": "", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": ""}, {"name": "Large Poke Bowl", "reference_handler": "SZ-02", "price": 12.0, "description": "A big bowl of Poke", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": ""}, {"name": "Build a Poke Bowl", "reference_handler": "P-PB-01", "price": 10.0, "description": "Select a size then choose your ingredients", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/LCTRGFEQdLnvJ6I989O99RTLSDt361uCNd-IpAxrnj0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvcG9rZS02MjI4NTBjOGIzMDNmYzAzYTE0OGRlNDQuanBn.jpg"}, {"name": "Coca Cola", "reference_handler": "DRNK-01", "price": 4.0, "description": "Cola flavoured sugar and caffeine", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/kZlALx0v9-hlN7m_sK8OZ6IKS1YfRtSIow_VpDTTjRQ/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY29jYWNvbGEtNjIyODU0YTc4YzUwNmYwMTViZTYwMThhLmpwZWc=.jpg"}, {"name": "Diet Coke", "reference_handler": "DRNK-02", "price": 4.0, "description": "Cola flavoured aspartame and caffeine", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/Ff1p7WZlT-NAafcnQ6HygbKb5XFbm-p5Uqyfb_lo4P8/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZGlldGNva2UtNjIyODU0Y2U4YzUwNmYwMTViZTYwMThjLmpwZWc=.jpg"}, {"name": "Ginger Beer", "reference_handler": "DRNK-03", "price": 4.0, "description": "Australia's favourite ginger beer!", "snoozed": false, "snoozeStart": "", "snoozeEnd": "", "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/iFUJT73YtMe1pChj29lAFUt_NBknsyTu5Hlr6NvA5NI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZ2luZ2VyYmVlci02MjI4NTU0OGRiNTk4NjAwMWViZjU4ZDEuanBn.jpg"}], "modifiers": [], "modifierGroups": [{"_id": "6791a3984af8951d53936aea", "name": "Burger Selection", "plu": "BNDL-BRG", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936ae7", "name": "Chicken Burger", "reference_handler": "P-BURG-CHK###PRNT", "description": "Crispy coated chicken thigh, iceberg lettuce, pickles, slice of cheese & mayo, all in a toasted brioche bun.", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/By5AsW4yrHpO2XEkTpT59gT0ojYuFArr5krZnUIyeAI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hrYnVyZ2VyLTYyMjhjMWRjZGI1OTg2MDAxZWJmNThkZi5qcGVn.jpg", "parent_group_id": "6791a3984af8951d53936aea"}, {"_id": "6791a3984af8951d53936ae8", "name": "Cheeseburger", "reference_handler": "P-BURG-CHE###PRNT", "description": "100% beef patty, cheddar, caramelized onions, mayonnaise, pickles in a Pretzel bun", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/-T3Q86ak_gYss4pfyjoOu0S2ZSz3ivubi9QsNADrk-Q/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hlZXNlYnVyZ2VyLTYyMjg2ZTI2ZGI1OTg2MDAxZWJmNThkNy5qcGc=.jpg", "parent_group_id": "6791a3984af8951d53936aea"}, {"_id": "6791a3984af8951d53936ae9", "name": "Veggie Burger", "reference_handler": "P-BURG-VEG###PRNT", "description": "Black bean burgers with sweet potato, mushrooms, quinoa, and pecans.", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/N-0UqHpmHxtWoxLug-amn5fhcOtecxOGuk17nqY9Yu0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvdmVnZ2llYnVyZ2VyLTYyMjg2Y2JhYzcxNWI0MDNiMGViNzI5NC5qcGVn.jpg", "parent_group_id": "6791a3984af8951d53936aea"}], "availabilities": [], "imageUrl": ""}, {"_id": "6791a3984af8951d53936aee", "name": "Fries Selection", "plu": "MG-FRS", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936aeb", "name": "French Fries", "reference_handler": "P-FRS-S-#U#-", "description": "Plain fries from France", "price": 2.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936aee"}, {"_id": "6791a3984af8951d53936aec", "name": "Curly Fries", "reference_handler": "P-FRS-M-#U#-", "description": "Spiralised potatoes, fried", "price": 2.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936aee"}, {"_id": "6791a3984af8951d53936aed", "name": "Seasoned Fries", "reference_handler": "P-FRS-L-#U#-", "description": "Plain fries, but a bit fancier", "price": 2.5, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936aee"}], "availabilities": [], "imageUrl": ""}, {"_id": "6791a3984af8951d53936af2", "name": "Add a Drink? (not included)", "plu": "UPSLL-01", "productType": 3, "min": 0, "max": 0, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936aef", "name": "Coca Cola", "reference_handler": "DRNK-01-#U#-", "description": "Cola flavoured sugar and caffeine", "price": 4.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/kZlALx0v9-hlN7m_sK8OZ6IKS1YfRtSIow_VpDTTjRQ/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY29jYWNvbGEtNjIyODU0YTc4YzUwNmYwMTViZTYwMThhLmpwZWc=.jpg", "parent_group_id": "6791a3984af8951d53936af2"}, {"_id": "6791a3984af8951d53936af0", "name": "Diet Coke", "reference_handler": "DRNK-02-#U#-", "description": "Cola flavoured aspartame and caffeine", "price": 4.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/Ff1p7WZlT-NAafcnQ6HygbKb5XFbm-p5Uqyfb_lo4P8/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZGlldGNva2UtNjIyODU0Y2U4YzUwNmYwMTViZTYwMThjLmpwZWc=.jpg", "parent_group_id": "6791a3984af8951d53936af2"}, {"_id": "6791a3984af8951d53936af1", "name": "Ginger Beer", "reference_handler": "DRNK-03-#U#-", "description": "Australia's favourite ginger beer!", "price": 4.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/iFUJT73YtMe1pChj29lAFUt_NBknsyTu5Hlr6NvA5NI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZ2luZ2VyYmVlci02MjI4NTU0OGRiNTk4NjAwMWViZjU4ZDEuanBn.jpg", "parent_group_id": "6791a3984af8951d53936af2"}], "availabilities": [], "imageUrl": ""}, {"_id": "66e88f320a7c2604a63bf4de", "name": "Cooking instructions", "plu": "MOD-01", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [], "availabilities": [], "imageUrl": ""}, {"_id": "66e88f320a7c2604a63bf49e", "name": "Add a side", "plu": "MOD-02", "productType": 3, "min": 1, "max": 0, "multiMax": 1, "subProducts": [], "availabilities": [], "imageUrl": ""}, {"_id": "66e88f320a7c2604a63bf4e8", "name": "Choose a sauce", "plu": "MG-SAUCES", "productType": 3, "min": 0, "max": 0, "multiMax": 99, "subProducts": [], "availabilities": [], "imageUrl": ""}, {"_id": "66e88f320a7c2604a63bf4e2", "name": "Rice Selection", "plu": "MG-RICE", "productType": 3, "min": 0, "max": 0, "multiMax": 99, "subProducts": [{"_id": "66e88f320a7c2604a63bf4ac", "name": "White Rice", "reference_handler": "RICE-01", "description": "White coloured rice", "price": 4.5, "productType": 1, "subProducts": [{"_id": "66e88f320a7c2604a63bf4e8", "name": "Choose a sauce", "plu": "MG-SAUCES", "productType": 3, "min": 0, "max": 0, "multiMax": 99, "subProducts": [], "availabilities": [], "imageUrl": ""}], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/9ZV8s6bBr11enQLQyFp5x86PDOFtjXVljJdzs_PPpTo/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvbmFzaXB1dGktMTYxMDI5MDE0MDQ5NC5qcGc=.jpg", "parent_group_id": "66e88f320a7c2604a63bf4e2"}, {"_id": "66e88f320a7c2604a63bf4e6", "name": "Yellow Rice", "reference_handler": "RICE-02", "description": "White rice with Saffron", "price": 4.5, "productType": 1, "subProducts": [{"_id": "66e88f320a7c2604a63bf4e8", "name": "Choose a sauce", "plu": "MG-SAUCES", "productType": 3, "min": 0, "max": 0, "multiMax": 99, "subProducts": [], "availabilities": [], "imageUrl": ""}], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/lxSc2sAbetJKPew9FqZS2osLw4zdzsGFgNV9L7sS2XU/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvTmFzaS1rdW5pbmctMy0xNjEwMjg5NzI2OTQ2LmpwZw==.jpg", "parent_group_id": "66e88f320a7c2604a63bf4e2"}], "availabilities": [], "imageUrl": ""}, {"_id": "66e88f320a7c2604a63bf4e4", "name": "Noodles Selection", "plu": "MG-NOODLES", "productType": 3, "min": 0, "max": 0, "multiMax": 99, "subProducts": [{"_id": "66e88f320a7c2604a63bf4ae", "name": "Egg Noodles", "reference_handler": "NOOD-01", "description": "Egg noodles and veggies fried and tossed with a delicious sauce", "price": 4.5, "productType": 1, "subProducts": [{"_id": "66e88f320a7c2604a63bf4e8", "name": "Choose a sauce", "plu": "MG-SAUCES", "productType": 3, "min": 0, "max": 0, "multiMax": 99, "subProducts": [], "availabilities": [], "imageUrl": ""}], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/1DOWQmKyNPh0GDpoE-M-V-N6wAkoSBg-PPHNAN3DEWE/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvYmFtaWdvcmVuZy0xNjEwMjg5OTIyOTY5LmpwZw==.jpg", "parent_group_id": "66e88f320a7c2604a63bf4e4"}, {"_id": "66e88f320a7c2604a63bf4b0", "name": "Ramen Noodles", "reference_handler": "NOOD-02", "description": "Chinese-style wheat noodles", "price": 4.5, "productType": 1, "subProducts": [{"_id": "66e88f320a7c2604a63bf4e8", "name": "Choose a sauce", "plu": "MG-SAUCES", "productType": 3, "min": 0, "max": 0, "multiMax": 99, "subProducts": [], "availabilities": [], "imageUrl": ""}], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "https://resizer.staging.deliverect.com/yS_VH1maHnLv7RLw8bCtxIuHDv1bXUJS6LiuocEpFXI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvTWlob2VuLTItMS0xNjEwMjg5ODcwMTU3LmpwZw==.jpg", "parent_group_id": "66e88f320a7c2604a63bf4e4"}], "availabilities": [], "imageUrl": ""}, {"_id": "66e88f320a7c2604a63bf514", "name": "How many pieces?", "plu": "MG-VAR-1", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936af4", "name": "3 Pieces", "reference_handler": "VAR-1-#V0#-", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "66e88f320a7c2604a63bf514"}, {"_id": "6791a3984af8951d53936af5", "name": "6 Pieces", "reference_handler": "VAR-2-#V300#-", "description": "", "price": 3.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "66e88f320a7c2604a63bf514"}, {"_id": "6791a3984af8951d53936af6", "name": "9 Pieces", "reference_handler": "VAR-3-#V550#-", "description": "", "price": 5.5, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "66e88f320a7c2604a63bf514"}], "availabilities": [], "imageUrl": ""}, {"_id": "6791a3984af8951d53936afc", "name": "Choose your First Topping", "plu": "FREE-TOP", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [], "availabilities": [], "imageUrl": ""}, {"_id": "6791a3984af8951d53936b02", "name": "Add extra toppings", "plu": "PIZZ-TOP", "productType": 3, "min": 0, "max": 0, "multiMax": 10, "subProducts": [], "availabilities": [], "imageUrl": ""}, {"_id": "6791a3984af8951d53936b08", "name": "Choose Your Protein", "plu": "BNDL-01-SML", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936b05", "name": "Yuzu Salmon", "reference_handler": "PRT-01###PRNT-#O0#-", "description": "", "price": 1.8, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b08"}, {"_id": "6791a3984af8951d53936b06", "name": "Spicy Tuna", "reference_handler": "PRT-02###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b08"}, {"_id": "6791a3984af8951d53936b07", "name": "Teriyaki Chicken", "reference_handler": "PRT-03###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b08"}], "availabilities": [], "imageUrl": ""}, {"_id": "6791a3984af8951d53936b0c", "name": "Choose Your Protein", "plu": "BNDL-LG", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936b0b", "name": "Yuzu Salmon", "reference_handler": "PRT-01###PRNT-#O1#-", "description": "", "price": 2.5, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b0c"}, {"_id": "6791a3984af8951d53936b06", "name": "Spicy Tuna", "reference_handler": "PRT-02###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b0c"}, {"_id": "6791a3984af8951d53936b07", "name": "Teriyaki Chicken", "reference_handler": "PRT-03###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b0c"}], "availabilities": [], "imageUrl": ""}, {"_id": "6791a3984af8951d53936b0e", "name": "Choose your size", "plu": "POKE-SZ", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936b09", "name": "Mini Poke Bowl", "reference_handler": "SZ-01", "description": "A little bowl of Poke", "price": 8.0, "productType": 1, "subProducts": [{"_id": "6791a3984af8951d53936b08", "name": "Choose Your Protein", "plu": "BNDL-01-SML", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936b05", "name": "Yuzu Salmon", "reference_handler": "PRT-01###PRNT-#O0#-", "description": "", "price": 1.8, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b08"}, {"_id": "6791a3984af8951d53936b06", "name": "Spicy Tuna", "reference_handler": "PRT-02###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b08"}, {"_id": "6791a3984af8951d53936b07", "name": "Teriyaki Chicken", "reference_handler": "PRT-03###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b08"}], "availabilities": [], "imageUrl": ""}], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b0e"}, {"_id": "6791a3984af8951d53936b0d", "name": "Large Poke Bowl", "reference_handler": "SZ-02", "description": "A big bowl of Poke", "price": 12.0, "productType": 1, "subProducts": [{"_id": "6791a3984af8951d53936b0c", "name": "Choose Your Protein", "plu": "BNDL-LG", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936b0b", "name": "Yuzu Salmon", "reference_handler": "PRT-01###PRNT-#O1#-", "description": "", "price": 2.5, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b0c"}, {"_id": "6791a3984af8951d53936b06", "name": "Spicy Tuna", "reference_handler": "PRT-02###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b0c"}, {"_id": "6791a3984af8951d53936b07", "name": "Teriyaki Chicken", "reference_handler": "PRT-03###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b0c"}], "availabilities": [], "imageUrl": ""}], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b0e"}], "availabilities": [], "imageUrl": ""}, {"_id": "6791a3984af8951d53936b11", "name": "Choose Your Base", "plu": "BNDL-01", "productType": 3, "min": 1, "max": 1, "multiMax": 1, "subProducts": [{"_id": "6791a3984af8951d53936b0f", "name": "Sushi Rice", "reference_handler": "BS-01###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b11"}, {"_id": "6791a3984af8951d53936b10", "name": "Cruncy Cabbage Slaw", "reference_handler": "BS-02###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b11"}], "availabilities": [], "imageUrl": ""}, {"_id": "6791a3984af8951d53936b15", "name": "Add Extras", "plu": "BNDL-02", "productType": 3, "min": 0, "max": 3, "multiMax": 3, "subProducts": [{"_id": "6791a3984af8951d53936b12", "name": "Spicy Tofu", "reference_handler": "XTRA-TOF###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b15"}, {"_id": "6791a3984af8951d53936b13", "name": "Crispy Onions", "reference_handler": "XTRA-CONI###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b15"}, {"_id": "6791a3984af8951d53936b14", "name": "Smashed Avocado", "reference_handler": "XTRA-AVO###PRNT", "description": "", "price": 0.0, "productType": 1, "subProducts": [], "availabilities": [{"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 4, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 5, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 6, "endTime": "23:59", "startTime": "00:00"}, {"dayOfWeek": 7, "endTime": "23:59", "startTime": "00:00"}], "imageUrl": "", "parent_group_id": "6791a3984af8951d53936b15"}], "availabilities": [], "imageUrl": ""}]}
+{
+  "items": [
+    {
+      "name": "French Fries",
+      "reference_handler": "P-FRS-S-#U#-",
+      "price": 2.0,
+      "description": "Plain fries from France",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": ""
+    },
+    {
+      "name": "Curly Fries",
+      "reference_handler": "P-FRS-M-#U#-",
+      "price": 2.0,
+      "description": "Spiralised potatoes, fried",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": ""
+    },
+    {
+      "name": "Seasoned Fries",
+      "reference_handler": "P-FRS-L-#U#-",
+      "price": 2.5,
+      "description": "Plain fries, but a bit fancier",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": ""
+    },
+    {
+      "name": "Coca Cola",
+      "reference_handler": "DRNK-01-#U#-",
+      "price": 4.0,
+      "description": "Cola flavoured sugar and caffeine",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/kZlALx0v9-hlN7m_sK8OZ6IKS1YfRtSIow_VpDTTjRQ/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY29jYWNvbGEtNjIyODU0YTc4YzUwNmYwMTViZTYwMThhLmpwZWc=.jpg"
+    },
+    {
+      "name": "Diet Coke",
+      "reference_handler": "DRNK-02-#U#-",
+      "price": 4.0,
+      "description": "Cola flavoured aspartame and caffeine",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/Ff1p7WZlT-NAafcnQ6HygbKb5XFbm-p5Uqyfb_lo4P8/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZGlldGNva2UtNjIyODU0Y2U4YzUwNmYwMTViZTYwMThjLmpwZWc=.jpg"
+    },
+    {
+      "name": "Ginger Beer",
+      "reference_handler": "DRNK-03-#U#-",
+      "price": 4.0,
+      "description": "Australia's favourite ginger beer!",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/iFUJT73YtMe1pChj29lAFUt_NBknsyTu5Hlr6NvA5NI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZ2luZ2VyYmVlci02MjI4NTU0OGRiNTk4NjAwMWViZjU4ZDEuanBn.jpg"
+    },
+    {
+      "name": "Burger Combo (Drink not Included)",
+      "reference_handler": "P-BRGR",
+      "price": 9.5,
+      "description": "Combo with Bundles - Modifier Groups as Upsell",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/_ev83UhGkCie31XF8sRPw1Cm0Uw0otg_EiFu-D5zrq4/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvYnVyZ2VyLTYyMjg2YmU3OGM1MDZmMDE1YmU2MDE5MC5qcGVn.jpg"
+    },
+    {
+      "name": "Chicken Burger",
+      "reference_handler": "P-BURG-CHK",
+      "price": 8.0,
+      "description": "Crispy coated chicken thigh, iceberg lettuce, pickles, slice of cheese & mayo, all in a toasted brioche bun.",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/By5AsW4yrHpO2XEkTpT59gT0ojYuFArr5krZnUIyeAI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hrYnVyZ2VyLTYyMjhjMWRjZGI1OTg2MDAxZWJmNThkZi5qcGVn.jpg"
+    },
+    {
+      "name": "Delicious Steak Frites",
+      "reference_handler": "STK-01",
+      "price": 15.0,
+      "description": "Basic Example Product with - Modifier groups - min/max variables - default selection - translations",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/QWXAKnkpH1Md-kCY-7OeMO4I23T2VL7f05RSP1CNic4/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvc3RlYWstNjIyODYyNTg4YzUwNmYwMTViZTYwMThlLmpwZWc=.jpg"
+    },
+    {
+      "name": "Cheeseburger",
+      "reference_handler": "P-BURG-CHE",
+      "price": 8.5,
+      "description": "100% beef patty, cheddar, caramelized onions, mayonnaise, pickles in a Pretzel bun",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/-T3Q86ak_gYss4pfyjoOu0S2ZSz3ivubi9QsNADrk-Q/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hlZXNlYnVyZ2VyLTYyMjg2ZTI2ZGI1OTg2MDAxZWJmNThkNy5qcGc=.jpg"
+    },
+    {
+      "name": "Veggie Burger",
+      "reference_handler": "P-BURG-VEG",
+      "price": 7.5,
+      "description": "Black bean burgers with sweet potato, mushrooms, quinoa, and pecans.",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/N-0UqHpmHxtWoxLug-amn5fhcOtecxOGuk17nqY9Yu0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvdmVnZ2llYnVyZ2VyLTYyMjg2Y2JhYzcxNWI0MDNiMGViNzI5NC5qcGVn.jpg"
+    },
+    {
+      "name": "White Rice",
+      "reference_handler": "RICE-01",
+      "price": 4.5,
+      "description": "White coloured rice",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/9ZV8s6bBr11enQLQyFp5x86PDOFtjXVljJdzs_PPpTo/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvbmFzaXB1dGktMTYxMDI5MDE0MDQ5NC5qcGc=.jpg"
+    },
+    {
+      "name": "Yellow Rice",
+      "reference_handler": "RICE-02",
+      "price": 4.5,
+      "description": "White rice with Saffron",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/lxSc2sAbetJKPew9FqZS2osLw4zdzsGFgNV9L7sS2XU/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvTmFzaS1rdW5pbmctMy0xNjEwMjg5NzI2OTQ2LmpwZw==.jpg"
+    },
+    {
+      "name": "Egg Noodles",
+      "reference_handler": "NOOD-01",
+      "price": 4.5,
+      "description": "Egg noodles and veggies fried and tossed with a delicious sauce",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/1DOWQmKyNPh0GDpoE-M-V-N6wAkoSBg-PPHNAN3DEWE/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvYmFtaWdvcmVuZy0xNjEwMjg5OTIyOTY5LmpwZw==.jpg"
+    },
+    {
+      "name": "Ramen Noodles",
+      "reference_handler": "NOOD-02",
+      "price": 4.5,
+      "description": "Chinese-style wheat noodles",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/yS_VH1maHnLv7RLw8bCtxIuHDv1bXUJS6LiuocEpFXI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvTWlob2VuLTItMS0xNjEwMjg5ODcwMTU3LmpwZw==.jpg"
+    },
+    {
+      "name": "Chicken Sate",
+      "reference_handler": "P-SATE",
+      "price": 4.5,
+      "description": "Product with Nested Modifiers - Multimax variables - Allergens (tags)",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/dLn-Axhl9HkbXMP0hC8yL3t8OZtlGEFNKD-OPD7LdoY/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvc2F0YXktNjIyODRlM2M4YzUwNmYwMTViZTYwMTg0LmpwZWc=.jpg"
+    },
+    {
+      "name": "6 Pieces",
+      "reference_handler": "VAR-2-#V300#-",
+      "price": 3.0,
+      "description": "",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": ""
+    },
+    {
+      "name": "9 Pieces",
+      "reference_handler": "VAR-3-#V550#-",
+      "price": 5.5,
+      "description": "",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": ""
+    },
+    {
+      "name": "Chicken Tenders",
+      "reference_handler": "VAR-PROD-1",
+      "price": 8.0,
+      "description": "Variant prices for different sizes will show cheapaest on top level product",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/RENCGkbBafii4fWRyCwS0VGV6714pL17SxoULs0KgA0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hpY2tlbi02MjI4NWY5MGRiNTk4NjAwMWViZjU4ZDUuanBn.jpg"
+    },
+    {
+      "name": "Build your own Pizza",
+      "reference_handler": "PIZZ-00",
+      "price": 8.0,
+      "description": "Build your own pizza, first topping is free!",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/GD-rbG2fv0sRMVWVHh4fV5rdYOMTqQ5QyAEyHwedQl0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvcGl6emEtNjIyODUyNWViMzAzZmMwM2ExNDhkZTQ2LmpwZWc=.jpg"
+    },
+    {
+      "name": "The Hawaiian",
+      "reference_handler": "PIZZ-01",
+      "price": 8.0,
+      "description": "Italy's favourite Pizza!",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/a7Wji9CAymU-3IBjiBeSmrcqMTvHzmsnOeq8K3ldCBM/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvaGF3YWlpYW4tNjIyODU1YzdiMzAzZmMwM2ExNDhkZTQ4LmpwZWc=.jpg"
+    },
+    {
+      "name": "Yuzu Salmon",
+      "reference_handler": "PRT-01###PRNT-#O0#-",
+      "price": 1.8,
+      "description": "",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": ""
+    },
+    {
+      "name": "Mini Poke Bowl",
+      "reference_handler": "SZ-01",
+      "price": 8.0,
+      "description": "A little bowl of Poke",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": ""
+    },
+    {
+      "name": "Yuzu Salmon",
+      "reference_handler": "PRT-01###PRNT-#O1#-",
+      "price": 2.5,
+      "description": "",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": ""
+    },
+    {
+      "name": "Large Poke Bowl",
+      "reference_handler": "SZ-02",
+      "price": 12.0,
+      "description": "A big bowl of Poke",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": ""
+    },
+    {
+      "name": "Build a Poke Bowl",
+      "reference_handler": "P-PB-01",
+      "price": 10.0,
+      "description": "Select a size then choose your ingredients",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/LCTRGFEQdLnvJ6I989O99RTLSDt361uCNd-IpAxrnj0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvcG9rZS02MjI4NTBjOGIzMDNmYzAzYTE0OGRlNDQuanBn.jpg"
+    },
+    {
+      "name": "Coca Cola",
+      "reference_handler": "DRNK-01",
+      "price": 4.0,
+      "description": "Cola flavoured sugar and caffeine",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/kZlALx0v9-hlN7m_sK8OZ6IKS1YfRtSIow_VpDTTjRQ/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY29jYWNvbGEtNjIyODU0YTc4YzUwNmYwMTViZTYwMThhLmpwZWc=.jpg"
+    },
+    {
+      "name": "Diet Coke",
+      "reference_handler": "DRNK-02",
+      "price": 4.0,
+      "description": "Cola flavoured aspartame and caffeine",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/Ff1p7WZlT-NAafcnQ6HygbKb5XFbm-p5Uqyfb_lo4P8/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZGlldGNva2UtNjIyODU0Y2U4YzUwNmYwMTViZTYwMThjLmpwZWc=.jpg"
+    },
+    {
+      "name": "Ginger Beer",
+      "reference_handler": "DRNK-03",
+      "price": 4.0,
+      "description": "Australia's favourite ginger beer!",
+      "snoozed": false,
+      "snoozeStart": "",
+      "snoozeEnd": "",
+      "availabilities": [
+        {
+          "dayOfWeek": 1,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        },
+        {
+          "dayOfWeek": 7,
+          "endTime": "23:59",
+          "startTime": "00:00"
+        }
+      ],
+      "imageUrl": "https://resizer.staging.deliverect.com/iFUJT73YtMe1pChj29lAFUt_NBknsyTu5Hlr6NvA5NI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZ2luZ2VyYmVlci02MjI4NTU0OGRiNTk4NjAwMWViZjU4ZDEuanBn.jpg"
+    }
+  ],
+  "modifiers": [],
+  "modifierGroups": [
+    {
+      "_id": "6791a3984af8951d53936aea",
+      "name": "Burger Selection",
+      "plu": "BNDL-BRG",
+      "productType": 3,
+      "min": 1,
+      "max": 1,
+      "multiMax": 1,
+      "subProducts": [
+        {
+          "_id": "6791a3984af8951d53936ae7",
+          "name": "Chicken Burger",
+          "reference_handler": "P-BURG-CHK###PRNT",
+          "description": "Crispy coated chicken thigh, iceberg lettuce, pickles, slice of cheese & mayo, all in a toasted brioche bun.",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/By5AsW4yrHpO2XEkTpT59gT0ojYuFArr5krZnUIyeAI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hrYnVyZ2VyLTYyMjhjMWRjZGI1OTg2MDAxZWJmNThkZi5qcGVn.jpg",
+          "parent_group_id": "6791a3984af8951d53936aea"
+        },
+        {
+          "_id": "6791a3984af8951d53936ae8",
+          "name": "Cheeseburger",
+          "reference_handler": "P-BURG-CHE###PRNT",
+          "description": "100% beef patty, cheddar, caramelized onions, mayonnaise, pickles in a Pretzel bun",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/-T3Q86ak_gYss4pfyjoOu0S2ZSz3ivubi9QsNADrk-Q/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hlZXNlYnVyZ2VyLTYyMjg2ZTI2ZGI1OTg2MDAxZWJmNThkNy5qcGc=.jpg",
+          "parent_group_id": "6791a3984af8951d53936aea"
+        },
+        {
+          "_id": "6791a3984af8951d53936ae9",
+          "name": "Veggie Burger",
+          "reference_handler": "P-BURG-VEG###PRNT",
+          "description": "Black bean burgers with sweet potato, mushrooms, quinoa, and pecans.",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/N-0UqHpmHxtWoxLug-amn5fhcOtecxOGuk17nqY9Yu0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvdmVnZ2llYnVyZ2VyLTYyMjg2Y2JhYzcxNWI0MDNiMGViNzI5NC5qcGVn.jpg",
+          "parent_group_id": "6791a3984af8951d53936aea"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-bf588548"
+    },
+    {
+      "_id": "6791a3984af8951d53936aee",
+      "name": "Fries Selection",
+      "plu": "MG-FRS",
+      "productType": 3,
+      "min": 1,
+      "max": 1,
+      "multiMax": 1,
+      "subProducts": [
+        {
+          "_id": "6791a3984af8951d53936aeb",
+          "name": "French Fries",
+          "reference_handler": "P-FRS-S-#U#-",
+          "description": "Plain fries from France",
+          "price": 2.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936aee"
+        },
+        {
+          "_id": "6791a3984af8951d53936aec",
+          "name": "Curly Fries",
+          "reference_handler": "P-FRS-M-#U#-",
+          "description": "Spiralised potatoes, fried",
+          "price": 2.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936aee"
+        },
+        {
+          "_id": "6791a3984af8951d53936aed",
+          "name": "Seasoned Fries",
+          "reference_handler": "P-FRS-L-#U#-",
+          "description": "Plain fries, but a bit fancier",
+          "price": 2.5,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936aee"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-05386e87"
+    },
+    {
+      "_id": "6791a3984af8951d53936af2",
+      "name": "Add a Drink? (not included)",
+      "plu": "UPSLL-01",
+      "productType": 3,
+      "min": 0,
+      "max": 0,
+      "multiMax": 1,
+      "subProducts": [
+        {
+          "_id": "6791a3984af8951d53936aef",
+          "name": "Coca Cola",
+          "reference_handler": "DRNK-01-#U#-",
+          "description": "Cola flavoured sugar and caffeine",
+          "price": 4.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/kZlALx0v9-hlN7m_sK8OZ6IKS1YfRtSIow_VpDTTjRQ/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY29jYWNvbGEtNjIyODU0YTc4YzUwNmYwMTViZTYwMThhLmpwZWc=.jpg",
+          "parent_group_id": "6791a3984af8951d53936af2"
+        },
+        {
+          "_id": "6791a3984af8951d53936af0",
+          "name": "Diet Coke",
+          "reference_handler": "DRNK-02-#U#-",
+          "description": "Cola flavoured aspartame and caffeine",
+          "price": 4.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/Ff1p7WZlT-NAafcnQ6HygbKb5XFbm-p5Uqyfb_lo4P8/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZGlldGNva2UtNjIyODU0Y2U4YzUwNmYwMTViZTYwMThjLmpwZWc=.jpg",
+          "parent_group_id": "6791a3984af8951d53936af2"
+        },
+        {
+          "_id": "6791a3984af8951d53936af1",
+          "name": "Ginger Beer",
+          "reference_handler": "DRNK-03-#U#-",
+          "description": "Australia's favourite ginger beer!",
+          "price": 4.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/iFUJT73YtMe1pChj29lAFUt_NBknsyTu5Hlr6NvA5NI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZ2luZ2VyYmVlci02MjI4NTU0OGRiNTk4NjAwMWViZjU4ZDEuanBn.jpg",
+          "parent_group_id": "6791a3984af8951d53936af2"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-0a6f544d"
+    },
+    {
+      "_id": "66e88f320a7c2604a63bf4de",
+      "name": "Cooking instructions",
+      "plu": "MOD-01",
+      "productType": 3,
+      "min": 1,
+      "max": 1,
+      "multiMax": 1,
+      "subProducts": [],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-1521204a"
+    },
+    {
+      "_id": "66e88f320a7c2604a63bf49e",
+      "name": "Add a side",
+      "plu": "MOD-02",
+      "productType": 3,
+      "min": 1,
+      "max": 0,
+      "multiMax": 1,
+      "subProducts": [],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-b3220be5"
+    },
+    {
+      "_id": "66e88f320a7c2604a63bf4e8",
+      "name": "Choose a sauce",
+      "plu": "MG-SAUCES",
+      "productType": 3,
+      "min": 0,
+      "max": 0,
+      "multiMax": 99,
+      "subProducts": [],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-ce2897ab"
+    },
+    {
+      "_id": "66e88f320a7c2604a63bf4e2",
+      "name": "Rice Selection",
+      "plu": "MG-RICE",
+      "productType": 3,
+      "min": 0,
+      "max": 0,
+      "multiMax": 99,
+      "subProducts": [
+        {
+          "_id": "66e88f320a7c2604a63bf4ac",
+          "name": "White Rice",
+          "reference_handler": "RICE-01",
+          "description": "White coloured rice",
+          "price": 4.5,
+          "productType": 1,
+          "subProducts": [
+            {
+              "_id": "66e88f320a7c2604a63bf4e8",
+              "name": "Choose a sauce",
+              "plu": "MG-SAUCES",
+              "productType": 3,
+              "min": 0,
+              "max": 0,
+              "multiMax": 99,
+              "subProducts": [],
+              "availabilities": [],
+              "imageUrl": ""
+            }
+          ],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/9ZV8s6bBr11enQLQyFp5x86PDOFtjXVljJdzs_PPpTo/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvbmFzaXB1dGktMTYxMDI5MDE0MDQ5NC5qcGc=.jpg",
+          "parent_group_id": "66e88f320a7c2604a63bf4e2"
+        },
+        {
+          "_id": "66e88f320a7c2604a63bf4e6",
+          "name": "Yellow Rice",
+          "reference_handler": "RICE-02",
+          "description": "White rice with Saffron",
+          "price": 4.5,
+          "productType": 1,
+          "subProducts": [
+            {
+              "_id": "66e88f320a7c2604a63bf4e8",
+              "name": "Choose a sauce",
+              "plu": "MG-SAUCES",
+              "productType": 3,
+              "min": 0,
+              "max": 0,
+              "multiMax": 99,
+              "subProducts": [],
+              "availabilities": [],
+              "imageUrl": ""
+            }
+          ],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/lxSc2sAbetJKPew9FqZS2osLw4zdzsGFgNV9L7sS2XU/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvTmFzaS1rdW5pbmctMy0xNjEwMjg5NzI2OTQ2LmpwZw==.jpg",
+          "parent_group_id": "66e88f320a7c2604a63bf4e2"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-940e9a63"
+    },
+    {
+      "_id": "66e88f320a7c2604a63bf4e4",
+      "name": "Noodles Selection",
+      "plu": "MG-NOODLES",
+      "productType": 3,
+      "min": 0,
+      "max": 0,
+      "multiMax": 99,
+      "subProducts": [
+        {
+          "_id": "66e88f320a7c2604a63bf4ae",
+          "name": "Egg Noodles",
+          "reference_handler": "NOOD-01",
+          "description": "Egg noodles and veggies fried and tossed with a delicious sauce",
+          "price": 4.5,
+          "productType": 1,
+          "subProducts": [
+            {
+              "_id": "66e88f320a7c2604a63bf4e8",
+              "name": "Choose a sauce",
+              "plu": "MG-SAUCES",
+              "productType": 3,
+              "min": 0,
+              "max": 0,
+              "multiMax": 99,
+              "subProducts": [],
+              "availabilities": [],
+              "imageUrl": ""
+            }
+          ],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/1DOWQmKyNPh0GDpoE-M-V-N6wAkoSBg-PPHNAN3DEWE/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvYmFtaWdvcmVuZy0xNjEwMjg5OTIyOTY5LmpwZw==.jpg",
+          "parent_group_id": "66e88f320a7c2604a63bf4e4"
+        },
+        {
+          "_id": "66e88f320a7c2604a63bf4b0",
+          "name": "Ramen Noodles",
+          "reference_handler": "NOOD-02",
+          "description": "Chinese-style wheat noodles",
+          "price": 4.5,
+          "productType": 1,
+          "subProducts": [
+            {
+              "_id": "66e88f320a7c2604a63bf4e8",
+              "name": "Choose a sauce",
+              "plu": "MG-SAUCES",
+              "productType": 3,
+              "min": 0,
+              "max": 0,
+              "multiMax": 99,
+              "subProducts": [],
+              "availabilities": [],
+              "imageUrl": ""
+            }
+          ],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "https://resizer.staging.deliverect.com/yS_VH1maHnLv7RLw8bCtxIuHDv1bXUJS6LiuocEpFXI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvTWlob2VuLTItMS0xNjEwMjg5ODcwMTU3LmpwZw==.jpg",
+          "parent_group_id": "66e88f320a7c2604a63bf4e4"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-76ececec"
+    },
+    {
+      "_id": "66e88f320a7c2604a63bf514",
+      "name": "How many pieces?",
+      "plu": "MG-VAR-1",
+      "productType": 3,
+      "min": 1,
+      "max": 1,
+      "multiMax": 1,
+      "subProducts": [
+        {
+          "_id": "6791a3984af8951d53936af4",
+          "name": "3 Pieces",
+          "reference_handler": "VAR-1-#V0#-",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "66e88f320a7c2604a63bf514"
+        },
+        {
+          "_id": "6791a3984af8951d53936af5",
+          "name": "6 Pieces",
+          "reference_handler": "VAR-2-#V300#-",
+          "description": "",
+          "price": 3.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "66e88f320a7c2604a63bf514"
+        },
+        {
+          "_id": "6791a3984af8951d53936af6",
+          "name": "9 Pieces",
+          "reference_handler": "VAR-3-#V550#-",
+          "description": "",
+          "price": 5.5,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "66e88f320a7c2604a63bf514"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-a2655892"
+    },
+    {
+      "_id": "6791a3984af8951d53936afc",
+      "name": "Choose your First Topping",
+      "plu": "FREE-TOP",
+      "productType": 3,
+      "min": 1,
+      "max": 1,
+      "multiMax": 1,
+      "subProducts": [],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-b7861a6e"
+    },
+    {
+      "_id": "6791a3984af8951d53936b02",
+      "name": "Add extra toppings",
+      "plu": "PIZZ-TOP",
+      "productType": 3,
+      "min": 0,
+      "max": 0,
+      "multiMax": 10,
+      "subProducts": [],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-1e0248ef"
+    },
+    {
+      "_id": "6791a3984af8951d53936b08",
+      "name": "Choose Your Protein",
+      "plu": "BNDL-01-SML",
+      "productType": 3,
+      "min": 1,
+      "max": 1,
+      "multiMax": 1,
+      "subProducts": [
+        {
+          "_id": "6791a3984af8951d53936b05",
+          "name": "Yuzu Salmon",
+          "reference_handler": "PRT-01###PRNT-#O0#-",
+          "description": "",
+          "price": 1.8,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b08"
+        },
+        {
+          "_id": "6791a3984af8951d53936b06",
+          "name": "Spicy Tuna",
+          "reference_handler": "PRT-02###PRNT",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b08"
+        },
+        {
+          "_id": "6791a3984af8951d53936b07",
+          "name": "Teriyaki Chicken",
+          "reference_handler": "PRT-03###PRNT",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b08"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-fc47c415"
+    },
+    {
+      "_id": "6791a3984af8951d53936b0c",
+      "name": "Choose Your Protein",
+      "plu": "BNDL-LG",
+      "productType": 3,
+      "min": 1,
+      "max": 1,
+      "multiMax": 1,
+      "subProducts": [
+        {
+          "_id": "6791a3984af8951d53936b0b",
+          "name": "Yuzu Salmon",
+          "reference_handler": "PRT-01###PRNT-#O1#-",
+          "description": "",
+          "price": 2.5,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b0c"
+        },
+        {
+          "_id": "6791a3984af8951d53936b06",
+          "name": "Spicy Tuna",
+          "reference_handler": "PRT-02###PRNT",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b0c"
+        },
+        {
+          "_id": "6791a3984af8951d53936b07",
+          "name": "Teriyaki Chicken",
+          "reference_handler": "PRT-03###PRNT",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b0c"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-fc47c415"
+    },
+    {
+      "_id": "6791a3984af8951d53936b0e",
+      "name": "Choose your size",
+      "plu": "POKE-SZ",
+      "productType": 3,
+      "min": 1,
+      "max": 1,
+      "multiMax": 1,
+      "subProducts": [
+        {
+          "_id": "6791a3984af8951d53936b09",
+          "name": "Mini Poke Bowl",
+          "reference_handler": "SZ-01",
+          "description": "A little bowl of Poke",
+          "price": 8.0,
+          "productType": 1,
+          "subProducts": [
+            {
+              "_id": "6791a3984af8951d53936b08",
+              "name": "Choose Your Protein",
+              "plu": "BNDL-01-SML",
+              "productType": 3,
+              "min": 1,
+              "max": 1,
+              "multiMax": 1,
+              "subProducts": [
+                {
+                  "_id": "6791a3984af8951d53936b05",
+                  "name": "Yuzu Salmon",
+                  "reference_handler": "PRT-01###PRNT-#O0#-",
+                  "description": "",
+                  "price": 1.8,
+                  "productType": 1,
+                  "subProducts": [],
+                  "availabilities": [
+                    {
+                      "dayOfWeek": 1,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 2,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 3,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 4,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 5,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 6,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 7,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    }
+                  ],
+                  "imageUrl": "",
+                  "parent_group_id": "6791a3984af8951d53936b08"
+                },
+                {
+                  "_id": "6791a3984af8951d53936b06",
+                  "name": "Spicy Tuna",
+                  "reference_handler": "PRT-02###PRNT",
+                  "description": "",
+                  "price": 0.0,
+                  "productType": 1,
+                  "subProducts": [],
+                  "availabilities": [
+                    {
+                      "dayOfWeek": 1,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 2,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 3,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 4,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 5,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 6,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 7,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    }
+                  ],
+                  "imageUrl": "",
+                  "parent_group_id": "6791a3984af8951d53936b08"
+                },
+                {
+                  "_id": "6791a3984af8951d53936b07",
+                  "name": "Teriyaki Chicken",
+                  "reference_handler": "PRT-03###PRNT",
+                  "description": "",
+                  "price": 0.0,
+                  "productType": 1,
+                  "subProducts": [],
+                  "availabilities": [
+                    {
+                      "dayOfWeek": 1,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 2,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 3,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 4,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 5,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 6,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 7,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    }
+                  ],
+                  "imageUrl": "",
+                  "parent_group_id": "6791a3984af8951d53936b08"
+                }
+              ],
+              "availabilities": [],
+              "imageUrl": ""
+            }
+          ],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b0e"
+        },
+        {
+          "_id": "6791a3984af8951d53936b0d",
+          "name": "Large Poke Bowl",
+          "reference_handler": "SZ-02",
+          "description": "A big bowl of Poke",
+          "price": 12.0,
+          "productType": 1,
+          "subProducts": [
+            {
+              "_id": "6791a3984af8951d53936b0c",
+              "name": "Choose Your Protein",
+              "plu": "BNDL-LG",
+              "productType": 3,
+              "min": 1,
+              "max": 1,
+              "multiMax": 1,
+              "subProducts": [
+                {
+                  "_id": "6791a3984af8951d53936b0b",
+                  "name": "Yuzu Salmon",
+                  "reference_handler": "PRT-01###PRNT-#O1#-",
+                  "description": "",
+                  "price": 2.5,
+                  "productType": 1,
+                  "subProducts": [],
+                  "availabilities": [
+                    {
+                      "dayOfWeek": 1,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 2,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 3,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 4,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 5,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 6,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 7,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    }
+                  ],
+                  "imageUrl": "",
+                  "parent_group_id": "6791a3984af8951d53936b0c"
+                },
+                {
+                  "_id": "6791a3984af8951d53936b06",
+                  "name": "Spicy Tuna",
+                  "reference_handler": "PRT-02###PRNT",
+                  "description": "",
+                  "price": 0.0,
+                  "productType": 1,
+                  "subProducts": [],
+                  "availabilities": [
+                    {
+                      "dayOfWeek": 1,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 2,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 3,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 4,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 5,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 6,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 7,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    }
+                  ],
+                  "imageUrl": "",
+                  "parent_group_id": "6791a3984af8951d53936b0c"
+                },
+                {
+                  "_id": "6791a3984af8951d53936b07",
+                  "name": "Teriyaki Chicken",
+                  "reference_handler": "PRT-03###PRNT",
+                  "description": "",
+                  "price": 0.0,
+                  "productType": 1,
+                  "subProducts": [],
+                  "availabilities": [
+                    {
+                      "dayOfWeek": 1,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 2,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 3,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 4,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 5,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 6,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    },
+                    {
+                      "dayOfWeek": 7,
+                      "endTime": "23:59",
+                      "startTime": "00:00"
+                    }
+                  ],
+                  "imageUrl": "",
+                  "parent_group_id": "6791a3984af8951d53936b0c"
+                }
+              ],
+              "availabilities": [],
+              "imageUrl": ""
+            }
+          ],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b0e"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-7cb01e61"
+    },
+    {
+      "_id": "6791a3984af8951d53936b11",
+      "name": "Choose Your Base",
+      "plu": "BNDL-01",
+      "productType": 3,
+      "min": 1,
+      "max": 1,
+      "multiMax": 1,
+      "subProducts": [
+        {
+          "_id": "6791a3984af8951d53936b0f",
+          "name": "Sushi Rice",
+          "reference_handler": "BS-01###PRNT",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b11"
+        },
+        {
+          "_id": "6791a3984af8951d53936b10",
+          "name": "Cruncy Cabbage Slaw",
+          "reference_handler": "BS-02###PRNT",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b11"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-2d02c8c3"
+    },
+    {
+      "_id": "6791a3984af8951d53936b15",
+      "name": "Add Extras",
+      "plu": "BNDL-02",
+      "productType": 3,
+      "min": 0,
+      "max": 3,
+      "multiMax": 3,
+      "subProducts": [
+        {
+          "_id": "6791a3984af8951d53936b12",
+          "name": "Spicy Tofu",
+          "reference_handler": "XTRA-TOF###PRNT",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b15"
+        },
+        {
+          "_id": "6791a3984af8951d53936b13",
+          "name": "Crispy Onions",
+          "reference_handler": "XTRA-CONI###PRNT",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b15"
+        },
+        {
+          "_id": "6791a3984af8951d53936b14",
+          "name": "Smashed Avocado",
+          "reference_handler": "XTRA-AVO###PRNT",
+          "description": "",
+          "price": 0.0,
+          "productType": 1,
+          "subProducts": [],
+          "availabilities": [
+            {
+              "dayOfWeek": 1,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 2,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 3,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 4,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 5,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 6,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            },
+            {
+              "dayOfWeek": 7,
+              "endTime": "23:59",
+              "startTime": "00:00"
+            }
+          ],
+          "imageUrl": "",
+          "parent_group_id": "6791a3984af8951d53936b15"
+        }
+      ],
+      "availabilities": [],
+      "imageUrl": "",
+      "id": "MG-d7182d1f"
+    }
+  ]
+}

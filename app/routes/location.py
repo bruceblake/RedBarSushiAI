@@ -36,6 +36,7 @@ from app.utils.menu_utils import (
     process_modifier_changes,
     update_menu_ordering
 )
+from app.utils.menu_validator import validate_and_fix_menu_data
 from app.utils.helpers import log_info, commit_with_retry
 from app import db
 from app.models import Order, Location
@@ -121,9 +122,12 @@ def menu_update_per_location(location_id):
             if "modifierGroups" not in processed_data:
                 processed_data["modifierGroups"] = []
             
+        # Validate and fix any issues in the menu data
+        validated_data = validate_and_fix_menu_data(processed_data)
+        
         # Save the updated menu with location-specific filename
         from app.utils.menu_utils import write_menu_file
-        write_menu_file(processed_data)
+        write_menu_file(validated_data)
         
         # Force refresh the cache to make new menu available immediately
         from app.utils.menu_utils import load_menu_data
