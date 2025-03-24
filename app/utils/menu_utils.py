@@ -588,7 +588,13 @@ def apply_fallback_pricing(item_name, item_data):
 
 def process_deliverect_menu(deliverect_menu, location_id=None):
     """
-    Convert Deliverect menu format to our internal format.
+    Efficiently converts Deliverect menu format to our internal format,
+    preserving all PLUs/reference_handlers exactly as provided by Deliverect.
+    
+    Handles menu transitions when items are replaced or modified by:
+    1. Tracking all current and new items by ID and name
+    2. Preserving existing reference handlers for consistent ordering
+    3. Maintaining a transition mapping for replaced items
     
     Args:
         deliverect_menu: The menu data from Deliverect
@@ -600,86 +606,154 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     import logging
     logger = logging.getLogger(__name__)
     
+    # Load existing menu to handle transitions
+    try:
+        existing_menu = load_menu_data(force_refresh=True, skip_validation=True)
+        
+        # Create mappings for existing items
+        existing_by_id = {item.get("id", ""): item for item in existing_menu.get("items", []) if item.get("id")}
+        existing_by_name = {item.get("name", "").lower(): item for item in existing_menu.get("items", []) if item.get("name")}
+        existing_by_plu = {item.get("reference_handler", ""): item for item in existing_menu.get("items", []) if item.get("reference_handler")}
+        
+        logger.info(f"[MENU-TRANSITION] Found {len(existing_by_id)} items by ID, {len(existing_by_name)} by name, {len(existing_by_plu)} by PLU")
+    except Exception as e:
+        logger.warning(f"[MENU-TRANSITION] Could not load existing menu: {e}")
+        existing_by_id = {}
+        existing_by_name = {}
+        existing_by_plu = {}
+    
     result = {
         "items": [],
         "modifiers": [],
         "modifierGroups": []
     }
     
-    # Keep track of processed IDs to avoid duplicates
+    # Track processed IDs to avoid duplicates
     processed_item_ids = set()
     processed_modifier_group_ids = set()
     
-    # Load existing menu data to preserve reference handlers
-    try:
-        existing_menu = load_menu_data(location_id=location_id, skip_validation=True)
-        existing_items = {item.get("name", "").lower(): item for item in existing_menu.get("items", [])}
-    except Exception as e:
-        logger.warning(f"Could not load existing menu for reference preservation: {e}")
-        existing_items = {}
+    # Create a master PLU mapping (id -> reference_handler) to maintain consistency
+    plu_map = {}
     
-    logger.info(f"Processing Deliverect menu with {len(deliverect_menu.get('categories', []))} categories")
+    # Track menu transitions for reporting
+    transition_map = {
+        "new_items": [],
+        "updated_items": [],
+        "removed_items": [],
+        "plu_changes": []
+    }
     
     # Process categories and products
-    for category in deliverect_menu.get("categories", []):
+    categories = deliverect_menu.get("categories", [])
+    logger.info(f"[DELIVERECT] Processing {len(categories)} categories")
+    
+    # Initial pass - collect all incoming items
+    all_incoming_items = []
+    incoming_ids = set()
+    for category in categories:
+        for product in category.get("products", []):
+            all_incoming_items.append(product)
+            incoming_ids.add(product.get("id", ""))
+    
+    # Check for removed items
+    for existing_id, existing_item in existing_by_id.items():
+        if existing_id and existing_id not in incoming_ids:
+            name = existing_item.get("name", "Unknown")
+            plu = existing_item.get("reference_handler", "")
+            transition_map["removed_items"].append({"id": existing_id, "name": name, "plu": plu})
+            logger.info(f"[MENU-TRANSITION] Item removed: '{name}' (ID: {existing_id}, PLU: {plu})")
+    
+    # Process all products
+    for category in categories:
         cat_id = category.get("id")
         cat_name = category.get("name")
-        cat_sequence = category.get("sequence", 0)
+        products = category.get("products", [])
         
-        logger.info(f"Processing category: {cat_name} with {len(category.get('products', []))} products")
-        
-        # Process products in this category
-        for product in category.get("products", []):
+        for product in products:
             prod_id = product.get("id")
+            prod_name = product.get("name", "")
             
-            # Skip if already processed
+            # Skip duplicates
             if prod_id in processed_item_ids:
-                logger.info(f"Skipping duplicate product ID: {prod_id}")
                 continue
                 
             processed_item_ids.add(prod_id)
             
+            # IMPORTANT: Always preserve the exact PLU/reference_handler from Deliverect
+            plu = product.get("plu", "")
+            if plu:
+                plu_map[prod_id] = plu
+                
+            # Create menu item entry with complete data
             prod = {
                 "id": prod_id,
-                "name": product.get("name"),
-                "price": product.get("price", 0.0) / 100,  # Convert from cents
-                "reference_handler": product.get("plu", ""),
+                "name": prod_name,
+                "price": product.get("price", 0) / 100,  # Convert from cents
+                "reference_handler": plu,  # Use exact PLU as provided
                 "description": product.get("description", ""),
                 "imageUrl": product.get("imageUrl", ""),
-                "available": product.get("available", True),
+                "snoozed": not product.get("available", True),  # Convert to our snoozed paradigm
                 "category": cat_name,
-                "categoryId": cat_id,
-                "sequence": product.get("sequence", 0),
-                "categorySequence": cat_sequence
+                "categoryId": cat_id
             }
             
-            # Try to preserve the reference handler if it exists in current menu
-            item_name_lower = product.get("name", "").lower()
-            if item_name_lower in existing_items and "reference_handler" in existing_items[item_name_lower]:
-                # Keep the existing reference handler unless explicitly provided
-                if not product.get("plu"):
-                    prod["reference_handler"] = existing_items[item_name_lower]["reference_handler"]
-                    logger.info(f"Preserved existing reference_handler for {product.get('name')}")
+            # Handle menu transitions - check if this is a new or updated item
+            is_new = True
+            if prod_id in existing_by_id:
+                is_new = False
+                # Item exists by ID - track changes for transition
+                old_item = existing_by_id[prod_id]
+                old_name = old_item.get("name", "")
+                old_plu = old_item.get("reference_handler", "")
+                
+                # Check for key differences
+                if old_name != prod_name:
+                    logger.info(f"[MENU-TRANSITION] Item name changed: '{old_name}' → '{prod_name}' (ID: {prod_id})")
+                    
+                if old_plu != plu and old_plu and plu:
+                    logger.info(f"[MENU-TRANSITION] PLU changed: '{old_plu}' → '{plu}' for '{prod_name}'")
+                    transition_map["plu_changes"].append({
+                        "id": prod_id,
+                        "name": prod_name,
+                        "old_plu": old_plu,
+                        "new_plu": plu
+                    })
+                
+                transition_map["updated_items"].append({
+                    "id": prod_id,
+                    "name": prod_name,
+                    "old_name": old_name,
+                    "plu": plu
+                })
+            else:
+                # New item - log for transition tracking
+                transition_map["new_items"].append({
+                    "id": prod_id,
+                    "name": prod_name,
+                    "plu": plu
+                })
+                logger.info(f"[MENU-TRANSITION] New item: '{prod_name}' (ID: {prod_id}, PLU: {plu})")
             
-            # Process availability
+            # Process location-specific PLUs (override if specified for this location)
+            if location_id:
+                for location in product.get("locations", []):
+                    if location.get("id") == location_id and location.get("plu"):
+                        prod["reference_handler"] = location.get("plu")
+                        plu_map[prod_id] = location.get("plu")
+                        prod["price"] = location.get("price", prod["price"]) / 100
+                        break
+            
+            # Process availabilities
             if "availability" in product:
                 prod["availabilities"] = convert_availability(product.get("availability", []))
                 
-            # Process PLUs for different locations
-            if location_id:
-                for location in product.get("locations", []):
-                    if location.get("id") == location_id:
-                        prod["reference_handler"] = location.get("plu", prod["reference_handler"])
-                        prod["price"] = location.get("price", prod["price"]) / 100
-                        break
-                    
-            # Process modifier groups
+            # Process modifier groups (simplify reference)
             mod_groups = []
             for group in product.get("modifierGroups", []):
                 group_id = group.get("id")
                 mod_groups.append(group_id)
                 
-                # Add to modifierGroups if not already there
+                # Only process each modifier group once
                 if group_id not in processed_modifier_group_ids:
                     processed_modifier_group_ids.add(group_id)
                     
@@ -687,102 +761,57 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     new_group = {
                         "id": group_id,
                         "name": group.get("name"),
-                        "minAllowed": group.get("minAmount", 0),
-                        "maxAllowed": group.get("maxAmount", 999),
+                        "min": group.get("minAmount", 0),
+                        "max": group.get("maxAmount", 999),
                         "modifiers": []
                     }
                     
                     # Process modifiers in this group
                     for modifier in group.get("modifiers", []):
+                        mod_id = modifier.get("id")
+                        mod_name = modifier.get("name", "")
+                        mod_plu = modifier.get("plu", "")
+                        
+                        # Store in PLU map
+                        if mod_plu:
+                            plu_map[mod_id] = mod_plu
+                            
                         new_group["modifiers"].append({
-                            "id": modifier.get("id"),
-                            "name": modifier.get("name"),
-                            "price": modifier.get("price", 0.0) / 100,
-                            "available": modifier.get("available", True),
-                            "reference_handler": modifier.get("plu", "")
+                            "id": mod_id,
+                            "name": mod_name,
+                            "price": modifier.get("price", 0) / 100,
+                            "snoozed": not modifier.get("available", True),
+                            "reference_handler": mod_plu
                         })
                     
                     result["modifierGroups"].append(new_group)
-                else:
-                    # Update existing modifier group if needed
-                    existing_group = next((g for g in result["modifierGroups"] if g.get("id") == group_id), None)
-                    if existing_group:
-                        # Check for new modifiers and add them
-                        existing_modifier_ids = {m.get("id") for m in existing_group.get("modifiers", [])}
-                        for modifier in group.get("modifiers", []):
-                            if modifier.get("id") not in existing_modifier_ids:
-                                existing_group["modifiers"].append({
-                                    "id": modifier.get("id"),
-                                    "name": modifier.get("name"),
-                                    "price": modifier.get("price", 0.0) / 100,
-                                    "available": modifier.get("available", True),
-                                    "reference_handler": modifier.get("plu", "")
-                                })
             
-            # Process child products (meal deals)
-            if "childProducts" in product:
-                child_products = []
-                for child in product.get("childProducts", []):
-                    child_prod = {
-                        "id": child.get("id"),
-                        "name": child.get("name"),
-                        "included": child.get("included", True),
-                        "reference_handler": child.get("plu", ""),
-                        "modifierGroups": child.get("modifierGroups", [])
-                    }
-                    
-                    # Add child product modifier groups if any
-                    child_mod_groups = []
-                    for child_group in child.get("modifierGroups", []):
-                        child_group_id = child_group.get("id")
-                        child_mod_groups.append(child_group_id)
-                        
-                        # Process the child's modifier groups similar to product modifier groups
-                        if child_group_id not in processed_modifier_group_ids:
-                            processed_modifier_group_ids.add(child_group_id)
-                            
-                            result["modifierGroups"].append({
-                                "id": child_group_id,
-                                "name": child_group.get("name"),
-                                "minAllowed": child_group.get("minAmount", 0),
-                                "maxAllowed": child_group.get("maxAmount", 999),
-                                "modifiers": [{
-                                    "id": mod.get("id"),
-                                    "name": mod.get("name"),
-                                    "price": mod.get("price", 0.0) / 100,
-                                    "reference_handler": mod.get("plu", "")
-                                } for mod in child_group.get("modifiers", [])]
-                            })
-                    
-                    if child_mod_groups:
-                        child_prod["modifierGroups"] = child_mod_groups
-                        
-                    child_products.append(child_prod)
-                
-                if child_products:
-                    prod["childProducts"] = child_products
-                    
             # Add modifier groups to product
             if mod_groups:
                 prod["modifierGroups"] = mod_groups
                 
             result["items"].append(prod)
     
-    # Process standalone modifiers
-    for modifier in deliverect_menu.get("modifiers", []):
-        mod_id = modifier.get("id")
-        
-        # Add to modifiers list if not already included in a group
-        if not any(mod.get("id") == mod_id for group in result["modifierGroups"] for mod in group.get("modifiers", [])):
-            result["modifiers"].append({
-                "id": mod_id,
-                "name": modifier.get("name"),
-                "price": modifier.get("price", 0.0) / 100,
-                "available": modifier.get("available", True),
-                "reference_handler": modifier.get("plu", "")
-            })
+    # Log transition summary
+    logger.info(f"[MENU-TRANSITION] Summary: {len(transition_map['new_items'])} new items, " +
+                f"{len(transition_map['updated_items'])} updated items, " +
+                f"{len(transition_map['removed_items'])} removed items, " +
+                f"{len(transition_map['plu_changes'])} PLU changes")
     
-    logger.info(f"Processed Deliverect menu: {len(result['items'])} items, {len(result['modifierGroups'])} modifier groups, {len(result['modifiers'])} standalone modifiers")
+    # Create a quick lookup for item names -> reference_handlers for future use
+    plu_reference = {}
+    for item in result["items"]:
+        name = item.get("name", "")
+        ref = item.get("reference_handler", "")
+        if name and ref:
+            plu_reference[name.lower()] = ref
+            
+    # Log a sample of PLU mappings
+    sample_items = list(plu_reference.items())[:5]
+    for name, ref in sample_items:
+        logger.info(f"[DELIVERECT-PLU] '{name}' = '{ref}'")
+    
+    logger.info(f"[DELIVERECT] Processed: {len(result['items'])} items, {len(result['modifierGroups'])} modifier groups")
     return result
 
 
@@ -816,47 +845,70 @@ def convert_availability(availability_data):
 
 def process_product_changes(product_id, changes, location_id=None):
     """
-    Process changes to a product from Deliverect.
+    Process changes to a product from Deliverect, ensuring exact PLU preservation.
     
     Args:
         product_id: The ID of the product to update
-        changes: Dictionary of changes to apply
+        changes: Dictionary of changes from Deliverect
         location_id: Optional location ID for location-specific menu
         
     Returns:
         bool: Success status
     """
+    logger = logging.getLogger(__name__)
+    logger.info(f"[DELIVERECT-UPDATE] Processing changes for product {product_id}")
+    
     # Load current menu
     menu_data = load_menu_data(force_refresh=True, location_id=location_id)
     
     # Find the product
     for item in menu_data.get("items", []):
         if item.get("id") == product_id:
-            # Apply changes
+            # Track what's changing
+            changed_fields = []
+            
+            # Apply changes - ALWAYS preserve exact PLU / reference_handler from Deliverect
             for key, value in changes.items():
+                # Handle special cases
                 if key == "price":
                     item[key] = value / 100  # Convert from cents
-                elif key in ["name", "description", "imageUrl", "sequence"]:
-                    item[key] = value
+                    changed_fields.append(f"price: {value/100}")
+                elif key == "plu" and value:
+                    # CRITICAL: Always use exact PLU from Deliverect
+                    item["reference_handler"] = value
+                    changed_fields.append(f"reference_handler: {value}")
                 elif key == "available":
-                    item["available"] = value
-                    # If making unavailable, add snooze timestamps
-                    if not value:
-                        now = datetime.datetime.now(datetime.timezone.utc)
-                        # Snooze for the next 24 hours by default
+                    # Map to our snoozed paradigm
+                    item["snoozed"] = not value
+                    changed_fields.append(f"snoozed: {not value}")
+                    
+                    # Update snooze timestamps appropriately
+                    now = datetime.datetime.now(datetime.timezone.utc)
+                    if not value:  # Making unavailable
                         item["snoozeStart"] = now.isoformat()
                         item["snoozeEnd"] = (now + datetime.timedelta(hours=24)).isoformat()
-                    else:
-                        # If making available, remove any snooze timestamps
+                    else:  # Making available
                         if "snoozeStart" in item:
                             del item["snoozeStart"]
                         if "snoozeEnd" in item:
                             del item["snoozeEnd"]
+                # Standard field updates
+                elif key in ["name", "description", "imageUrl", "sequence"]:
+                    item[key] = value
+                    changed_fields.append(f"{key}: {value}")
             
-            # Save updated menu
-            write_menu_file(menu_data)
-            return True
+            # Log the changes in a structured way
+            if changed_fields:
+                logger.info(f"[DELIVERECT-UPDATE] Updated '{item.get('name')}' ({product_id}): {', '.join(changed_fields)}")
+                
+                # Save updated menu
+                write_menu_file(menu_data)
+                return True
+            else:
+                logger.info(f"[DELIVERECT-UPDATE] No changes applied to '{item.get('name')}' ({product_id})")
+                return True
             
+    logger.warning(f"[DELIVERECT-UPDATE] Product {product_id} not found in menu")
     return False
 
 
@@ -871,41 +923,62 @@ def process_modifier_group_changes(group_id, changes):
     Returns:
         bool: Success status
     """
+    logger = logging.getLogger(__name__)
+    logger.info(f"[DELIVERECT-UPDATE] Processing changes for modifier group {group_id}")
+    
     # Load current menu
     menu_data = load_menu_data(force_refresh=True)
     
     # Find the modifier group
     for group in menu_data.get("modifierGroups", []):
         if group.get("id") == group_id:
+            # Track changes
+            changed_fields = []
+            
             # Apply changes
             for key, value in changes.items():
                 if key == "name":
                     group[key] = value
+                    changed_fields.append(f"name: {value}")
                 elif key == "minAmount":
-                    group["minAllowed"] = value
+                    group["min"] = value  # Use shorter keys for consistency
+                    changed_fields.append(f"min: {value}")
                 elif key == "maxAmount":
-                    group["maxAllowed"] = value
+                    group["max"] = value  # Use shorter keys for consistency
+                    changed_fields.append(f"max: {value}")
                 elif key == "sequence":
                     group["sequence"] = value
+                    changed_fields.append(f"sequence: {value}")
+                    
+            # Log changes
+            if changed_fields:
+                logger.info(f"[DELIVERECT-UPDATE] Updated modifier group '{group.get('name')}' ({group_id}): {', '.join(changed_fields)}")
+                
+                # Save updated menu
+                write_menu_file(menu_data)
+                return True
+            else:
+                logger.info(f"[DELIVERECT-UPDATE] No changes applied to modifier group '{group.get('name')}' ({group_id})")
+                return True
             
-            # Save updated menu
-            write_menu_file(menu_data)
-            return True
-            
+    logger.warning(f"[DELIVERECT-UPDATE] Modifier group {group_id} not found in menu")
     return False
 
 
 def process_modifier_changes(modifier_id, changes):
     """
-    Process changes to a modifier from Deliverect.
+    Process changes to a modifier from Deliverect, ensuring exact PLU preservation.
     
     Args:
         modifier_id: The ID of the modifier to update
-        changes: Dictionary of changes to apply
+        changes: Dictionary of changes from Deliverect
         
     Returns:
         bool: Success status
     """
+    logger = logging.getLogger(__name__)
+    logger.info(f"[DELIVERECT-UPDATE] Processing changes for modifier {modifier_id}")
+    
     # Load current menu
     menu_data = load_menu_data(force_refresh=True)
     
@@ -913,33 +986,52 @@ def process_modifier_changes(modifier_id, changes):
     for group in menu_data.get("modifierGroups", []):
         for modifier in group.get("modifiers", []):
             if modifier.get("id") == modifier_id:
-                # Apply changes
+                # Track changes
+                changed_fields = []
+                
+                # Apply changes - ALWAYS preserve exact PLU / reference_handler
                 for key, value in changes.items():
                     if key == "name":
                         modifier[key] = value
+                        changed_fields.append(f"name: {value}")
                     elif key == "price":
                         modifier[key] = value / 100  # Convert from cents
+                        changed_fields.append(f"price: {value/100}")
+                    elif key == "plu" and value:
+                        # CRITICAL: Always use exact PLU from Deliverect
+                        modifier["reference_handler"] = value
+                        changed_fields.append(f"reference_handler: {value}")
                     elif key == "sequence":
                         modifier["sequence"] = value
+                        changed_fields.append(f"sequence: {value}")
                     elif key == "available":
-                        modifier["available"] = value
-                        # If making unavailable, add snooze timestamps
-                        if not value:
-                            now = datetime.datetime.now(datetime.timezone.utc)
-                            # Snooze for the next 24 hours by default
+                        # Map to our snoozed paradigm
+                        modifier["snoozed"] = not value
+                        changed_fields.append(f"snoozed: {not value}")
+                        
+                        # Update snooze timestamps
+                        now = datetime.datetime.now(datetime.timezone.utc)
+                        if not value:  # Making unavailable
                             modifier["snoozeStart"] = now.isoformat()
                             modifier["snoozeEnd"] = (now + datetime.timedelta(hours=24)).isoformat()
-                        else:
-                            # If making available, remove any snooze timestamps
+                        else:  # Making available
                             if "snoozeStart" in modifier:
                                 del modifier["snoozeStart"]
                             if "snoozeEnd" in modifier:
                                 del modifier["snoozeEnd"]
                 
-                # Save updated menu
-                write_menu_file(menu_data)
-                return True
+                # Log changes
+                if changed_fields:
+                    logger.info(f"[DELIVERECT-UPDATE] Updated modifier '{modifier.get('name')}' ({modifier_id}): {', '.join(changed_fields)}")
+                    
+                    # Save updated menu
+                    write_menu_file(menu_data)
+                    return True
+                else:
+                    logger.info(f"[DELIVERECT-UPDATE] No changes applied to modifier '{modifier.get('name')}' ({modifier_id})")
+                    return True
             
+    logger.warning(f"[DELIVERECT-UPDATE] Modifier {modifier_id} not found in menu")
     return False
 
 
