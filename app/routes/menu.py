@@ -11,44 +11,63 @@ logger = logging.getLogger(__name__)
 
 @menu_bp.route('/menu_update', methods=['POST'])
 def menu_update():
-    data = request.get_json()
-    log_info(f"Received menu update data: {data}")
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
+    """
+    Handle menu updates from Deliverect or direct API calls.
     
+    Deliverect sends menu updates in their specific format with "categories" structure.
+    We process this into our internal format while preserving all PLU/reference_handlers exactly.
+    """
     try:
-        # Check if data is coming from Deliverect (has categories structure)
+        data = request.get_json()
+        if not data:
+            logger.error("[MENU-UPDATE] No data provided in request")
+            return jsonify({"error": "No data provided"}), 400
+        
+        # Log the receipt of data - but be careful with potentially large payloads
+        item_count = len(data.get("categories", [])) if "categories" in data else "N/A"
+        logger.info(f"[MENU-UPDATE] Received update with {item_count} categories")
+        
+        # Process based on source format
         if "categories" in data:
-            # Process data from Deliverect format to our internal format
-            log_info("Processing Deliverect menu format")
+            # Deliverect format
+            logger.info("[MENU-UPDATE] Processing Deliverect menu format")
             processed_data = process_deliverect_menu(data)
+            logger.info(f"[MENU-UPDATE] Processed {len(processed_data.get('items', []))} items from Deliverect")
+            
+            # Log PLU mapping for the first few items
+            sample_items = processed_data.get('items', [])[:5]
+            for item in sample_items:
+                logger.info(f"[MENU-PLU] '{item.get('name')}' → '{item.get('reference_handler', '')}'")
         else:
-            # Handle direct menu updates (non-Deliverect format)
-            log_info("Processing direct menu update")
-            # If data is a list, wrap it in a dict for compatible structure
+            # Direct format
+            logger.info("[MENU-UPDATE] Processing direct menu update")
+            
+            # Handle different input structures
             if isinstance(data, list):
                 data = {"items": data}
             elif not isinstance(data, dict):
+                logger.error("[MENU-UPDATE] Invalid data format - expected JSON object or array")
                 return jsonify({"error": "Expected an array or object"}), 400
-                
-            # Make sure we have the expected structure
+            
+            # Ensure complete structure
             processed_data = data.copy()
-            if "items" not in processed_data:
-                processed_data["items"] = []
-            if "modifiers" not in processed_data:
-                processed_data["modifiers"] = []
-            if "modifierGroups" not in processed_data:
-                processed_data["modifierGroups"] = []
+            for key in ["items", "modifiers", "modifierGroups"]:
+                if key not in processed_data:
+                    processed_data[key] = []
         
-        # Validate and fix any issues in the menu data
+        # Validate and fix menu data
         validated_data = validate_and_fix_menu_data(processed_data)
         
-        # Write the processed menu data to file
-        write_menu_file(validated_data)
-        load_menu_data(force_refresh=True)  # Refresh the cache with new data
+        # Log summary of validated data
+        logger.info(f"[MENU-UPDATE] Validated data: {len(validated_data.get('items', []))} items, " +
+                    f"{len(validated_data.get('modifierGroups', []))} modifier groups")
         
-        log_info("Menu updated successfully")
-        return jsonify({"status": "menu updated"}), 200
+        # Write to file and refresh cache
+        write_menu_file(validated_data)
+        load_menu_data(force_refresh=True)
+        
+        logger.info("[MENU-UPDATE] Menu updated successfully")
+        return jsonify({"success": True, "items": len(validated_data.get("items", []))}), 200
     except Exception as e:
         logger.error(f"Error updating menu: {e}")
         return jsonify({"error": f"Menu update failed: {str(e)}"}), 500
