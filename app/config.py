@@ -31,7 +31,7 @@ ASSEMBLYAI_API_KEY = "a116ce3f35164bd78f295ddd6ccd7ee0"
 # ------------------------------
 # OpenAI Configuration
 # ------------------------------
-OPENAI_API_KEY = "sk-proj-YzEwjLzmfYGXtQUuVfExoVM9xLVngFTNa6cF1aMuSFghk-asEZ_" + "pwgzAQCWJleHe70Mwld0gEuT3BlbkFJz-TkwXF7ZcSet73eWst8o44WbTGiOND30ZpFciTRaiHyPfT5SMPoAoh9FZNLqN4ZZlGCeMGHwA"
+OPENAI_API_KEY = "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"
 ASSISTANT_OPENAI = "asst_wAegZxs1l8e5MrQ83ZW1L6cR"
 VECTOR_ID_OPENAI = 'vs_NxY1ebF8FhOHXR9xLnqllDbk'
 
