@@ -141,27 +141,22 @@ def calculate_bill_amount(order_items, tax_rate=0.0):
         item_name = item.get("name", "")
         price_value = item.get("price")
         
-        # If the price seems incorrect, verify it with the menu data
-        if price_value is None or (isinstance(price_value, (int, float)) and price_value <= 0.1):
-            # Use our improved verification system
-            from app.utils.menu_utils import verify_and_update_menu_item
-            verified_data = verify_and_update_menu_item(item_name, item)
-            
-            # Update the item with verified data
-            item["price"] = verified_data.get("price")
-            item["reference_handler"] = verified_data.get("reference_handler")
-            base_price = item["price"]
-            log_info(f"Price verification: Item {item_name} price updated to {base_price}, ref: {item['reference_handler']}")
-        else:
-            # Use the provided price if it seems valid
-            try:
-                base_price = float(price_value)
-            except (ValueError, TypeError):
-                # If conversion fails, verify with our system
-                verified_data = verify_and_update_menu_item(item_name, item)
-                item["price"] = verified_data.get("price")
-                item["reference_handler"] = verified_data.get("reference_handler")
-                base_price = item["price"]
+        # ALWAYS verify with the menu data regardless of what price was provided
+        from app.utils.menu_utils import verify_and_update_menu_item
+        
+        # Debug print original values before verification
+        log_info(f"DEBUG - BEFORE VERIFICATION - Item: {item_name}, Original price: {price_value}")
+        
+        # Use our improved verification system always, regardless of the original price
+        verified_data = verify_and_update_menu_item(item_name, item)
+        
+        # Update the item with verified data
+        item["price"] = verified_data.get("price")
+        item["reference_handler"] = verified_data.get("reference_handler")
+        base_price = item["price"]
+        
+        # Debug what happened during verification
+        log_info(f"DEBUG - AFTER VERIFICATION - Item {item_name} price updated to {base_price}, ref: {item['reference_handler']}")
                 
         # Log the price for debugging
         log_info(f"Item: {item.get('name')}, Original price: {price_value}, Used price: {base_price}")
@@ -213,7 +208,6 @@ def find_menu_item(user_input, threshold=35):
     user_lower = user_input.lower().strip()
     # Check for an exact match first.
     for item in all_items:
-        log_info(f"items: {item}")
         if item.get("name","").lower() == user_lower:
             return item, 0
     # Fuzzy search: find the best match.
