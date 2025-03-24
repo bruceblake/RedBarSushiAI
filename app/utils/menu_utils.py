@@ -13,6 +13,7 @@ MENU_CACHE_DURATION = 10
 logger = logging.getLogger(__name__)
 _last_load_time = 0
 _cached_data = None
+_validation_in_progress = False  # Flag to prevent recursion
 
 
 def write_menu_file(all_items_data):
@@ -94,18 +95,19 @@ def is_item_currently_available_by_schedule(item_obj):
     return found_match
 
 
-def load_menu_data(force_refresh=False, location_id=None):
+def load_menu_data(force_refresh=False, location_id=None, skip_validation=False):
     """
     Load menu data from file or cache. Handles both test and production environments.
     
     Args:
         force_refresh: Force a reload from disk instead of using cache
         location_id: Optional location ID to load location-specific menu
+        skip_validation: Skip menu validation to prevent recursion
         
     Returns:
         dict: Menu data structure
     """
-    global _last_load_time, _cached_data
+    global _last_load_time, _cached_data, _validation_in_progress
     
     # Try to get location from session if not provided
     if not location_id:
@@ -172,10 +174,15 @@ def load_menu_data(force_refresh=False, location_id=None):
             
         with open(file_path, "r") as f:
             data = json.load(f)
-            
-        # Validate and fix any data issues
-        from app.utils.menu_validator import validate_and_fix_menu_data
-        data = validate_and_fix_menu_data(data)
+        
+        # Only validate if not already in a validation process and validation is not skipped
+        if not _validation_in_progress and not skip_validation:
+            try:
+                _validation_in_progress = True
+                from app.utils.menu_validator import validate_and_fix_menu_data
+                data = validate_and_fix_menu_data(data)
+            finally:
+                _validation_in_progress = False
             
         # Update each item with its availability
         for it in data.get("items", []):
@@ -335,7 +342,8 @@ def verify_and_update_menu_item(item_name, item_data, location_id=None):
     Returns:
         dict: Updated item data with verified price and reference_handler
     """
-    menu_data = load_menu_data(location_id=location_id)
+    # Use skip_validation to prevent recursion
+    menu_data = load_menu_data(location_id=location_id, skip_validation=True)
     
     # Find the item in the menu data
     menu_item = next((item for item in menu_data.get("items", []) 
@@ -421,7 +429,7 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     
     # Load existing menu data to preserve reference handlers
     try:
-        existing_menu = load_menu_data(location_id=location_id)
+        existing_menu = load_menu_data(location_id=location_id, skip_validation=True)
         existing_items = {item.get("name", "").lower(): item for item in existing_menu.get("items", [])}
     except Exception as e:
         logger.warning(f"Could not load existing menu for reference preservation: {e}")
@@ -802,13 +810,13 @@ def sync_reference_handlers(source_location_id=None, target_location_id=None):
     Returns:
         dict: Stats about the synchronization
     """
-    # Load source menu
-    source_menu = load_menu_data(location_id=source_location_id, force_refresh=True)
+    # Load source menu with validation skipped to avoid recursion
+    source_menu = load_menu_data(location_id=source_location_id, force_refresh=True, skip_validation=True)
     source_items = {item.get("name", "").lower(): item for item in source_menu.get("items", [])}
     
     # If target is specified, load it, otherwise update the same menu
     if target_location_id and target_location_id != source_location_id:
-        target_menu = load_menu_data(location_id=target_location_id, force_refresh=True)
+        target_menu = load_menu_data(location_id=target_location_id, force_refresh=True, skip_validation=True)
         save_target = True
     else:
         target_menu = source_menu
@@ -841,6 +849,6 @@ def sync_reference_handlers(source_location_id=None, target_location_id=None):
     # Save the target menu if needed
     if save_target and (stats["references_updated"] > 0 or stats["prices_updated"] > 0):
         write_menu_file(target_menu)
-        load_menu_data(location_id=target_location_id, force_refresh=True)
+        load_menu_data(location_id=target_location_id, force_refresh=True, skip_validation=True)
         
     return stats

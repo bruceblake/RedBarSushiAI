@@ -33,14 +33,8 @@ def validate_and_fix_menu_data(menu_data):
     if "modifierGroups" not in menu_data:
         menu_data["modifierGroups"] = []
     
-    # Load existing menu data for reference ID preservation if possible
-    try:
-        from app.utils.menu_utils import load_menu_data
-        existing_menu = load_menu_data(force_refresh=True)
-        existing_items = {item.get("name", "").lower(): item for item in existing_menu.get("items", [])}
-    except Exception as e:
-        logger.warning(f"Could not load existing menu for reference: {e}")
-        existing_items = {}
+    # We'll use a simpler approach to avoid recursion
+    existing_items = {}
     
     # Load common prices for fallback
     common_prices = get_common_prices()
@@ -128,18 +122,8 @@ def validate_and_fix_menu_data(menu_data):
             
         seen_group_ids.add(group_id)
         
-        # Get existing modifiers from current menu if possible
+        # Skip checking existing modifiers to avoid recursion
         existing_group_modifiers = {}
-        try:
-            for existing_group in existing_menu.get("modifierGroups", []):
-                if existing_group.get("name", "").lower() == group_name.lower() or existing_group.get("id") == group_id:
-                    existing_group_modifiers = {
-                        mod.get("name", "").lower(): mod 
-                        for mod in existing_group.get("modifiers", [])
-                    }
-                    break
-        except Exception:
-            pass
             
         # Process modifiers in this group
         for modifier in group.get("modifiers", []):
