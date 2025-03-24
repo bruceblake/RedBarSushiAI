@@ -51,7 +51,7 @@ DELIVERECT_API_URL = 'https://api.staging.deliverect.com/nextgen/order/66e88f334
 # ------------------------------
 # Local File Paths
 # ------------------------------
-MENU_FILE_PATH = "/home/proxyie/MySoftware/RedBarSushiAI/menu_data.json"
+MENU_FILE_PATH = "/home/pegasus/mysite/RedBarSushiAI/menu_data.json"
 
 # ------------------------------
 # Base URL Configuration
