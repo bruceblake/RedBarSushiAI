@@ -40,11 +40,11 @@ def create_app(test_config=None):
     app.register_blueprint(order_bp)
     app.register_blueprint(location_bp)
 
-    # Configure logging
+    # Configure logging - Set to DEBUG for maximum verbosity
     logging.basicConfig(
         filename='progress.log',
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
     )
 
     return app

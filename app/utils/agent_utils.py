@@ -5,10 +5,45 @@ This module provides the core functionality for our AI agents.
 import os
 import json
 import logging
+import traceback
 from typing import Dict, List, Any, Optional, Tuple
 import openai
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Add a function to log detailed information about OpenAI requests
+def log_openai_request(model, messages, function_name=""):
+    """Log detailed information about an OpenAI API request"""
+    logger.info(f"[OPENAI-REQUEST] Function: {function_name}, Model: {model}")
+    try:
+        msg_summary = []
+        for msg in messages:
+            content = msg.get('content', '')
+            if content and isinstance(content, str):
+                truncated = content[:100] + "..." if len(content) > 100 else content
+                msg_summary.append(f"{msg.get('role')}: {truncated}")
+        logger.info(f"[OPENAI-MESSAGES] {'; '.join(msg_summary)}")
+    except Exception as e:
+        logger.error(f"[OPENAI-REQUEST-ERROR] Failed to log messages: {str(e)}")
+    
+# Add a function to log detailed information about OpenAI responses
+def log_openai_response(response, function_name=""):
+    """Log detailed information about an OpenAI API response"""
+    logger.info(f"[OPENAI-RESPONSE] Function: {function_name}")
+    try:
+        if hasattr(response, 'choices') and response.choices:
+            choice = response.choices[0]
+            if hasattr(choice, 'message'):
+                content = choice.message.content
+                logger.info(f"[OPENAI-CONTENT] {content[:200]}...")  # Log first 200 chars
+            elif hasattr(choice, 'text'):
+                content = choice.text
+                logger.info(f"[OPENAI-CONTENT] {content[:200]}...")  # Log first 200 chars
+        logger.info(f"[OPENAI-FULL] {str(response)[:500]}...")  # Log first 500 chars
+    except Exception as e:
+        logger.error(f"[OPENAI-RESPONSE-ERROR] Failed to log response: {str(e)}")
+        logger.error(f"[OPENAI-RESPONSE-RAW] {str(response)[:500]}...")
 
 # Ensure OpenAI API key is set
 OPENAI_API_KEY = "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"
@@ -55,13 +90,27 @@ if not AGENT_API_AVAILABLE and OPENAI_API_KEY:
     # Try to confirm API key works
     try:
         # Simple test call
-        response = openai.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": "Test"}],
-            max_tokens=1
-        )
-        # If we got here, API key works for chat completions
-        logger.info("OpenAI API key confirmed working for chat completions")
+        messages = [{"role": "user", "content": "Test"}]
+        
+        # Log the API request
+        log_openai_request("gpt-4o", messages, "api_key_test")
+        
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                max_tokens=1
+            )
+            
+            # Log the API response
+            log_openai_response(response, "api_key_test")
+            
+            # If we got here, API key works for chat completions
+            logger.info("OpenAI API key confirmed working for chat completions")
+        except Exception as e:
+            logger.error(f"Error during OpenAI API call: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
     except Exception as e:
         logger.error(f"Error testing OpenAI API key: {e}")
         # Mark as unavailable so we use simpler fallbacks
@@ -315,59 +364,79 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 # Initialize the agent
                 thread = self.agent.create_thread()
                 
+                # Log agent initialization
+                logger.info(f"[AGENT-ORDER] Initializing order parsing agent for: '{order_text}'")
+                
                 # Send the order message
                 message = thread.messages.create(role="user", content=order_text)
+                logger.info(f"[AGENT-MESSAGE] Created message with ID: {message.id}")
                 
                 # Run the agent
                 run = thread.runs.create()
+                logger.info(f"[AGENT-RUN] Created run with ID: {run.id}")
                 
                 # Wait for the run to complete
                 run = thread.runs.wait(run_id=run.id)
+                logger.info(f"[AGENT-COMPLETE] Run completed with status: {run.status}")
                 
                 # Get the agent's final response
                 messages = thread.messages.list(after=message.id)
                 response = list(messages)[0].content[0].text.value
+                logger.info(f"[AGENT-RESPONSE] Received response of length: {len(response)}")
+                logger.info(f"[AGENT-CONTENT] Response preview: {response[:200]}...")
                 
                 # Extract the structured order from the response
                 try:
                     # Try to extract JSON if wrapped in code blocks
                     if "```json" in response:
                         json_str = response.split("```json")[1].split("```")[0].strip()
+                        logger.info(f"[AGENT-JSON] Extracted JSON from code block, length: {len(json_str)}")
                         parsed_order = json.loads(json_str)
                     # Otherwise try to parse the entire response as JSON
                     else:
+                        logger.info("[AGENT-JSON] Attempting to parse entire response as JSON")
                         parsed_order = json.loads(response)
+                    
+                    # Log the parsed result
+                    logger.info(f"[AGENT-PARSE] Successfully parsed response as JSON with keys: {list(parsed_order.keys())}")
                     
                     # Ensure the parsed order has the required structure
                     if "items" not in parsed_order:
                         parsed_order = {"items": []}
+                        logger.warning("[AGENT-VALIDATE] Missing 'items' key in parsed order, adding empty items list")
                     
                     # Verify all items have required fields
                     for item in parsed_order["items"]:
                         if "name" not in item:
                             item["name"] = "Unknown Item"
+                            logger.warning("[AGENT-VALIDATE] Item missing 'name', setting to 'Unknown Item'")
                         if "quantity" not in item:
                             item["quantity"] = 1
+                            logger.warning(f"[AGENT-VALIDATE] Item '{item['name']}' missing quantity, defaulting to 1")
                         if "price" not in item:
                             menu_item = find_menu_item_by_name(item["name"])
                             if menu_item:
                                 item["price"] = menu_item.get("price", 0.0)
                                 item["reference_handler"] = menu_item.get("reference_handler", "")
+                                logger.info(f"[AGENT-PRICE] Found price for '{item['name']}': ${item['price']}")
                             else:
                                 item["price"] = 0.0
                                 item["reference_handler"] = ""
+                                logger.warning(f"[AGENT-PRICE] Could not find price for '{item['name']}', using 0.0")
                         if "modifier" not in item:
                             item["modifier"] = []
+                            logger.info(f"[AGENT-VALIDATE] Added empty modifier list for '{item['name']}'")
                     
                     return parsed_order
                     
                 except json.JSONDecodeError:
                     # If JSON parsing fails, return a basic structure
-                    logger.error(f"Failed to parse agent response as JSON: {response}")
+                    logger.error(f"[AGENT-JSON-ERROR] Failed to parse agent response as JSON: {response}")
                     return {"items": [], "error": "Failed to parse response"}
                     
             except Exception as e:
-                logger.error(f"Error in parse_order: {str(e)}")
+                logger.error(f"[AGENT-ERROR] Error in parse_order: {str(e)}")
+                logger.error(f"[AGENT-TRACEBACK] {traceback.format_exc()}")
                 return {"items": [], "error": str(e)}
 
     class OrderModificationAgent:
@@ -463,75 +532,97 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
             try:
                 # Initialize the agent
                 thread = self.agent.create_thread()
+                logger.info(f"[AGENT-MODIFY] Initializing modification agent for: '{modification_text}'")
                 
                 # Format the current order
                 current_order_str = json.dumps(current_order, indent=2)
+                logger.info(f"[AGENT-CURRENT] Current order has {len(current_order.get('items', []))} items")
                 
                 # Send the context and modification request
                 message = thread.messages.create(
                     role="user", 
                     content=f"Current order:\n{current_order_str}\n\nModification request: {modification_text}"
                 )
+                logger.info(f"[AGENT-MESSAGE] Created message with ID: {message.id}")
                 
                 # Run the agent
                 run = thread.runs.create()
+                logger.info(f"[AGENT-RUN] Created run with ID: {run.id}")
                 
                 # Wait for the run to complete
                 run = thread.runs.wait(run_id=run.id)
+                logger.info(f"[AGENT-COMPLETE] Run completed with status: {run.status}")
                 
                 # Get the agent's final response
                 messages = thread.messages.list(after=message.id)
                 response = list(messages)[0].content[0].text.value
+                logger.info(f"[AGENT-RESPONSE] Received response of length: {len(response)}")
+                logger.info(f"[AGENT-CONTENT] Response preview: {response[:200]}...")
                 
                 # Extract the structured modifications from the response
                 try:
                     # Try to extract JSON if wrapped in code blocks
                     if "```json" in response:
                         json_str = response.split("```json")[1].split("```")[0].strip()
+                        logger.info(f"[AGENT-JSON] Extracted JSON from code block, length: {len(json_str)}")
                         modifications = json.loads(json_str)
                     # Otherwise try to parse the entire response as JSON
                     else:
+                        logger.info("[AGENT-JSON] Attempting to parse entire response as JSON")
                         modifications = json.loads(response)
+                    
+                    # Log the parsed result
+                    logger.info(f"[AGENT-PARSE] Successfully parsed response as JSON with keys: {list(modifications.keys())}")
                     
                     # Ensure the modifications have the required structure
                     if "additions" not in modifications:
                         modifications["additions"] = []
+                        logger.warning("[AGENT-VALIDATE] Missing 'additions' key in modifications, adding empty list")
                     if "removals" not in modifications:
                         modifications["removals"] = []
+                        logger.warning("[AGENT-VALIDATE] Missing 'removals' key in modifications, adding empty list")
                     
                     # Verify additions have required fields
                     for item in modifications["additions"]:
                         if "name" not in item:
                             item["name"] = "Unknown Item"
+                            logger.warning("[AGENT-VALIDATE] Addition missing 'name', setting to 'Unknown Item'")
                         if "quantity" not in item:
                             item["quantity"] = 1
+                            logger.warning(f"[AGENT-VALIDATE] Addition '{item['name']}' missing quantity, defaulting to 1")
                         if "price" not in item:
                             menu_item = find_menu_item_by_name(item["name"])
                             if menu_item:
                                 item["price"] = menu_item.get("price", 0.0)
                                 item["reference_handler"] = menu_item.get("reference_handler", "")
+                                logger.info(f"[AGENT-PRICE] Found price for addition '{item['name']}': ${item['price']}")
                             else:
                                 item["price"] = 0.0
                                 item["reference_handler"] = ""
+                                logger.warning(f"[AGENT-PRICE] Could not find price for addition '{item['name']}', using 0.0")
                         if "modifier" not in item:
                             item["modifier"] = []
+                            logger.info(f"[AGENT-VALIDATE] Added empty modifier list for addition '{item['name']}'")
                     
                     # Verify removals have required fields
                     for item in modifications["removals"]:
                         if "name" not in item:
                             item["name"] = "Unknown Item"
+                            logger.warning("[AGENT-VALIDATE] Removal missing 'name', setting to 'Unknown Item'")
                         if "quantity" not in item:
                             item["quantity"] = 1
+                            logger.warning(f"[AGENT-VALIDATE] Removal '{item['name']}' missing quantity, defaulting to 1")
                     
                     return modifications
                     
                 except json.JSONDecodeError:
                     # If JSON parsing fails, return a basic structure
-                    logger.error(f"Failed to parse agent response as JSON: {response}")
+                    logger.error(f"[AGENT-JSON-ERROR] Failed to parse agent response as JSON: {response}")
                     return {"additions": [], "removals": [], "error": "Failed to parse response"}
                     
             except Exception as e:
-                logger.error(f"Error in modify_order: {str(e)}")
+                logger.error(f"[AGENT-ERROR] Error in modify_order: {str(e)}")
+                logger.error(f"[AGENT-TRACEBACK] {traceback.format_exc()}")
                 return {"additions": [], "removals": [], "error": str(e)}
 else:
     # Fallback implementation - includes both no API key and no Agent API situations
@@ -558,19 +649,37 @@ else:
                     # Get the menu categories to provide context
                     categories = self.menu_tool.get_menu_categories()
                     
-                    # Initial request to identify potential items
-                    response = openai.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "You are a sushi restaurant order parser. Extract menu items from customer orders into JSON."},
-                            {"role": "user", "content": f"Extract menu items from this order: {order_text}\nOur menu has these categories: {', '.join(categories)}\nRespond with a JSON object containing an 'items' array of item names."}
-                        ],
-                        response_format={"type": "json_object"}
-                    )
+                    # Prepare messages for the API call
+                    messages = [
+                        {"role": "system", "content": "You are a sushi restaurant order parser. Extract menu items from customer orders into JSON."},
+                        {"role": "user", "content": f"Extract menu items from this order: {order_text}\nOur menu has these categories: {', '.join(categories)}\nRespond with a JSON object containing an 'items' array of item names."}
+                    ]
                     
-                    # Extract items mentioned in the order
-                    initial_parse = json.loads(response.choices[0].message.content)
-                    potential_items = initial_parse.get("items", [])
+                    # Log the API request
+                    logger.info(f"[ORDER-PARSE] Processing order text: '{order_text}'")
+                    logger.info(f"[ORDER-PARSE] Using menu categories: {categories}")
+                    log_openai_request("gpt-4o", messages, "parse_order")
+                    
+                    try:
+                        # Initial request to identify potential items
+                        response = openai.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            response_format={"type": "json_object"}
+                        )
+                        
+                        # Log the response
+                        log_openai_response(response, "parse_order")
+                        logger.info("[ORDER-PARSE] Successfully received OpenAI response")
+                        
+                        # Extract items mentioned in the order
+                        initial_parse = json.loads(response.choices[0].message.content)
+                        potential_items = initial_parse.get("items", [])
+                        logger.info(f"[ORDER-PARSE] Extracted {len(potential_items)} potential items from order")
+                    except Exception as e:
+                        logger.error(f"[ORDER-PARSE-ERROR] OpenAI API error: {str(e)}")
+                        logger.error(f"[ORDER-PARSE-TRACEBACK] {traceback.format_exc()}")
+                        raise
                 else:
                     # No OpenAI API - simple keyword matching
                     logger.warning("No OpenAI API key available - using simple keyword matching")
@@ -607,6 +716,11 @@ else:
                                 "modifier": []  # Default empty modifiers
                             })
                 
+                # Log the verified items
+                logger.info(f"[ORDER-VERIFY] Verified {len(verified_items)} menu items")
+                for item in verified_items:
+                    logger.info(f"[ORDER-ITEM] Found: {item.get('name')}, Price: ${item.get('price')}")
+                
                 # Final structured order
                 return {
                     "items": verified_items,
@@ -614,7 +728,8 @@ else:
                 }
                 
             except Exception as e:
-                logger.error(f"Error in parse_order fallback: {str(e)}")
+                logger.error(f"[ORDER-ERROR] Error in parse_order fallback: {str(e)}")
+                logger.error(f"[ORDER-TRACEBACK] {traceback.format_exc()}")
                 return {"items": [], "error": str(e)}
     
     class OrderModificationAgent:
@@ -641,18 +756,36 @@ else:
                     # Format the current order for the prompt
                     current_items = "\n".join([f"- {item.get('quantity', 1)}x {item.get('name')}" for item in current_order.get("items", [])])
                     
-                    # Request to identify modifications
-                    response = openai.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "You are a sushi restaurant order modifier. Process order changes and return JSON."},
-                            {"role": "user", "content": f"Current order:\n{current_items}\n\nModification request: {modification_text}\n\nReturn JSON with 'additions' and 'removals' arrays."}
-                        ],
-                        response_format={"type": "json_object"}
-                    )
+                    # Prepare messages for the API call
+                    messages = [
+                        {"role": "system", "content": "You are a sushi restaurant order modifier. Process order changes and return JSON."},
+                        {"role": "user", "content": f"Current order:\n{current_items}\n\nModification request: {modification_text}\n\nReturn JSON with 'additions' and 'removals' arrays."}
+                    ]
                     
-                    # Parse the response
-                    modifications = json.loads(response.choices[0].message.content)
+                    # Log the request
+                    logger.info(f"[MODIFY-ORDER] Processing modification: '{modification_text}'")
+                    logger.info(f"[MODIFY-ORDER] Current order has {len(current_order.get('items', []))} items")
+                    log_openai_request("gpt-4o", messages, "modify_order")
+                    
+                    try:
+                        # Request to identify modifications
+                        response = openai.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            response_format={"type": "json_object"}
+                        )
+                        
+                        # Log the response
+                        log_openai_response(response, "modify_order")
+                        logger.info("[MODIFY-ORDER] Successfully received OpenAI response")
+                        
+                        # Parse the response
+                        modifications = json.loads(response.choices[0].message.content)
+                        logger.info(f"[MODIFY-ORDER] Parsed modifications: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}")
+                    except Exception as e:
+                        logger.error(f"[MODIFY-ORDER-ERROR] OpenAI API error: {str(e)}")
+                        logger.error(f"[MODIFY-ORDER-TRACEBACK] {traceback.format_exc()}")
+                        raise
                 else:
                     # No OpenAI API - very simple keyword matching
                     logger.warning("No OpenAI API key available - using simple keyword matching for modifications")
@@ -714,7 +847,8 @@ else:
                 return modifications
                 
             except Exception as e:
-                logger.error(f"Error in modify_order fallback: {str(e)}")
+                logger.error(f"[MODIFY-ERROR] Error in modify_order fallback: {str(e)}")
+                logger.error(f"[MODIFY-TRACEBACK] {traceback.format_exc()}")
                 return {"additions": [], "removals": [], "error": str(e)}
 
 
@@ -732,16 +866,19 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
     agent = OrderParsingAgent()
     
     # Parse the input
+    logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{input_text}'")
     parsed_order = agent.parse_order(input_text)
     
     # Determine intent based on the parsed order
     if parsed_order.get("items"):
+        logger.info(f"[ANALYZE-RESULT] Found {len(parsed_order.get('items', []))} items, intent: 'order_food'")
         return {
             "intent": "order_food",
             "menu_items": parsed_order.get("items", [])
         }
     
     # Default to "other" intent if no clear intent is determined
+    logger.info("[ANALYZE-RESULT] No items found, intent: 'other'")
     return {"intent": "other"}
 
 
@@ -763,6 +900,8 @@ def get_order_modifications(user_input: str, current_order_items: List[Dict[str,
     agent = OrderModificationAgent()
     
     # Get modifications
+    logger.info(f"[ORDER-MODIFICATIONS] Processing modification request: '{user_input}'")
     modifications = agent.modify_order(current_order, user_input)
     
+    logger.info(f"[ORDER-MODIFICATIONS] Found modifications: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}")
     return modifications
