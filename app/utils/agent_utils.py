@@ -8,26 +8,66 @@ import logging
 from typing import Dict, List, Any, Optional, Tuple
 import openai
 
+logger = logging.getLogger(__name__)
+
+# Ensure OpenAI API key is set
+OPENAI_API_KEY = "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"
+if not OPENAI_API_KEY:
+    logger.warning("OPENAI_API_KEY environment variable not set! AI features will be limited.")
+    # For production: use a fallback API key if available in a different file
+    try:
+        api_key_path = "/home/pegasus/mysite/openai_key.txt"
+        if os.path.exists(api_key_path):
+            with open(api_key_path, 'r') as f:
+                OPENAI_API_KEY = f.read().strip()
+                logger.info("Found API key in alternate location")
+        # Also check some other common locations
+        elif os.path.exists("/home/pegasus/openai_key.txt"):
+            with open("/home/pegasus/openai_key.txt", 'r') as f:
+                OPENAI_API_KEY = f.read().strip()
+                logger.info("Found API key in home directory")
+        elif os.path.exists(os.path.join(os.path.dirname(__file__), "..", "..", "openai_key.txt")):
+            with open(os.path.join(os.path.dirname(__file__), "..", "..", "openai_key.txt"), 'r') as f:
+                OPENAI_API_KEY = f.read().strip()
+                logger.info("Found API key in project root")
+    except Exception as e:
+        logger.error(f"Error loading API key from file: {e}")
+
+# If we have an API key, set it for OpenAI
+if OPENAI_API_KEY:
+    openai.api_key = OPENAI_API_KEY
+
 # Check if OpenAI version supports the Agent API
 try:
-    from openai.agent import Agent
-    from openai.agent.types import AgentAction, AgentFinish, AgentStep
-    AGENT_API_AVAILABLE = True
+    # Only import if we have an API key
+    if OPENAI_API_KEY:
+        from openai.agent import Agent
+        from openai.agent.types import AgentAction, AgentFinish, AgentStep
+        AGENT_API_AVAILABLE = True
+    else:
+        AGENT_API_AVAILABLE = False
 except ImportError:
     AGENT_API_AVAILABLE = False
     # Using older version of OpenAI API - will use alternative implementation
 
+# For non-agent API fallback, test if we can access the API at all
+if not AGENT_API_AVAILABLE and OPENAI_API_KEY:
+    # Try to confirm API key works
+    try:
+        # Simple test call
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": "Test"}],
+            max_tokens=1
+        )
+        # If we got here, API key works for chat completions
+        logger.info("OpenAI API key confirmed working for chat completions")
+    except Exception as e:
+        logger.error(f"Error testing OpenAI API key: {e}")
+        # Mark as unavailable so we use simpler fallbacks
+        OPENAI_API_KEY = None
+
 from app.utils.menu_utils import load_menu_data, find_menu_item_by_name
-
-logger = logging.getLogger(__name__)
-
-# Ensure OpenAI API key is set
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    logger.warning("OPENAI_API_KEY environment variable not set!")
-
-# Set the OpenAI API key
-openai.api_key = OPENAI_API_KEY
 
 class SushiMenuTool:
     """A tool for querying the sushi menu."""
@@ -150,7 +190,7 @@ class SushiMenuTool:
         }
 
 # Check if OpenAI Agent API is available, if not use alternative implementation
-if AGENT_API_AVAILABLE:
+if AGENT_API_AVAILABLE and OPENAI_API_KEY:
     class OrderParsingAgent:
         """Agent for parsing customer orders."""
         
@@ -494,9 +534,9 @@ if AGENT_API_AVAILABLE:
                 logger.error(f"Error in modify_order: {str(e)}")
                 return {"additions": [], "removals": [], "error": str(e)}
 else:
-    # Fallback implementation using the Chat Completions API
+    # Fallback implementation - includes both no API key and no Agent API situations
     class OrderParsingAgent:
-        """Fallback implementation of OrderParsingAgent using Chat Completions API."""
+        """Fallback implementation of OrderParsingAgent."""
         
         def __init__(self):
             """Initialize the agent."""
@@ -513,22 +553,44 @@ else:
                 dict: The parsed order
             """
             try:
-                # Get the menu categories to provide context
-                categories = self.menu_tool.get_menu_categories()
-                
-                # Initial request to identify potential items
-                response = openai.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": "You are a sushi restaurant order parser. Extract menu items from customer orders into JSON."},
-                        {"role": "user", "content": f"Extract menu items from this order: {order_text}\nOur menu has these categories: {', '.join(categories)}\nRespond with a JSON object containing an 'items' array of item names."}
-                    ],
-                    response_format={"type": "json_object"}
-                )
-                
-                # Extract items mentioned in the order
-                initial_parse = json.loads(response.choices[0].message.content)
-                potential_items = initial_parse.get("items", [])
+                # For OpenAI API available but no agent API
+                if OPENAI_API_KEY:
+                    # Get the menu categories to provide context
+                    categories = self.menu_tool.get_menu_categories()
+                    
+                    # Initial request to identify potential items
+                    response = openai.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": "You are a sushi restaurant order parser. Extract menu items from customer orders into JSON."},
+                            {"role": "user", "content": f"Extract menu items from this order: {order_text}\nOur menu has these categories: {', '.join(categories)}\nRespond with a JSON object containing an 'items' array of item names."}
+                        ],
+                        response_format={"type": "json_object"}
+                    )
+                    
+                    # Extract items mentioned in the order
+                    initial_parse = json.loads(response.choices[0].message.content)
+                    potential_items = initial_parse.get("items", [])
+                else:
+                    # No OpenAI API - simple keyword matching
+                    logger.warning("No OpenAI API key available - using simple keyword matching")
+                    items = self.menu_tool.menu_data.get("items", [])
+                    name_variants = self.menu_tool.menu_data.get("name_variants", {})
+                    
+                    # Simple keyword matching
+                    order_lower = order_text.lower()
+                    potential_items = []
+                    
+                    # Check direct matches with name variants
+                    for variant, item_name in name_variants.items():
+                        if variant in order_lower:
+                            potential_items.append(item_name)
+                    
+                    # Check direct matches with item names
+                    for item in items:
+                        item_name = item.get("name", "").lower()
+                        if item_name and item_name in order_lower and item.get("name") not in potential_items:
+                            potential_items.append(item.get("name"))
                 
                 # Look up each item in the menu for verification
                 verified_items = []
@@ -556,7 +618,7 @@ else:
                 return {"items": [], "error": str(e)}
     
     class OrderModificationAgent:
-        """Fallback implementation of OrderModificationAgent using Chat Completions API."""
+        """Fallback implementation of OrderModificationAgent."""
         
         def __init__(self):
             """Initialize the agent."""
@@ -574,21 +636,62 @@ else:
                 dict: The modification instructions (additions and removals)
             """
             try:
-                # Format the current order for the prompt
-                current_items = "\n".join([f"- {item.get('quantity', 1)}x {item.get('name')}" for item in current_order.get("items", [])])
-                
-                # Request to identify modifications
-                response = openai.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": "You are a sushi restaurant order modifier. Process order changes and return JSON."},
-                        {"role": "user", "content": f"Current order:\n{current_items}\n\nModification request: {modification_text}\n\nReturn JSON with 'additions' and 'removals' arrays."}
-                    ],
-                    response_format={"type": "json_object"}
-                )
-                
-                # Parse the response
-                modifications = json.loads(response.choices[0].message.content)
+                # For OpenAI API available but no agent API
+                if OPENAI_API_KEY:
+                    # Format the current order for the prompt
+                    current_items = "\n".join([f"- {item.get('quantity', 1)}x {item.get('name')}" for item in current_order.get("items", [])])
+                    
+                    # Request to identify modifications
+                    response = openai.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": "You are a sushi restaurant order modifier. Process order changes and return JSON."},
+                            {"role": "user", "content": f"Current order:\n{current_items}\n\nModification request: {modification_text}\n\nReturn JSON with 'additions' and 'removals' arrays."}
+                        ],
+                        response_format={"type": "json_object"}
+                    )
+                    
+                    # Parse the response
+                    modifications = json.loads(response.choices[0].message.content)
+                else:
+                    # No OpenAI API - very simple keyword matching
+                    logger.warning("No OpenAI API key available - using simple keyword matching for modifications")
+                    modifications = {"additions": [], "removals": []}
+                    
+                    # Extract possible add/remove keywords
+                    mod_lower = modification_text.lower()
+                    items = self.menu_tool.menu_data.get("items", [])
+                    name_variants = self.menu_tool.menu_data.get("name_variants", {})
+                    
+                    # Very simple add/remove detection
+                    is_addition = any(w in mod_lower for w in ["add", "want", "more", "with"])
+                    is_removal = any(w in mod_lower for w in ["remove", "no", "without", "don't want", "cancel"])
+                    
+                    # Check current order items for potential removals
+                    if is_removal:
+                        for item in current_order.get("items", []):
+                            item_name = item.get("name", "").lower()
+                            if item_name and item_name in mod_lower:
+                                modifications["removals"].append({
+                                    "name": item.get("name"),
+                                    "quantity": 1
+                                })
+                    
+                    # Check all menu items for potential additions
+                    if is_addition:
+                        for variant, item_name in name_variants.items():
+                            if variant in mod_lower:
+                                # Only add it if not already in the list
+                                if not any(add_item.get("name") == item_name for add_item in modifications["additions"]):
+                                    menu_item = find_menu_item_by_name(item_name)
+                                    if menu_item:
+                                        modifications["additions"].append({
+                                            "name": item_name,
+                                            "quantity": 1,
+                                            "price": menu_item.get("price", 0.0),
+                                            "reference_handler": menu_item.get("reference_handler", ""),
+                                            "modifier": []
+                                        })
                 
                 # Ensure required structure
                 if "additions" not in modifications:
@@ -596,7 +699,7 @@ else:
                 if "removals" not in modifications:
                     modifications["removals"] = []
                 
-                # Verify and enhance additions
+                # Verify and enhance additions (only if OpenAI API available)
                 for item in modifications.get("additions", []):
                     if "name" in item:
                         menu_item = find_menu_item_by_name(item["name"])
