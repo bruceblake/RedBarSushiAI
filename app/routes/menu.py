@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify
 import logging
 import json
+import os
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.menu_validator import validate_and_fix_menu_data
 from app.utils.menu_utils import process_deliverect_menu, load_menu_data, write_menu_file, sync_reference_handlers
@@ -13,10 +14,10 @@ logger = logging.getLogger(__name__)
 @menu_bp.route('/menu_update', methods=['POST'])
 def menu_update():
     """
-    Handle menu updates from Deliverect or direct API calls.
+    Handle menu updates from Deliverect.
     
     Deliverect sends menu updates in their specific format with "categories" structure.
-    We process this into our internal format while preserving all PLU/reference_handlers exactly.
+    This endpoint processes the data and stores it in our system.
     """
     try:
         data = request.get_json()
@@ -24,177 +25,45 @@ def menu_update():
             logger.error("[MENU-UPDATE] No data provided in request")
             return jsonify({"error": "No data provided"}), 400
         
-        # Create a backup of the current menu before updating
-        try:
-            # Load current menu
-            current_menu = load_menu_data(force_refresh=True, skip_validation=True)
-            
-            # Get file path
-            from app.config import MENU_FILE_PATH
-            import os
-            from datetime import datetime
-            
-            # Generate backup filename with timestamp
-            backup_dir = os.path.dirname(MENU_FILE_PATH)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_file = os.path.join(backup_dir, f"menu_backup_{timestamp}.json")
-            
-            # Write backup
-            with open(backup_file, "w") as f:
-                json.dump(current_menu, f)
-                
-            logger.info(f"[MENU-BACKUP] Created menu backup at {backup_file}")
-        except Exception as backup_err:
-            logger.warning(f"[MENU-BACKUP] Failed to create backup: {backup_err}")
-        
-        # Log the receipt of data - but be careful with potentially large payloads
-        item_count = len(data.get("categories", [])) if "categories" in data else "N/A"
-        logger.info(f"[MENU-UPDATE] Received update with {item_count} categories")
-        
-        # Process based on source format
+        # Log the receipt of data
         if "categories" in data:
-            # Deliverect format
+            item_count = len(data.get("categories", []))
+            logger.info(f"[MENU-UPDATE] Received update with {item_count} categories")
+            
+            # Process Deliverect format
             logger.info("[MENU-UPDATE] Processing Deliverect menu format")
             processed_data = process_deliverect_menu(data)
-            logger.info(f"[MENU-UPDATE] Processed {len(processed_data.get('items', []))} items from Deliverect")
             
-            # Log PLU mapping for the first few items
-            sample_items = processed_data.get('items', [])[:5]
-            for item in sample_items:
-                logger.info(f"[MENU-PLU] '{item.get('name')}' → '{item.get('reference_handler', '')}'")
-        else:
-            # Direct format
-            logger.info("[MENU-UPDATE] Processing direct menu update")
-            
-            # Handle different input structures
-            if isinstance(data, list):
-                data = {"items": data}
-            elif not isinstance(data, dict):
-                logger.error("[MENU-UPDATE] Invalid data format - expected JSON object or array")
-                return jsonify({"error": "Expected an array or object"}), 400
-            
-            # Ensure complete structure
-            processed_data = data.copy()
-            for key in ["items", "modifiers", "modifierGroups"]:
-                if key not in processed_data:
-                    processed_data[key] = []
-        
-        # Verify we have items to process
-        if len(processed_data.get("items", [])) == 0:
-            logger.error("[MENU-UPDATE] No items found in processed data")
-            return jsonify({"error": "No menu items found in data"}), 400
-        
-        # Verify all items have required fields before validation
-        items_missing_fields = [
-            item.get("name", "(unnamed)") 
-            for item in processed_data.get("items", [])
-            if not item.get("name") or not item.get("reference_handler")
-        ]
-        
-        if items_missing_fields:
-            logger.warning(f"[MENU-UPDATE] {len(items_missing_fields)} items missing required fields: {items_missing_fields[:5]}")
-        
-        # Validate and fix menu data
-        validated_data = validate_and_fix_menu_data(processed_data)
-        
-        # Verify validation worked properly - all items should have required fields
-        validation_failed = False
-        for item in validated_data.get("items", []):
-            if not item.get("name") or not item.get("reference_handler") or "price" not in item:
-                logger.error(f"[MENU-VALIDATION-FAIL] Item validation failed: {item}")
-                validation_failed = True
+            # Log sample of processed items
+            if processed_data.get('items'):
+                sample_items = processed_data.get('items')[:3]
+                for item in sample_items:
+                    logger.info(f"[MENU-ITEM] '{item.get('name')}' → '{item.get('reference_handler', '')}'")
                 
-        if validation_failed:
-            logger.error("[MENU-UPDATE] Validation failed to fix all items")
-            return jsonify({"error": "Menu validation failed - some items are missing required fields"}), 400
-        
-        # Process menu data to generate name variants for voice matching
-        # This ensures that even if menu items change, we can still match against common variants
-        
-        # Make a fake Deliverect format if it didn't come from Deliverect
-        # This ensures consistent processing of all menu updates
-        if "categories" not in data:
-            # Structure it like Deliverect data
-            deliverect_format = {
-                "categories": []
-            }
+            # Write to file
+            success = write_menu_file(processed_data)
+            if not success:
+                return jsonify({"error": "Failed to write menu file"}), 500
             
-            # Group items by category
-            categories = {}
-            for item in validated_data.get("items", []):
-                category = item.get("category", "Uncategorized")
-                if category not in categories:
-                    categories[category] = {
-                        "id": f"CAT-{len(categories)+1:03d}",
-                        "name": category,
-                        "products": []
-                    }
+            # Verify menu file was written correctly
+            reloaded_menu = load_menu_data(force_refresh=True)
+            if not reloaded_menu.get("items") and processed_data.get("items"):
+                return jsonify({"error": "Menu update failed - could not verify data was saved"}), 500
                 
-                # Add this item as a product
-                categories[category]["products"].append({
-                    "id": item.get("id", ""),
-                    "name": item.get("name", ""),
-                    "price": int(float(item.get("price", 0)) * 100),  # Convert to cents
-                    "description": item.get("description", ""),
-                    "plu": item.get("reference_handler", ""),
-                    "available": item.get("available", True),
-                    "imageUrl": item.get("imageUrl", "")
-                })
+            logger.info(f"[MENU-UPDATE] Menu updated successfully with {len(reloaded_menu.get('items', []))} items")
             
-            # Add all categories to the result
-            deliverect_format["categories"] = list(categories.values())
-            
-            # Process like it came from Deliverect
-            logger.info("[MENU-UPDATE] Converting standard menu to Deliverect format for processing")
-            processed_data = process_deliverect_menu(deliverect_format)
+            # Return success response
+            return jsonify({
+                "success": True,
+                "items": len(processed_data.get("items", [])),
+                "modifierGroups": len(processed_data.get("modifierGroups", [])),
+                "name_variants": len(processed_data.get("name_variants", {}))
+            }), 200
         else:
-            # We already processed it as Deliverect data, keep the result
-            processed_data = validated_data
+            # Not Deliverect format
+            logger.error("[MENU-UPDATE] Unsupported data format - expecting Deliverect structure with categories")
+            return jsonify({"error": "Unsupported format - expecting Deliverect structure"}), 400
             
-        # Ensure name variants were generated
-        if "name_variants" not in processed_data and len(processed_data.get("items", [])) > 0:
-            logger.warning("[MENU-UPDATE] Name variants not generated, generating manually")
-            
-            # Add name variants manually
-            name_variants = {}
-            for item in processed_data.get("items", []):
-                name = item.get("name", "")
-                if name:
-                    name_lower = name.lower()
-                    # Base name
-                    name_variants[name_lower] = name
-                    
-                    # Generate word variants
-                    words = name_lower.split()
-                    for word in words:
-                        if len(word) > 3 and word not in ["with", "and", "the", "for"]:
-                            name_variants[word] = name
-            
-            # Add to processed data
-            processed_data["name_variants"] = name_variants
-            logger.info(f"[MENU-UPDATE] Generated {len(name_variants)} name variants")
-        
-        # Log summary of processed data
-        logger.info(f"[MENU-UPDATE] Validated data: {len(processed_data.get('items', []))} items, " +
-                    f"{len(processed_data.get('modifierGroups', []))} modifier groups, " +
-                    f"{len(processed_data.get('name_variants', {}))} name variants")
-        
-        # Write to file and refresh cache
-        write_menu_file(processed_data)
-        
-        # Verify menu file was written correctly by reloading it
-        reloaded_menu = load_menu_data(force_refresh=True)
-        if len(reloaded_menu.get("items", [])) == 0 and len(processed_data.get("items", [])) > 0:
-            logger.error("[MENU-UPDATE] Menu file writing failed - reloaded menu has 0 items")
-            return jsonify({"error": "Menu update failed - could not verify menu data was saved correctly"}), 500
-            
-        logger.info(f"[MENU-UPDATE] Menu updated successfully with {len(reloaded_menu.get('items', []))} items")
-        return jsonify({
-            "success": True, 
-            "items": len(processed_data.get("items", [])),
-            "modifierGroups": len(processed_data.get("modifierGroups", [])),
-            "name_variants": len(processed_data.get("name_variants", {}))
-        }), 200
     except Exception as e:
         logger.error(f"Error updating menu: {e}")
         return jsonify({"error": f"Menu update failed: {str(e)}"}), 500
@@ -318,3 +187,17 @@ def sync_menu_references():
     except Exception as e:
         logger.error(f"Error synchronizing menu references: {e}")
         return jsonify({"error": f"Synchronization failed: {str(e)}"}), 500
+        
+@menu_bp.route('/menu', methods=['GET'])
+def get_menu():
+    """
+    Get the current menu data
+    """
+    # Get location_id from query parameters
+    location_id = request.args.get('location_id')
+    
+    # Load menu data with optional location
+    menu_data = load_menu_data(force_refresh=False, location_id=location_id)
+    
+    # Return menu data
+    return jsonify(menu_data), 200

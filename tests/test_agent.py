@@ -1,0 +1,101 @@
+"""
+Test the OpenAI Agents integration.
+"""
+import os
+import sys
+import json
+import pytest
+from unittest.mock import patch, MagicMock
+
+# Mock the celery module before importing anything that might use it
+sys.modules['celery'] = MagicMock()
+sys.modules['celery_app'] = MagicMock()
+sys.modules['tasks'] = MagicMock()
+
+# Add support for mocking OpenAI Agents
+class MockAgent:
+    def __init__(self, *args, **kwargs):
+        self.tools = MagicMock()
+        self.tools.search_menu = MagicMock(return_value={"found": True, "items": []})
+        self.tools.get_details = MagicMock(return_value={"found": True, "item": {}})
+        
+    def create_thread(self):
+        mock_thread = MagicMock()
+        mock_run = MagicMock()
+        mock_message = MagicMock()
+        
+        # Add required properties
+        mock_message.id = "msg_123"
+        mock_message.content = [MagicMock()]
+        mock_message.content[0].text = MagicMock()
+        mock_message.content[0].text.value = json.dumps({"items": [{"name": "California Roll", "quantity": 1}]})
+        
+        # Configure the mock objects
+        mock_thread.messages.create.return_value = mock_message
+        mock_thread.messages.list.return_value = [mock_message]
+        mock_thread.runs.create.return_value = mock_run
+        mock_thread.runs.wait.return_value = mock_run
+        
+        return mock_thread
+
+# Apply the mocks for OpenAI Agents
+sys.modules['openai.agent'] = MagicMock()
+sys.modules['openai.agent.Agent'] = MockAgent
+sys.modules['openai.agent.types'] = MagicMock()
+
+# Now import the modules that use these mocks
+from app.utils.agent_utils import analyze_user_input, get_order_modifications, OrderParsingAgent
+
+@pytest.fixture
+def mock_openai_agent():
+    with patch('app.utils.agent_utils.Agent', MockAgent):
+        yield
+
+
+def test_analyze_user_input(mock_openai_agent):
+    """Test that analyze_user_input works correctly."""
+    # Test with a simple order
+    result = analyze_user_input("I want a California Roll")
+    
+    # Check the result
+    assert result is not None
+    assert "intent" in result
+    assert result["intent"] == "order_food"
+    assert "menu_items" in result
+    assert len(result["menu_items"]) > 0
+
+
+def test_get_order_modifications(mock_openai_agent):
+    """Test that get_order_modifications works correctly."""
+    # Create a current order
+    current_order = [
+        {
+            "name": "California Roll",
+            "quantity": 1,
+            "price": 7.95,
+            "reference_handler": "cal-roll-1",
+            "modifier": []
+        }
+    ]
+    
+    # Test with a modification request
+    result = get_order_modifications("Add a Spicy Tuna Roll", current_order)
+    
+    # Check the result
+    assert result is not None
+    assert "additions" in result
+    assert "removals" in result
+
+
+def test_order_parsing_agent(mock_openai_agent):
+    """Test that OrderParsingAgent works correctly."""
+    # Create an agent
+    agent = OrderParsingAgent()
+    
+    # Test parsing an order
+    order = agent.parse_order("I want a California Roll and a Spicy Tuna Roll")
+    
+    # Check the result
+    assert order is not None
+    assert "items" in order
+    assert len(order["items"]) > 0
