@@ -86,7 +86,7 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None) 
                 logger.info(f"Created backup directory: {BACKUP_FOLDER}")
                 
             # Create a backup with timestamp
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = os.path.join(BACKUP_FOLDER, f"menu_backup_{timestamp}.json")
             
             # If the file exists, make a backup before overwriting
@@ -160,7 +160,7 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None) 
         logger.error(f"Error writing menu file: {e}")
         return False
 
-def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = None) -> Dict[str, Any]:
+def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = None, skip_validation: bool = False) -> Dict[str, Any]:
     """
     Load menu data from file or cache.
     
@@ -497,21 +497,434 @@ def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
     Args:
         item: The menu item to check
     """
-    # Implementation for checking item availability by schedule
-    pass
+    # Get availability blocks from the item
+    all_blocks = item.get("availabilities", [])
+    if not all_blocks:
+        return True  # No availabilities means always available
+    
+    # Get current day of week and time
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    day_of_week = now_utc.isoweekday()
+    now_time = now_utc.time()
+    
+    # Check if the current time falls within any availability block
+    for block in all_blocks:
+        block_dow = block.get("dayOfWeek")
+        start_str = block.get("startTime", "00:00")
+        end_str = block.get("endTime", "23:59")
+        
+        # Skip blocks for different days
+        if block_dow != day_of_week:
+            continue
+            
+        # Parse time strings
+        try:
+            start_hour, start_min = map(int, start_str.split(":"))
+            end_hour, end_min = map(int, end_str.split(":"))
+        except Exception as e:
+            logger.error(f"Error parsing block time: {e}")
+            continue
+            
+        # Create time objects
+        start_t = datetime.time(hour=start_hour, minute=start_min)
+        end_t = datetime.time(hour=end_hour, minute=end_min)
+        
+        # Check if current time is within this block
+        if start_t <= now_time <= end_t:
+            return True
+    
+    # No matching block found for current day/time
+    return False
 
 def process_deliverect_menu(deliverect_menu, location_id=None):
     """
-    Process menu updates from Deliverect for a specific location.
+    Efficiently converts Deliverect menu format to our internal format,
+    preserving all PLUs/reference_handlers exactly as provided by Deliverect.
+    
+    Handles menu transitions when items are replaced or modified by:
+    1. Tracking all current and new items by ID and name
+    2. Preserving existing reference handlers for consistent ordering
+    3. Maintaining a transition mapping for replaced items
     
     Args:
-        deliverect_menu: Menu data from Deliverect
-        location_id: Optional location ID
+        deliverect_menu: The menu data from Deliverect
+        location_id: Optional location ID for location-specific settings
         
     Returns:
-        dict: Processed menu data
+        dict: Processed menu in our format
     """
-    pass
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Load existing menu to handle transitions
+    try:
+        existing_menu = load_menu_data(force_refresh=True, skip_validation=True)
+        
+        # Create mappings for existing items
+        existing_by_id = {item.get("id", ""): item for item in existing_menu.get("items", []) if item.get("id")}
+        existing_by_name = {item.get("name", "").lower(): item for item in existing_menu.get("items", []) if item.get("name")}
+        existing_by_plu = {item.get("reference_handler", ""): item for item in existing_menu.get("items", []) if item.get("reference_handler")}
+        
+        # Preserve existing name variants if available
+        existing_variants = existing_menu.get("name_variants", {})
+        
+        logger.info(f"[MENU-TRANSITION] Found {len(existing_by_id)} items by ID, {len(existing_by_name)} by name, {len(existing_by_plu)} by PLU, {len(existing_variants)} existing variants")
+    except Exception as e:
+        logger.warning(f"[MENU-TRANSITION] Could not load existing menu: {e}")
+        existing_by_id = {}
+        existing_by_name = {}
+        existing_by_plu = {}
+        existing_variants = {}
+    
+    result = {
+        "items": [],
+        "modifiers": [],
+        "modifierGroups": []
+    }
+    
+    # Track processed IDs to avoid duplicates
+    processed_item_ids = set()
+    processed_modifier_group_ids = set()
+    
+    # Create a master PLU mapping (id -> reference_handler) to maintain consistency
+    plu_map = {}
+    
+    # Add name variants dictionary to handle common search variants
+    # Start with existing variants to preserve manual additions
+    name_variants = existing_variants.copy()
+    
+    # Track menu transitions for reporting
+    transition_map = {
+        "new_items": [],
+        "updated_items": [],
+        "removed_items": [],
+        "plu_changes": []
+    }
+    
+    # Process categories and products
+    categories = deliverect_menu.get("categories", [])
+    logger.info(f"[DELIVERECT] Processing {len(categories)} categories")
+    
+    # Initial pass - collect all incoming items
+    all_incoming_items = []
+    incoming_ids = set()
+    for category in categories:
+        for product in category.get("products", []):
+            all_incoming_items.append(product)
+            incoming_ids.add(product.get("id", ""))
+    
+    # Check for removed items
+    for existing_id, existing_item in existing_by_id.items():
+        if existing_id and existing_id not in incoming_ids:
+            name = existing_item.get("name", "Unknown")
+            plu = existing_item.get("reference_handler", "")
+            transition_map["removed_items"].append({"id": existing_id, "name": name, "plu": plu})
+            logger.info(f"[MENU-TRANSITION] Item removed: '{name}' (ID: {existing_id}, PLU: {plu})")
+    
+    # Process all products
+    for category in categories:
+        cat_id = category.get("id")
+        cat_name = category.get("name")
+        products = category.get("products", [])
+        
+        for product in products:
+            prod_id = product.get("id")
+            prod_name = product.get("name", "")
+            
+            # Skip duplicates
+            if prod_id in processed_item_ids:
+                continue
+                
+            processed_item_ids.add(prod_id)
+            
+            # IMPORTANT: Always preserve the exact PLU/reference_handler from Deliverect
+            plu = product.get("plu", "")
+            if plu:
+                plu_map[prod_id] = plu
+                
+            # Create menu item entry with complete data
+            prod = {
+                "id": prod_id,
+                "name": prod_name,
+                "price": product.get("price", 0) / 100,  # Convert from cents
+                "reference_handler": plu,  # Use exact PLU as provided
+                "description": product.get("description", ""),
+                "imageUrl": product.get("imageUrl", ""),
+                "snoozed": not product.get("available", True),  # Convert to our snoozed paradigm
+                "category": cat_name,
+                "categoryId": cat_id,
+                "available": product.get("available", True)  # CRITICAL: Preserve available flag exactly as provided
+            }
+            
+            # Create name variants for this item using intelligent algorithmic generation
+            # rather than hardcoded values
+            prod_name_lower = prod_name.lower()
+            name_variants[prod_name_lower] = prod_name  # Store base name
+            
+            # Generate word-level variants
+            words = prod_name_lower.split()
+            
+            # Store single-word items directly
+            if len(words) == 1 and len(words[0]) > 3:
+                # No variants needed for single words, already captured above
+                pass
+                
+            # For multi-word items, generate common variations
+            elif len(words) > 1:
+                # Add the first word if it's meaningful (not an article/etc)
+                if len(words[0]) > 3 and words[0] not in ["with", "and", "the"]:
+                    if words[0] not in name_variants:
+                        name_variants[words[0]] = prod_name
+                
+                # Add the last word if it's meaningful
+                if len(words[-1]) > 3 and words[-1] not in ["with", "and", "the"]:
+                    if words[-1] not in name_variants:
+                        name_variants[words[-1]] = prod_name
+                        
+                # Store key descriptive terms if they're not already taken
+                for i, word in enumerate(words):
+                    if (len(word) > 3 and 
+                        word not in ["with", "and", "the", "for", "or"] and
+                        word not in name_variants):
+                        
+                        # Check if this word is already the name of another item
+                        word_collision = False
+                        for existing_item in result.get("items", []):
+                            if existing_item.get("name", "").lower() == word:
+                                word_collision = True
+                                break
+                        
+                        if not word_collision:
+                            # Only add if it doesn't collide with another menu item
+                            name_variants[word] = prod_name
+                
+                # Add combined terms for things that might have spaces vs no spaces
+                # e.g., "ice cream" ↔ "icecream", "coca cola" ↔ "cocacola"
+                if len(words) == 2:
+                    combined = words[0] + words[1]
+                    if combined not in name_variants:
+                        name_variants[combined] = prod_name
+                        
+                # NEW: Handle order variations (e.g., "bacon cheeseburger" ↔ "cheeseburger bacon")
+                if len(words) > 1 and len(words) <= 4:  # Don't do this for very long names
+                    # Generate variations with word order changes
+                    import itertools
+                    for word_subset in itertools.permutations(words, len(words)):
+                        variant = " ".join(word_subset)
+                        if variant != prod_name_lower and variant not in name_variants:
+                            name_variants[variant] = prod_name
+                            
+            # NEW: Add common short forms and abbreviations
+            # French Fries → Fries
+            if "french fries" in prod_name_lower:
+                name_variants["fries"] = prod_name
+                name_variants["frys"] = prod_name  # Common misspelling
+                
+            # Hamburger → Burger, Hamburger → Ham
+            if "hamburger" in prod_name_lower:
+                name_variants["burger"] = prod_name
+                name_variants["ham"] = prod_name
+                
+            # Cheeseburger → Cheese
+            if "cheeseburger" in prod_name_lower:
+                name_variants["cheese"] = prod_name
+                
+            # Coca-Cola/Coca Cola → Coke
+            if "coca" in prod_name_lower and "cola" in prod_name_lower:
+                name_variants["coke"] = prod_name
+                name_variants["cola"] = prod_name
+                
+            # Mountain Dew → Dew
+            if "mountain dew" in prod_name_lower:
+                name_variants["dew"] = prod_name
+                name_variants["mt dew"] = prod_name
+                
+            # NEW: Add common typo handling for frequent words
+            common_typos = {
+                "hamburger": ["hambuger", "hamberger", "hamburgar"],
+                "cheeseburger": ["cheseburger", "cheesburger", "cheezburger"],
+                "sandwich": ["sandwitch", "sandwhich", "sandwish"],
+                "chicken": ["chiken", "chiken", "chick"],
+                "coffee": ["coffe", "cofee", "coffie"],
+                "salad": ["sallad", "salid", "salud"],
+                "pizza": ["piza", "pizzza", "pizzaa"],
+                "bacon": ["bakon", "baccon"],
+                "cheese": ["chese", "cheez", "chees"],
+                "fries": ["frys", "friess", "fris"]
+            }
+            
+            # Check if any common words with typos appear in this product
+            for correct_word, typos in common_typos.items():
+                if correct_word in prod_name_lower:
+                    # Add all typo variations
+                    for typo in typos:
+                        # Replace the correct word with the typo in the full name
+                        typo_name = prod_name_lower.replace(correct_word, typo)
+                        name_variants[typo_name] = prod_name
+                        
+                        # Also add the typo as a standalone variant if it's not too short
+                        if len(typo) >= 4 and typo not in name_variants:
+                            name_variants[typo] = prod_name
+                
+            # Handle menu transitions - check if this is a new or updated item
+            is_new = True
+            if prod_id in existing_by_id:
+                is_new = False
+                # Item exists by ID - track changes for transition
+                old_item = existing_by_id[prod_id]
+                old_name = old_item.get("name", "")
+                old_plu = old_item.get("reference_handler", "")
+                
+                # Check for key differences
+                if old_name != prod_name:
+                    logger.info(f"[MENU-TRANSITION] Item name changed: '{old_name}' → '{prod_name}' (ID: {prod_id})")
+                    
+                if old_plu != plu and old_plu and plu:
+                    logger.info(f"[MENU-TRANSITION] PLU changed: '{old_plu}' → '{plu}' for '{prod_name}'")
+                    transition_map["plu_changes"].append({
+                        "id": prod_id,
+                        "name": prod_name,
+                        "old_plu": old_plu,
+                        "new_plu": plu
+                    })
+                
+                transition_map["updated_items"].append({
+                    "id": prod_id,
+                    "name": prod_name,
+                    "old_name": old_name,
+                    "plu": plu
+                })
+            else:
+                # New item - log for transition tracking
+                transition_map["new_items"].append({
+                    "id": prod_id,
+                    "name": prod_name,
+                    "plu": plu
+                })
+                logger.info(f"[MENU-TRANSITION] New item: '{prod_name}' (ID: {prod_id}, PLU: {plu})")
+            
+            # Process location-specific PLUs (override if specified for this location)
+            if location_id:
+                for location in product.get("locations", []):
+                    if location.get("id") == location_id and location.get("plu"):
+                        prod["reference_handler"] = location.get("plu")
+                        plu_map[prod_id] = location.get("plu")
+                        prod["price"] = location.get("price", prod["price"]) / 100
+                        break
+            
+            # Process availabilities
+            if "availability" in product:
+                prod["availabilities"] = convert_availability(product.get("availability", []))
+                
+            # Process modifier groups (simplify reference)
+            mod_groups = []
+            for group in product.get("modifierGroups", []):
+                group_id = group.get("id")
+                mod_groups.append(group_id)
+                
+                # Only process each modifier group once
+                if group_id not in processed_modifier_group_ids:
+                    processed_modifier_group_ids.add(group_id)
+                    
+                    # Create the modifier group record
+                    new_group = {
+                        "id": group_id,
+                        "name": group.get("name"),
+                        "min": group.get("minAmount", 0),
+                        "max": group.get("maxAmount", 999),
+                        "minAllowed": group.get("minAmount", 0),  # Also set standardized names
+                        "maxAllowed": group.get("maxAmount", 999),
+                        "modifiers": []
+                    }
+                    
+                    # Ensure min <= max
+                    if new_group["min"] > new_group["max"]:
+                        logger.warning(f"[MENU-FIX] Fixed invalid min/max constraint for {new_group['name']}: {new_group['min']} > {new_group['max']}")
+                        new_group["min"] = min(new_group["min"], new_group["max"])
+                        new_group["minAllowed"] = new_group["min"]
+                    
+                    # Process modifiers in this group
+                    for modifier in group.get("modifiers", []):
+                        mod_id = modifier.get("id")
+                        mod_name = modifier.get("name", "")
+                        mod_plu = modifier.get("plu", "")
+                        
+                        # Store in PLU map
+                        if mod_plu:
+                            plu_map[mod_id] = mod_plu
+                            
+                        new_group["modifiers"].append({
+                            "id": mod_id,
+                            "name": mod_name,
+                            "price": modifier.get("price", 0) / 100,
+                            "snoozed": not modifier.get("available", True),
+                            "available": modifier.get("available", True),  # Keep original available flag
+                            "reference_handler": mod_plu
+                        })
+                    
+                    result["modifierGroups"].append(new_group)
+            
+            # Add modifier groups to product
+            if mod_groups:
+                prod["modifierGroups"] = mod_groups
+                
+            result["items"].append(prod)
+    
+    # Log transition summary
+    logger.info(f"[MENU-TRANSITION] Summary: {len(transition_map['new_items'])} new items, " +
+                f"{len(transition_map['updated_items'])} updated items, " +
+                f"{len(transition_map['removed_items'])} removed items, " +
+                f"{len(transition_map['plu_changes'])} PLU changes")
+    
+    # Create a quick lookup for item names -> reference_handlers for future use
+    plu_reference = {}
+    for item in result["items"]:
+        name = item.get("name", "")
+        ref = item.get("reference_handler", "")
+        if name and ref:
+            plu_reference[name.lower()] = ref
+            
+    # Add name variants to separate section in result for easier matching
+    result["name_variants"] = name_variants
+            
+    # Log a sample of PLU mappings and name variants
+    sample_items = list(plu_reference.items())[:5]
+    for name, ref in sample_items:
+        logger.info(f"[DELIVERECT-PLU] '{name}' = '{ref}'")
+        
+    sample_variants = list(name_variants.items())[:5]
+    for variant, original in sample_variants:
+        logger.info(f"[NAME-VARIANT] '{variant}' → '{original}'")
+    
+    logger.info(f"[DELIVERECT] Processed: {len(result['items'])} items, {len(result['modifierGroups'])} modifier groups, {len(name_variants)} name variants")
+    return result
+    
+def convert_availability(availability_data):
+    """
+    Convert Deliverect availability format to our format.
+    
+    Args:
+        availability_data: Availability data from Deliverect
+        
+    Returns:
+        list: Formatted availability blocks
+    """
+    result = []
+    for day_data in availability_data:
+        day = day_data.get("dayOfWeek")
+        time_slots = day_data.get("timeSlots", [])
+        
+        for slot in time_slots:
+            start_time = slot.get("startTime", "00:00")
+            end_time = slot.get("endTime", "23:59")
+            
+            result.append({
+                "dayOfWeek": day,
+                "startTime": start_time,
+                "endTime": end_time
+            })
+    
+    return result
 
 def process_product_changes(product_id, data, location_id=None):
     """
