@@ -703,11 +703,17 @@ else:
                 
                 # Look up each item in the menu for verification
                 verified_items = []
+                unverified_items = []
+                logger.info(f"[ORDER-VERIFY] Starting menu item verification for {len(potential_items)} potential items")
+
+                # First pass: Current verification strategy using search_menu
                 for item_name in potential_items:
                     # Search menu for this item
+                    logger.info(f"[ORDER-VERIFY-PASS1] Verifying item: '{item_name}' using search_menu")
                     search_result = self.menu_tool.search_menu(item_name)
                     if search_result.get("found"):
                         for menu_item in search_result.get("items", []):
+                            logger.info(f"[ORDER-VERIFY-PASS1-SUCCESS] Found '{item_name}' as '{menu_item.get('name')}' (${menu_item.get('price', 0.0)})")
                             verified_items.append({
                                 "name": menu_item.get("name"),
                                 "price": menu_item.get("price", 0.0),
@@ -715,12 +721,94 @@ else:
                                 "quantity": 1,  # Default quantity
                                 "modifier": []  # Default empty modifiers
                             })
-                
-                # Log the verified items
-                logger.info(f"[ORDER-VERIFY] Verified {len(verified_items)} menu items")
+                    else:
+                        logger.warning(f"[ORDER-VERIFY-PASS1-FAIL] Could not verify '{item_name}' in first pass")
+                        unverified_items.append(item_name)
+
+                # Second pass: Direct lookup with find_menu_item_by_name for items not found in first pass
+                if unverified_items:
+                    still_unverified = []
+                    logger.info(f"[ORDER-VERIFY-PASS2] Starting second pass verification for {len(unverified_items)} items")
+                    
+                    for item_name in unverified_items:
+                        logger.info(f"[ORDER-VERIFY-PASS2] Verifying item: '{item_name}' using direct lookup")
+                        menu_item = find_menu_item_by_name(item_name)
+                        if menu_item:
+                            logger.info(f"[ORDER-VERIFY-PASS2-SUCCESS] Direct lookup found '{item_name}' as '{menu_item.get('name')}' (${menu_item.get('price', 0.0)})")
+                            verified_items.append({
+                                "name": menu_item.get("name"),
+                                "price": menu_item.get("price", 0.0),
+                                "reference_handler": menu_item.get("reference_handler", ""),
+                                "quantity": 1,
+                                "modifier": []
+                            })
+                        else:
+                            logger.warning(f"[ORDER-VERIFY-PASS2-FAIL] Could not verify '{item_name}' in second pass")
+                            still_unverified.append(item_name)
+                    
+                    # Third pass: Partial/fuzzy matching with menu items and variants
+                    if still_unverified:
+                        logger.info(f"[ORDER-VERIFY-PASS3] Starting third pass verification with fuzzy matching for {len(still_unverified)} items")
+                        name_variants = self.menu_tool.menu_data.get("name_variants", {})
+                        menu_items = self.menu_tool.menu_data.get("items", [])
+                        
+                        for item_name in still_unverified:
+                            item_lower = item_name.lower()
+                            found = False
+                            
+                            # Try fuzzy matching with name variants
+                            for variant, menu_item_name in name_variants.items():
+                                # Check if item name is contained in variant or variant is contained in item name
+                                if item_lower in variant.lower() or variant.lower() in item_lower:
+                                    logger.info(f"[ORDER-VERIFY-PASS3-FUZZY] Found partial match: '{item_name}' ~ '{variant}' → '{menu_item_name}'")
+                                    menu_item = find_menu_item_by_name(menu_item_name)
+                                    if menu_item:
+                                        logger.info(f"[ORDER-VERIFY-PASS3-SUCCESS] Fuzzy match found '{item_name}' as '{menu_item.get('name')}' (${menu_item.get('price', 0.0)})")
+                                        verified_items.append({
+                                            "name": menu_item.get("name"),
+                                            "price": menu_item.get("price", 0.0),
+                                            "reference_handler": menu_item.get("reference_handler", ""),
+                                            "quantity": 1,
+                                            "modifier": []
+                                        })
+                                        found = True
+                                        break
+                            
+                            # If still not found, try matching directly against menu items
+                            if not found:
+                                best_match = None
+                                best_match_score = 0
+                                
+                                for menu_item in menu_items:
+                                    menu_item_name = menu_item.get("name", "").lower()
+                                    # Check partial containment in either direction
+                                    if menu_item_name and (item_lower in menu_item_name or menu_item_name in item_lower):
+                                        # Calculate a simple match score (longer matches are better)
+                                        match_length = min(len(item_lower), len(menu_item_name))
+                                        if match_length > best_match_score:
+                                            best_match = menu_item
+                                            best_match_score = match_length
+                                
+                                if best_match:
+                                    logger.info(f"[ORDER-VERIFY-PASS3-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})")
+                                    verified_items.append({
+                                        "name": best_match.get("name"),
+                                        "price": best_match.get("price", 0.0),
+                                        "reference_handler": best_match.get("reference_handler", ""),
+                                        "quantity": 1,
+                                        "modifier": []
+                                    })
+                                    found = True
+                            
+                            if not found:
+                                logger.error(f"[ORDER-VERIFY-FAIL] Failed to verify item '{item_name}' after all verification passes")
+
+                # Log summary of verification process
+                verification_rate = len(verified_items) / len(potential_items) if potential_items else 0
+                logger.info(f"[ORDER-VERIFY-SUMMARY] Verification complete: {len(verified_items)}/{len(potential_items)} items verified ({verification_rate:.0%})")
                 for item in verified_items:
-                    logger.info(f"[ORDER-ITEM] Found: {item.get('name')}, Price: ${item.get('price')}")
-                
+                    logger.info(f"[ORDER-ITEM-VERIFIED] {item.get('name')} (${item.get('price'):.2f})")
+
                 # Final structured order
                 return {
                     "items": verified_items,
