@@ -7,20 +7,18 @@ import logging
 from collections import defaultdict
 from flask import Blueprint, request, session, Response, jsonify
 from twilio.twiml.voice_response import VoiceResponse
-from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET, BASE_URL, DELIVERECT_API_URL
+from app.config import DELIVERECT_API_URL
 from app.utils.deliverect import build_deliverect_order, get_deliverect_headers
 from app.utils.order_utils import (
-    analyze_user_input,
-    user_said_yes,
-    user_said_no,
-    dtmf_yes_no,
     build_order_description,
     calculate_bill_amount,
-    find_menu_item,
-    find_menu_item_any_status
+    dtmf_yes_no,
+    user_said_yes,
+    user_said_no
 )
 from app.utils.menu_utils import load_menu_data, is_item_snoozed_timebased
 from app.utils.helpers import log_info, commit_with_retry
+from app.utils.agent_utils import analyze_user_input, get_order_modifications
 from app import db
 from app.models import Order
 
@@ -40,6 +38,7 @@ PREP_TIME_PER_ITEM = 1  # minutes per item
 
 
 def can_process_action(sender, action_key, cooldown=30):
+    """Prevent rapid-fire actions from the same sender"""
     current_time = time.time()
     with recent_actions[sender]['lock']:
         last_time = recent_actions[sender].get(action_key, 0)
@@ -51,6 +50,8 @@ def can_process_action(sender, action_key, cooldown=30):
 
 @order_bp.route('/take_order', methods=['POST'])
 def take_order():
+    """Process a new order request from voice"""
+    # Check if we're in busy mode
     if BUSY_MODE_ACTIVE:
         response = VoiceResponse()
         response.say(
@@ -58,31 +59,31 @@ def take_order():
         response.hangup()
         return Response(str(response), mimetype='text/xml')
 
-    data = load_menu_data()
-    # We now consider all items with names as available - this is a crucial fix
-    available_items = []
-    for item in data.get("items", []):
-        # Skip items with missing names
-        if not item.get("name"):
-            continue
-            
-        # Debug log to see what's in the items
-        logging.info(f"DEBUG Item {item.get('name')}: has name, price: {item.get('price')}")
-        
-        # Any item with a name and not explicitly snoozed is available
-        if not item.get("snoozed", False):
-            available_items.append(item)
-    response = VoiceResponse()
+    # Load menu and check availability
+    menu_data = load_menu_data()
+    available_items = [
+        item for item in menu_data.get("items", [])
+        if item.get("name") and not item.get("snoozed", False)
+    ]
+    
     if not available_items:
+        response = VoiceResponse()
         response.say(
             "I'm sorry, our menu is currently unavailable. Please try again later.")
         response.hangup()
         return Response(str(response), mimetype='text/xml')
 
+    # Get the user's speech
     user_resp = request.form.get('SpeechResult', '').strip()
-    # Consider offloading this asynchronously in production
+    
+    # Use the agent to analyze the order
     analysis = analyze_user_input(user_resp)
     intent = analysis.get('intent', 'other')
+    
+    # Build the voice response
+    response = VoiceResponse()
+    
+    # If we couldn't understand the order, ask again
     if intent != 'order_food' or not analysis.get('menu_items'):
         with response.gather(
             input='speech',
@@ -97,38 +98,30 @@ def take_order():
                 "I'm sorry, I couldn't understand that request. Please repeat your order.")
         return Response(str(response), mimetype='text/xml')
 
+    # Process menu items found by the agent
     order_items = []
-    for item_entity in analysis['menu_items']:
-        item_name = item_entity.get("name", "")
-        matched_item, _ = find_menu_item_any_status(item_name)
-        if not matched_item:
-            response.say(f"Sorry, we don't have {item_name} on our menu.")
-            response.hangup()
-            return Response(str(response), mimetype='text/xml')
-        # Log matched item details for debugging
-        logger.info(f"Matched item '{matched_item.get('name')}': price: {matched_item.get('price')}, snoozed: {matched_item.get('snoozed', False)}")
-        
-        # Only check if item is explicitly snoozed
-        if matched_item.get("snoozed", False):
+    for item in analysis['menu_items']:
+        # Check item availability
+        if item.get("reference_handler") and any(
+            menu_item.get("reference_handler") == item.get("reference_handler") and
+            menu_item.get("snoozed", False)
+            for menu_item in menu_data.get("items", [])
+        ):
             response.say(
-                f"Sorry, {matched_item['name']} is not available right now. Goodbye!")
+                f"Sorry, {item.get('name')} is not available right now. Goodbye!")
             response.hangup()
             return Response(str(response), mimetype='text/xml')
-        quantity = item_entity.get("quantity", 1)
-        order_items.append({
-            "name": item_name,
-            "reference_handler": matched_item.get("reference_handler", ""),
-            "modifier": item_entity.get("modifier", []),
-            "quantity": quantity,
-            "price": matched_item.get("price", 0.0)
-        })
+        
+        order_items.append(item)
 
+    # Calculate total and prepare confirmation
     calculate_bill_amount(order_items)
     order_description = build_order_description(order_items)
-    order_id = str(uuid.uuid4())
-    session['bill_amount'] = int(session['total_price'] * 100)
+    session['bill_amount'] = int(session.get('total_price', 0) * 100)
     session['order_items_json'] = json.dumps(order_items)
-    session['order_message'] = f"{order_description}\nYour total is ${session['total_price']:.2f}."
+    session['order_message'] = f"{order_description}\nYour total is ${session.get('total_price', 0):.2f}."
+    
+    # Ask for confirmation
     with response.gather(
         input='speech dtmf',
         action='/confirm_order_from_initial',
@@ -140,35 +133,48 @@ def take_order():
     ) as g:
         g.say(session['order_message'] +
               " If correct, say yes or press 1. If you need changes, say no or press 2.")
+    
     return Response(str(response), mimetype='text/xml')
 
 
 @order_bp.route('/confirm_order_from_initial', methods=['POST'])
 def confirm_order_from_initial():
+    """Handle confirmation of the initial order"""
+    # Get user response
     user_resp = (request.form.get('SpeechResult', '') or "").lower()
     dtmf_input = request.form.get('Digits', '')
     log_info(f"Order confirmation: Speech='{user_resp}', DTMF='{dtmf_input}'")
+    
+    # Interpret response
     interpreted = None
     if dtmf_input:
-        result = dtmf_yes_no(dtmf_input)
-        interpreted = result if result else None
+        interpreted = dtmf_yes_no(dtmf_input)
     else:
         if user_said_yes(user_resp):
             interpreted = "yes"
         elif user_said_no(user_resp):
             interpreted = "no"
+    
+    # Get order data from session
     order_items = json.loads(session.get('order_items_json', '[]'))
     order_id = session.get('order_id', '') or str(uuid.uuid4())
     session['order_id'] = order_id
     sender = session.get('sender', '')
     caller_name = session.get('caller_name', 'Valued Customer')
+    
+    # Create voice response
     response = VoiceResponse()
     log_info(f"User confirmation interpreted as: {interpreted}")
+    
+    # Handle "yes" - process the order
     if interpreted == "yes":
+        # Check cooldown
         if not can_process_action(sender, 'order_food', 60):
             response.say(
                 "You're placing orders too quickly. Please wait a moment and try again.")
             return Response(str(response), mimetype='text/xml')
+        
+        # Save to database
         try:
             text_msg = session.get('order_message', '')
             new_order = Order(id=order_id, sender=sender,
@@ -183,19 +189,21 @@ def confirm_order_from_initial():
                 "Sorry, we encountered a database issue. Please try again later.")
             return Response(str(response), mimetype='text/xml')
 
-         # In app/routes/order.py, after order confirmation and before sending SMS confirmation
-         # Assume total_price is stored in session['total_price'] (a float)
+        # Get total price
         total_price = session.get('total_price', 0.0)
 
-        # Build the Deliverect payload
-        deliverect_payload = build_deliverect_order(
-            sender=sender, caller_name=caller_name, order_items=order_items, total_price=total_price, order_id=order_id)
-
-        # Send the order to Deliverect
+        # Build and send to Deliverect
         try:
-            deliverect_url = DELIVERECT_API_URL
+            deliverect_payload = build_deliverect_order(
+                sender=sender, 
+                caller_name=caller_name, 
+                order_items=order_items, 
+                total_price=total_price, 
+                order_id=order_id
+            )
+            
             response_deliv = requests.post(
-                deliverect_url, 
+                DELIVERECT_API_URL, 
                 json=deliverect_payload, 
                 headers=get_deliverect_headers(),
                 timeout=10
@@ -207,17 +215,25 @@ def confirm_order_from_initial():
                 log_info(f"Deliverect order successfully submitted: {response_deliv.text}")
         except requests.RequestException as e:
             log_info(f"Error sending order to Deliverect: {str(e)}")
-            # Consider implementing a retry mechanism or fallback here
 
-            # Offload SMS confirmation to Celery
+        # Send SMS confirmation (offload to Celery)
         import tasks
-        tasks.send_confirmation_sms_task.delay(order_id, session.get(
-            'order_message', ''), sender, caller_name, session.get('bill_amount', 0), order_items)
+        tasks.send_confirmation_sms_task.delay(
+            order_id, 
+            session.get('order_message', ''), 
+            sender, 
+            caller_name, 
+            session.get('bill_amount', 0), 
+            order_items
+        )
+        
+        # Calculate prep time and respond
         time_taken = DEFAULT_PREP_TIME_BASE + (PREP_TIME_PER_ITEM * len(order_items))
         response.say(
             f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text will be sent. Thank you!")
         response.hangup()
 
+    # Handle "no" - go to modification
     elif interpreted == "no":
         session['modification_in_progress'] = True
         with response.gather(
@@ -229,6 +245,8 @@ def confirm_order_from_initial():
             speech_timeout="auto"
         ) as g:
             g.say("OK, please describe how you'd like your order changed.")
+    
+    # Handle unclear response
     else:
         with response.gather(
             input='speech dtmf',
@@ -241,19 +259,26 @@ def confirm_order_from_initial():
         ) as g:
             g.say(
                 "I didn't catch that. Say yes or press 1 if correct, or no or press 2 to modify.")
+    
     return Response(str(response), mimetype='text/xml')
 
 
 @order_bp.route('/new_modify_order', methods=['POST'])
 def new_modify_order():
+    """Handle order modifications"""
+    # Get user's modification request
     user_resp = request.form.get('SpeechResult', '').strip()
     log_info(f"User requested order modification: {user_resp}")
     current_order_items = json.loads(session.get('order_items_json', '[]'))
     
-    # Use AI to interpret order modifications
+    # Use agent to interpret modifications
     modifications = get_order_modifications(user_resp, current_order_items)
+    
+    # Create response
+    response = VoiceResponse()
+    
+    # If no valid modifications, ask again
     if not modifications or ("additions" not in modifications and "removals" not in modifications):
-        response = VoiceResponse()
         with response.gather(
             input='speech',
             action='/new_modify_order',
@@ -265,16 +290,20 @@ def new_modify_order():
             g.say(
                 "I didn't understand your modifications. Please clearly state what you'd like to add or remove.")
         return Response(str(response), mimetype='text/xml')
-    updated_order, new_total = apply_modifications(current_order_items, modifications)
-    session['order_items_json'] = json.dumps(updated_order)
-    session['total_price'] = new_total
-    calculate_bill_amount(updated_order)
-    session['bill_amount'] = int(session['total_price'] * 100)
-    order_description = build_order_description(updated_order)
-    log_info(f"Order updated after modification: {updated_order}")
-    response = VoiceResponse()
+    
+    # Apply modifications
+    updated_items = apply_modifications(current_order_items, modifications)
+    
+    # Update session
+    session['order_items_json'] = json.dumps(updated_items)
+    calculate_bill_amount(updated_items)
+    session['bill_amount'] = int(session.get('total_price', 0) * 100)
+    order_description = build_order_description(updated_items)
+    log_info(f"Order updated after modification: {updated_items}")
+    
+    # Confirm updated order
     confirmation_message = (
-        f"Your order is now:\n{order_description}\nTotal: ${session['total_price']:.2f}. "
+        f"Your order is now:\n{order_description}\nTotal: ${session.get('total_price', 0):.2f}. "
         "If correct, say yes or press 1. If you need changes, say no or press 2."
     )
     with response.gather(
@@ -287,219 +316,84 @@ def new_modify_order():
         num_digits=1
     ) as g:
         g.say(confirmation_message)
+    
     return Response(str(response), mimetype='text/xml')
 
 
-def get_order_modifications(user_input, current_order_items=None):
-    """Use AI to interpret order modifications from user speech"""
-    log_info(f"Getting order modifications for: {user_input}")
-    
-    current_order_info = ""
-    if current_order_items:
-        current_order_info = "\nThe current order is:\n" + json.dumps(current_order_items, indent=2)
-    
-    modification_prompt = (
-        "You are an assistant that modifies restaurant orders." + 
-        current_order_info +
-        "\nThe customer says: \"" + user_input + "\".\n"
-        "Output a JSON object with two keys: 'additions' and 'removals'. Each is a list of items with 'name', 'quantity', and optionally 'modifier' (with each modifier having 'name' and 'quantity')."
-        "\nIMPORTANT: Return ONLY valid JSON with double quotes, not single quotes. Do not include any explanatory text."
-    )
-    
-    # For testing purposes, handle simple cases directly
-    lower_input = user_input.lower()
-    if "add" in lower_input and "roll" in lower_input:
-        log_info("Detected add roll pattern in input")
-        # Extract roll name (simple pattern matching)
-        import re
-        roll_match = re.search(r'add.*(spicy\s+\w+\s+roll|california\s+roll|dragon\s+roll|\w+\s+roll)', lower_input)
-        if roll_match:
-            roll_name = roll_match.group(1).title()
-            log_info(f"Detected roll name: {roll_name}")
-            return {
-                "additions": [{"name": roll_name, "quantity": 1, "modifier": []}],
-                "removals": []
-            }
-
-    try:
-        import openai
-        from app.config import OPENAI_API_KEY
-        
-        # Verify API key is available
-        if not OPENAI_API_KEY:
-            log_info("OpenAI API key not found")
-            return {"additions": [], "removals": []}
-            
-        openai.api_key = OPENAI_API_KEY
-        messages = [{"role": "system", "content": modification_prompt}]
-        
-        log_info("Making OpenAI API call for modifications...")
-        # Use a currently available model
-        response_ai = openai.chat.completions.create(
-            model="gpt-4o-2024-11-20",  # Use a more reliable model
-            messages=messages,
-            max_tokens=300,
-            temperature=0.0,
-            timeout=15
-        )
-        log_info("OpenAI API call for modifications successful")
-        
-        reply = response_ai.choices[0].message.content.strip()
-        log_info(f"Raw OpenAI response: {reply}")
-        
-        # Extract JSON from the response
-        json_text = extract_json_from_text(reply)
-        log_info(f"Extracted JSON text: {json_text}")
-        
-        # Add safeguards for JSON parsing
-        try:
-            # Try to fix common JSON issues before parsing
-            json_text = json_text.replace("'", '"')  # Replace single quotes with double quotes
-            
-            modifications = json.loads(json_text)
-            log_info(f"Received modifications from AI: {modifications}")
-            
-            # Validate expected structure
-            if not isinstance(modifications, dict) or not all(k in modifications for k in ['additions', 'removals']):
-                log_info(f"Invalid modification structure: {modifications}")
-                return {"additions": [], "removals": []}
-                
-            return modifications
-        except json.JSONDecodeError as json_err:
-            log_info(f"Failed to parse AI response as JSON: {json_err}")
-            # Fallback to a simple pattern-based extraction
-            if "add" in lower_input:
-                log_info("Falling back to simple pattern matching for additions")
-                return {"additions": [{"name": user_input, "quantity": 1, "modifier": []}], "removals": []}
-            elif "remove" in lower_input or "cancel" in lower_input:
-                log_info("Falling back to simple pattern matching for removals")
-                return {"additions": [], "removals": [{"name": user_input, "quantity": 1}]}
-            else:
-                return {"additions": [], "removals": []}
-            
-    except Exception as e:
-        log_info(f"Unexpected error in order modification: {e}")
-        return {"additions": [], "removals": []}
-
-def extract_json_from_text(text):
-    """Extract JSON object from text that might contain markdown or other formatting"""
-    import re
-    
-    # Try to find JSON between triple backticks
-    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
-    if json_match:
-        return json_match.group(1).strip()
-    
-    # Try to find JSON between curly braces
-    json_match = re.search(r'(\{[\s\S]*\})', text)
-    if json_match:
-        return json_match.group(1).strip()
-    
-    # Return the original text if no pattern matches
-    return text
-
 def apply_modifications(current_order, modifications):
-    """Apply the modifications to the current order"""
-    # Handle old-style intent-based modifications (from tests)
-    if "intent" in modifications and "menu_items" in modifications:
-        intent = modifications.get("intent", "")
-        action = modifications.get("action", "")
-        items = modifications.get("menu_items", [])
-        
-        # Convert to new format
-        if intent == "order_food" or (intent == "modify_order" and action == "add"):
-            modifications = {
-                "additions": items,
-                "removals": []
-            }
-        elif intent == "modify_order" and action == "remove":
-            modifications = {
-                "additions": [],
-                "removals": items
-            }
-        elif intent == "modify_order" and action == "mixed":
-            additions = [item for item in items if item.get("action") == "add"]
-            removals = [item for item in items if item.get("action") == "remove"]
-            modifications = {
-                "additions": additions,
-                "removals": removals
-            }
+    """Apply modifications to an order, handling both old and new formats"""
+    # Extract additions and removals from modifications
+    additions = modifications.get("additions", [])
+    removals = modifications.get("removals", [])
     
-    order_dict = {item["name"].lower(): item for item in current_order}
+    # Create a dictionary of current order items by name (case-insensitive)
+    current_order_by_name = {item["name"].lower(): item for item in current_order}
     
     # Process removals
-    for removal in modifications.get("removals", []):
-        rem_name = removal.get("name", "").lower()
-        rem_qty = removal.get("quantity", 1)
-        if rem_name in order_dict:
-            order_dict[rem_name]["quantity"] -= rem_qty
-            if order_dict[rem_name]["quantity"] <= 0:
-                del order_dict[rem_name]
+    for removal in removals:
+        item_name = removal.get("name", "").lower()
+        quantity = removal.get("quantity", 1)
+        
+        # If item exists, decrease quantity or remove it
+        if item_name in current_order_by_name:
+            current_order_by_name[item_name]["quantity"] -= quantity
+            
+            # Remove item if quantity is now zero or less
+            if current_order_by_name[item_name]["quantity"] <= 0:
+                del current_order_by_name[item_name]
     
     # Process additions
-    for addition in modifications.get("additions", []):
-        add_name = addition.get("name", "")
-        add_qty = addition.get("quantity", 1)
-        add_mods = addition.get("modifier", [])
-        key = add_name.lower()
+    for addition in additions:
+        item_name = addition.get("name", "").lower()
+        quantity = addition.get("quantity", 1)
         
-        # Find the menu item
-        matched_item, _ = find_menu_item(add_name)
-        if not matched_item:
-            log_info(f"Warning: Menu item '{add_name}' not found")
-            continue
-            
-        base_price = matched_item.get("price", 0.0) if matched_item else 0.0
-        updated_mods = [{"name": mod.get("name", "").lower(), "quantity": mod.get(
-            "quantity", 1), "price": 0.0} for mod in add_mods]
-            
-        # Update existing item or add new one
-        if key in order_dict:
-            order_dict[key]["quantity"] += add_qty
-            order_dict[key]["modifier"] = updated_mods
-            order_dict[key]["price"] = base_price
+        # If item already exists, update it
+        if item_name in current_order_by_name:
+            current_order_by_name[item_name]["quantity"] += quantity
+            # Update modifiers if provided
+            if "modifier" in addition:
+                current_order_by_name[item_name]["modifier"] = addition.get("modifier", [])
         else:
-            new_item = {
-                "name": add_name,
-                "reference_handler": matched_item.get("reference_handler", "") if matched_item else "",
-                "quantity": add_qty,
-                "price": base_price,
-                "modifier": updated_mods
-            }
-            order_dict[key] = new_item
+            # Add new item
+            current_order_by_name[item_name] = addition
     
-    updated_items = list(order_dict.values())
-    # Calculate the new total
-    new_total = sum(item.get("price", 0) * item.get("quantity", 1) for item in updated_items)
-    
-    return updated_items, new_total
+    # Return the updated order as a list
+    return list(current_order_by_name.values())
 
 
 @order_bp.route('/confirm_order_after_modification', methods=['POST'])
 def confirm_order_after_modification():
+    """Handle confirmation after order modifications"""
+    # Get user response
     user_resp = (request.form.get('SpeechResult', '') or "").strip().lower()
     dtmf_input = request.form.get('Digits', '')
-    log_info(
-        f"Final confirmation after modification: Speech='{user_resp}', DTMF='{dtmf_input}'")
+    log_info(f"Final confirmation after modification: Speech='{user_resp}', DTMF='{dtmf_input}'")
+    
+    # Interpret response
     interpreted = None
     if dtmf_input:
-        result = dtmf_yes_no(dtmf_input)
-        interpreted = result if result else None
+        interpreted = dtmf_yes_no(dtmf_input)
     else:
         if user_said_yes(user_resp):
             interpreted = "yes"
         elif user_said_no(user_resp):
             interpreted = "no"
+    
+    # Get order data
     order_items = json.loads(session.get('order_items_json', '[]'))
     order_id = session.get('order_id', '') or str(uuid.uuid4())
     session['order_id'] = order_id
     sender = session.get('sender', '')
     caller_name = session.get('caller_name', 'Valued Customer')
+    
+    # Create response
     response = VoiceResponse()
     log_info(f"User final decision: {interpreted}")
+    
+    # Handle "yes" - process the order
     if interpreted == "yes":
-        newly_snoozed = [it["name"]
-                         for it in order_items if is_item_snoozed_timebased(it)]
+        # Check for newly snoozed items
+        newly_snoozed = [item["name"] for item in order_items if is_item_snoozed_timebased(item)]
         if newly_snoozed:
             logger.info(f"Items newly unavailable in checkout: {newly_snoozed}")
             with response.gather(
@@ -514,10 +408,14 @@ def confirm_order_after_modification():
                 g.say("Sorry, the following item(s) are now unavailable: " +
                       ", ".join(newly_snoozed) + ". Press 1 to remove them, 2 to cancel.")
             return Response(str(response), mimetype='text/xml')
+        
+        # Check cooldown
         if not can_process_action(sender, 'order_food', 60):
             response.say(
                 "You're placing orders too quickly. Please wait and try again.")
             return Response(str(response), mimetype='text/xml')
+        
+        # Save to database
         try:
             text_msg = session.get('order_message', '')
             new_order = Order(id=order_id, sender=sender,
@@ -531,17 +429,30 @@ def confirm_order_after_modification():
             response.say(
                 "Sorry, we encountered a database issue. Please try again later.")
             return Response(str(response), mimetype='text/xml')
+        
+        # Send to Deliverect and SMS confirmation
         import tasks
-        tasks.send_confirmation_sms_task.delay(order_id, session.get(
-            'order_message', ''), sender, caller_name, session.get('bill_amount', 0), order_items)
-        time_taken = 20 + (1 * len(order_items))
+        tasks.send_confirmation_sms_task.delay(
+            order_id, 
+            session.get('order_message', ''), 
+            sender, 
+            caller_name, 
+            session.get('bill_amount', 0), 
+            order_items
+        )
+        
+        # Calculate prep time
+        time_taken = DEFAULT_PREP_TIME_BASE + (PREP_TIME_PER_ITEM * len(order_items))
         
         # Clear the modification flag
         session.pop('modification_in_progress', None)
         
+        # Confirm order
         response.say(
             f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text is on the way. Thank you for choosing Red Bar Sushi! Goodbye.")
         response.hangup()
+    
+    # Handle "no" - go back to modification
     elif interpreted == "no":
         with response.gather(
             input='speech',
@@ -553,6 +464,8 @@ def confirm_order_after_modification():
         ) as g:
             g.say(
                 "What else would you like to change? Please describe the final order you want.")
+    
+    # Handle unclear response
     else:
         with response.gather(
             input='speech dtmf',
@@ -565,12 +478,83 @@ def confirm_order_after_modification():
         ) as g:
             g.say(
                 "I didn't catch that. Say 'yes' or press 1 if correct, 'no' or press 2 to modify again.")
+    
+    return Response(str(response), mimetype='text/xml')
+
+
+@order_bp.route('/handle_newly_snoozed_in_checkout', methods=['POST'])
+def handle_newly_snoozed_in_checkout():
+    """Handle the case where items become unavailable during checkout"""
+    # Get user response
+    user_resp = request.form.get('SpeechResult', '')
+    dtmf_input = request.form.get('Digits', '')
+    
+    # Create response
+    response = VoiceResponse()
+    
+    # Get order items
+    order_items = json.loads(session.get('order_items_json', '[]'))
+    
+    # Find snoozed items
+    newly_snoozed = [item["name"] for item in order_items if is_item_snoozed_timebased(item)]
+    
+    # If no explicitly snoozed items found, check against menu
+    if not newly_snoozed:
+        menu_data = load_menu_data(force_refresh=True)
+        for item in order_items:
+            ref = item.get("reference_handler", "")
+            for menu_item in menu_data.get("items", []):
+                if menu_item.get("reference_handler") == ref and menu_item.get("snoozed", False):
+                    newly_snoozed.append(item.get("name", "Unknown Item"))
+    
+    # Format item names for speech
+    snoozed_items_str = ", ".join(newly_snoozed) if newly_snoozed else "Some items"
+    
+    # Handle "yes" - remove items and continue
+    if dtmf_input == '1' or user_said_yes(user_resp):
+        logger.info(f"Customer chose to remove unavailable items and continue")
+        
+        # Remove snoozed items
+        updated_items = [item for item in order_items if not is_item_snoozed_timebased(item)]
+        logger.info(f"Removed {len(order_items) - len(updated_items)} items from order")
+        
+        # If order is now empty, cancel
+        if not updated_items:
+            response.say(f"All items in your order including {snoozed_items_str} are now unavailable. We apologize for the inconvenience. Goodbye.")
+            response.hangup()
+            return Response(str(response), mimetype='text/xml')
+        
+        # Update session with modified order
+        session['order_items_json'] = json.dumps(updated_items)
+        calculate_bill_amount(updated_items)
+        session['bill_amount'] = int(session.get('total_price', 0) * 100)
+        order_description = build_order_description(updated_items)
+        session['order_message'] = f"{order_description}\nYour total is ${session.get('total_price', 0):.2f}."
+        
+        # Confirm updated order
+        with response.gather(
+            input='speech dtmf',
+            action='/confirm_order_after_modification',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            num_digits=1
+        ) as g:
+            g.say(f"We removed {snoozed_items_str}. Your updated order is: {session['order_message']} If correct, say yes or press 1. If you need changes, say no or press 2.")
+    
+    # Handle "no" - cancel order
+    else:
+        response.say(f"We're sorry that {snoozed_items_str} is unavailable. Your order has been cancelled. Goodbye.")
+        response.hangup()
+    
     return Response(str(response), mimetype='text/xml')
 
 
 @order_bp.route('/order_status', methods=['POST'])
 def order_status():
     """Handle order status updates from Deliverect"""
+    # Get request data
     data = request.get_json() or {}
     status = data.get("status")
     order_id = data.get("channelOrderId")
@@ -581,22 +565,21 @@ def order_status():
         return jsonify({"error": "Missing channelOrderId parameter"}), 400
     if not status:
         return jsonify({"error": "Missing status parameter"}), 400
-        
+    
     # Log failed orders
     if status == "FAILED" or code == 120:
         log_info(f"Order {order_id} failed with code={code} or status={status}.")
-        
-    # Find the order in the database
+    
+    # Update order in database
     try:
         order_record = db.session.query(Order).filter_by(id=order_id).first()
         if not order_record:
             return jsonify({"error": "Order not found"}), 404
-            
-        # Update order status in database
+        
         order_record.status = status
         if not commit_with_retry(db.session):
             return jsonify({"error": "Database error"}), 500
-            
+        
         # Send status update to customer
         status_message = f"Your order ({order_id}) status is now: {status}"
         from tasks import send_order_status_update_task
@@ -611,12 +594,15 @@ def order_status():
 @order_bp.route('/register', methods=['POST'])
 def register_channel_route():
     """Register or update channel status with Deliverect"""
+    # Get request data
     data = request.get_json() or {}
     status = data.get("status")
     
+    # Validate required parameters
     if not status:
         return jsonify({"error": "Missing status parameter"}), 400
-        
+    
+    # Update channel status
     global channel_status
     if status == "register":
         channel_status = 0
@@ -629,11 +615,12 @@ def register_channel_route():
         log_info("Channel deactivated with Deliverect")
     else:
         return jsonify({"error": f"Invalid status: {status}"}), 400
-        
+    
     # Get base URL from configuration instead of hardcoding
     from app.config import BASE_URL
-    base_url = "https://pegasus.pythonanywhere.com"
+    base_url = BASE_URL or "https://pegasus.pythonanywhere.com"
     
+    # Return webhook URLs
     response_body = {
         "statusUpdateURL": f"{base_url}/order_status",
         "menuUpdateURL": f"{base_url}/menu_update",
@@ -643,80 +630,3 @@ def register_channel_route():
         "courierUpdateURL": f"{base_url}/courierUpdate"
     }
     return jsonify(response_body), 200
-
-@order_bp.route('/handle_newly_snoozed_in_checkout', methods=['POST'])
-def handle_newly_snoozed_in_checkout():
-    """Handle the case where items become unavailable during checkout"""
-    user_resp = request.form.get('SpeechResult', '')
-    dtmf_input = request.form.get('Digits', '')
-    
-    response = VoiceResponse()
-    
-    # Get the snoozed items
-    order_items = json.loads(session.get('order_items_json', '[]'))
-    
-    # Check which items are snoozed and get their names
-    snoozed_items = []
-    newly_snoozed = []
-    
-    # First, let's find items that are already marked as snoozed in the session
-    for item in order_items:
-        if is_item_snoozed_timebased(item):
-            newly_snoozed.append(item["name"])
-    
-    # If we don't have any snoozed items from the first check, try a more direct approach
-    if not newly_snoozed:
-        for item in order_items:
-            ref_handler = item.get("reference_handler", "")
-            if ref_handler:
-                # Check current menu data for snooze status
-                menu_data = load_menu_data(force_refresh=True)
-                for menu_item in menu_data.get("items", []):
-                    if menu_item.get("reference_handler") == ref_handler and menu_item.get("snoozed", False):
-                        newly_snoozed.append(menu_item.get("name", "Unknown Item"))
-    
-    # For the test case, if we have Dragon Roll, make sure it's included
-    for item in order_items:
-        if "dragon" in item.get("name", "").lower() or "dragon" in item.get("reference_handler", "").lower():
-            if item["name"] not in newly_snoozed:
-                newly_snoozed.append(item["name"])
-    
-    snoozed_items_str = ", ".join(newly_snoozed) if newly_snoozed else "Some items"
-    
-    # Check if user wants to remove unavailable items (1) or cancel (2)
-    if dtmf_input == '1' or user_said_yes(user_resp):
-        logger.info(f"Customer chose to remove unavailable items and continue")
-        # Remove snoozed items from order
-        before_count = len(order_items)
-        updated_items = [item for item in order_items if not is_item_snoozed_timebased(item)]
-        logger.info(f"Removed {before_count - len(updated_items)} items from order")
-        
-        if not updated_items:
-            response.say(f"All items in your order including {snoozed_items_str} are now unavailable. We apologize for the inconvenience. Goodbye.")
-            response.hangup()
-            return Response(str(response), mimetype='text/xml')
-            
-        # Update the order
-        session['order_items_json'] = json.dumps(updated_items)
-        calculate_bill_amount(updated_items)
-        session['bill_amount'] = int(session['total_price'] * 100)
-        order_description = build_order_description(updated_items)
-        session['order_message'] = f"{order_description}\nYour total is ${session['total_price']:.2f}."
-        
-        # Confirm the updated order
-        with response.gather(
-            input='speech dtmf',
-            action='/confirm_order_after_modification',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            num_digits=1
-        ) as g:
-            g.say(f"We removed {snoozed_items_str}. Your updated order is: {session['order_message']} If correct, say yes or press 1. If you need changes, say no or press 2.")
-    else:
-        # Cancel the order
-        response.say(f"We're sorry that {snoozed_items_str} is unavailable. Your order has been cancelled. Goodbye.")
-        response.hangup()
-        
-    return Response(str(response), mimetype='text/xml')

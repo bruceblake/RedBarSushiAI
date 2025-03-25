@@ -9,8 +9,42 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 import sys
 
-# Mock external modules before they're imported
-sys.modules['openai'] = MagicMock()
+# Create Agent mock class
+class MockAgent:
+    def __init__(self, *args, **kwargs):
+        self.tools = MagicMock()
+        self.tools.search_menu = MagicMock(return_value={"found": True, "items": []})
+        self.tools.get_details = MagicMock(return_value={"found": True, "item": {}})
+        
+    def create_thread(self):
+        mock_thread = MagicMock()
+        mock_run = MagicMock()
+        mock_message = MagicMock()
+        
+        # Add required properties
+        mock_message.id = "msg_123"
+        mock_message.content = [MagicMock()]
+        mock_message.content[0].text = MagicMock()
+        mock_message.content[0].text.value = json.dumps({"items": [{"name": "California Roll", "quantity": 1}]})
+        
+        # Configure the mock objects
+        mock_thread.messages.create.return_value = mock_message
+        mock_thread.messages.list.return_value = [mock_message]
+        mock_thread.runs.create.return_value = mock_run
+        mock_thread.runs.wait.return_value = mock_run
+        
+        return mock_thread
+
+# Mock all the required modules
+openai_mock = MagicMock()
+openai_mock.api_key = "test_key"
+agent_mock = MagicMock()
+agent_mock.Agent = MockAgent
+
+# Apply the necessary mocks
+sys.modules['openai'] = openai_mock
+sys.modules['openai.agent'] = agent_mock
+sys.modules['openai.agent.types'] = MagicMock()
 sys.modules['celery'] = MagicMock()
 sys.modules['celery_app'] = MagicMock()
 sys.modules['tasks'] = MagicMock()
@@ -20,6 +54,7 @@ tasks_mock.send_confirmation_sms_task.delay = MagicMock()
 tasks_mock.send_order_status_update_task = MagicMock()
 tasks_mock.send_order_status_update_task.delay = MagicMock()
 
+# Now import from app
 from app import create_app, db
 
 
@@ -156,7 +191,21 @@ def mock_menu_data():
                 "minAllowed": 1,
                 "maxAllowed": 1
             }
-        ]
+        ],
+        "name_variants": {
+            "california roll": "California Roll",
+            "california": "California Roll",
+            "roll": "California Roll",
+            "californiaroll": "California Roll",
+            "spicy tuna roll": "Spicy Tuna Roll",
+            "spicy": "Spicy Tuna Roll",
+            "tuna": "Spicy Tuna Roll",
+            "dragon roll": "Dragon Roll",
+            "dragon": "Dragon Roll",
+            "miso soup": "Miso Soup",
+            "miso": "Miso Soup",
+            "soup": "Miso Soup"
+        }
     }
 
 
@@ -178,57 +227,6 @@ def setup_test_menu(app, mock_menu_data):
     # Clean up
     if os.path.exists(menu_path):
         os.remove(menu_path)
-
-
-@pytest.fixture
-def mock_openai():
-    """Mock OpenAI client for testing."""
-    openai_mock = MagicMock()
-    completion_mock = MagicMock()
-    message_mock = MagicMock()
-    message_mock.content = json.dumps({
-        "intent": "order_food",
-        "menu_items": [
-            {
-                "name": "California Roll", 
-                "quantity": 2,
-                "modifier": []
-            }
-        ]
-    })
-    completion_mock.choices = [message_mock]
-    openai_mock.chat.completions.create.return_value = completion_mock
-    
-    with patch.dict('sys.modules', {'openai': openai_mock}):
-        yield openai_mock
-
-
-@pytest.fixture
-def mock_twilio():
-    """Mock Twilio client for testing."""
-    with patch('app.twilio_client') as mock_client:
-        mock_client.messages.create.return_value = MagicMock(sid='MOCK_MESSAGE_SID')
-        yield mock_client
-
-
-@pytest.fixture
-def mock_stripe():
-    """Mock Stripe API for testing."""
-    with patch('stripe.Price.create') as mock_price_create, \
-         patch('stripe.PaymentLink.create') as mock_payment_link:
-        
-        mock_price = MagicMock()
-        mock_price.id = 'price_123'
-        mock_price_create.return_value = mock_price
-        
-        mock_link = MagicMock()
-        mock_link.url = 'https://pay.stripe.com/test-link'
-        mock_payment_link.return_value = mock_link
-        
-        yield {
-            'price_create': mock_price_create,
-            'payment_link': mock_payment_link
-        }
 
 
 @pytest.fixture
