@@ -31,7 +31,7 @@ ASSEMBLYAI_API_KEY = "a116ce3f35164bd78f295ddd6ccd7ee0"
 # ------------------------------
 # OpenAI Configuration
 # ------------------------------
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+OPENAI_API_KEY = "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"
 
 # ------------------------------
 # Stripe Configuration
