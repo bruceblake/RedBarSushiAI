@@ -8,14 +8,14 @@ from flask import session
 
 import sys
 from app.utils.order_utils import (
-    analyze_user_input,
     user_said_yes,
     user_said_no,
     dtmf_yes_no,
     build_order_description,
-    calculate_bill_amount,
-    find_menu_item
+    calculate_bill_amount
 )
+from app.utils.agent_utils import analyze_user_input
+from app.utils.menu_utils import find_menu_item_by_name
 from app.utils.helpers import commit_with_retry
 
 

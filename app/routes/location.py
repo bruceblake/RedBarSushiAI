@@ -17,15 +17,14 @@ from app.utils.deliverect import (
     generate_order_id
 )
 from app.utils.order_utils import (
-    analyze_user_input,
     user_said_yes,
     user_said_no,
     dtmf_yes_no,
     build_order_description,
-    calculate_bill_amount,
-    find_menu_item,
-    find_menu_item_any_status
+    calculate_bill_amount
 )
+from app.utils.agent_utils import analyze_user_input
+from app.utils.menu_utils import find_menu_item_by_name
 from app.utils.menu_utils import (
     load_menu_data,
     is_item_snoozed_timebased,
@@ -34,7 +33,8 @@ from app.utils.menu_utils import (
     process_product_changes,
     process_modifier_group_changes,
     process_modifier_changes,
-    update_menu_ordering
+    update_menu_ordering,
+    process_meal_deal
 )
 from app.utils.menu_validator import validate_and_fix_menu_data
 from app.utils.helpers import log_info, commit_with_retry
@@ -346,7 +346,7 @@ def take_order_per_location(location_id):
     order_items = []
     for item_entity in analysis['menu_items']:
         item_name = item_entity.get("name", "")
-        matched_item, _ = find_menu_item_any_status(item_name)
+        matched_item = find_menu_item_by_name(item_name)
         if not matched_item:
             response.say(f"Sorry, we don't have {item_name} on our menu at our {location_id} location.")
             response.hangup()
@@ -522,9 +522,11 @@ def confirm_order_from_initial_per_location(location_id):
     
     elif interpreted == "no":
         session['modification_in_progress'] = True
+        # Save location_id in session for reference
+        session['location_id'] = location_id
         with response.gather(
             input='speech',
-            action=f'/location/{location_id}/new_modify_order',
+            action='/new_modify_order',
             enhanced=True,
             speech_model="phone_call",
             language="en-US",

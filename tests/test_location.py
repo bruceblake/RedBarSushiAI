@@ -296,7 +296,7 @@ def test_take_order_per_location(client, app_with_locations):
     with patch('app.routes.location.LOCATIONS_BUSY_STATUS', {"downtown": False}), \
          patch('app.routes.location.load_menu_data', return_value=sample_menu), \
          patch('app.routes.location.analyze_user_input') as mock_analyze, \
-         patch('app.routes.location.find_menu_item_any_status') as mock_find, \
+         patch('app.routes.location.find_menu_item_by_name') as mock_find, \
          patch('app.routes.location.validate_modifier_constraints', return_value=(True, "")), \
          patch('app.routes.location.calculate_bill_amount') as mock_calc, \
          patch('app.routes.location.build_order_description', return_value="Your order:\n- 1 California Roll"), \
@@ -311,11 +311,8 @@ def test_take_order_per_location(client, app_with_locations):
             ]
         }
         
-        # Mock find_menu_item_any_status to return a found item
-        mock_find.return_value = (
-            {"name": "California Roll", "price": 9.95, "reference_handler": "cal_roll_1", "available": True},
-            0
-        )
+        # Mock find_menu_item_by_name to return a found item
+        mock_find.return_value = {"name": "California Roll", "price": 9.95, "reference_handler": "cal_roll_1", "available": True}
         
         # Mock calculate_bill_amount to set session values
         def mock_calc_effect(items):
