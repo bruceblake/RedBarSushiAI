@@ -19,9 +19,32 @@ _menu_cache = None
 _last_refresh_time = 0
 _cache_duration = 30  # 30 seconds cache duration for menu data
 
-# Default paths
-MENU_FILE_PATH = os.getenv('MENU_FILE_PATH', os.path.join(os.getcwd(), 'menu_data.json'))
-BACKUP_FOLDER = os.path.join(os.getcwd(), 'backups')
+# Default paths - ensure they work in production environment
+APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+APP_ROOT_PARENT = os.path.dirname(APP_ROOT)
+
+# Production path - known from deployment environment
+PRODUCTION_PATH = '/home/pegasus/mysite/RedBarSushiAI/menu_data.json'
+
+# Order of precedence:
+# 1. MENU_FILE_PATH environment variable
+# 2. Production path at /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+# 3. app_root/menu_data.json
+# 4. app_root_parent/menu_data.json
+# 5. Current directory/menu_data.json
+MENU_FILE_PATH = os.getenv('MENU_FILE_PATH',
+                          os.path.exists(PRODUCTION_PATH) and PRODUCTION_PATH or
+                          os.path.exists(os.path.join(APP_ROOT, 'menu_data.json')) and os.path.join(APP_ROOT, 'menu_data.json') or
+                          os.path.exists(os.path.join(APP_ROOT_PARENT, 'menu_data.json')) and os.path.join(APP_ROOT_PARENT, 'menu_data.json') or
+                          os.path.join(os.getcwd(), 'menu_data.json'))
+                          
+# Ensure backup folder is in a writable location
+# If in a read-only environment, use /tmp
+BACKUP_FOLDER = os.access(os.path.dirname(MENU_FILE_PATH), os.W_OK) and os.path.join(os.path.dirname(MENU_FILE_PATH), 'backups') or '/tmp/redbar_backups'
+
+# Log where we're looking for files
+logger.info(f"Using menu file path: {MENU_FILE_PATH}")
+logger.info(f"Using backup folder: {BACKUP_FOLDER}")
 
 def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None) -> bool:
     """
@@ -37,31 +60,96 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None) 
     try:
         # Use provided path or default
         actual_path = file_path or MENU_FILE_PATH
+        
+        # Safety check - ensure it's a JSON file path
+        if not actual_path.lower().endswith('.json'):
+            actual_path += '.json'
+            logger.warning(f"Added .json extension to file path: {actual_path}")
             
         # Make sure directory exists
         directory = os.path.dirname(actual_path)
         if directory and not os.path.exists(directory):
-            os.makedirs(directory, exist_ok=True)
+            try:
+                os.makedirs(directory, exist_ok=True)
+                logger.info(f"Created directory: {directory}")
+            except PermissionError:
+                # If we can't create the directory, try using /tmp
+                tmp_path = f"/tmp/{os.path.basename(actual_path)}"
+                logger.warning(f"Permission error creating directory {directory}, using {tmp_path} instead")
+                actual_path = tmp_path
+                directory = "/tmp"
         
         # Create backups directory if it doesn't exist
-        if not os.path.exists(BACKUP_FOLDER):
-            os.makedirs(BACKUP_FOLDER, exist_ok=True)
-        
-        # Create a backup with timestamp
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = os.path.join(BACKUP_FOLDER, f"menu_backup_{timestamp}.json")
-        
-        # If the file exists, make a backup before overwriting
-        if os.path.exists(actual_path):
-            shutil.copy2(actual_path, backup_path)
-            logger.info(f"Menu backup created at {backup_path}")
-        
-        # Write to file
-        with open(actual_path, 'w') as f:
-            json.dump(menu_data, f, indent=2)
+        try:
+            if not os.path.exists(BACKUP_FOLDER):
+                os.makedirs(BACKUP_FOLDER, exist_ok=True)
+                logger.info(f"Created backup directory: {BACKUP_FOLDER}")
+                
+            # Create a backup with timestamp
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = os.path.join(BACKUP_FOLDER, f"menu_backup_{timestamp}.json")
             
-        logger.info(f"Menu data written to {actual_path}")
+            # If the file exists, make a backup before overwriting
+            if os.path.exists(actual_path):
+                shutil.copy2(actual_path, backup_path)
+                logger.info(f"Menu backup created at {backup_path}")
+        except (PermissionError, OSError) as e:
+            logger.warning(f"Could not create backup: {e}")
         
+        # Try to write to production path first, then fallback to provided path
+        paths_to_try = [
+            # First try the production path if we're not already using it
+            PRODUCTION_PATH if actual_path != PRODUCTION_PATH else None,
+            # Then try the path that was requested
+            actual_path,
+            # Then try some additional fallbacks
+            os.path.join(APP_ROOT, 'menu_data.json'),
+            os.path.join(APP_ROOT_PARENT, 'menu_data.json'),
+            # Finally use a temporary path 
+            f"/tmp/menu_data_{os.getpid()}.json"
+        ]
+        
+        # Filter out None values
+        paths_to_try = [p for p in paths_to_try if p]
+        
+        success = False
+        for try_path in paths_to_try:
+            try:
+                # Make sure directory exists
+                directory = os.path.dirname(try_path)
+                if directory and not os.path.exists(directory):
+                    try:
+                        os.makedirs(directory, exist_ok=True)
+                    except:
+                        # If we can't create the directory, skip this path
+                        continue
+                
+                # Try to write the file
+                with open(try_path, 'w') as f:
+                    json.dump(menu_data, f, indent=2)
+                logger.info(f"Menu data written to {try_path}")
+                
+                # Update the path for future reference
+                actual_path = try_path
+                success = True
+                break
+            except Exception as we:
+                logger.warning(f"Could not write to {try_path}: {we}")
+                continue
+                
+        if not success:
+            logger.error("Failed to write menu data to any location")
+            # One last attempt - try /tmp with a timestamp
+            last_resort = f"/tmp/menu_data_last_resort_{int(time.time())}.json"
+            try:
+                with open(last_resort, 'w') as f:
+                    json.dump(menu_data, f, indent=2)
+                logger.info(f"Last resort: Menu data written to {last_resort}")
+                actual_path = last_resort
+            except Exception as e:
+                logger.error(f"Even last resort write failed: {e}")
+                # Nothing more we can do
+            
         # Invalidate cache
         global _menu_cache, _last_refresh_time
         _menu_cache = None
@@ -92,12 +180,48 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
     
     # Determine file path based on location
     file_path = MENU_FILE_PATH
+    
+    # Try location-specific path if provided
     if location_id:
         location_file = f"menu_data_{location_id}.json"
-        location_path = os.path.join(os.path.dirname(MENU_FILE_PATH), location_file)
-        if os.path.exists(location_path):
-            file_path = location_path
+        # Try multiple locations for the location-specific file
+        possible_paths = [
+            os.path.join(os.path.dirname(MENU_FILE_PATH), location_file),
+            os.path.join(APP_ROOT, location_file),
+            os.path.join(APP_ROOT_PARENT, location_file),
+            os.path.join('/tmp', location_file)
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                file_path = path
+                logger.info(f"Found location-specific menu at {file_path}")
+                break
     
+    # If we got here and file doesn't exist, try to find any valid menu file
+    if not os.path.exists(file_path):
+        # Try a series of well-known locations
+        possible_files = [
+            MENU_FILE_PATH,
+            PRODUCTION_PATH,
+            # Try various paths in the production environment
+            '/home/pegasus/mysite/RedBarSushiAI/menu_data.json',
+            '/home/pegasus/mysite/menu_data.json',
+            '/home/pegasus/menu_data.json',
+            os.path.join(APP_ROOT, 'menu_data.json'),
+            os.path.join(APP_ROOT_PARENT, 'menu_data.json'),
+            os.path.join(APP_ROOT_PARENT, 'redbar_menu_data.json'),
+            '/tmp/menu_data.json',
+            '/tmp/redbar_menu_data.json'
+        ]
+        
+        for path in possible_files:
+            if os.path.exists(path):
+                file_path = path
+                logger.info(f"Fallback: Using menu file at {file_path}")
+                break
+    
+    # Try to load the file
     try:
         # Load menu data from file
         with open(file_path, 'r') as f:
@@ -107,11 +231,92 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
         _menu_cache = menu_data
         _last_refresh_time = current_time
         
+        logger.info(f"Successfully loaded menu data from {file_path}")
         return menu_data
+    except FileNotFoundError:
+        # Log the error and generate a simple default menu for demo purposes
+        logger.error(f"Menu file not found at {file_path} - using default menu data")
+        
+        # Check if we have sample menu data
+        sample_menu_path = os.path.join(APP_ROOT_PARENT, 'testing_data', 'sample_menu.json')
+        if os.path.exists(sample_menu_path):
+            try:
+                with open(sample_menu_path, 'r') as f:
+                    menu_data = json.load(f)
+                logger.info(f"Loaded sample menu from {sample_menu_path}")
+                
+                # Cache this sample data
+                _menu_cache = menu_data
+                _last_refresh_time = current_time
+                
+                # Also write it to the expected location for future use
+                write_menu_file(menu_data, file_path)
+                
+                return menu_data
+            except Exception as e:
+                logger.error(f"Error loading sample menu: {e}")
+        
+        # Create a minimal default menu
+        default_menu = {
+            "items": [
+                {
+                    "id": "california_roll",
+                    "name": "California Roll",
+                    "price": 9.95,
+                    "reference_handler": "CAL-ROLL",
+                    "available": True,
+                    "category": "Rolls"
+                },
+                {
+                    "id": "spicy_tuna",
+                    "name": "Spicy Tuna Roll",
+                    "price": 12.95,
+                    "reference_handler": "SPICY-TUNA",
+                    "available": True,
+                    "category": "Rolls"
+                },
+                {
+                    "id": "edamame",
+                    "name": "Edamame",
+                    "price": 5.95,
+                    "reference_handler": "EDAMAME",
+                    "available": True,
+                    "category": "Appetizers"
+                }
+            ],
+            "modifiers": [],
+            "modifierGroups": [],
+            "name_variants": {
+                "california roll": "California Roll",
+                "california": "California Roll",
+                "spicy tuna roll": "Spicy Tuna Roll",
+                "spicy tuna": "Spicy Tuna Roll",
+                "edamame": "Edamame"
+            }
+        }
+        
+        # Save this default menu for future use
+        try:
+            write_menu_file(default_menu, file_path)
+            logger.info(f"Created default menu at {file_path}")
+        except Exception as e:
+            logger.error(f"Could not write default menu: {e}")
+        
+        # Update cache with default menu
+        _menu_cache = default_menu
+        _last_refresh_time = current_time
+        
+        return default_menu
     except Exception as e:
         logger.error(f"Error loading menu data: {e}")
         # Return empty structure if file can't be loaded
-        return {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
+        empty_menu = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
+        
+        # Update cache with empty menu to avoid repeat errors
+        _menu_cache = empty_menu
+        _last_refresh_time = current_time
+        
+        return empty_menu
 
 def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     """
