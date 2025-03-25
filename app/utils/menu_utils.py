@@ -331,23 +331,52 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     # Load menu data
     menu_data = load_menu_data()
     
+    # Add debug logging
+    logger.info(f"[MENU-LOOKUP] Looking for item: '{item_name}'")
+    
     # Normalize name for case-insensitive matching
     item_name_lower = item_name.lower().strip()
+    logger.debug(f"[MENU-LOOKUP] Normalized to: '{item_name_lower}'")
     
     # Check name variants first
     name_variants = menu_data.get("name_variants", {})
+    logger.debug(f"[MENU-LOOKUP] Checking against {len(name_variants)} name variants")
+    
+    # Log available variants for debugging
+    variant_keys = list(name_variants.keys())
+    logger.debug(f"[MENU-LOOKUP] Available variants: {variant_keys[:5]}...")
+    
     if item_name_lower in name_variants:
         actual_name = name_variants[item_name_lower]
+        logger.info(f"[MENU-LOOKUP] Found name variant match: '{item_name_lower}' → '{actual_name}'")
         for item in menu_data.get("items", []):
             if item.get("name", "").lower() == actual_name.lower():
+                logger.info(f"[MENU-LOOKUP] Found matching menu item: {item.get('name')}")
                 return item
     
+    # Try partial variant match if exact match fails
+    for variant, actual_name in name_variants.items():
+        if variant in item_name_lower or item_name_lower in variant:
+            logger.info(f"[MENU-LOOKUP] Found partial name variant match: '{item_name_lower}' ⊂ '{variant}' → '{actual_name}'")
+            for item in menu_data.get("items", []):
+                if item.get("name", "").lower() == actual_name.lower():
+                    logger.info(f"[MENU-LOOKUP] Found matching menu item via partial variant: {item.get('name')}")
+                    return item
+    
     # Try direct match
+    logger.debug(f"[MENU-LOOKUP] Checking against {len(menu_data.get('items', []))} menu items")
     for item in menu_data.get("items", []):
-        if item.get("name", "").lower() == item_name_lower:
+        item_name_in_menu = item.get("name", "").lower()
+        if item_name_in_menu == item_name_lower:
+            logger.info(f"[MENU-LOOKUP] Found direct match: '{item_name_lower}' = '{item_name_in_menu}'")
+            return item
+        # Try partial matches within menu items
+        elif item_name_lower in item_name_in_menu or item_name_in_menu in item_name_lower:
+            logger.info(f"[MENU-LOOKUP] Found partial item match: '{item_name_lower}' ⊂ '{item_name_in_menu}'")
             return item
     
     # No match found
+    logger.warning(f"[MENU-LOOKUP] No match found for '{item_name}'")
     return None
 
 def parse_utc_timestamp(timestamp: Optional[str]) -> Optional[datetime]:
