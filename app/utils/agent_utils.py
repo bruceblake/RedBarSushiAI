@@ -22,7 +22,7 @@ from app.utils.menu_utils import load_menu_data, find_menu_item_by_name
 logger = logging.getLogger(__name__)
 
 # Ensure OpenAI API key is set
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     logger.warning("OPENAI_API_KEY environment variable not set!")
 
@@ -520,8 +520,8 @@ else:
                 response = openai.chat.completions.create(
                     model="gpt-4o",
                     messages=[
-                        {"role": "system", "content": "You are a sushi restaurant order parser. Extract menu items from customer orders."},
-                        {"role": "user", "content": f"Extract menu items from this order: {order_text}\nOur menu has these categories: {', '.join(categories)}"}
+                        {"role": "system", "content": "You are a sushi restaurant order parser. Extract menu items from customer orders into JSON."},
+                        {"role": "user", "content": f"Extract menu items from this order: {order_text}\nOur menu has these categories: {', '.join(categories)}\nRespond with a JSON object containing an 'items' array of item names."}
                     ],
                     response_format={"type": "json_object"}
                 )
@@ -581,7 +581,7 @@ else:
                 response = openai.chat.completions.create(
                     model="gpt-4o",
                     messages=[
-                        {"role": "system", "content": "You are a sushi restaurant order modifier. Process order changes."},
+                        {"role": "system", "content": "You are a sushi restaurant order modifier. Process order changes and return JSON."},
                         {"role": "user", "content": f"Current order:\n{current_items}\n\nModification request: {modification_text}\n\nReturn JSON with 'additions' and 'removals' arrays."}
                     ],
                     response_format={"type": "json_object"}
