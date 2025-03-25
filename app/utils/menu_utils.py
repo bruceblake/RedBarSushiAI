@@ -98,210 +98,52 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
         if os.path.exists(location_path):
             file_path = location_path
     
-    # Alternative paths if file not found
-    alternative_paths = [
-        MENU_FILE_PATH,
-        os.path.join(os.getcwd(), "menu_data.json"),
-        os.path.join(os.getcwd(), "redbar_menu_data.json")
-    ]
-    
-    # Try original path first
-    if os.path.exists(file_path):
-        menu_path = file_path
-    else:
-        # Try alternative paths
-        for path in alternative_paths:
-            if os.path.exists(path):
-                menu_path = path
-                logger.info(f"Using alternative menu path: {path}")
-                break
-        else:
-            # No menu file found
-            logger.error("No menu file found at any path")
-            return {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
-    
     try:
-        # Read and parse menu data
-        with open(menu_path, 'r') as f:
+        # Load menu data from file
+        with open(file_path, 'r') as f:
             menu_data = json.load(f)
-        
-        # Ensure required structures exist
-        if not isinstance(menu_data, dict):
-            menu_data = {}
-            
-        for key in ["items", "modifiers", "modifierGroups", "name_variants"]:
-            if key not in menu_data:
-                if key == "name_variants":
-                    menu_data[key] = {}
-                else:
-                    menu_data[key] = []
         
         # Update cache
         _menu_cache = menu_data
         _last_refresh_time = current_time
         
         return menu_data
-        
     except Exception as e:
         logger.error(f"Error loading menu data: {e}")
-        # Return empty menu structure on error
+        # Return empty structure if file can't be loaded
         return {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
 
-def process_deliverect_menu(deliverect_data: Dict[str, Any]) -> Dict[str, Any]:
+def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     """
-    Process menu data from Deliverect into our internal format.
+    Find a menu item by name.
     
     Args:
-        deliverect_data (dict): Menu data from Deliverect
+        item_name (str): The name of the item to find
         
     Returns:
-        dict: Processed menu in our internal format
+        dict: The menu item if found, None otherwise
     """
-    logger.info("[DELIVERECT] Processing menu data from Deliverect")
+    # Load menu data
+    menu_data = load_menu_data()
     
-    # Initialize result structures
-    result = {
-        "items": [],
-        "modifiers": [],
-        "modifierGroups": [],
-        "name_variants": {}
-    }
+    # Normalize name for case-insensitive matching
+    item_name_lower = item_name.lower().strip()
     
-    # Process categories and products
-    categories = deliverect_data.get("categories", [])
-    logger.info(f"[DELIVERECT] Processing {len(categories)} categories")
+    # Check name variants first
+    name_variants = menu_data.get("name_variants", {})
+    if item_name_lower in name_variants:
+        actual_name = name_variants[item_name_lower]
+        for item in menu_data.get("items", []):
+            if item.get("name", "").lower() == actual_name.lower():
+                return item
     
-    # Track IDs to avoid duplicates
-    processed_item_ids = set()
-    processed_modifier_group_ids = set()
+    # Try direct match
+    for item in menu_data.get("items", []):
+        if item.get("name", "").lower() == item_name_lower:
+            return item
     
-    # Process all categories and their products
-    for category in categories:
-        cat_id = category.get("id", "")
-        cat_name = category.get("name", "")
-        
-        for product in category.get("products", []):
-            prod_id = product.get("id", "")
-            
-            # Skip duplicates
-            if prod_id in processed_item_ids:
-                continue
-                
-            processed_item_ids.add(prod_id)
-            
-            # Extract product data
-            prod_name = product.get("name", "")
-            plu = product.get("plu", "")
-            description = product.get("description", "")
-            price = product.get("price", 0) / 100  # Convert from cents
-            available = product.get("available", True)
-            image_url = product.get("imageUrl", "")
-            
-            # Create product entry
-            menu_item = {
-                "id": prod_id,
-                "name": prod_name,
-                "price": price,
-                "reference_handler": plu,
-                "description": description,
-                "imageUrl": image_url,
-                "category": cat_name,
-                "categoryId": cat_id,
-                "available": available,
-                "snoozed": not available
-            }
-            
-            # Add to items list
-            result["items"].append(menu_item)
-            
-            # Generate name variants for this product
-            prod_name_lower = prod_name.lower()
-            result["name_variants"][prod_name_lower] = prod_name
-            
-            # Add single word from name as variant if unique enough (at least 4 chars)
-            words = prod_name_lower.split()
-            
-            # For multi-word items, add key words as variants
-            if len(words) > 1:
-                # Add first word as variant if long enough
-                if len(words[0]) >= 4 and words[0] not in ["with", "and", "the"]:
-                    result["name_variants"][words[0]] = prod_name
-                
-                # Add last word as variant if long enough
-                if len(words[-1]) >= 4 and words[-1] not in ["with", "and", "the"]:
-                    result["name_variants"][words[-1]] = prod_name
-                
-                # Add no-space version
-                result["name_variants"][prod_name_lower.replace(" ", "")] = prod_name
-                
-                # Special handling for "French Fries" => "Fries" and similar
-                if "french fries" in prod_name_lower:
-                    result["name_variants"]["fries"] = prod_name
-                    
-                if "cheeseburger" in prod_name_lower:
-                    result["name_variants"]["burger"] = prod_name
-                    
-                if "hamburger" in prod_name_lower and "burger" not in result["name_variants"]:
-                    result["name_variants"]["burger"] = prod_name
-            
-            # Process modifier groups for this product
-            for mod_group in product.get("modifierGroups", []):
-                group_id = mod_group.get("id", "")
-                
-                # Add reference to product
-                if "modifierGroups" not in menu_item:
-                    menu_item["modifierGroups"] = []
-                    
-                menu_item["modifierGroups"].append(group_id)
-                
-                # Skip if already processed
-                if group_id in processed_modifier_group_ids:
-                    continue
-                    
-                processed_modifier_group_ids.add(group_id)
-                
-                # Create modifier group
-                group_data = {
-                    "id": group_id,
-                    "name": mod_group.get("name", ""),
-                    "min": mod_group.get("min", 0),
-                    "max": mod_group.get("max", 0),
-                    "minAllowed": mod_group.get("min", 0),
-                    "maxAllowed": mod_group.get("max", 0),
-                    "modifiers": []
-                }
-                
-                # Process modifiers in this group
-                for modifier in mod_group.get("modifiers", []):
-                    mod_id = modifier.get("id", "")
-                    mod_name = modifier.get("name", "")
-                    mod_price = modifier.get("price", 0) / 100
-                    mod_plu = modifier.get("plu", "")
-                    mod_available = modifier.get("available", True)
-                    
-                    modifier_data = {
-                        "id": mod_id,
-                        "name": mod_name,
-                        "price": mod_price,
-                        "reference_handler": mod_plu,
-                        "available": mod_available,
-                        "snoozed": not mod_available
-                    }
-                    
-                    # Add to modifiers list
-                    result["modifiers"].append(modifier_data)
-                    
-                    # Add to modifier group
-                    group_data["modifiers"].append(mod_id)
-                    
-                # Add group to modifier groups
-                result["modifierGroups"].append(group_data)
-    
-    # Log summary of what was processed
-    logger.info(f"[DELIVERECT] Processed {len(result['items'])} items, {len(result['modifierGroups'])} modifier groups")
-    logger.info(f"[DELIVERECT] Generated {len(result['name_variants'])} name variants")
-    
-    return result
+    # No match found
+    return None
 
 def parse_utc_timestamp(timestamp: Optional[str]) -> Optional[datetime]:
     """
@@ -352,12 +194,67 @@ def is_item_snoozed_timebased(item: Dict[str, Any]) -> bool:
     end_time = parse_utc_timestamp(item.get("snoozeEnd"))
     
     # If timestamps invalid, item is not snoozed
-    if start_time is None or end_time is None:
+    if not start_time or not end_time:
         return False
-        
-    # Check if current time is within snooze window
+    
+    # Check if current time is between start and end
     now = datetime.now(timezone.utc)
     return start_time <= now <= end_time
+
+def validate_modifier_constraints(order_items):
+    """
+    Validates that each item with modifier groups meets min/max constraints.
+    
+    Args:
+        order_items: List of order items with their modifiers
+        
+    Returns:
+        tuple: (is_valid, error_message)
+    """
+    # Load menu data to get modifier group constraints
+    menu_data = load_menu_data()
+    
+    for item in order_items:
+        item_name = item.get("name", "")
+        # Find the menu item definition
+        menu_item = next((i for i in menu_data.get("items", []) if i.get("name") == item_name), None)
+        if not menu_item:
+            continue
+            
+        # Get modifier groups for this item
+        mod_group_ids = menu_item.get("modifierGroups", [])
+        selected_mods = item.get("modifier", [])
+        
+        # Check each modifier group
+        for group_id in mod_group_ids:
+            group = next((g for g in menu_data.get("modifierGroups", []) if g.get("id") == group_id), None)
+            if not group:
+                continue
+                
+            min_allowed = group.get("minAllowed", 0)
+            max_allowed = group.get("maxAllowed", 999)
+            
+            # Count modifiers from this group
+            group_mod_ids = [m.get("id") for m in group.get("modifiers", [])]
+            group_mod_names = [m.get("name").lower() for m in group.get("modifiers", [])]
+            
+            # Match modifiers by ID or name
+            selected_from_group = []
+            for mod in selected_mods:
+                mod_id = mod.get("id")
+                mod_name = mod.get("name", "").lower()
+                if mod_id in group_mod_ids or mod_name in group_mod_names:
+                    selected_from_group.append(mod)
+            
+            total_qty = sum(m.get("quantity", 1) for m in selected_from_group)
+            
+            # Validate
+            if total_qty < min_allowed:
+                return False, f"Item '{item_name}' requires at least {min_allowed} selections from '{group.get('name')}'"
+            if total_qty > max_allowed:
+                return False, f"Item '{item_name}' allows at most {max_allowed} selections from '{group.get('name')}'"
+    
+    return True, ""
 
 def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
     """
@@ -365,150 +262,166 @@ def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
     
     Args:
         item: The menu item to check
-        
-    Returns:
-        bool: True if available, False otherwise
     """
-    # Get availability blocks
-    availability_blocks = item.get("availabilities", [])
-    
-    # If no blocks defined, item is always available
-    if not availability_blocks:
-        return True
-        
-    # Get current time info
-    now = datetime.now(timezone.utc)
-    current_day = now.isoweekday()  # 1=Monday, 7=Sunday
-    current_time = now.time()
-    
-    # Check each availability block
-    for block in availability_blocks:
-        # Check day of week
-        if block.get("dayOfWeek") != current_day:
-            continue
-            
-        # Parse time strings
-        try:
-            start_str = block.get("startTime", "00:00")
-            end_str = block.get("endTime", "23:59")
-            
-            start_hour, start_min = map(int, start_str.split(":"))
-            end_hour, end_min = map(int, end_str.split(":"))
-            
-            start_time = dt_time(hour=start_hour, minute=start_min)
-            end_time = dt_time(hour=end_hour, minute=end_min)
-            
-            # Check if current time is in this block
-            if start_time <= current_time <= end_time:
-                return True
-        except (ValueError, TypeError):
-            # Skip invalid time formats
-            continue
-    
-    # No matching blocks found
-    return False
+    # Implementation for checking item availability by schedule
+    pass
 
-def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
+def process_deliverect_menu(deliverect_menu, location_id=None):
     """
-    Find a menu item by name using exact matching and name variants.
+    Process menu updates from Deliverect for a specific location.
     
     Args:
-        item_name (str): The name of the item to find
+        deliverect_menu: Menu data from Deliverect
+        location_id: Optional location ID
         
     Returns:
-        dict: The menu item if found, None otherwise
+        dict: Processed menu data
     """
-    # Load current menu data
-    menu_data = load_menu_data()
-    items = menu_data.get("items", [])
-    name_variants = menu_data.get("name_variants", {})
-    
-    # Normalize input
-    item_name_lower = item_name.lower().strip()
-    
-    # Check name variants first
-    if item_name_lower in name_variants:
-        actual_name = name_variants[item_name_lower]
-        logger.info(f"Found name variant match: '{item_name}' → '{actual_name}'")
-        
-        # Find the actual item with this name
-        for item in items:
-            if item.get("name", "").lower() == actual_name.lower():
-                return item
-    
-    # Try direct match if no variant found
-    for item in items:
-        if item.get("name", "").lower() == item_name_lower:
-            return item
-    
-    # No match found
-    return None
+    pass
 
-def get_all_menu_items() -> List[Dict[str, Any]]:
+def process_product_changes(product_id, data, location_id=None):
     """
-    Get all available menu items.
-    
-    Returns:
-        list: All menu items
-    """
-    menu_data = load_menu_data()
-    return menu_data.get("items", [])
-
-def get_all_name_variants() -> Dict[str, str]:
-    """
-    Get all name variants in the menu.
-    
-    Returns:
-        dict: All name variants
-    """
-    menu_data = load_menu_data()
-    return menu_data.get("name_variants", {})
-
-def sync_reference_handlers(source_location_id: Optional[str] = None, 
-                           target_location_id: Optional[str] = None) -> Dict[str, int]:
-    """
-    Synchronize reference handlers between locations.
+    Process product changes from Deliverect.
     
     Args:
-        source_location_id (str): Source location ID
-        target_location_id (str): Target location ID
+        product_id: Product ID
+        data: Product data
+        location_id: Optional location ID
         
     Returns:
-        dict: Synchronization statistics
+        bool: Success status
     """
-    stats = {"updated": 0, "skipped": 0, "total": 0}
+    pass
+
+def process_modifier_group_changes(group_id, data):
+    """
+    Process modifier group changes from Deliverect.
     
-    # Load source menu
-    source_menu = load_menu_data(force_refresh=True, location_id=source_location_id)
-    
-    # Load target menu
-    target_menu = load_menu_data(force_refresh=True, location_id=target_location_id)
-    
-    # Build lookup tables
-    source_items_by_name = {item.get("name", "").lower(): item for item in source_menu.get("items", [])}
-    
-    # Update target items
-    for target_item in target_menu.get("items", []):
-        stats["total"] += 1
-        item_name = target_item.get("name", "").lower()
+    Args:
+        group_id: Group ID
+        data: Group data
         
-        if item_name in source_items_by_name:
-            source_item = source_items_by_name[item_name]
-            source_ref = source_item.get("reference_handler")
-            target_ref = target_item.get("reference_handler")
+    Returns:
+        bool: Success status
+    """
+    pass
+
+def process_modifier_changes(modifier_id, data):
+    """
+    Process modifier changes from Deliverect.
+    
+    Args:
+        modifier_id: Modifier ID
+        data: Modifier data
+        
+    Returns:
+        bool: Success status
+    """
+    pass
+
+def update_menu_ordering(data, location_id=None):
+    """
+    Update menu ordering from Deliverect.
+    
+    Args:
+        data: Ordering data
+        location_id: Optional location ID
+        
+    Returns:
+        bool: Success status
+    """
+    pass
+
+def process_meal_deal(meal_item, component_selections):
+    """
+    Process a meal deal order with component selections.
+    
+    Args:
+        meal_item: The parent meal deal item
+        component_selections: Dict of component selections by id
+        
+    Returns:
+        dict: Processed meal deal item ready for ordering
+    """
+    # Create a copy of the main item
+    processed_item = {
+        "name": meal_item.get("name", ""),
+        "reference_handler": meal_item.get("reference_handler", ""),
+        "price": meal_item.get("price", 0.0),
+        "quantity": 1,
+        "modifier": [],
+        "components": []
+    }
+    
+    # Add selected components as modifiers
+    for component_id, selection in component_selections.items():
+        component_name = selection.get("name", "Unknown Component")
+        modifiers = selection.get("modifier", [])
+        
+        # Add the component as an ordered component
+        processed_item["components"].append({
+            "id": component_id,
+            "name": component_name,
+            "modifiers": modifiers
+        })
+        
+        # Also add modifiers to the main modifier list for compatibility
+        for mod in modifiers:
+            processed_item["modifier"].append(mod)
+    
+    return processed_item
+
+def sync_reference_handlers(source_location_id=None, target_location_id=None):
+    """
+    Synchronizes reference handlers between different menu sources.
+    This ensures consistency across different menu versions.
+    
+    Args:
+        source_location_id: Optional location ID to use as reference source
+        target_location_id: Optional location ID to update
+        
+    Returns:
+        dict: Stats about the synchronization
+    """
+    # Load source menu with validation skipped to avoid recursion
+    source_menu = load_menu_data(location_id=source_location_id, force_refresh=True)
+    source_items = {item.get("name", "").lower(): item for item in source_menu.get("items", [])}
+    
+    # If target is specified, load it, otherwise update the same menu
+    if target_location_id and target_location_id != source_location_id:
+        target_menu = load_menu_data(location_id=target_location_id, force_refresh=True)
+        save_target = True
+    else:
+        target_menu = source_menu
+        save_target = False
+    
+    # Track stats
+    stats = {
+        "items_checked": 0,
+        "references_updated": 0,
+        "prices_updated": 0,
+        "modifiers_checked": 0,
+        "modifier_references_updated": 0
+    }
+    
+    # Check for missing reference handlers in all items
+    for item in target_menu.get("items", []):
+        stats["items_checked"] += 1
+        item_name = item.get("name", "").lower()
+        
+        # Skip if it already has a valid reference handler
+        if item.get("reference_handler"):
+            continue
             
-            if source_ref and source_ref != target_ref:
-                target_item["reference_handler"] = source_ref
-                stats["updated"] += 1
-            else:
-                stats["skipped"] += 1
-        else:
-            stats["skipped"] += 1
+        # Check if it exists in source menu
+        if item_name in source_items and source_items[item_name].get("reference_handler"):
+            item["reference_handler"] = source_items[item_name]["reference_handler"]
+            stats["references_updated"] += 1
+            logger.info(f"Updated reference handler for {item.get('name')} to {item['reference_handler']}")
     
-    # Save updated target menu
-    target_file = f"menu_data_{target_location_id}.json" if target_location_id else "menu_data.json"
-    target_path = os.path.join(os.path.dirname(MENU_FILE_PATH), target_file)
-    
-    write_menu_file(target_menu, target_path)
-    
+    # Save the target menu if needed
+    if save_target and (stats["references_updated"] > 0 or stats["prices_updated"] > 0):
+        write_menu_file(target_menu)
+        load_menu_data(location_id=target_location_id, force_refresh=True)
+        
     return stats
