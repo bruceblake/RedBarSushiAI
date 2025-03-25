@@ -3,106 +3,106 @@
     {
       "id": "67e2089ea7301759a244bce1",
       "name": "Chicken Burger",
-      "price": 12.95,
-      "reference_handler": "P-BURG-CHK",
+      "price": 0,
+      "reference_handler": "P-BURG-CHK###PRNT",
       "description": "Crispy coated chicken thigh, iceberg lettuce, pickles, slice of cheese & mayo, all in a toasted brioche bun.",
       "imageUrl": "https://resizer.staging.deliverect.com/By5AsW4yrHpO2XEkTpT59gT0ojYuFArr5krZnUIyeAI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hrYnVyZ2VyLTYyMjhjMWRjZGI1OTg2MDAxZWJmNThkZi5qcGVn.jpg",
       "snoozed": false,
-      "category": "Burgers",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bce2",
       "name": "Cheeseburger",
       "price": 0,
-      "reference_handler": "P-BURG-CHE",
+      "reference_handler": "P-BURG-CHE###PRNT",
       "description": "100% beef patty, cheddar, caramelized onions, mayonnaise, pickles in a Pretzel bun",
       "imageUrl": "https://resizer.staging.deliverect.com/-T3Q86ak_gYss4pfyjoOu0S2ZSz3ivubi9QsNADrk-Q/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hlZXNlYnVyZ2VyLTYyMjg2ZTI2ZGI1OTg2MDAxZWJmNThkNy5qcGc=.jpg",
       "snoozed": false,
-      "category": "Burgers",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bce3",
       "name": "\u007fHamburger",
       "price": 0,
-      "reference_handler": "P-BURG-VEG",
+      "reference_handler": "P-BURG-VEG###PRNT",
       "description": "Black bean burgers with sweet potato, mushrooms, quinoa, and pecans.",
       "imageUrl": "https://resizer.staging.deliverect.com/N-0UqHpmHxtWoxLug-amn5fhcOtecxOGuk17nqY9Yu0/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvdmVnZ2llYnVyZ2VyLTYyMjg2Y2JhYzcxNWI0MDNiMGViNzI5NC5qcGVn.jpg",
       "snoozed": false,
-      "category": "Burgers",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bce5",
       "name": "French Fries",
-      "price": 4.99,
+      "price": 200,
       "reference_handler": "P-FRS-S-#U#-",
       "description": "Plain fries from France",
       "imageUrl": "",
       "snoozed": false,
-      "category": "Sides",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bce6",
       "name": "Curly Fries",
-      "price": 5.99,
+      "price": 200,
       "reference_handler": "P-FRS-M-#U#-",
       "description": "Spiralised potatoes, fried",
       "imageUrl": "",
       "snoozed": false,
-      "category": "Sides",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bce7",
       "name": "Seasoned Fries",
-      "price": 6.99,
+      "price": 250,
       "reference_handler": "P-FRS-L-#U#-",
       "description": "Plain fries, but a bit fancier",
       "imageUrl": "",
       "snoozed": false,
-      "category": "Sides",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bce9",
       "name": "Coca Cola",
-      "price": 2.99,
+      "price": 400,
       "reference_handler": "DRNK-01-#U#-",
       "description": "Cola flavoured sugar and caffeine",
       "imageUrl": "https://resizer.staging.deliverect.com/kZlALx0v9-hlN7m_sK8OZ6IKS1YfRtSIow_VpDTTjRQ/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY29jYWNvbGEtNjIyODU0YTc4YzUwNmYwMTViZTYwMThhLmpwZWc=.jpg",
       "snoozed": false,
-      "category": "Drinks",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bcea",
       "name": "Diet Coke",
-      "price": 2.99,
+      "price": 400,
       "reference_handler": "DRNK-02-#U#-",
       "description": "Cola flavoured aspartame and caffeine",
       "imageUrl": "https://resizer.staging.deliverect.com/Ff1p7WZlT-NAafcnQ6HygbKb5XFbm-p5Uqyfb_lo4P8/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZGlldGNva2UtNjIyODU0Y2U4YzUwNmYwMTViZTYwMThjLmpwZWc=.jpg",
       "snoozed": false,
-      "category": "Drinks",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bceb",
       "name": "Ginger Beer",
-      "price": 3.49,
+      "price": 400,
       "reference_handler": "DRNK-03-#U#-",
       "description": "Australia's favourite ginger beer!",
       "imageUrl": "https://resizer.staging.deliverect.com/iFUJT73YtMe1pChj29lAFUt_NBknsyTu5Hlr6NvA5NI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZ2luZ2VyYmVlci02MjI4NTU0OGRiNTk4NjAwMWViZjU4ZDEuanBn.jpg",
       "snoozed": false,
-      "category": "Drinks",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bced",
       "name": "Burger Combo (Drink not Included)",
-      "price": 10.95,
+      "price": 950,
       "reference_handler": "P-BRGR",
       "description": "Combo with Bundles - Modifier Groups as Upsell",
       "imageUrl": "https://resizer.staging.deliverect.com/_ev83UhGkCie31XF8sRPw1Cm0Uw0otg_EiFu-D5zrq4/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvYnVyZ2VyLTYyMjg2YmU3OGM1MDZmMDE1YmU2MDE5MC5qcGVn.jpg",
@@ -118,7 +118,7 @@
     {
       "id": "66e88f320a7c2604a63bf4be",
       "name": "Chicken Burger",
-      "price": 12.95,
+      "price": 800,
       "reference_handler": "P-BURG-CHK",
       "description": "Crispy coated chicken thigh, iceberg lettuce, pickles, slice of cheese & mayo, all in a toasted brioche bun.",
       "imageUrl": "https://resizer.staging.deliverect.com/By5AsW4yrHpO2XEkTpT59gT0ojYuFArr5krZnUIyeAI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY2hrYnVyZ2VyLTYyMjhjMWRjZGI1OTg2MDAxZWJmNThkZi5qcGVn.jpg",
@@ -311,7 +311,7 @@
       "id": "67e2089ea7301759a244bcff",
       "name": "Yuzu Salmon",
       "price": 180,
-      "reference_handler": "PRT-01",
+      "reference_handler": "PRT-01###PRNT-#O0#-",
       "description": "",
       "imageUrl": "",
       "snoozed": false,
@@ -322,7 +322,7 @@
       "id": "67e2089ea7301759a244bd00",
       "name": "Spicy Tuna",
       "price": 0,
-      "reference_handler": "PRT-02",
+      "reference_handler": "PRT-02###PRNT",
       "description": "",
       "imageUrl": "",
       "snoozed": false,
@@ -333,22 +333,22 @@
       "id": "67e2089ea7301759a244bd01",
       "name": "Teriyaki Chicken",
       "price": 0,
-      "reference_handler": "PRT-03",
+      "reference_handler": "PRT-03###PRNT",
       "description": "",
       "imageUrl": "",
       "snoozed": false,
-      "category": "Chicken",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bd03",
       "name": "Mini Poke Bowl",
-      "price": 8.99,
+      "price": 800,
       "reference_handler": "SZ-01",
       "description": "A little bowl of Poke",
       "imageUrl": "",
       "snoozed": false,
-      "category": "Poke Bowls",
+      "category": "",
       "available": true,
       "modifierGroups": [
         "67e2089ea7301759a244bd02"
@@ -358,7 +358,7 @@
       "id": "67e2089ea7301759a244bd05",
       "name": "Yuzu Salmon",
       "price": 250,
-      "reference_handler": "PRT-01",
+      "reference_handler": "PRT-01###PRNT-#O1#-",
       "description": "",
       "imageUrl": "",
       "snoozed": false,
@@ -368,12 +368,12 @@
     {
       "id": "67e2089ea7301759a244bd07",
       "name": "Large Poke Bowl",
-      "price": 12.99,
+      "price": 1200,
       "reference_handler": "SZ-02",
       "description": "A big bowl of Poke",
       "imageUrl": "",
       "snoozed": false,
-      "category": "Poke Bowls",
+      "category": "",
       "available": true,
       "modifierGroups": [
         "67e2089ea7301759a244bd06"
@@ -383,18 +383,18 @@
       "id": "67e2089ea7301759a244bd09",
       "name": "Sushi Rice",
       "price": 0,
-      "reference_handler": "BS-01",
+      "reference_handler": "BS-01###PRNT",
       "description": "",
       "imageUrl": "",
       "snoozed": false,
-      "category": "Sides",
+      "category": "",
       "available": true
     },
     {
       "id": "67e2089ea7301759a244bd0a",
       "name": "Cruncy Cabbage Slaw",
       "price": 0,
-      "reference_handler": "BS-02",
+      "reference_handler": "BS-02###PRNT",
       "description": "",
       "imageUrl": "",
       "snoozed": false,
@@ -405,7 +405,7 @@
       "id": "67e2089ea7301759a244bd0c",
       "name": "Spicy Tofu",
       "price": 0,
-      "reference_handler": "XTRA-TOF",
+      "reference_handler": "XTRA-TOF###PRNT",
       "description": "",
       "imageUrl": "",
       "snoozed": false,
@@ -416,7 +416,7 @@
       "id": "67e2089ea7301759a244bd0d",
       "name": "Crispy Onions",
       "price": 0,
-      "reference_handler": "XTRA-CONI",
+      "reference_handler": "XTRA-CONI###PRNT",
       "description": "",
       "imageUrl": "",
       "snoozed": false,
@@ -427,7 +427,7 @@
       "id": "67e2089ea7301759a244bd0e",
       "name": "Smashed Avocado",
       "price": 0,
-      "reference_handler": "XTRA-AVO",
+      "reference_handler": "XTRA-AVO###PRNT",
       "description": "",
       "imageUrl": "",
       "snoozed": false,
@@ -453,7 +453,7 @@
     {
       "id": "66e88f320a7c2604a63bf4f4",
       "name": "Coca Cola",
-      "price": 2.99,
+      "price": 400,
       "reference_handler": "DRNK-01",
       "description": "Cola flavoured sugar and caffeine",
       "imageUrl": "https://resizer.staging.deliverect.com/kZlALx0v9-hlN7m_sK8OZ6IKS1YfRtSIow_VpDTTjRQ/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvY29jYWNvbGEtNjIyODU0YTc4YzUwNmYwMTViZTYwMThhLmpwZWc=.jpg",
@@ -464,7 +464,7 @@
     {
       "id": "66e88f320a7c2604a63bf4f6",
       "name": "Diet Coke",
-      "price": 2.99,
+      "price": 400,
       "reference_handler": "DRNK-02",
       "description": "Cola flavoured aspartame and caffeine",
       "imageUrl": "https://resizer.staging.deliverect.com/Ff1p7WZlT-NAafcnQ6HygbKb5XFbm-p5Uqyfb_lo4P8/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZGlldGNva2UtNjIyODU0Y2U4YzUwNmYwMTViZTYwMThjLmpwZWc=.jpg",
@@ -475,7 +475,7 @@
     {
       "id": "66e88f320a7c2604a63bf4c0",
       "name": "Ginger Beer",
-      "price": 3.49,
+      "price": 400,
       "reference_handler": "DRNK-03",
       "description": "Australia's favourite ginger beer!",
       "imageUrl": "https://resizer.staging.deliverect.com/iFUJT73YtMe1pChj29lAFUt_NBknsyTu5Hlr6NvA5NI/rt:fill/g:ce/el:0/aHR0cHM6Ly9zdG9yYWdlLmdvb2dsZWFwaXMuY29tL2lrb25hLWJ1Y2tldC1zdGFnaW5nL2ltYWdlcy81ZmY2ZWUwODkzMjhjOGFlZmVlYWJlMzMvZ2luZ2VyYmVlci02MjI4NTU0OGRiNTk4NjAwMWViZjU4ZDEuanBn.jpg",
@@ -616,21 +616,21 @@
       "name": "Chicken Burger",
       "price": 0,
       "available": true,
-      "reference_handler": "P-BURG-CHK"
+      "reference_handler": "P-BURG-CHK###PRNT"
     },
     {
       "id": "67e2089ea7301759a244bce2",
       "name": "Cheeseburger",
       "price": 0,
       "available": true,
-      "reference_handler": "P-BURG-CHE"
+      "reference_handler": "P-BURG-CHE###PRNT"
     },
     {
       "id": "67e2089ea7301759a244bce3",
       "name": "\u007fHamburger",
       "price": 0,
       "available": true,
-      "reference_handler": "P-BURG-VEG"
+      "reference_handler": "P-BURG-VEG###PRNT"
     },
     {
       "id": "67e2089ea7301759a244bce5",
@@ -728,28 +728,28 @@
       "name": "Yuzu Salmon",
       "price": 180,
       "available": true,
-      "reference_handler": "PRT-01"
+      "reference_handler": "PRT-01###PRNT-#O0#-"
     },
     {
       "id": "67e2089ea7301759a244bd00",
       "name": "Spicy Tuna",
       "price": 0,
       "available": true,
-      "reference_handler": "PRT-02"
+      "reference_handler": "PRT-02###PRNT"
     },
     {
       "id": "67e2089ea7301759a244bd01",
       "name": "Teriyaki Chicken",
       "price": 0,
       "available": true,
-      "reference_handler": "PRT-03"
+      "reference_handler": "PRT-03###PRNT"
     },
     {
       "id": "67e2089ea7301759a244bd05",
       "name": "Yuzu Salmon",
       "price": 250,
       "available": true,
-      "reference_handler": "PRT-01"
+      "reference_handler": "PRT-01###PRNT-#O1#-"
     },
     {
       "id": "67e2089ea7301759a244bd03",
@@ -770,35 +770,35 @@
       "name": "Sushi Rice",
       "price": 0,
       "available": true,
-      "reference_handler": "BS-01"
+      "reference_handler": "BS-01###PRNT"
     },
     {
       "id": "67e2089ea7301759a244bd0a",
       "name": "Cruncy Cabbage Slaw",
       "price": 0,
       "available": true,
-      "reference_handler": "BS-02"
+      "reference_handler": "BS-02###PRNT"
     },
     {
       "id": "67e2089ea7301759a244bd0c",
       "name": "Spicy Tofu",
       "price": 0,
       "available": true,
-      "reference_handler": "XTRA-TOF"
+      "reference_handler": "XTRA-TOF###PRNT"
     },
     {
       "id": "67e2089ea7301759a244bd0d",
       "name": "Crispy Onions",
       "price": 0,
       "available": true,
-      "reference_handler": "XTRA-CONI"
+      "reference_handler": "XTRA-CONI###PRNT"
     },
     {
       "id": "67e2089ea7301759a244bd0e",
       "name": "Smashed Avocado",
       "price": 0,
       "available": true,
-      "reference_handler": "XTRA-AVO"
+      "reference_handler": "XTRA-AVO###PRNT"
     }
   ],
   "modifierGroups": [
@@ -1003,7 +1003,6 @@
     "french fries": "French Fries",
     "french": "French Fries",
     "fries": "Seasoned Fries",
-    "frys": "French Fries",
     "curly fries": "Curly Fries",
     "curly": "Curly Fries",
     "seasoned fries": "Seasoned Fries",
