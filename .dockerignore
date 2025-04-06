@@ -1,0 +1,34 @@
+
+# Git files
+.git
+.gitignore
+
+# Docker files
+Dockerfile
+.dockerignore
+
+# Python virtual environment & cache
+venv
+.venv
+env
+*.pyc
+__pycache__/
+*.pyo
+
+# OS / IDE specific
+.idea/
+.vscode/
+*.DS_Store
+Thumbs.db
+
+# Local secrets / config (use environment variables instead!)
+local_settings.py
+*.env
+.env.*
+
+# Test files (optional, depends if needed in image)
+tests/
+pytest.ini
+.coverage
+
+# Add any other files/folders to ignore
