@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 @menu_bp.route('/menu_update', methods=['POST'])
 @menu_bp.route('/update_menu', methods=['POST'])  # Alternative endpoint name
 @menu_bp.route('/deliverect_menu_update', methods=['POST'])  # Simplified endpoint for Deliverect
+@menu_bp.route('/deliverect/menu', methods=['POST'])  # Standard Deliverect webhook path
 def menu_update():
     """
     Handle menu updates from various formats.
