@@ -102,13 +102,26 @@ if not os.path.exists(MENU_FILE_PATH):
 # ------------------------------
 # Base URL Configuration
 # ------------------------------
-# Auto-detect Render deployment and set appropriate base URL
-if os.environ.get('RENDER', '').lower() == 'true' or os.environ.get('RENDER_SERVICE_ID'):
+# Check if BASE_URL is explicitly set in environment - this takes precedence
+if os.getenv('BASE_URL'):
+    BASE_URL = os.getenv('BASE_URL')
+# Otherwise, auto-detect environment and set appropriate base URL
+elif os.environ.get('RENDER', '').lower() == 'true' or os.environ.get('RENDER_SERVICE_ID'):
     # Use Render-specific URL
-    BASE_URL = os.getenv('BASE_URL', 'https://redbarsushiai.onrender.com')
+    BASE_URL = 'https://redbarsushiai.onrender.com'
+elif not os.environ.get('DISABLE_PYTHONANYWHERE_DETECTION', '').lower() == 'true' and any(path.endswith('pythonanywhere-services.com') for path in [default_uri, pythonanyhere_uri or '']):
+    # Running on PythonAnywhere but force the Render URL for consistency
+    BASE_URL = 'https://redbarsushiai.onrender.com'
 else:
     # Default BASE_URL for local development
-    BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
+    BASE_URL = 'http://localhost:5000'
+
+# Final safety check - NEVER use pythonanywhere.com in BASE_URL
+if 'pythonanywhere.com' in BASE_URL:
+    BASE_URL = 'https://redbarsushiai.onrender.com'
+
+# Log the selected BASE_URL
+print(f"Using BASE_URL: {BASE_URL}")
 
 # ------------------------------
 # Redis and Celery Configuration
