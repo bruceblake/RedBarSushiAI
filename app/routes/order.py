@@ -63,10 +63,17 @@ def take_order():
 
     # Load menu and check availability
     menu_data = load_menu_data()
+    
+    # Debug logging to see if menu data is loaded correctly
+    logger.info(f"Menu data loaded: {len(menu_data.get('items', [])) if menu_data else 0} items found")
+    
+    # Get available items - items with names and not snoozed
     available_items = [
-        item for item in menu_data.get("items", [])
-        if item.get("name") and not item.get("snoozed", False)
+        item for item in menu_data.get('items', [])
+        if item.get('name') and item.get("snoozed", False) == False
     ]
+    
+    logger.info(f"Available (not snoozed) items: {len(available_items)}")
     
     if not available_items:
         response = VoiceResponse()

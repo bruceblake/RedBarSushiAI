@@ -232,8 +232,29 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
         _last_refresh_time = current_time
         
         logger.info(f"Successfully loaded menu data from {file_path}")
+        
+        # Count items by category
+        categories = {}
+        available_items = 0
+        snoozed_items = 0
+        
         for item in menu_data.get('items', []):
-            logger.info(f"item: {item.get('name', ' ')}")
+            cat = item.get('category', 'Uncategorized')
+            categories[cat] = categories.get(cat, 0) + 1
+            
+            # Check snoozed status
+            if item.get('snoozed', False) == True:
+                snoozed_items += 1
+            else:
+                available_items += 1
+                
+            # Log a few items as sample
+            logger.info(f"item: {item.get('name', ' ')} (snoozed: {item.get('snoozed', False)})")
+            
+        # Log overall menu statistics
+        logger.info(f"Menu stats: {len(menu_data.get('items', []))} total items, {available_items} available, {snoozed_items} snoozed")
+        logger.info(f"Menu categories: {categories}")
+        
         return menu_data 
     except FileNotFoundError:
         # Log the error and generate a simple default menu for demo purposes
