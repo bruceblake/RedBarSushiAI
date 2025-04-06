@@ -4,11 +4,13 @@ import uuid
 import time
 import threading
 import logging
+import re
 from collections import defaultdict
 from flask import Blueprint, request, session, Response, jsonify
 from twilio.twiml.voice_response import VoiceResponse
 from app.config import DELIVERECT_API_URL
 from app.utils.deliverect import build_deliverect_order, get_deliverect_headers
+from app.utils.menu_utils import find_menu_item_by_name
 from app.utils.order_utils import (
     build_order_description,
     calculate_bill_amount,
@@ -331,8 +333,20 @@ def apply_modifications(current_order, modifications):
     
     # Process removals
     for removal in removals:
-        item_name = removal.get("name", "").lower()
-        quantity = removal.get("quantity", 1)
+        # Handle string format (e.g., "1x Chicken Burger")
+        if isinstance(removal, str):
+            match = re.match(r"(\d+)x\s+(.+)", removal.strip())
+            if match:
+                quantity = int(match.group(1))
+                item_name = match.group(2).lower()
+            else:
+                # If no quantity specified, assume 1
+                quantity = 1
+                item_name = removal.strip().lower()
+        else:
+            # Use the dictionary format
+            item_name = removal["name"].lower()
+            quantity = removal["quantity"]
         
         # If item exists, decrease quantity or remove it
         if item_name in current_order_by_name:
@@ -344,6 +358,36 @@ def apply_modifications(current_order, modifications):
     
     # Process additions
     for addition in additions:
+        # Handle string format (e.g., "1x Chicken Burger")
+        if isinstance(addition, str):
+            match = re.match(r"(\d+)x\s+(.+)", addition.strip())
+            if match:
+                quantity = int(match.group(1))
+                item_name = match.group(2).lower()
+            else:
+                # If no quantity specified, assume 1
+                quantity = 1
+                item_name = addition.strip().lower()
+                
+            # Find the item in the menu
+            menu_item = find_menu_item_by_name(item_name)
+            if menu_item:
+                addition = {
+                    "name": menu_item.get("name"),
+                    "price": menu_item.get("price", 0),
+                    "reference_handler": menu_item.get("reference_handler", ""),
+                    "quantity": quantity,
+                    "modifier": []
+                }
+            else:
+                # If not found in menu, create a basic structure
+                addition = {
+                    "name": item_name.title(),
+                    "quantity": quantity,
+                    "modifier": []
+                }
+        
+        # Use the dictionary format
         item_name = addition.get("name", "").lower()
         quantity = addition.get("quantity", 1)
         
