@@ -107,6 +107,9 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         root_dir = os.getcwd()
         root_menu_path = os.path.join(root_dir, 'menu_data.json')
         
+        # Define production path explicitly (previously undefined)
+        production_path = os.path.join(os.getcwd(), 'menu_data.json')
+        
         # Use provided path, location-specific path, or default
         if file_path:
             actual_path = file_path
@@ -181,6 +184,9 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
             
             # Then try absolute paths that are most likely writable
             '/app/menu_data.json',
+            
+            # Use the production path
+            production_path,
             
             # Always try tmp as reliable fallback
             tmp_path,
