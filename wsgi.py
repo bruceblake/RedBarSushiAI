@@ -1,69 +1,41 @@
-# wsgi.py - Entry point for WSGI servers with error handling
+#!/usr/bin/env python3
+"""
+WSGI entry point for the RedBarSushiAI project.
+This file is used by Render and other WSGI-compatible servers.
+"""
 import os
-import sys
 import logging
+import sys
 
-# Configure basic logging
+print("wsgi.py initializing...")
+
+# Important - BASE_URL must be set in environment before importing app
+os.environ['BASE_URL'] = os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')
+print(f"Setting BASE_URL to {os.environ['BASE_URL']}")
+
+# Disable PythonAnywhere detection to force the correct BASE_URL
+os.environ['DISABLE_PYTHONANYWHERE_DETECTION'] = 'true'
+
+# If running on Render, set the environment variable
+if os.environ.get('RENDER_SERVICE_ID'):
+    os.environ['RENDER'] = 'true'
+    print("Running on Render platform")
+
+# Configure logging early
 logging.basicConfig(
     stream=sys.stderr,
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
 )
-logger = logging.getLogger("wsgi")
 
-try:
-    # Try to import the Flask app
-    logger.info("Initializing application...")
-    from run import app as application
-    logger.info("Application initialized successfully")
-    
-    # Add basic health check
-    @application.route('/wsgi-healthcheck')
-    def wsgi_healthcheck():
-        return {"status": "ok", "message": "WSGI application is running"}
-        
-except ImportError as e:
-    logger.error(f"Import error when loading application: {e}")
-    # Create a simple Flask app as fallback
-    from flask import Flask, jsonify
-    application = Flask(__name__)
-    
-    @application.route('/')
-    def fallback_index():
-        return jsonify({
-            "status": "error", 
-            "message": "Application failed to load properly",
-            "error": str(e)
-        }), 500
-        
-    @application.route('/healthcheck')
-    def fallback_healthcheck():
-        return jsonify({
-            "status": "error", 
-            "message": "System in fallback mode - application failed to initialize"
-        }), 500
-        
-except Exception as e:
-    logger.error(f"Unexpected error when loading application: {e}")
-    # Create a simple Flask app as fallback
-    from flask import Flask, jsonify
-    application = Flask(__name__)
-    
-    @application.route('/')
-    def fallback_index():
-        return jsonify({
-            "status": "error", 
-            "message": "Application failed to load properly",
-            "error": str(e)
-        }), 500
-        
-    @application.route('/healthcheck')
-    def fallback_healthcheck():
-        return jsonify({
-            "status": "error", 
-            "message": "System in fallback mode - application failed to initialize"
-        }), 500
+# Create application instance
+from app import create_app
+application = create_app()
 
-# Gunicorn looks for an 'application' object by default
-if __name__ == "__main__":
-    application.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+# For compatibility with different WSGI servers
+app = application
+
+if __name__ == '__main__':
+    # This will only run when directly executing this file (not via WSGI server)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
