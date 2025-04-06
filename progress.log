@@ -120,3 +120,110 @@ Our menu has these ...
 2025-04-06 04:10:15,207 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [{'name': 'Chicken Burger', 'price': 12.95, 'reference_handler': 'P-BURG-CHK', 'quantity': 1, 'modifier': []}, {'name': 'Seasoned Fries', 'price': 6.99, 'reference_handler': 'P-FRS-L-#U#-', 'quantity': 1, 'modifier': []}], 'intent': 'order_food'}
 2025-04-06 04:10:15,207 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] Found 2 items, intent: 'order_food'
 2025-04-06 04:10:15,209 - INFO - werkzeug - 127.0.0.1 - - [06/Apr/2025 04:10:15] "POST /take_order HTTP/1.1" 200 -
+2025-04-06 04:15:40,962 - DEBUG - httpcore.connection - close.started
+2025-04-06 04:15:40,962 - DEBUG - httpcore.connection - close.complete
+2025-04-06 04:15:41,473 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Chicken Burger (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Cheeseburger (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Hamburger (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: French Fries (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Curly Fries (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Seasoned Fries (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Coca Cola (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Diet Coke (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Ginger Beer (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Burger Combo (Drink not Included) (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Chicken Burger (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Delicious Steak Frites (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Cheeseburger (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Hamburger (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: White Rice (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Yellow Rice (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Egg Noodles (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Ramen Noodles (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Chicken Sate (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: 3 Pieces (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: 6 Pieces (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: 9 Pieces (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Chicken Tenders (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Build your own Pizza (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: The Hawaiian (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Yuzu Salmon (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Spicy Tuna (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Teriyaki Chicken (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Mini Poke Bowl (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Yuzu Salmon (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Large Poke Bowl (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Sushi Rice (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Cruncy Cabbage Slaw (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Spicy Tofu (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Crispy Onions (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Smashed Avocado (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Build a Poke Bowl (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Coca Cola (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Diet Coke (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - item: Ginger Beer (snoozed: False)
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - Menu stats: 40 total items, 40 available, 0 snoozed
+2025-04-06 04:15:41,474 - INFO - app.utils.menu_utils - Menu categories: {'Burgers': 3, 'Sides': 8, 'Drinks': 6, 'Steak and Burgers': 5, 'Chicken': 3, '': 10, 'Pizza': 2, 'Poke Bowls': 3}
+2025-04-06 04:15:41,474 - INFO - app.routes.order - Menu data loaded: 40 items found
+2025-04-06 04:15:41,474 - INFO - app.routes.order - Available (not snoozed) items: 40
+2025-04-06 04:15:41,475 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'I would like to order a hamburger with fries'
+2025-04-06 04:15:41,475 - INFO - app.utils.agent_utils - [ORDER-PARSE] Processing order text: 'I would like to order a hamburger with fries'
+2025-04-06 04:15:41,475 - INFO - app.utils.agent_utils - [ORDER-PARSE] Using menu categories: ['Burgers', 'Chicken', 'Drinks', 'Pizza', 'Poke Bowls', 'Sides', 'Steak and Burgers']
+2025-04-06 04:15:41,475 - INFO - app.utils.agent_utils - [OPENAI-REQUEST] Function: parse_order, Model: gpt-4o
+2025-04-06 04:15:41,475 - INFO - app.utils.agent_utils - [OPENAI-MESSAGES] system: You are a restaurant order parser. Extract menu items from customer orders into JSON.; user: Extract menu items from this order: I would like to order a hamburger with fries
+Our menu has these ...
+2025-04-06 04:15:41,478 - DEBUG - openai._base_client - Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': 'You are a restaurant order parser. Extract menu items from customer orders into JSON.'}, {'role': 'user', 'content': "Extract menu items from this order: I would like to order a hamburger with fries\nOur menu has these categories: Burgers, Chicken, Drinks, Pizza, Poke Bowls, Sides, Steak and Burgers\nRespond with a JSON object containing an 'items' array of item names."}], 'model': 'gpt-4o', 'response_format': {'type': 'json_object'}}}
+2025-04-06 04:15:41,478 - DEBUG - openai._base_client - Sending HTTP Request: POST https://api.openai.com/v1/chat/completions
+2025-04-06 04:15:41,479 - DEBUG - httpcore.connection - close.started
+2025-04-06 04:15:41,479 - DEBUG - httpcore.connection - close.complete
+2025-04-06 04:15:41,479 - DEBUG - httpcore.connection - connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+2025-04-06 04:15:41,617 - DEBUG - httpcore.connection - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fd4123502b0>
+2025-04-06 04:15:41,617 - DEBUG - httpcore.connection - start_tls.started ssl_context=<ssl.SSLContext object at 0x7fd41252d0a0> server_hostname='api.openai.com' timeout=5.0
+2025-04-06 04:15:41,660 - DEBUG - httpcore.connection - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fd4122da8d0>
+2025-04-06 04:15:41,661 - DEBUG - httpcore.http11 - send_request_headers.started request=<Request [b'POST']>
+2025-04-06 04:15:41,661 - DEBUG - httpcore.http11 - send_request_headers.complete
+2025-04-06 04:15:41,661 - DEBUG - httpcore.http11 - send_request_body.started request=<Request [b'POST']>
+2025-04-06 04:15:41,661 - DEBUG - httpcore.http11 - send_request_body.complete
+2025-04-06 04:15:41,661 - DEBUG - httpcore.http11 - receive_response_headers.started request=<Request [b'POST']>
+2025-04-06 04:15:42,259 - DEBUG - httpcore.http11 - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Sun, 06 Apr 2025 08:15:58 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-expose-headers', b'X-Request-ID'), (b'openai-organization', b'red-bar-sushi'), (b'openai-processing-ms', b'468'), (b'openai-version', b'2020-10-01'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'800000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'799913'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'6ms'), (b'x-request-id', b'req_670b01a26a8c984c4520ab97442a0535'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'CF-Cache-Status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92bfd7257b1fad88-ATL'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2025-04-06 04:15:42,259 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-04-06 04:15:42,259 - DEBUG - httpcore.http11 - receive_response_body.started request=<Request [b'POST']>
+2025-04-06 04:15:42,260 - DEBUG - httpcore.http11 - receive_response_body.complete
+2025-04-06 04:15:42,260 - DEBUG - httpcore.http11 - response_closed.started
+2025-04-06 04:15:42,260 - DEBUG - httpcore.http11 - response_closed.complete
+2025-04-06 04:15:42,260 - DEBUG - openai._base_client - HTTP Response: POST https://api.openai.com/v1/chat/completions "200 OK" Headers({'date': 'Sun, 06 Apr 2025 08:15:58 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'access-control-expose-headers': 'X-Request-ID', 'openai-organization': 'red-bar-sushi', 'openai-processing-ms': '468', 'openai-version': '2020-10-01', 'x-ratelimit-limit-requests': '5000', 'x-ratelimit-limit-tokens': '800000', 'x-ratelimit-remaining-requests': '4999', 'x-ratelimit-remaining-tokens': '799913', 'x-ratelimit-reset-requests': '12ms', 'x-ratelimit-reset-tokens': '6ms', 'x-request-id': 'req_670b01a26a8c984c4520ab97442a0535', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92bfd7257b1fad88-ATL', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+2025-04-06 04:15:42,260 - DEBUG - openai._base_client - request_id: req_670b01a26a8c984c4520ab97442a0535
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [OPENAI-RESPONSE] Function: parse_order
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [OPENAI-CONTENT] {
+  "items": [
+    "hamburger",
+    "fries"
+  ]
+}...
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [OPENAI-FULL] ChatCompletion(id='chatcmpl-BJFSYikUZDvUebNAZJfZtUnv5cPUw', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='{\n  "items": [\n    "hamburger",\n    "fries"\n  ]\n}', refusal=None, role='assistant', annotations=[], audio=None, function_call=None, tool_calls=None))], created=1743927358, model='gpt-4o-2024-08-06', object='chat.completion', service_tier='default', system_fingerprint='fp_6dd05565ef', usage=CompletionUsage(completion_tokens=20, promp...
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [ORDER-PARSE] Successfully received OpenAI response
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [ORDER-PARSE] Extracted 2 potential items from order
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 2 potential items
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1] Verifying item: 'hamburger' using search_menu
+2025-04-06 04:15:42,261 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'hamburger'
+2025-04-06 04:15:42,261 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'hamburger'
+2025-04-06 04:15:42,261 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 76 name variants
+2025-04-06 04:15:42,261 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['chicken burger', 'chicken', 'burger', 'cheeseburger', '\x7fhamburger']...
+2025-04-06 04:15:42,261 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found partial name variant match: 'hamburger' ⊂ 'burger' → 'Chicken Burger'
+2025-04-06 04:15:42,261 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item via partial variant: Chicken Burger
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1-SUCCESS] Found 'hamburger' as 'Chicken Burger' ($12.95)
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1] Verifying item: 'fries' using search_menu
+2025-04-06 04:15:42,261 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'fries'
+2025-04-06 04:15:42,261 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'fries'
+2025-04-06 04:15:42,261 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 76 name variants
+2025-04-06 04:15:42,261 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['chicken burger', 'chicken', 'burger', 'cheeseburger', '\x7fhamburger']...
+2025-04-06 04:15:42,261 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found name variant match: 'fries' → 'Seasoned Fries'
+2025-04-06 04:15:42,261 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Seasoned Fries
+2025-04-06 04:15:42,261 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1-SUCCESS] Found 'fries' as 'Seasoned Fries' ($6.99)
+2025-04-06 04:15:42,262 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 2/2 items verified (100%)
+2025-04-06 04:15:42,262 - INFO - app.utils.agent_utils - [ORDER-ITEM-VERIFIED] Chicken Burger ($12.95)
+2025-04-06 04:15:42,262 - INFO - app.utils.agent_utils - [ORDER-ITEM-VERIFIED] Seasoned Fries ($6.99)
+2025-04-06 04:15:42,262 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [{'name': 'Chicken Burger', 'price': 12.95, 'reference_handler': 'P-BURG-CHK', 'quantity': 1, 'modifier': []}, {'name': 'Seasoned Fries', 'price': 6.99, 'reference_handler': 'P-FRS-L-#U#-', 'quantity': 1, 'modifier': []}], 'intent': 'order_food'}
+2025-04-06 04:15:42,262 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] Found 2 items, intent: 'order_food'
+2025-04-06 04:15:42,262 - INFO - werkzeug - 127.0.0.1 - - [06/Apr/2025 04:15:42] "POST /take_order HTTP/1.1" 200 -
