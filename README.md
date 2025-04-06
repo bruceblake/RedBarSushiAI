@@ -12,9 +12,33 @@ This repository implements a restaurant order processing system that integrates 
 
 Below is a detailed explanation of how the program works and how its components interact.
 
-## Local Development Tools
+## Local Development and Deployment
 
-We have several tools to help test the application locally without having to deploy to the server:
+We have several tools to help test and deploy the application:
+
+### Docker Deployment
+
+The application is designed to run in Docker containers with proper menu handling:
+
+```bash
+# Build the Docker image
+docker build -t redbarsushiai .
+
+# Run the container
+docker run -p 8080:8080 -e DOCKER_CONTAINER=true redbarsushiai
+```
+
+The application is configured to automatically:
+- Detect it's running in a Docker environment
+- Store and load the menu from `/app/menu_data.json`
+- Create a default menu if none exists
+
+### Menu Location
+
+The menu file is stored at the following locations based on environment:
+- In Docker: `/app/menu_data.json` (highest priority)
+- In development: At the root of the repository
+- On PythonAnywhere/Render: Managed automatically with environment detection
 
 ### Test Deliverect Menu Processing
 

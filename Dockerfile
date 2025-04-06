@@ -58,15 +58,18 @@ COPY --from=dependencies /usr/local/bin /usr/local/bin
 # Create necessary directories
 RUN mkdir -p /app/logs /app/data /app/backups
 
-# Copy critical files first to ensure they exist
-COPY menu_data.json redbar_menu_data.json* ./
-
-# Copy remaining application code
+# Copy application code
 COPY . .
 
-# Set up entrypoint
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+# Ensure entrypoint is executable
+RUN chmod +x /app/docker_entrypoint.sh
+
+# Add wait-for-it script for database dependency management
+ADD https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh /usr/local/bin/wait-for-it.sh
+RUN chmod +x /usr/local/bin/wait-for-it.sh
+
+# Make directories writable
+RUN chmod -R 755 /app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -75,5 +78,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 8080
 
-# Use entrypoint script
-ENTRYPOINT ["/docker-entrypoint.sh"]
+# Use our updated entrypoint script
+ENTRYPOINT ["/app/docker_entrypoint.sh"]
+
+# Default command
+CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120", "--worker-class", "gevent"]

@@ -26,13 +26,22 @@ if not os.environ.get('RENDER', False):
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_ROOT_PARENT = os.path.dirname(APP_ROOT)
 
+# Detect if we're running in a Docker environment
+IN_DOCKER = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER') == 'true'
+if IN_DOCKER:
+    logger.info("Docker environment detected")
+
+# Docker root directory for production runs
+DOCKER_ROOT = '/app'
+DOCKER_MENU_PATH = os.path.join(DOCKER_ROOT, 'menu_data.json')
+
 # Define all possible menu file locations to check
 POSSIBLE_MENU_PATHS = [
     # 1. Environment variable (highest priority)
     os.getenv('MENU_FILE_PATH'),
     
-    # 2. Render-specific paths
-    '/app/menu_data.json',  # Docker container path
+    # 2. Docker container paths (prioritized when in Docker)
+    DOCKER_MENU_PATH,
     '/var/task/menu_data.json',  # Alternate container path
     
     # 3. Traditional deployment paths
@@ -50,6 +59,12 @@ POSSIBLE_MENU_PATHS = [
     '/tmp/menu_data.json'
 ]
 
+# Prioritize Docker path if in Docker environment
+if IN_DOCKER and DOCKER_MENU_PATH not in POSSIBLE_MENU_PATHS:
+    logger.info(f"Prioritizing Docker menu path: {DOCKER_MENU_PATH}")
+    # Insert at beginning for highest priority after environment variable
+    POSSIBLE_MENU_PATHS.insert(1, DOCKER_MENU_PATH)
+
 # Find the first path that exists
 for path in POSSIBLE_MENU_PATHS:
     if path and os.path.exists(path):
@@ -57,9 +72,14 @@ for path in POSSIBLE_MENU_PATHS:
         logger.info(f"Menu file found at: {MENU_FILE_PATH}")
         break
 else:
-    # If no file exists, default to current directory
-    MENU_FILE_PATH = os.path.join(os.getcwd(), 'menu_data.json')
-    logger.warning(f"No menu file found, defaulting to: {MENU_FILE_PATH}")
+    # If Docker environment, default to Docker path
+    if os.path.exists(DOCKER_ROOT):
+        MENU_FILE_PATH = DOCKER_MENU_PATH
+        logger.warning(f"No menu file found, defaulting to Docker path: {MENU_FILE_PATH}")
+    else:
+        # If no file exists, default to current directory
+        MENU_FILE_PATH = os.path.join(os.getcwd(), 'menu_data.json')
+        logger.warning(f"No menu file found, defaulting to: {MENU_FILE_PATH}")
                           
 # Ensure backup folder is in a writable location
 # If in a read-only environment, use /tmp
@@ -82,6 +102,10 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         bool: True if successful, False otherwise
     """
     try:
+        # Always ensure root directory path is preferred
+        root_dir = os.getcwd()
+        root_menu_path = os.path.join(root_dir, 'menu_data.json')
+        
         # Use provided path, location-specific path, or default
         if file_path:
             actual_path = file_path
@@ -91,7 +115,8 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
             # Try to use the same directory as the default menu file
             actual_path = os.path.join(os.path.dirname(MENU_FILE_PATH), location_path)
         else:
-            actual_path = MENU_FILE_PATH
+            # Prioritize root directory path
+            actual_path = root_menu_path
         
         # Safety check - ensure it's a JSON file path
         if not actual_path.lower().endswith('.json'):
@@ -130,7 +155,11 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         
         # Try to write to the path that was requested first, then fallback to other paths
         paths_to_try = [
-            # First try the path that was requested
+            # First check if we're in Docker and prioritize Docker path
+            DOCKER_MENU_PATH if os.path.exists(DOCKER_ROOT) else None,
+            # Then try the root directory of the current environment
+            os.path.join(os.getcwd(), 'menu_data.json'),
+            # Then try the path that was requested
             actual_path,
             # Then try some additional fallbacks
             os.path.join(APP_ROOT, 'menu_data.json'),
@@ -193,6 +222,12 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
 def create_default_menu():
     """Create a default menu with some basic items when no menu file is found."""
     logger.warning("Creating default menu with basic items")
+    
+    # Log where the default menu will likely be stored
+    if os.path.exists(DOCKER_ROOT):
+        logger.info(f"Running in Docker environment, menu will be stored at {DOCKER_MENU_PATH}")
+    else:
+        logger.info(f"Running in non-Docker environment, menu will be stored at {os.path.join(os.getcwd(), 'menu_data.json')}")
     
     # Create a basic menu structure with some common sushi items
     default_menu = {
@@ -283,12 +318,14 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
     if not os.path.exists(file_path):
         # Try a series of well-known locations
         possible_files = [
-            # First try the production path explicitly
-            '/home/pegasus/mysite/RedBarSushiAI/menu_data.json',
+            # First check if we're in Docker and prioritize Docker path
+            DOCKER_MENU_PATH if os.path.exists(DOCKER_ROOT) else None,
+            # Then try the root directory of the current environment
+            os.path.join(os.getcwd(), 'menu_data.json'),
             # Then try configured paths
             MENU_FILE_PATH,
-            PRODUCTION_PATH,
             # Try various alternative paths in the production environment
+            '/home/pegasus/mysite/RedBarSushiAI/menu_data.json',
             '/home/pegasus/mysite/menu_data.json',
             '/home/pegasus/menu_data.json',
             # Try various local paths

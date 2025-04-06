@@ -81,7 +81,7 @@ DELIVERECT_API_URL = os.getenv("DELIVERECT_API_URL", 'https://api.staging.delive
 # ------------------------------
 # Local File Paths
 # ------------------------------
-MENU_FILE_PATH = os.getenv("MENU_FILE_PATH", "menu_data.json")
+MENU_FILE_PATH = os.getenv("MENU_FILE_PATH", "app/menu_data.json")
 
 # Add a more robust fallback to account for deployment paths
 if not os.path.exists(MENU_FILE_PATH):
