@@ -882,9 +882,9 @@ def register_channel_route():
     
     # Get base URL from configuration instead of hardcoding
     from app.config import BASE_URL
-    base_url = BASE_URL or "https://pegasus.pythonanywhere.com"
+    base_url = BASE_URL
     
-    # Return webhook URLs
+    # Return webhook URLs - keeping original paths for compatibility
     response_body = {
         "statusUpdateURL": f"{base_url}/order_status",
         "menuUpdateURL": f"{base_url}/menu_update",

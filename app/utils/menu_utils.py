@@ -26,20 +26,40 @@ if not os.environ.get('RENDER', False):
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_ROOT_PARENT = os.path.dirname(APP_ROOT)
 
-# Production path - known from deployment environment
-PRODUCTION_PATH = '/home/pegasus/mysite/RedBarSushiAI/menu_data.json'
+# Define all possible menu file locations to check
+POSSIBLE_MENU_PATHS = [
+    # 1. Environment variable (highest priority)
+    os.getenv('MENU_FILE_PATH'),
+    
+    # 2. Render-specific paths
+    '/app/menu_data.json',  # Docker container path
+    '/var/task/menu_data.json',  # Alternate container path
+    
+    # 3. Traditional deployment paths
+    '/home/pegasus/mysite/RedBarSushiAI/menu_data.json',  # Legacy production path
+    
+    # 4. App paths
+    os.path.join(APP_ROOT, 'menu_data.json'),
+    os.path.join(APP_ROOT_PARENT, 'menu_data.json'),
+    
+    # 5. Current directory and alternatives 
+    os.path.join(os.getcwd(), 'menu_data.json'),
+    os.path.join(os.getcwd(), 'redbar_menu_data.json'),
+    
+    # 6. Fallback to temporary directory
+    '/tmp/menu_data.json'
+]
 
-# Order of precedence:
-# 1. MENU_FILE_PATH environment variable
-# 2. Production path at /home/pegasus/mysite/RedBarSushiAI/menu_data.json
-# 3. app_root/menu_data.json
-# 4. app_root_parent/menu_data.json
-# 5. Current directory/menu_data.json
-MENU_FILE_PATH = os.getenv('MENU_FILE_PATH',
-                          os.path.exists(PRODUCTION_PATH) and PRODUCTION_PATH or
-                          os.path.exists(os.path.join(APP_ROOT, 'menu_data.json')) and os.path.join(APP_ROOT, 'menu_data.json') or
-                          os.path.exists(os.path.join(APP_ROOT_PARENT, 'menu_data.json')) and os.path.join(APP_ROOT_PARENT, 'menu_data.json') or
-                          os.path.join(os.getcwd(), 'menu_data.json'))
+# Find the first path that exists
+for path in POSSIBLE_MENU_PATHS:
+    if path and os.path.exists(path):
+        MENU_FILE_PATH = path
+        logger.info(f"Menu file found at: {MENU_FILE_PATH}")
+        break
+else:
+    # If no file exists, default to current directory
+    MENU_FILE_PATH = os.path.join(os.getcwd(), 'menu_data.json')
+    logger.warning(f"No menu file found, defaulting to: {MENU_FILE_PATH}")
                           
 # Ensure backup folder is in a writable location
 # If in a read-only environment, use /tmp
@@ -162,6 +182,55 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None) 
     except Exception as e:
         logger.error(f"Error writing menu file: {e}")
         return False
+
+def create_default_menu():
+    """Create a default menu with some basic items when no menu file is found."""
+    logger.warning("Creating default menu with basic items")
+    
+    # Create a basic menu structure with some common sushi items
+    default_menu = {
+        "items": [
+            {
+                "name": "California Roll",
+                "price": 8.99,
+                "reference_handler": "cali-roll-1",
+                "available": True,
+                "snoozed": False
+            },
+            {
+                "name": "Spicy Tuna Roll",
+                "price": 9.99,
+                "reference_handler": "spicy-tuna-1", 
+                "available": True,
+                "snoozed": False
+            },
+            {
+                "name": "Salmon Nigiri",
+                "price": 7.99,
+                "reference_handler": "salmon-nigiri-1",
+                "available": True,
+                "snoozed": False
+            },
+            {
+                "name": "Dragon Roll",
+                "price": 12.99,
+                "reference_handler": "dragon-roll-1",
+                "available": True,
+                "snoozed": False
+            }
+        ],
+        "modifiers": [],
+        "modifierGroups": [],
+        "name_variants": {
+            "california": "California Roll",
+            "cali roll": "California Roll",
+            "spicy tuna": "Spicy Tuna Roll",
+            "salmon": "Salmon Nigiri",
+            "dragon": "Dragon Roll"
+        }
+    }
+    
+    return default_menu
 
 def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = None, skip_validation: bool = False, timeout: int = 5) -> Dict[str, Any]:
     """
@@ -310,39 +379,41 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
             
         return menu_data 
     except FileNotFoundError:
-        # Log the error and return an empty menu structure
-        logger.error(f"Menu file not found at {file_path} - using empty menu structure")
+        # Log the error and create a default menu with sample items
+        logger.error(f"Menu file not found at {file_path} - using default menu")
         
-        # Create an empty menu structure
-        empty_menu = {
-            "items": [],
-            "modifiers": [],
-            "modifierGroups": [],
-            "name_variants": {}
-        }
+        # Create a default menu with common sushi items instead of an empty one
+        default_menu = create_default_menu()
         
-        # Save the empty menu structure for future use
+        # Save the default menu for future use
         try:
-            write_menu_file(empty_menu, file_path)
-            logger.info(f"Created empty menu structure at {file_path}")
+            write_menu_file(default_menu, file_path)
+            logger.info(f"Created default menu at {file_path}")
         except Exception as e:
-            logger.error(f"Could not write empty menu structure: {e}")
+            logger.error(f"Could not write default menu: {e}")
         
-        # Update cache with empty menu
-        _menu_cache = empty_menu
+        # Update cache with default menu
+        _menu_cache = default_menu
         _last_refresh_time = current_time
         
-        return empty_menu
+        return default_menu
     except Exception as e:
         logger.error(f"Error loading menu data: {e}")
-        # Return empty structure if file can't be loaded
-        empty_menu = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
+        # Return default menu structure with sample items instead of empty
+        default_menu = create_default_menu()
         
-        # Update cache with empty menu to avoid repeat errors
-        _menu_cache = empty_menu
+        # Update cache with default menu to avoid repeat errors
+        _menu_cache = default_menu
         _last_refresh_time = current_time
         
-        return empty_menu
+        # Try to save it for future use
+        try:
+            write_menu_file(default_menu, os.path.join(os.getcwd(), 'menu_data.json'))
+            logger.info("Saved default menu after loading error")
+        except Exception:
+            pass
+            
+        return default_menu
 
 def find_menu_item_by_name(item_name: str, check_availability: bool = True) -> Optional[Dict[str, Any]]:
     """

@@ -58,7 +58,10 @@ COPY --from=dependencies /usr/local/bin /usr/local/bin
 # Create necessary directories
 RUN mkdir -p /app/logs /app/data /app/backups
 
-# Copy application code
+# Copy critical files first to ensure they exist
+COPY menu_data.json redbar_menu_data.json* ./
+
+# Copy remaining application code
 COPY . .
 
 # Set up entrypoint

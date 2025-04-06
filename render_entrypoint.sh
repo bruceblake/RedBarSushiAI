@@ -13,6 +13,56 @@ log "Starting Render entrypoint script"
 export DOCKER=true
 export RENDER=true
 
+# Create a basic menu data file if none exists
+log "Ensuring menu data file exists..."
+if [ ! -f "/app/menu_data.json" ]; then
+    log "Creating default menu data file..."
+    cat > "/app/menu_data.json" << 'EOF'
+{
+    "items": [
+        {
+            "name": "California Roll",
+            "price": 8.99,
+            "reference_handler": "cali-roll-1",
+            "available": true,
+            "snoozed": false
+        },
+        {
+            "name": "Spicy Tuna Roll",
+            "price": 9.99,
+            "reference_handler": "spicy-tuna-1", 
+            "available": true,
+            "snoozed": false
+        },
+        {
+            "name": "Salmon Nigiri",
+            "price": 7.99,
+            "reference_handler": "salmon-nigiri-1",
+            "available": true,
+            "snoozed": false
+        },
+        {
+            "name": "Dragon Roll",
+            "price": 12.99,
+            "reference_handler": "dragon-roll-1",
+            "available": true,
+            "snoozed": false
+        }
+    ],
+    "modifiers": [],
+    "modifierGroups": [],
+    "name_variants": {
+        "california": "California Roll",
+        "cali roll": "California Roll",
+        "spicy tuna": "Spicy Tuna Roll",
+        "salmon": "Salmon Nigiri",
+        "dragon": "Dragon Roll"
+    }
+}
+EOF
+    log "Default menu created at /app/menu_data.json"
+fi
+
 # Database connection setup with error handling
 setup_database_connection() {
     # Use Render's database URL if available (most reliable approach)
@@ -174,9 +224,35 @@ except ImportError as e:
     python -c "
 import sys
 try:
+    import os
     from app import create_app
     app = create_app()
     print('App initialization successful')
+    
+    # Check for menu files and print debug info
+    print('\\nChecking for menu files:')
+    menu_file_paths = [
+        os.path.join(os.getcwd(), 'menu_data.json'),
+        '/app/menu_data.json',
+        '/var/task/menu_data.json'
+    ]
+    
+    for path in menu_file_paths:
+        if os.path.exists(path):
+            print(f'Menu file found at: {path}')
+            print(f'File size: {os.path.getsize(path)} bytes')
+            print(f'Last modified: {os.path.getmtime(path)}')
+            print(f'File mode: {oct(os.stat(path).st_mode)}')
+            
+            # Show first 100 chars of content
+            try:
+                with open(path, 'r') as f:
+                    content = f.read(100)
+                    print(f'Content preview: {content}...')
+            except Exception as e:
+                print(f'Could not read file: {e}')
+        else:
+            print(f'Menu file not found at: {path}')
 except Exception as e:
     print(f'WARNING: App initialization failed: {e}')
     # Don't exit - still try to start the server

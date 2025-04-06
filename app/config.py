@@ -102,7 +102,13 @@ if not os.path.exists(MENU_FILE_PATH):
 # ------------------------------
 # Base URL Configuration
 # ------------------------------
-BASE_URL = os.getenv('BASE_URL', 'https://redbarsushi.pythonanywhere.com')
+# Auto-detect Render deployment and set appropriate base URL
+if os.environ.get('RENDER', '').lower() == 'true' or os.environ.get('RENDER_SERVICE_ID'):
+    # Use Render-specific URL
+    BASE_URL = os.getenv('BASE_URL', 'https://redbarsushiai.onrender.com')
+else:
+    # Default for other environments
+    BASE_URL = os.getenv('BASE_URL', 'https://redbarsushi.pythonanywhere.com')
 
 # ------------------------------
 # Redis and Celery Configuration
