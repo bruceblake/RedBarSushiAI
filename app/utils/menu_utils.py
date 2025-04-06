@@ -69,20 +69,29 @@ BACKUP_FOLDER = os.access(os.path.dirname(MENU_FILE_PATH), os.W_OK) and os.path.
 logger.info(f"Using menu file path: {MENU_FILE_PATH}")
 logger.info(f"Using backup folder: {BACKUP_FOLDER}")
 
-def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None) -> bool:
+def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, location_id: Optional[str] = None) -> bool:
     """
     Write menu data to the configured file path.
     
     Args:
         menu_data (dict): The menu data to write
         file_path (str, optional): Override the default file path
+        location_id (str, optional): Location specific menu data
         
     Returns:
         bool: True if successful, False otherwise
     """
     try:
-        # Use provided path or default
-        actual_path = file_path or MENU_FILE_PATH
+        # Use provided path, location-specific path, or default
+        if file_path:
+            actual_path = file_path
+        elif location_id:
+            # Create location-specific file path
+            location_path = f"menu_data_{location_id}.json"
+            # Try to use the same directory as the default menu file
+            actual_path = os.path.join(os.path.dirname(MENU_FILE_PATH), location_path)
+        else:
+            actual_path = MENU_FILE_PATH
         
         # Safety check - ensure it's a JSON file path
         if not actual_path.lower().endswith('.json'):
@@ -2121,7 +2130,91 @@ def process_product_changes(product_id, data, location_id=None):
     Returns:
         bool: Success status
     """
-    pass
+    try:
+        logger.info(f"[DELIVERECT-UPDATE] Processing product change for {product_id}")
+        
+        # Load the menu data
+        menu_data = load_menu_data(location_id=location_id, force_refresh=True)
+        
+        # Find the product in the menu
+        found = False
+        for item in menu_data.get("items", []):
+            # Match by reference handler or ID
+            if (item.get("reference_handler") == product_id or 
+                item.get("id") == product_id or
+                item.get("plu") == product_id):
+                
+                # Update the item data
+                found = True
+                logger.info(f"[DELIVERECT-UPDATE] Updating product: {item.get('name')}")
+                
+                # Update basic fields
+                if "name" in data:
+                    item["name"] = data["name"]
+                if "price" in data:
+                    # Convert from cents if needed
+                    price = data["price"]
+                    item["price"] = price / 100 if price > 100 else price
+                if "description" in data:
+                    item["description"] = data["description"]
+                if "available" in data:
+                    item["available"] = bool(data["available"])
+                if "snoozed" in data:
+                    item["snoozed"] = bool(data["snoozed"])
+                    
+                # Handle availability schedule
+                if "availability" in data:
+                    try:
+                        item["availabilities"] = convert_availability(data["availability"])
+                    except Exception as e:
+                        logger.error(f"[DELIVERECT-UPDATE] Error converting availability: {e}")
+                
+                # Update snooze times if present
+                if "snoozeStart" in data:
+                    item["snoozeStart"] = data["snoozeStart"]
+                if "snoozeEnd" in data:
+                    item["snoozeEnd"] = data["snoozeEnd"]
+                
+                # Add any other fields that are present
+                for key, value in data.items():
+                    if key not in ["name", "price", "description", "available", "snoozed", 
+                                 "availability", "snoozeStart", "snoozeEnd"]:
+                        item[key] = value
+                
+                logger.info(f"[DELIVERECT-UPDATE] Product {product_id} updated successfully")
+                break
+        
+        if not found:
+            # Product not found, add it if it has enough data
+            if "name" in data and (data.get("reference_handler") or product_id):
+                new_item = {
+                    "name": data["name"],
+                    "reference_handler": data.get("reference_handler", product_id),
+                    "price": data.get("price", 0.0),
+                    "available": data.get("available", True),
+                    "snoozed": data.get("snoozed", False),
+                    "description": data.get("description", "")
+                }
+                
+                # Add any other fields
+                for key, value in data.items():
+                    if key not in ["name", "reference_handler", "price", "available", "snoozed", "description"]:
+                        new_item[key] = value
+                
+                # Add to menu
+                menu_data["items"].append(new_item)
+                logger.info(f"[DELIVERECT-UPDATE] Added new product: {new_item['name']}")
+            else:
+                logger.warning(f"[DELIVERECT-UPDATE] Product {product_id} not found and not enough data to add")
+                return False
+        
+        # Save the updated menu
+        write_menu_file(menu_data, location_id=location_id)
+        return True
+        
+    except Exception as e:
+        logger.error(f"[DELIVERECT-UPDATE] Error processing product changes: {e}")
+        return False
 
 def process_modifier_group_changes(group_id, data):
     """
@@ -2134,7 +2227,73 @@ def process_modifier_group_changes(group_id, data):
     Returns:
         bool: Success status
     """
-    pass
+    try:
+        logger.info(f"[DELIVERECT-UPDATE] Processing modifier group change for {group_id}")
+        
+        # Load the menu data
+        menu_data = load_menu_data(force_refresh=True)
+        
+        # Find the modifier group in the menu
+        found = False
+        for group in menu_data.get("modifierGroups", []):
+            if group.get("id") == group_id:
+                found = True
+                logger.info(f"[DELIVERECT-UPDATE] Updating modifier group: {group.get('name')}")
+                
+                # Update basic fields
+                if "name" in data:
+                    group["name"] = data["name"]
+                if "minAllowed" in data:
+                    group["minAllowed"] = data["minAllowed"]
+                if "maxAllowed" in data:
+                    group["maxAllowed"] = data["maxAllowed"]
+                
+                # Update modifiers list if present
+                if "modifiers" in data:
+                    group["modifiers"] = data["modifiers"]
+                
+                # Add any other fields that are present
+                for key, value in data.items():
+                    if key not in ["name", "minAllowed", "maxAllowed", "modifiers"]:
+                        group[key] = value
+                
+                logger.info(f"[DELIVERECT-UPDATE] Modifier group {group_id} updated successfully")
+                break
+        
+        if not found:
+            # Group not found, add it if it has enough data
+            if "name" in data:
+                new_group = {
+                    "id": group_id,
+                    "name": data["name"],
+                    "minAllowed": data.get("minAllowed", 0),
+                    "maxAllowed": data.get("maxAllowed", 999),
+                    "modifiers": data.get("modifiers", [])
+                }
+                
+                # Add any other fields
+                for key, value in data.items():
+                    if key not in ["id", "name", "minAllowed", "maxAllowed", "modifiers"]:
+                        new_group[key] = value
+                
+                # Create the modifierGroups list if it doesn't exist
+                if "modifierGroups" not in menu_data:
+                    menu_data["modifierGroups"] = []
+                
+                # Add to menu
+                menu_data["modifierGroups"].append(new_group)
+                logger.info(f"[DELIVERECT-UPDATE] Added new modifier group: {new_group['name']}")
+            else:
+                logger.warning(f"[DELIVERECT-UPDATE] Modifier group {group_id} not found and not enough data to add")
+                return False
+        
+        # Save the updated menu
+        write_menu_file(menu_data)
+        return True
+        
+    except Exception as e:
+        logger.error(f"[DELIVERECT-UPDATE] Error processing modifier group changes: {e}")
+        return False
 
 def process_modifier_changes(modifier_id, data):
     """
@@ -2147,7 +2306,78 @@ def process_modifier_changes(modifier_id, data):
     Returns:
         bool: Success status
     """
-    pass
+    try:
+        logger.info(f"[DELIVERECT-UPDATE] Processing modifier change for {modifier_id}")
+        
+        # Load the menu data
+        menu_data = load_menu_data(force_refresh=True)
+        
+        # Find the modifier in the menu
+        found = False
+        for modifier in menu_data.get("modifiers", []):
+            if (modifier.get("id") == modifier_id or 
+                modifier.get("reference_handler") == modifier_id):
+                
+                found = True
+                logger.info(f"[DELIVERECT-UPDATE] Updating modifier: {modifier.get('name')}")
+                
+                # Update basic fields
+                if "name" in data:
+                    modifier["name"] = data["name"]
+                if "price" in data:
+                    # Convert from cents if needed
+                    price = data["price"]
+                    modifier["price"] = price / 100 if price > 100 else price
+                if "available" in data:
+                    modifier["available"] = bool(data["available"])
+                if "snoozed" in data:
+                    modifier["snoozed"] = bool(data["snoozed"])
+                if "reference_handler" in data:
+                    modifier["reference_handler"] = data["reference_handler"]
+                
+                # Add any other fields that are present
+                for key, value in data.items():
+                    if key not in ["name", "price", "available", "snoozed", "reference_handler"]:
+                        modifier[key] = value
+                
+                logger.info(f"[DELIVERECT-UPDATE] Modifier {modifier_id} updated successfully")
+                break
+        
+        if not found:
+            # Modifier not found, add it if it has enough data
+            if "name" in data and (data.get("reference_handler") or modifier_id):
+                new_modifier = {
+                    "id": modifier_id,
+                    "name": data["name"],
+                    "reference_handler": data.get("reference_handler", modifier_id),
+                    "price": data.get("price", 0.0),
+                    "available": data.get("available", True),
+                    "snoozed": data.get("snoozed", False)
+                }
+                
+                # Add any other fields
+                for key, value in data.items():
+                    if key not in ["id", "name", "reference_handler", "price", "available", "snoozed"]:
+                        new_modifier[key] = value
+                
+                # Create modifiers list if it doesn't exist
+                if "modifiers" not in menu_data:
+                    menu_data["modifiers"] = []
+                
+                # Add to menu
+                menu_data["modifiers"].append(new_modifier)
+                logger.info(f"[DELIVERECT-UPDATE] Added new modifier: {new_modifier['name']}")
+            else:
+                logger.warning(f"[DELIVERECT-UPDATE] Modifier {modifier_id} not found and not enough data to add")
+                return False
+        
+        # Save the updated menu
+        write_menu_file(menu_data)
+        return True
+        
+    except Exception as e:
+        logger.error(f"[DELIVERECT-UPDATE] Error processing modifier changes: {e}")
+        return False
 
 def update_menu_ordering(data, location_id=None):
     """
@@ -2160,7 +2390,72 @@ def update_menu_ordering(data, location_id=None):
     Returns:
         bool: Success status
     """
-    pass
+    try:
+        logger.info(f"[DELIVERECT-UPDATE] Processing menu ordering update")
+        
+        # Load the menu data
+        menu_data = load_menu_data(location_id=location_id, force_refresh=True)
+        
+        # Check if the data contains category ordering
+        if "categoryOrder" in data and isinstance(data["categoryOrder"], list):
+            # Store the category order for future use
+            menu_data["categoryOrder"] = data["categoryOrder"]
+            logger.info(f"[DELIVERECT-UPDATE] Updated category ordering: {data['categoryOrder']}")
+        
+        # Check if the data contains product ordering per category
+        if "productOrder" in data and isinstance(data["productOrder"], dict):
+            # Store the product order for future use
+            menu_data["productOrder"] = data["productOrder"]
+            
+            # Log product ordering per category
+            for category_id, products in data["productOrder"].items():
+                if isinstance(products, list):
+                    logger.info(f"[DELIVERECT-UPDATE] Category {category_id} now has {len(products)} ordered products")
+        
+        # Check if data contains a complete menu reordering
+        if "categories" in data and isinstance(data["categories"], list):
+            # This is a more complete reordering that includes category and product orders
+            # Create a dictionary to store the existing menu items for quick lookup
+            item_map = {item.get("reference_handler"): item for item in menu_data.get("items", [])}
+            
+            # Recreate the items list in the new order
+            new_items = []
+            
+            # Process each category
+            for category in data["categories"]:
+                if isinstance(category, dict) and "id" in category and "products" in category:
+                    category_id = category["id"]
+                    products = category["products"]
+                    
+                    if isinstance(products, list):
+                        # Process each product in the category
+                        for product_id in products:
+                            if product_id in item_map:
+                                # Update the category if needed
+                                item = item_map[product_id]
+                                item["categoryId"] = category_id
+                                
+                                # Add to the new ordered list
+                                new_items.append(item)
+                                
+                                # Remove from the map to track which items are processed
+                                del item_map[product_id]
+            
+            # Add any remaining items that weren't in the ordering data
+            for remaining_item in item_map.values():
+                new_items.append(remaining_item)
+            
+            # Replace the items list with the reordered one
+            menu_data["items"] = new_items
+            logger.info(f"[DELIVERECT-UPDATE] Reordered {len(new_items)} items across categories")
+        
+        # Save the updated menu
+        write_menu_file(menu_data, location_id=location_id)
+        return True
+        
+    except Exception as e:
+        logger.error(f"[DELIVERECT-UPDATE] Error updating menu ordering: {e}")
+        return False
 
 def process_meal_deal(meal_item, component_selections):
     """
