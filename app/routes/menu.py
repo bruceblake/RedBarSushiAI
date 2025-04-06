@@ -28,11 +28,34 @@ def menu_update():
     try:
         import time  # Import here for alt_path creation
         
-        # Get JSON data from request
-        data = request.get_json()
-        if not data:
-            logger.error("[MENU-UPDATE] No data provided in request")
-            return jsonify({"error": "No data provided"}), 400
+        # Log the start of request processing
+        logger.info(f"[MENU-UPDATE] Processing menu update request from {request.remote_addr}")
+        
+        # Get content length for logging
+        content_length = request.headers.get('Content-Length', 'unknown')
+        logger.info(f"[MENU-UPDATE] Request Content-Length: {content_length}")
+        
+        # Get JSON data from request with timeout and size limit
+        try:
+            # First try to get request data
+            data = request.get_json(silent=True, force=False)
+            if data is None:
+                logger.error("[MENU-UPDATE] Failed to parse JSON, trying with force=True")
+                data = request.get_json(silent=True, force=True)
+                
+            # Check if we got valid data
+            if not data:
+                logger.error("[MENU-UPDATE] No data provided in request or invalid JSON")
+                return jsonify({"error": "No data provided or invalid JSON format"}), 400
+                
+            # Log data type and size for debugging
+            data_type = type(data).__name__
+            data_size = len(str(data)) if data else 0
+            logger.info(f"[MENU-UPDATE] Got data of type {data_type}, approximate size: {data_size} bytes")
+            
+        except Exception as e:
+            logger.error(f"[MENU-UPDATE] JSON parsing error: {str(e)}")
+            return jsonify({"error": f"Failed to parse JSON: {str(e)}"}), 400
             
         # Handle empty arrays or empty objects
         if (isinstance(data, list) and len(data) == 0) or (isinstance(data, dict) and len(data) == 0):
@@ -95,17 +118,44 @@ def menu_update():
             # Log receipt of dictionary data
             logger.info(f"[MENU-UPDATE] Received menu update. Keys: {list(data.keys())}")
         
-        # Process based on format
+        # Process based on format - with chunk processing for large menus
         try:
             if "categories" in data:
                 # Deliverect format
-                logger.info(f"[MENU-UPDATE] Processing Deliverect format with {len(data.get('categories', []))} categories")
-                processed_data = process_deliverect_menu(data)
+                categories_count = len(data.get('categories', []))
+                logger.info(f"[MENU-UPDATE] Processing Deliverect format with {categories_count} categories")
+                
+                # Check if menu is very large (might cause memory issues)
+                if categories_count > 30:
+                    logger.warning(f"[MENU-UPDATE] Large menu detected with {categories_count} categories - processing with caution")
+                
+                try:
+                    # Log memory usage before processing
+                    import resource, gc
+                    mem_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                    logger.info(f"[MENU-UPDATE] Memory usage before processing: {mem_before/1024:.2f} MB")
+                    
+                    # Process the menu data
+                    processed_data = process_deliverect_menu(data)
+                    
+                    # Force garbage collection
+                    gc.collect()
+                    
+                    # Log memory after processing
+                    mem_after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                    logger.info(f"[MENU-UPDATE] Memory usage after processing: {mem_after/1024:.2f} MB (change: {(mem_after-mem_before)/1024:.2f} MB)")
+                
+                except MemoryError:
+                    logger.error("[MENU-UPDATE] Memory error processing menu - menu may be too large")
+                    return jsonify({"error": "Menu is too large to process with available memory"}), 413
                 
                 # Verify the conversion worked
-                if not processed_data.get("items"):
+                items_count = len(processed_data.get("items", []))
+                if items_count == 0:
                     logger.warning("[MENU-UPDATE] Processed Deliverect data has no items!")
                     return jsonify({"error": "Failed to extract any items from Deliverect data"}), 400
+                    
+                logger.info(f"[MENU-UPDATE] Successfully processed {items_count} items from Deliverect data")
                     
             elif "items" in data:
                 # Our internal format
@@ -280,8 +330,23 @@ def menu_update():
         }), 200
             
     except Exception as e:
+        import traceback
         logger.error(f"[MENU-UPDATE] Error: {e}")
-        return jsonify({"error": f"Menu update failed: {str(e)}"}), 500
+        logger.error(f"[MENU-UPDATE] Traceback: {traceback.format_exc()}")
+        
+        # Try to handle memory errors specially
+        error_str = str(e).lower()
+        if "memory" in error_str or "allocation" in error_str:
+            return jsonify({
+                "error": "Menu update failed due to memory limitations. Try a smaller menu or contact support.",
+                "details": str(e)
+            }), 413  # Request Entity Too Large
+        
+        # For all other errors
+        return jsonify({
+            "error": "Menu update failed. See server logs for details.",
+            "details": str(e)
+        }), 500
 
 
 @menu_bp.route('/snoozeUnsnooze', methods=['POST'])
@@ -448,4 +513,71 @@ def clear_menu_cache():
         "success": True, 
         "message": f"Menu cache cleared, {item_count} items loaded",
         "file_path": MENU_FILE_PATH
+    }), 200
+
+
+@menu_bp.route('/debug_menu', methods=['GET'])
+def debug_menu():
+    """
+    Debug endpoint to get detailed information about the menu system
+    """
+    import os
+    import sys
+    import platform
+    
+    # Force a full reload
+    menu_data = load_menu_data(force_refresh=True)
+    item_count = len(menu_data.get("items", []))
+    
+    # Check file paths
+    possible_paths = [
+        '/home/pegasus/mysite/RedBarSushiAI/menu_data.json',
+        '/home/pegasus/mysite/menu_data.json',
+        os.path.join(os.getcwd(), 'menu_data.json'),
+        os.path.join(os.getcwd(), 'redbar_menu_data.json'),
+        '/tmp/menu_data.json'
+    ]
+    
+    file_status = []
+    for path in possible_paths:
+        exists = os.path.exists(path)
+        size = 0
+        item_count_in_file = 0
+        if exists:
+            try:
+                size = os.path.getsize(path)
+                with open(path, 'r') as f:
+                    try:
+                        file_data = json.load(f)
+                        item_count_in_file = len(file_data.get('items', []))
+                    except:
+                        item_count_in_file = "Error parsing file"
+            except:
+                size = "Error getting size"
+                
+        file_status.append({
+            "path": path, 
+            "exists": exists,
+            "size_bytes": size,
+            "item_count": item_count_in_file
+        })
+    
+    # System info
+    system_info = {
+        "platform": platform.platform(),
+        "python_version": sys.version,
+        "cwd": os.getcwd(),
+        "menu_file_path": MENU_FILE_PATH,
+        "env_menu_file_path": os.getenv('MENU_FILE_PATH', 'Not set')
+    }
+    
+    # Return detailed status
+    return jsonify({
+        "success": True,
+        "loaded_menu_info": {
+            "item_count": item_count,
+            "sample_items": [item.get('name', 'No name') for item in menu_data.get("items", [])[:5]]
+        },
+        "file_status": file_status,
+        "system_info": system_info
     }), 200
