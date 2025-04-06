@@ -97,9 +97,13 @@ def test_realtime_client():
     """Test OpenAI Realtime client"""
     try:
         import openai_realtime_client
-        from openai_realtime_client import Session
         
+        # Check module contents to see available classes
         logger.info(f"Using OpenAI Realtime client version: {openai_realtime_client.__version__}")
+        logger.info(f"Available module contents: {dir(openai_realtime_client)}")
+        
+        # Try importing Session without WebSocketResponse
+        from openai_realtime_client import Session
         
         # Test creating a session (without actually connecting)
         api_key = os.environ.get('OPENAI_API_KEY')
@@ -107,7 +111,24 @@ def test_realtime_client():
             logger.error("❌ OPENAI_API_KEY environment variable is not set")
             return False
             
-        # Just check that the Session class is accessible
+        # Check Session class methods
+        logger.info("Session class methods:")
+        logger.info(f"Methods: {dir(Session)}")
+        
+        # Check if create method exists
+        if hasattr(Session, 'create'):
+            logger.info("✅ Session.create method exists")
+        else:
+            logger.error("❌ Session.create method does not exist")
+            
+        # Check if events method is an instance method
+        sample_methods = ['send_event', 'events', 'close']
+        for method in sample_methods:
+            if method in dir(Session):
+                logger.info(f"❌ {method} appears to be a class method - should be instance method")
+            else:
+                logger.info(f"✅ {method} correctly not found as class method")
+                
         logger.info("✅ OpenAI Realtime client Session class is accessible")
         return True
         
@@ -173,6 +194,59 @@ def test_filesystem():
         logger.error(traceback.format_exc())
         return False
 
+def test_redis_url():
+    """Test Redis URL format"""
+    try:
+        # Check if Redis URL is set
+        import os
+        redis_url = os.environ.get('REDIS_URL')
+        celery_broker_url = os.environ.get('CELERY_BROKER_URL')
+        celery_result_backend = os.environ.get('CELERY_RESULT_BACKEND')
+        
+        logger.info(f"Redis URL: {redis_url or 'Not set'}")
+        logger.info(f"Celery broker URL: {celery_broker_url or 'Not set'}")
+        logger.info(f"Celery result backend: {celery_result_backend or 'Not set'}")
+        
+        # Try to parse the URLs with celery utils if available
+        try:
+            import celery.app.backends
+            
+            urls_to_check = []
+            if redis_url:
+                urls_to_check.append(("REDIS_URL", redis_url))
+            if celery_broker_url:
+                urls_to_check.append(("CELERY_BROKER_URL", celery_broker_url))
+            if celery_result_backend:
+                urls_to_check.append(("CELERY_RESULT_BACKEND", celery_result_backend))
+                
+            for name, url in urls_to_check:
+                if url.startswith('redis://'):
+                    try:
+                        # Try to parse database number
+                        parts = url.split('/')
+                        if len(parts) >= 4:
+                            db_part = parts[-1]
+                            try:
+                                db_num = int(db_part)
+                                logger.info(f"✅ {name} has valid Redis URL format with database {db_num}")
+                            except ValueError:
+                                logger.error(f"❌ {name} has invalid database number: {db_part}")
+                        else:
+                            logger.warning(f"⚠️ {name} does not specify a database number")
+                    except Exception as e:
+                        logger.error(f"❌ Error parsing {name}: {e}")
+                else:
+                    logger.error(f"❌ {name} does not start with 'redis://'")
+        except ImportError:
+            logger.warning("Celery not available for URL testing")
+            
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Redis URL test failed: {e}")
+        logger.error(traceback.format_exc())
+        return False
+
 def run_all_tests():
     """Run all diagnostic tests"""
     logger.info("=" * 60)
@@ -202,6 +276,10 @@ def run_all_tests():
     # Filesystem
     logger.info("\n[6] Testing filesystem access...")
     test_filesystem()
+    
+    # Redis URL
+    logger.info("\n[7] Testing Redis URL format...")
+    test_redis_url()
     
     logger.info("=" * 60)
     logger.info("Diagnostic tests complete")

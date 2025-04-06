@@ -25,7 +25,8 @@ REALTIME_AVAILABLE = False
 # First try the standard import approach
 try:
     import openai_realtime_client
-    from openai_realtime_client import WebSocketResponse, Session
+    # Only import Session, WebSocketResponse isn't available in the current version
+    from openai_realtime_client import Session
     
     # Check if we can access the version which confirms the package is working
     version = getattr(openai_realtime_client, "__version__", "unknown")
@@ -52,7 +53,7 @@ except ImportError as import_error:
             try:
                 # Try importing again
                 import openai_realtime_client
-                from openai_realtime_client import WebSocketResponse, Session
+                from openai_realtime_client import Session
                 REALTIME_AVAILABLE = True
                 version = getattr(openai_realtime_client, "__version__", "unknown")
                 logging.info(f"OpenAI Realtime client v{version} is now available")
@@ -70,7 +71,7 @@ except ImportError as import_error:
                     logging.info("Successfully installed openai-realtime-client with dependencies")
                     try:
                         import openai_realtime_client
-                        from openai_realtime_client import WebSocketResponse, Session
+                        from openai_realtime_client import Session
                         REALTIME_AVAILABLE = True
                         version = getattr(openai_realtime_client, "__version__", "unknown")
                         logging.info(f"OpenAI Realtime client v{version} is now available")

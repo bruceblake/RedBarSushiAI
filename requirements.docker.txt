@@ -43,7 +43,9 @@ MarkupSafe==3.0.2
 multidict==6.1.0
 openai==1.68.2
 openai-agents @ git+https://github.com/openai/openai-agents-python.git@a34f34dc2e7d1e7e6443edae94f01d49b8e66a5f
-openai-realtime-client==0.1.0
+openai-realtime-client==0.1.1
+python-socketio==5.8.0 
+eventlet==0.33.3
 packaging==24.2
 parso==0.8.4
 pluggy==1.5.0

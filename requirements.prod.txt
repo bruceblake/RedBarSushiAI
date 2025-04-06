@@ -28,3 +28,9 @@ Levenshtein==0.26.1
 RapidFuzz==3.12.1
 python-dateutil==2.9.0.post0
 simple-websocket==1.1.0
+
+# WebSocket/real-time audio support
+websockets==13.1
+openai-realtime-client==0.1.1
+python-socketio==5.8.0
+eventlet==0.33.3
