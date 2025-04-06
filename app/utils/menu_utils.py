@@ -107,9 +107,6 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         root_dir = os.getcwd()
         root_menu_path = os.path.join(root_dir, 'menu_data.json')
         
-        # Define production path explicitly (previously undefined)
-        production_path = os.path.join(os.getcwd(), 'menu_data.json')
-        
         # Use provided path, location-specific path, or default
         if file_path:
             actual_path = file_path
@@ -167,75 +164,11 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         logger.info(f"Current directory: {os.getcwd()}")
         logger.info(f"Requested path: {actual_path}")
         
-        # Try to write to the path that was requested first, then fallback to other paths
-        paths_to_try = [
-            # First try the path that was requested
-            actual_path,
-            
-            # Then try Docker path if applicable
-            docker_path,
-            
-            # Then try root directory
-            root_menu_path,
-            
-            # Then try app root paths
-            os.path.join(APP_ROOT, 'menu_data.json'),
-            os.path.join(APP_ROOT_PARENT, 'menu_data.json'),
-            
-            # Then try absolute paths that are most likely writable
-            '/app/menu_data.json',
-            
-            # Use the production path
-            production_path,
-            
-            # Always try tmp as reliable fallback
-            tmp_path,
-            
-            # Last resort with timestamp
-            f"/tmp/menu_data_{int(time.time())}.json"
-        ]
+        # Try to write the file
+        with open(actual_path, 'w') as f:
+            json.dump(menu_data, f, indent=2)
+        logger.info(f"Menu data written to {actual_path}")
         
-        # Filter out None values
-        paths_to_try = [p for p in paths_to_try if p]
-        
-        success = False
-        for try_path in paths_to_try:
-            try:
-                # Make sure directory exists
-                directory = os.path.dirname(try_path)
-                if directory and not os.path.exists(directory):
-                    try:
-                        os.makedirs(directory, exist_ok=True)
-                    except:
-                        # If we can't create the directory, skip this path
-                        continue
-                
-                # Try to write the file
-                with open(try_path, 'w') as f:
-                    json.dump(menu_data, f, indent=2)
-                logger.info(f"Menu data written to {try_path}")
-                
-                # Update the path for future reference
-                actual_path = try_path
-                success = True
-                break
-            except Exception as we:
-                logger.warning(f"Could not write to {try_path}: {we}")
-                continue
-                
-        if not success:
-            logger.error("Failed to write menu data to any location")
-            # One last attempt - try /tmp with a timestamp
-            last_resort = f"/tmp/menu_data_last_resort_{int(time.time())}.json"
-            try:
-                with open(last_resort, 'w') as f:
-                    json.dump(menu_data, f, indent=2)
-                logger.info(f"Last resort: Menu data written to {last_resort}")
-                actual_path = last_resort
-            except Exception as e:
-                logger.error(f"Even last resort write failed: {e}")
-                # Nothing more we can do
-            
         # Invalidate cache
         global _menu_cache, _last_refresh_time
         _menu_cache = None
