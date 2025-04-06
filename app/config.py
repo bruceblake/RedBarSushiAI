@@ -106,6 +106,9 @@ if not os.path.exists(MENU_FILE_PATH):
 if os.environ.get('RENDER', '').lower() == 'true' or os.environ.get('RENDER_SERVICE_ID'):
     # Use Render-specific URL
     BASE_URL = os.getenv('BASE_URL', 'https://redbarsushiai.onrender.com')
+else:
+    # Default BASE_URL for local development
+    BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
 
 # ------------------------------
 # Redis and Celery Configuration

@@ -8,7 +8,7 @@ import re
 from collections import defaultdict
 from flask import Blueprint, request, session, Response, jsonify
 from twilio.twiml.voice_response import VoiceResponse
-from app.config import DELIVERECT_API_URL
+from app.config import DELIVERECT_API_URL, BASE_URL
 from app.utils.deliverect import build_deliverect_order, get_deliverect_headers
 from app.utils.menu_utils import find_menu_item_by_name
 from app.utils.order_utils import (
@@ -880,16 +880,15 @@ def register_channel_route():
     else:
         return jsonify({"error": f"Invalid status: {status}"}), 400
     
-    # Get base URL from configuration instead of hardcoding
-    base_url = "https://redbarsushiai.onrender.com"
-    
     # Return webhook URLs - keeping original paths for compatibility
     response_body = {
-        "statusUpdateURL": f"{base_url}/order_status",
-        "menuUpdateURL": f"{base_url}/menu_update",
-        "snoozeUnsnoozeURL": f"{base_url}/snoozeUnsnooze",
-        "busyModeURL": f"{base_url}/busy_mode",
-        "updatePrepTimeURL": f"{base_url}/updatePrepTime",
-        "courierUpdateURL": f"{base_url}/courierUpdate"
+        "statusUpdateURL": f"{BASE_URL}/order_status",
+        "menuUpdateURL": f"{BASE_URL}/menu_update",
+        "snoozeUnsnoozeURL": f"{BASE_URL}/snoozeUnsnooze",
+        "busyModeURL": f"{BASE_URL}/busy_mode",
+        "updatePrepTimeURL": f"{BASE_URL}/updatePrepTime",
+        "courierUpdateURL": f"{BASE_URL}/courierUpdate"
     }
+    
+    log_info(f"Registered webhooks with base URL: {BASE_URL}")
     return jsonify(response_body), 200
