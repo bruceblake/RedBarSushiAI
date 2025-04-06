@@ -74,8 +74,8 @@ def take_order():
                                if item.get('name'))
         if valid_name_count == 0 and item_count > 0:
             logger.error(f"Menu has {item_count} items but none have names!")
-            from app.utils.menu_utils import create_default_menu
-            menu_data = create_default_menu()
+            # Create an empty menu structure instead of default menu
+            menu_data = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
             logger.info("Using default menu instead")
         
         # Get available items - items with names and not snoozed
@@ -103,13 +103,13 @@ def take_order():
                 except Exception as e:
                     logger.error(f"Error processing Deliverect format: {e}")
                     
-        # If still no items, use the default menu
+        # If still no items, use an empty menu structure
         if not available_items:
-            from app.utils.menu_utils import create_default_menu
-            logger.warning("No available items found - creating default menu")
-            menu_data = create_default_menu()
+            logger.warning("No available items found - creating empty menu structure")
+            # Create an empty menu structure instead of default menu
+            menu_data = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
             
-            # Get available items from default menu
+            # Get available items from menu structure (will be empty)
             available_items = [
                 item for item in menu_data.get('items', [])
                 if item.get('name') and item.get("snoozed", False) == False
