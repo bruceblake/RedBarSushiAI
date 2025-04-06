@@ -341,12 +341,13 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
         
         return empty_menu
 
-def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
+def find_menu_item_by_name(item_name: str, check_availability: bool = True) -> Optional[Dict[str, Any]]:
     """
     Find a menu item by name.
     
     Args:
         item_name (str): The name of the item to find
+        check_availability (bool): Whether to filter out unavailable items
         
     Returns:
         dict: The menu item if found, None otherwise
@@ -397,8 +398,8 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     for actual_name in exact_match_names:
         for item in menu_data.get("items", []):
             if item.get("name", "").lower() == actual_name.lower():
-                # Verify this item is available before returning it
-                if item.get("available", True) and not item.get("snoozed", False):
+                # Verify this item is available if required
+                if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
                     logger.info(f"[MENU-LOOKUP] Found matching menu item: {item.get('name')}")
                     return item
                 else:
@@ -408,8 +409,8 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     for item in menu_data.get("items", []):
         item_name_in_menu = item.get("name", "").lower()
         if item_name_in_menu == item_name_lower:
-            # Verify this item is available before returning it
-            if item.get("available", True) and not item.get("snoozed", False):
+            # Verify this item is available if required
+            if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
                 logger.info(f"[MENU-LOOKUP] Found direct match: '{item_name_lower}' = '{item_name_in_menu}'")
                 return item
             else:
@@ -430,8 +431,8 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     for actual_name in partial_matches:
         for item in menu_data.get("items", []):
             if item.get("name", "").lower() == actual_name.lower():
-                # Verify this item is available before returning it
-                if item.get("available", True) and not item.get("snoozed", False):
+                # Verify this item is available if required
+                if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
                     logger.info(f"[MENU-LOOKUP] Found matching menu item via partial variant: {item.get('name')}")
                     return item
                 else:
@@ -443,12 +444,20 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
         # Only do partial matching if both strings are reasonably long
         if len(item_name_lower) >= 3 and len(item_name_in_menu) >= 3:
             if item_name_lower in item_name_in_menu or item_name_in_menu in item_name_lower:
-                # Verify this item is available before returning it
-                if item.get("available", True) and not item.get("snoozed", False):
+                # Verify this item is available if required
+                if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
                     logger.info(f"[MENU-LOOKUP] Found partial item match: '{item_name_lower}' ⊂ '{item_name_in_menu}'")
                     return item
                 else:
                     logger.warning(f"[MENU-LOOKUP] Found match '{item_name_in_menu}' but item is unavailable/snoozed")
+    
+    # One last try - if check_availability is true, try again without checking
+    if check_availability:
+        item = find_menu_item_by_name(item_name, check_availability=False)
+        if item:
+            logger.warning(f"[MENU-LOOKUP] Found item '{item.get('name')}' but it's unavailable/snoozed")
+            # Still return None since the item isn't available
+            return None
     
     # No match found
     logger.warning(f"[MENU-LOOKUP] No match found for '{item_name}'")

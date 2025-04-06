@@ -253,26 +253,38 @@ def confirm_order_from_initial():
 
         # Build and send to Deliverect
         try:
-            deliverect_payload = build_deliverect_order(
-                sender=sender, 
-                caller_name=caller_name, 
-                order_items=order_items, 
-                total_price=total_price, 
-                order_id=order_id
-            )
+            # Import the validation function to ensure all items have reference handlers
+            from app.utils.order_utils import prepare_order_for_deliverect
             
-            response_deliv = requests.post(
-                DELIVERECT_API_URL, 
-                json=deliverect_payload, 
-                headers=get_deliverect_headers(),
-                timeout=10
-            )
+            # Validate order items before building order 
+            validated_items = prepare_order_for_deliverect(order_items)
             
-            if response_deliv.status_code != 200:
-                log_info(f"Deliverect API error: Status {response_deliv.status_code}, Response: {response_deliv.text}")
+            # Check if we still have valid items after validation
+            if not validated_items:
+                log_info("No valid items with reference handlers in order, cannot submit to Deliverect")
+                # Don't fail here since we still want to save the order in our system
             else:
-                log_info(f"Deliverect order successfully submitted: {response_deliv.text}")
-        except requests.RequestException as e:
+                # Build the order with validated items
+                deliverect_payload = build_deliverect_order(
+                    sender=sender, 
+                    caller_name=caller_name, 
+                    order_items=validated_items, 
+                    total_price=total_price, 
+                    order_id=order_id
+                )
+                
+                response_deliv = requests.post(
+                    DELIVERECT_API_URL, 
+                    json=deliverect_payload, 
+                    headers=get_deliverect_headers(),
+                    timeout=10
+                )
+                
+                if response_deliv.status_code != 200:
+                    log_info(f"Deliverect API error: Status {response_deliv.status_code}, Response: {response_deliv.text}")
+                else:
+                    log_info(f"Deliverect order successfully submitted: {response_deliv.text}")
+        except Exception as e:
             log_info(f"Error sending order to Deliverect: {str(e)}")
 
         # Send SMS confirmation (offload to Celery)
@@ -437,12 +449,26 @@ def apply_modifications(current_order, modifications):
                     "modifier": []
                 }
             else:
-                # If not found in menu, create a basic structure
-                addition = {
-                    "name": item_name.title(),
-                    "quantity": quantity,
-                    "modifier": []
-                }
+                # Check if the item exists in the menu before adding
+                menu_item = find_menu_item_by_name(item_name)
+                if menu_item:
+                    # Found in menu, use proper data including reference handler
+                    addition = {
+                        "name": menu_item.get("name"),
+                        "price": menu_item.get("price", 0),
+                        "reference_handler": menu_item.get("reference_handler", ""),
+                        "quantity": quantity,
+                        "modifier": []
+                    }
+                else:
+                    # Not found in menu, create basic structure but tell the user
+                    logger.warning(f"[ORDER-MODIFY] Item not found in menu: {item_name}")
+                    # This item will fail validation later and be removed
+                    addition = {
+                        "name": item_name.title(), 
+                        "quantity": quantity,
+                        "modifier": []
+                    }
         
         # Use the dictionary format
         item_name = addition.get("name", "").lower()
@@ -532,6 +558,42 @@ def confirm_order_after_modification():
             return Response(str(response), mimetype='text/xml')
         
         # Send to Deliverect and SMS confirmation
+        try:
+            # Import the validation function to ensure all items have reference handlers
+            from app.utils.order_utils import prepare_order_for_deliverect
+            
+            # Validate order items before building order 
+            validated_items = prepare_order_for_deliverect(order_items)
+            
+            # Check if we still have valid items after validation
+            if not validated_items:
+                log_info("No valid items with reference handlers in order, cannot submit to Deliverect")
+                # Don't fail here since we still want to save the order in our system
+            else:
+                # Build and send the order 
+                deliverect_payload = build_deliverect_order(
+                    sender=sender, 
+                    caller_name=caller_name, 
+                    order_items=validated_items, 
+                    total_price=session.get('total_price', 0.0), 
+                    order_id=order_id
+                )
+                
+                response_deliv = requests.post(
+                    DELIVERECT_API_URL, 
+                    json=deliverect_payload, 
+                    headers=get_deliverect_headers(),
+                    timeout=10
+                )
+                
+                if response_deliv.status_code != 200:
+                    log_info(f"Deliverect API error: Status {response_deliv.status_code}, Response: {response_deliv.text}")
+                else:
+                    log_info(f"Deliverect order successfully submitted: {response_deliv.text}")
+        except Exception as e:
+            log_info(f"Error sending order to Deliverect: {str(e)}")
+            
+        # Always send SMS confirmation regardless of Deliverect status
         import tasks
         tasks.send_confirmation_sms_task.delay(
             order_id, 
