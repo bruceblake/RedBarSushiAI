@@ -821,15 +821,32 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     
     # STEP 1: Extract categories and process the main products
     categories = deliverect_menu.get("categories", [])
+    if not isinstance(categories, list):
+        logger.warning(f"[DELIVERECT] Categories is not a list: {type(categories)}")
+        categories = []
+        
     logger.info(f"[DELIVERECT] Processing {len(categories)} categories")
     
     for category in categories:
+        # Ensure category is a dictionary
+        if not isinstance(category, dict):
+            logger.warning(f"[DELIVERECT] Category is not a dictionary: {type(category)}")
+            continue
         cat_id = category.get("id")
         cat_name = category.get("name", "")
         products = category.get("products", [])
         
+        # Ensure products is a list
+        if not isinstance(products, list):
+            logger.warning(f"[DELIVERECT] Products in category {cat_id} is not a list: {type(products)}")
+            products = []
+        
         # Process each product in the category
         for product in products:
+            # Ensure product is a dictionary
+            if not isinstance(product, dict):
+                logger.warning(f"[DELIVERECT] Product in category {cat_id} is not a dictionary: {type(product)}")
+                continue
             prod_id = product.get("id")
             prod_name = product.get("name")
             
@@ -936,7 +953,18 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
             
             # Process modifier groups references
             mod_group_ids = []
-            for group in product.get("modifierGroups", []):
+            # Ensure modifierGroups is a list
+            modifier_groups = product.get("modifierGroups", [])
+            if not isinstance(modifier_groups, list):
+                logger.warning(f"[DELIVERECT] modifierGroups for product {prod_id} is not a list: {type(modifier_groups)}")
+                modifier_groups = []
+                
+            for group in modifier_groups:
+                # Ensure group is a dictionary
+                if not isinstance(group, dict):
+                    logger.warning(f"[DELIVERECT] Modifier group for product {prod_id} is not a dictionary: {type(group)}")
+                    continue
+                    
                 group_id = group.get("id")
                 if group_id:
                     mod_group_ids.append(group_id)
@@ -956,8 +984,35 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     
     # First collect all modifier groups from the nested structure
     for category in categories:
-        for product in category.get("products", []):
-            for group in product.get("modifierGroups", []):
+        # Ensure category is a dictionary
+        if not isinstance(category, dict):
+            logger.warning(f"[DELIVERECT-MENU] Category is not a dictionary in collecting modifiers: {type(category)}")
+            continue
+            
+        # Get products and ensure it's a list
+        products = category.get("products", [])
+        if not isinstance(products, list):
+            logger.warning(f"[DELIVERECT-MENU] Products in category {category.get('id', 'unknown')} is not a list: {type(products)}")
+            continue
+            
+        for product in products:
+            # Ensure product is a dictionary
+            if not isinstance(product, dict):
+                logger.warning(f"[DELIVERECT-MENU] Product in category {category.get('id', 'unknown')} is not a dictionary: {type(product)}")
+                continue
+                
+            # Get modifierGroups and ensure it's a list
+            modifier_groups = product.get("modifierGroups", [])
+            if not isinstance(modifier_groups, list):
+                logger.warning(f"[DELIVERECT-MENU] ModifierGroups in product {product.get('id', 'unknown')} is not a list: {type(modifier_groups)}")
+                continue
+                
+            for group in modifier_groups:
+                # Ensure group is a dictionary
+                if not isinstance(group, dict):
+                    logger.warning(f"[DELIVERECT-MENU] Group in product {product.get('id', 'unknown')} is not a dictionary: {type(group)}")
+                    continue
+                    
                 group_id = group.get("id")
                 
                 # Skip duplicates
