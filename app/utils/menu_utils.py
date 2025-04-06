@@ -731,11 +731,72 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                             if isinstance(cat, dict) and "products" in cat:
                                 # Check if products contain valid items with names
                                 if isinstance(cat["products"], list):
+                                    all_strings = True
                                     for prod in cat["products"]:
                                         if isinstance(prod, dict) and "name" in prod:
                                             logger.info(f"[DELIVERECT-MENU] Found valid product in category: {prod.get('name')}")
                                             # At least one real product found, process normally
                                             return process_deliverect_menu(first_item, location_id)
+                                        elif not isinstance(prod, str):
+                                            all_strings = False
+                                            
+                                    # Special case: If all products are strings (IDs), check if there's a products dict elsewhere
+                                    if all_strings and all(isinstance(p, str) for p in cat["products"]):
+                                        logger.info(f"[DELIVERECT-MENU] Found category with product ID strings, looking for product mapping")
+                                        
+                                        # Look for a products dictionary in the first item
+                                        if "products" in first_item and isinstance(first_item["products"], dict):
+                                            # This is the ID-to-product mapping
+                                            product_map = first_item["products"]
+                                            logger.info(f"[DELIVERECT-MENU] Found product mapping with {len(product_map)} products")
+                                            
+                                            # Replace each category's product IDs with actual product objects
+                                            for category in first_item["categories"]:
+                                                if isinstance(category, dict) and "products" in category and isinstance(category["products"], list):
+                                                    real_products = []
+                                                    for prod_id in category["products"]:
+                                                        if isinstance(prod_id, str) and prod_id in product_map:
+                                                            real_products.append(product_map[prod_id])
+                                                            logger.info(f"[DELIVERECT-MENU] Resolved product ID {prod_id} to {product_map[prod_id].get('name', 'Unnamed')}")
+                                                    
+                                                    # Replace string IDs with actual product objects
+                                                    if real_products:
+                                                        category["products"] = real_products
+                                                        
+                                            # Now process with the enriched data
+                                            return process_deliverect_menu(first_item, location_id)
+                                            
+                                # Look for the products mapping in a different location or format
+                                for key in first_item:
+                                    if key != "categories" and isinstance(first_item[key], dict):
+                                        # Check if this dictionary contains product objects with names
+                                        product_map = {}
+                                        for product_id, product_data in first_item[key].items():
+                                            if isinstance(product_data, dict) and "name" in product_data:
+                                                product_map[product_id] = product_data
+                                        
+                                        # If we found products, try to map them to categories
+                                        if product_map:
+                                            logger.info(f"[DELIVERECT-MENU] Found potential product mapping in '{key}' with {len(product_map)} products")
+                                            
+                                            # Replace each category's product IDs with actual product objects
+                                            products_mapped = False
+                                            for category in first_item["categories"]:
+                                                if isinstance(category, dict) and "products" in category and isinstance(category["products"], list):
+                                                    real_products = []
+                                                    for prod_id in category["products"]:
+                                                        if isinstance(prod_id, str) and prod_id in product_map:
+                                                            real_products.append(product_map[prod_id])
+                                                            products_mapped = True
+                                                            logger.info(f"[DELIVERECT-MENU] Resolved product ID {prod_id} to {product_map[prod_id].get('name', 'Unnamed')}")
+                                                    
+                                                    # Replace string IDs with actual product objects
+                                                    if real_products:
+                                                        category["products"] = real_products
+                                            
+                                            # Process the data if we successfully mapped products
+                                            if products_mapped:
+                                                return process_deliverect_menu(first_item, location_id)
                     
                     # No valid products found in categories, attempt deep inspection
                     logger.info("[DELIVERECT-MENU] Categories found but no valid products, attempting deep inspection")
@@ -1041,7 +1102,48 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
             # If we got here, it's a list we couldn't extract useful data from through standard methods
             # Perform deep recursive inspection to find usable menu data
             try:
-                # First attempt: detailed inspection of the first few list items
+                # First attempt: Check for typical Deliverect ID-based format
+                # For Deliverect's format where categories have product IDs and products dict has the details
+                if isinstance(deliverect_menu, list) and len(deliverect_menu) > 0 and isinstance(deliverect_menu[0], dict):
+                    first_item = deliverect_menu[0]
+                    # Look for categories with string IDs and a products dictionary
+                    if ("categories" in first_item and isinstance(first_item["categories"], list) and 
+                        any(isinstance(cat, dict) and 
+                            "products" in cat and 
+                            isinstance(cat["products"], list) and 
+                            all(isinstance(p, str) for p in cat["products"])
+                            for cat in first_item["categories"])):
+                        
+                        # Now look for a products dictionary mapping
+                        product_map = {}
+                        for key, value in first_item.items():
+                            if isinstance(value, dict) and key != "categories":
+                                # See if this dict has product-like entries
+                                for product_id, product_data in value.items():
+                                    if isinstance(product_data, dict) and "name" in product_data:
+                                        product_map[product_id] = product_data
+                        
+                        # If we found product mappings, replace the ID strings
+                        if product_map:
+                            logger.info(f"[DELIVERECT-MENU] Found {len(product_map)} products in mapping dictionary")
+                            
+                            # Replace each category's product IDs with actual product objects
+                            for category in first_item["categories"]:
+                                if isinstance(category, dict) and "products" in category and isinstance(category["products"], list):
+                                    real_products = []
+                                    for prod_id in category["products"]:
+                                        if isinstance(prod_id, str) and prod_id in product_map:
+                                            real_products.append(product_map[prod_id])
+                                            logger.info(f"[DELIVERECT-MENU] Mapped product ID {prod_id} to {product_map[prod_id].get('name', 'Unnamed')}")
+                                    
+                                    # Replace string IDs with actual product objects
+                                    if real_products:
+                                        category["products"] = real_products
+                                        
+                            # Now process with the enriched data
+                            return process_deliverect_menu(first_item, location_id)
+                
+                # Standard detailed inspection approach
                 import json
                 detailed_inspection = f"List format - first item keys: "
                 
