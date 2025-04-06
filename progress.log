@@ -372,3 +372,11 @@ Our menu has these ...
 2025-04-06 04:31:23,328 - INFO - app.utils.menu_utils - Menu categories: {'Uncategorized': 4}
 2025-04-06 04:31:23,328 - INFO - app.routes.menu - [MENU-UPDATE] Menu updated successfully with 4 items
 2025-04-06 04:31:23,328 - INFO - werkzeug - 127.0.0.1 - - [06/Apr/2025 04:31:23] "POST /menu_update HTTP/1.1" 200 -
+2025-04-06 05:12:33,329 - DEBUG - httpcore.connection - close.started
+2025-04-06 05:12:33,339 - DEBUG - httpcore.connection - close.complete
+2025-04-06 05:12:38,440 - INFO - werkzeug - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001
+2025-04-06 05:12:38,440 - INFO - werkzeug - [33mPress CTRL+C to quit[0m
+2025-04-06 05:12:38,441 - INFO - werkzeug -  * Restarting with stat
+2025-04-06 05:12:41,623 - DEBUG - httpcore.connection - close.started
+2025-04-06 05:12:41,623 - DEBUG - httpcore.connection - close.complete
