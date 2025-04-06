@@ -145,54 +145,67 @@ def menu_update():
             # Detailed logging before attempting to write
             logger.info(f"[MENU-UPDATE] About to write menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups")
             logger.info(f"[MENU-UPDATE] Current menu file path: {MENU_FILE_PATH}")
+            
+            # Try direct write to fixed locations first
+            success = False
+            docker_success = False
+            fallback_success = False
+            default_success = False
+            fallback_path = f"/tmp/menu_data.json"
+            
+            # 1. Try Docker path first if in Docker environment
+            if os.path.exists('/app'):
+                try:
+                    docker_path = '/app/menu_data.json'
+                    with open(docker_path, 'w') as f:
+                        json.dump(processed_data, f, indent=2)
+                    logger.info(f"[MENU-UPDATE] Successfully wrote menu to {docker_path}")
+                    docker_success = True
+                    success = True
+                except Exception as docker_e:
+                    logger.error(f"[MENU-UPDATE] Failed writing to Docker path: {docker_e}")
+            
+            # 2. Always try tmp path as fallback
+            try:
+                with open(fallback_path, 'w') as f:
+                    json.dump(processed_data, f, indent=2)
+                logger.info(f"[MENU-UPDATE] Successfully wrote menu to {fallback_path}")
+                fallback_success = True
+                success = True
+            except Exception as tmp_e:
+                logger.error(f"[MENU-UPDATE] Failed writing to tmp path: {tmp_e}")
+            
+            # 3. Try using the regular write function last
             try:
                 result = write_menu_file(processed_data)
-                
-                if not result:
+                if result:
+                    logger.info(f"[MENU-UPDATE] Standard write_menu_file successful")
+                    default_success = True
+                    success = True
+                else:
                     logger.error("[MENU-UPDATE] Failed to write menu file (returned False)")
-                    
-                    # Attempt to write to an alternative location as a last resort
-                    fallback_path = f"/tmp/menu_data_fallback_{int(time.time())}.json"
-                    logger.info(f"[MENU-UPDATE] Attempting fallback write to {fallback_path}")
-                    try:
-                        with open(fallback_path, 'w') as f:
-                            json.dump(processed_data, f, indent=2)
-                        logger.info(f"[MENU-UPDATE] Successfully wrote fallback menu to {fallback_path}")
-                    except Exception as fallback_e:
-                        logger.error(f"[MENU-UPDATE] Fallback write failed: {fallback_e}")
-                    
-                    # If we have a callback URL, send a FAILED status
-                    if callback_url:
-                        try:
-                            callback_response = requests.post(
-                                callback_url,
-                                json={"status": "FAILED", "comment": "Failed to save menu data"}
-                            )
-                            logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
-                        except Exception as callback_e:
-                            logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
-                    
-                    return jsonify({
-                        "error": "Failed to save menu data", 
-                        "details": "The menu was processed successfully but could not be saved. Please try again."
-                    }), 500
             except Exception as write_e:
-                logger.error(f"[MENU-UPDATE] Exception during menu write: {write_e}")
+                logger.error(f"[MENU-UPDATE] Exception during standard menu write: {write_e}")
+                
+            # Check if any write method succeeded
+            if not success:
+                logger.error("[MENU-UPDATE] All menu write methods failed")
                 
                 # If we have a callback URL, send a FAILED status
                 if callback_url:
                     try:
                         callback_response = requests.post(
                             callback_url,
-                            json={"status": "FAILED", "comment": f"Menu write error: {str(write_e)[:100]}"}
+                            json={"status": "FAILED", "comment": "Failed to save menu data after multiple attempts"}
                         )
                         logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
                     except Exception as callback_e:
                         logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
                 
+                # Only return error if all methods failed
                 return jsonify({
-                    "error": "Exception during menu write", 
-                    "details": str(write_e)
+                    "error": "Failed to save menu data", 
+                    "details": "The menu was processed successfully but could not be saved despite multiple attempts."
                 }), 500
                 
             # Verify the menu was saved correctly
