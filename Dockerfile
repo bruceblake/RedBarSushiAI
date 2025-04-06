@@ -34,7 +34,10 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
         pip install --no-cache-dir -r requirements.txt; \
     else \
         pip install --no-cache-dir -r requirements.txt; \
-    fi
+    fi && \
+    # Ensure OpenAI and OpenAI Agents are properly installed (handling potential Git dependency)
+    pip install --no-cache-dir openai>=1.68.2 && \
+    pip install --no-cache-dir git+https://github.com/openai/openai-agents-python.git
 
 # Install specific packages explicitly with version pinning
 RUN pip install --no-cache-dir psycopg2-binary==2.9.9 \
