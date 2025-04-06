@@ -1,0 +1,36 @@
+[
+  {
+    "availabilities": [
+      {"dayOfWeek": 1, "endTime": "23:59", "startTime": "00:00"},
+      {"dayOfWeek": 2, "endTime": "23:59", "startTime": "00:00"},
+      {"dayOfWeek": 3, "endTime": "23:59", "startTime": "00:00"}
+    ],
+    "bundles": [],
+    "categories": [
+      {
+        "id": "cat1",
+        "name": "Sushi",
+        "products": [
+          {
+            "id": "p1",
+            "name": 12345,
+            "price": "not a number",
+            "plu": "CAL-ROLL",
+            "description": "Crab, avocado and cucumber",
+            "available": true,
+            "locations": "not a list"
+          }
+        ]
+      }
+    ],
+    "modifierGroups": "This is a string instead of an object",
+    "modifiers": {
+      "m1": {
+        "name": "Cheese",
+        "price": "not a number",
+        "plu": "CHEESE",
+        "available": true
+      }
+    }
+  }
+]

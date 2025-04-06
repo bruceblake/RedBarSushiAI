@@ -232,7 +232,12 @@ def menu_update():
         try:
             if "categories" in data:
                 # Deliverect format
-                categories_count = len(data.get('categories', []))
+                categories = data.get('categories', [])
+                if not isinstance(categories, list):
+                    logger.error(f"[MENU-UPDATE] Categories is not a list: {type(categories)}")
+                    return jsonify({"error": "Categories is not a list. Invalid format."}), 400
+                    
+                categories_count = len(categories)
                 logger.info(f"[MENU-UPDATE] Processing Deliverect format with {categories_count} categories")
                 
                 # Check if menu is very large (might cause memory issues)
@@ -245,8 +250,17 @@ def menu_update():
                     mem_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
                     logger.info(f"[MENU-UPDATE] Memory usage before processing: {mem_before/1024:.2f} MB")
                     
-                    # Process the menu data
-                    processed_data = process_deliverect_menu(data)
+                    # Try/catch to get more detailed error info
+                    try:
+                        # Process the menu data
+                        processed_data = process_deliverect_menu(data)
+                    except Exception as e:
+                        import traceback
+                        logger.error(f"[MENU-UPDATE] Error in process_deliverect_menu: {e}")
+                        logger.error(f"[MENU-UPDATE] Error type: {type(e)}")
+                        logger.error(f"[MENU-UPDATE] Traceback: {traceback.format_exc()}")
+                        # Return a clear error message to the client
+                        return jsonify({"error": f"Error processing menu: {str(e)}"}), 400
                     
                     # Force garbage collection
                     gc.collect()
