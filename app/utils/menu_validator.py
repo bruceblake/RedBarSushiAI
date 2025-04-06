@@ -43,38 +43,38 @@ def validate_and_fix_menu_data(menu_data):
     fixed_item_count = 0
     
     # First pass - build map of existing items by name for reference preservation
-    for item in menu_data.get("items", []):
-        if item.get("name"):
-            item_name_lower = item.get("name", "").lower()
+    for item in menu_data.get('items', []):
+        if item.get('name'):
+            item_name_lower = item.get('name', ' ').lower()
             existing_items[item_name_lower] = item
             
             # Also map by _id if present (handles different JSON formats)
             if item.get("_id"):
                 existing_items[f"id:{item.get('_id')}"] = item
-            if item.get("id"):
+            if item.get('id'):
                 existing_items[f"id:{item.get('id')}"] = item
     
     # Second pass - fix all issues with items
-    for item in menu_data.get("items", []):
-        item_id = item.get("id")
-        item_name = item.get("name", "unknown")
+    for item in menu_data.get('items', []):
+        item_id = item.get('id')
+        item_name = item.get('name', 'unknown')
         item_name_lower = item_name.lower()
         
         # Track if we've fixed anything (for logging)
         item_fixed = False
         
         # Fix missing name - critical for functionality
-        if not item.get("name"):
+        if not item.get('name'):
             # Try to get name from reference_handler if available
-            ref = item.get("reference_handler", "")
+            ref = item.get('reference_handler', '')
             if ref:
-                item["name"] = f"Item-{ref[-8:]}"
+                item['name'] = f"Item-{ref[-8:]}"
             elif item.get("_id"):
-                item["name"] = f"Item-{item.get('_id')[-8:]}"
+                item['name'] = f"Item-{item.get('_id')[-8:]}"
             elif item.get("id"):
-                item["name"] = f"Item-{item.get('id')[-8:]}"
+                item['name'] = f"Item-{item.get('id')[-8:]}"
             else:
-                item["name"] = f"Unnamed Item {menu_data.get('items', []).index(item) + 1}"
+                item['name'] = f"Unnamed Item {menu_data.get('items', []).index(item) + 1}"
             logger.warning(f"[MENU-FIX] Fixed missing name for item: '{item.get('name')}'")
             item_fixed = True
         

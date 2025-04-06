@@ -674,7 +674,7 @@ else:
                         
                         # Extract items mentioned in the order
                         initial_parse = json.loads(response.choices[0].message.content)
-                        potential_items = initial_parse.get("items", [])
+                        potential_items = initial_parse.get('items', [])
                         logger.info(f"[ORDER-PARSE] Extracted {len(potential_items)} potential items from order")
                     except Exception as e:
                         logger.error(f"[ORDER-PARSE-ERROR] OpenAI API error: {str(e)}")
