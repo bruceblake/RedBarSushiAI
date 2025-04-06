@@ -8,7 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYNPUT_HEADLESS=1 \
-    DISPLAY=:0
+    DISPLAY=:99 \
+    NO_X11=1 \
+    HEADLESS=1 \
+    OPENAI_REALTIME_AVAILABLE=1
 
 # Install system dependencies and build tools
 RUN apt-get update && \
@@ -21,6 +24,9 @@ RUN apt-get update && \
         portaudio19-dev \
         python3-pyaudio \
         ffmpeg \
+        xvfb \
+        x11-utils \
+        dbus-x11 \
     && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Install dependencies

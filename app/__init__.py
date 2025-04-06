@@ -6,9 +6,21 @@ import stripe
 from twilio.rest import Client
 import logging
 import sys
-from app.config import *
 import os
+from app.config import *
 from datetime import datetime
+
+# Set headless mode environment variables early
+# This prevents any GUI/X11 dependencies from being needed
+os.environ['PYNPUT_HEADLESS'] = '1'
+os.environ['NO_X11'] = '1'
+os.environ['HEADLESS'] = '1'
+if 'DISPLAY' not in os.environ:
+    os.environ['DISPLAY'] = ':99'
+
+# Logging setup
+logging.basicConfig(level=logging.INFO,
+                   format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 
 # Initialize SQLAlchemy
 db = SQLAlchemy()

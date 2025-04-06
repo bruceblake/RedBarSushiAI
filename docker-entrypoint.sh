@@ -7,6 +7,21 @@ export DOCKER=true
 # Set environment variables for headless operation
 export PYNPUT_HEADLESS=1
 export DISPLAY=:99
+export NO_X11=1
+export HEADLESS=1
+export PYTHONPATH=/app:$PYTHONPATH
+
+# Create a virtual X server if needed but don't fail if it can't be created
+echo "Setting up virtual display for headless operation..."
+if command -v Xvfb >/dev/null 2>&1; then
+  Xvfb :99 -screen 0 1024x768x16 -ac &
+  echo "Started Xvfb virtual display"
+elif command -v xvfb-run >/dev/null 2>&1; then
+  # Alternative approach using xvfb-run
+  echo "Using xvfb-run for headless operation"
+else
+  echo "Xvfb not available, running in fully headless mode"
+fi
 
 # Set environment variables for OpenAI Realtime API
 export OPENAI_REALTIME_AVAILABLE=1 

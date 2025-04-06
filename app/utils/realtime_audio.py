@@ -10,6 +10,14 @@ import base64
 # Import OpenAI
 import openai
 from openai import OpenAI
+import os
+
+# Explicitly disable any GUI/display dependencies
+os.environ['PYNPUT_HEADLESS'] = '1'
+os.environ['NO_X11'] = '1'
+os.environ['HEADLESS'] = '1'
+if 'DISPLAY' not in os.environ:
+    os.environ['DISPLAY'] = ':99'
 
 # Import OpenAI Realtime client for WebSocket functionality
 REALTIME_AVAILABLE = False
@@ -533,7 +541,8 @@ def get_audio_processor():
     
     Returns:
         RealtimeAudioProcessor for WebSocket functionality if available,
-        otherwise BasicAudioProcessor for standard API usage
+        otherwise BasicAudioProcessor for standard API usage,
+        or as a last resort, a HeadlessAudioProcessor with no GUI dependencies
     """
     processor = None
     
@@ -556,6 +565,17 @@ def get_audio_processor():
         logger.error(f"Error initializing BasicAudioProcessor: {error}")
         logger.error(traceback.format_exc())
     
-    # Last resort - create a minimal processor
-    logger.warning("Using minimal compatibility audio processor")
-    return BasicAudioProcessor()
+    # Last resort - use the completely headless processor with no GUI dependencies
+    try:
+        # Import the headless processor only if needed
+        from app.utils.audio_fallback import get_headless_audio_processor
+        processor = get_headless_audio_processor()
+        logger.warning("Using fully headless audio processor with no GUI dependencies")
+        return processor
+    except Exception as final_error:
+        logger.error(f"Error initializing HeadlessAudioProcessor: {final_error}")
+        logger.error(traceback.format_exc())
+        
+        # Absolute last resort - create a minimal processor
+        logger.warning("Using minimal compatibility audio processor")
+        return BasicAudioProcessor()
