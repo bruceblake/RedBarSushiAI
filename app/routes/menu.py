@@ -667,6 +667,140 @@ def simple_menu_update():
         }), 200
 
 
+@menu_bp.route('/emergency_menu_update', methods=['POST'])
+def emergency_menu_update():
+    """
+    Emergency menu update endpoint that uses only direct file writing.
+    This is a last resort when other endpoints fail.
+    """
+    logger.info(f"[EMERGENCY] Processing menu update request from {request.remote_addr}")
+    
+    try:
+        # Parse the JSON data
+        data = None
+        try:
+            data = request.get_json(force=True, silent=True)
+        except Exception as json_e:
+            logger.error(f"[EMERGENCY] JSON parsing error: {json_e}")
+            try:
+                # Manual JSON parsing
+                raw_data = request.get_data()
+                if raw_data:
+                    data = json.loads(raw_data.decode('utf-8'))
+            except Exception as manual_e:
+                logger.error(f"[EMERGENCY] Manual JSON parsing failed: {manual_e}")
+                return jsonify({"error": "Could not parse JSON data"}), 400
+        
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        # Process the menu data
+        try:
+            # First pass - process through the Deliverect menu processor
+            processed_data = process_deliverect_menu(data)
+            
+            # Second pass - validate and fix any remaining issues
+            processed_data = validate_and_fix_menu_data(processed_data)
+            
+            # Calculate statistics
+            items_count = len(processed_data.get("items", []))
+            modifiers_count = len(processed_data.get("modifiers", []))
+            groups_count = len(processed_data.get("modifierGroups", []))
+            
+            if items_count == 0:
+                logger.error("[EMERGENCY] No valid menu items extracted from data")
+                return jsonify({"error": "No valid menu items could be extracted"}), 400
+            
+            logger.info(f"[EMERGENCY] Processed menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups")
+            
+            # DIRECT FILE WRITING - No dependencies on any other functions
+            # Try multiple locations in case some are not writable
+            success = False
+            paths_written = []
+            
+            # Docker path
+            if os.path.exists('/app'):
+                try:
+                    with open('/app/menu_data.json', 'w') as f:
+                        f.write(json.dumps(processed_data, indent=2))
+                    logger.info("[EMERGENCY] Wrote menu to /app/menu_data.json")
+                    paths_written.append('/app/menu_data.json')
+                    success = True
+                except Exception as e1:
+                    logger.error(f"[EMERGENCY] Failed to write to /app/menu_data.json: {e1}")
+            
+            # Current directory
+            try:
+                cwd_path = os.path.join(os.getcwd(), 'menu_data.json')
+                with open(cwd_path, 'w') as f:
+                    f.write(json.dumps(processed_data, indent=2))
+                logger.info(f"[EMERGENCY] Wrote menu to {cwd_path}")
+                paths_written.append(cwd_path)
+                success = True
+            except Exception as e2:
+                logger.error(f"[EMERGENCY] Failed to write to {cwd_path}: {e2}")
+            
+            # Tmp path
+            try:
+                tmp_path = '/tmp/menu_data.json'
+                with open(tmp_path, 'w') as f:
+                    f.write(json.dumps(processed_data, indent=2))
+                logger.info(f"[EMERGENCY] Wrote menu to {tmp_path}")
+                paths_written.append(tmp_path)
+                success = True
+            except Exception as e3:
+                logger.error(f"[EMERGENCY] Failed to write to {tmp_path}: {e3}")
+            
+            if success:
+                logger.info(f"[EMERGENCY] Successfully wrote menu to {len(paths_written)} locations")
+                return jsonify({
+                    "success": True,
+                    "message": "Menu saved successfully",
+                    "items": items_count,
+                    "paths": paths_written
+                }), 200
+            else:
+                logger.error("[EMERGENCY] All file writes failed")
+                return jsonify({"error": "Failed to write menu file"}), 500
+                
+        except Exception as proc_e:
+            logger.error(f"[EMERGENCY] Error processing menu data: {proc_e}")
+            return jsonify({"error": f"Menu processing failed: {proc_e}"}), 400
+    
+    except Exception as e:
+        logger.error(f"[EMERGENCY] Critical error: {e}")
+        return jsonify({"error": "Emergency endpoint encountered an error", "details": str(e)}), 500
+
+@menu_bp.route('/write_test', methods=['GET', 'POST'])
+def write_test():
+    """
+    Super-simple endpoint that just tries to write a file to verify permissions.
+    """
+    results = {}
+    
+    # Try to write to various paths
+    paths = [
+        '/app/test.txt',
+        os.path.join(os.getcwd(), 'test.txt'),
+        '/tmp/test.txt'
+    ]
+    
+    for path in paths:
+        try:
+            with open(path, 'w') as f:
+                f.write(f"Test file created at {datetime.now()}")
+            results[path] = "SUCCESS"
+        except Exception as e:
+            results[path] = f"ERROR: {str(e)}"
+    
+    return jsonify({
+        "success": True,
+        "results": results,
+        "cwd": os.getcwd(),
+        "env": dict(os.environ),
+        "user": os.getuid()
+    }), 200
+
 @menu_bp.route('/debug_menu', methods=['GET'])
 def debug_menu():
     """
