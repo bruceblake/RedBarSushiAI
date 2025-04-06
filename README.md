@@ -12,6 +12,33 @@ This repository implements a restaurant order processing system that integrates 
 
 Below is a detailed explanation of how the program works and how its components interact.
 
+## Local Development Tools
+
+We have several tools to help test the application locally without having to deploy to the server:
+
+### Test Deliverect Menu Processing
+
+```bash
+python test_deliverect_local.py [path/to/menu_data.json]
+```
+
+This tool processes a Deliverect menu JSON file locally and saves the processed results. It's useful for debugging menu processing issues without having to deploy changes.
+
+### Test Menu Endpoint
+
+```bash
+python test_menu_endpoint.py [path/to/menu_data.json] [server_url]
+```
+
+Sends a test menu to the menu update endpoint (either local or remote) and displays the result. This is helpful for testing the menu update process without going through Deliverect.
+
+### Sample Test Files
+
+Sample test files are located in the `test_data/` directory:
+
+- `deliverect_sample.json` - A valid Deliverect menu format
+- `deliverect_problematic.json` - A problematic menu with type issues for testing error handling
+
 ---
 
 ## 1. Configuration & Setup

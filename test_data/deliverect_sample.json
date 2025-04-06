@@ -1,0 +1,87 @@
+{
+  "categories": [
+    {
+      "id": "cat1",
+      "name": "Sushi",
+      "products": [
+        {
+          "id": "p1",
+          "name": "California Roll",
+          "price": 995,
+          "plu": "CAL-ROLL",
+          "description": "Crab, avocado and cucumber",
+          "available": true
+        },
+        {
+          "id": "p2",
+          "name": "Spicy Tuna Roll",
+          "price": 1295,
+          "plu": "SPICY-TUNA",
+          "description": "Fresh tuna with spicy sauce",
+          "available": true
+        }
+      ]
+    },
+    {
+      "id": "cat2",
+      "name": "Appetizers",
+      "products": [
+        {
+          "id": "p3",
+          "name": "Edamame",
+          "price": 595,
+          "plu": "EDAMAME",
+          "description": "Steamed soybeans with sea salt",
+          "available": true
+        }
+      ]
+    },
+    {
+      "id": "cat3",
+      "name": "Burgers",
+      "products": [
+        {
+          "id": "p4",
+          "name": "Veggie Burger",
+          "price": 1295,
+          "plu": "VEG-BURG",
+          "description": "Plant-based burger with lettuce and tomato",
+          "available": true,
+          "modifierGroups": [
+            {
+              "id": "mg1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "modifierGroups": {
+    "mg1": {
+      "name": "Burger Toppings",
+      "min": 0,
+      "max": 3,
+      "subProducts": ["m1", "m2", "m3"]
+    }
+  },
+  "modifiers": {
+    "m1": {
+      "name": "Cheese",
+      "price": 100,
+      "plu": "CHEESE",
+      "available": true
+    },
+    "m2": {
+      "name": "Avocado",
+      "price": 150,
+      "plu": "AVOCADO",
+      "available": true
+    },
+    "m3": {
+      "name": "Bacon",
+      "price": 200,
+      "plu": "BACON",
+      "available": true
+    }
+  }
+}

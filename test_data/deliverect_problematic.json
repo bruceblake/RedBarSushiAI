@@ -1,0 +1,46 @@
+{
+  "categories": [
+    {
+      "id": "cat1",
+      "name": "Sushi",
+      "products": [
+        {
+          "id": "p1",
+          "name": "California Roll",
+          "price": 995,
+          "plu": "CAL-ROLL",
+          "description": "Crab, avocado and cucumber",
+          "available": true
+        }
+      ]
+    },
+    {
+      "id": "cat3",
+      "name": "Burgers",
+      "products": [
+        {
+          "id": "p4",
+          "name": "Veggie Burger",
+          "price": 1295,
+          "plu": "VEG-BURG",
+          "description": "Plant-based burger with lettuce and tomato",
+          "available": true,
+          "modifierGroups": [
+            {
+              "id": "mg1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "modifierGroups": "This is a string instead of an object, which would cause the error",
+  "modifiers": {
+    "m1": {
+      "name": "Cheese",
+      "price": 100,
+      "plu": "CHEESE",
+      "available": true
+    }
+  }
+}

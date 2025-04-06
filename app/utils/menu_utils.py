@@ -860,40 +860,72 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 processed_modifier_group_ids.add(group_id)
                 
                 # Create the modifier group record
-                group_data = deliverect_menu.get("modifierGroups", {}).get(group_id, {})
+                modifier_groups = deliverect_menu.get("modifierGroups", {})
+                if isinstance(modifier_groups, dict):
+                    group_data = modifier_groups.get(group_id, {})
+                else:
+                    # Handle the case where modifierGroups is not a dictionary
+                    logger.warning(f"[DELIVERECT-MENU] ModifierGroups is not a dictionary: {type(modifier_groups)}")
+                    group_data = {}
                 
                 new_group = {
                     "id": group_id,
-                    "name": group_data.get("name", ""),
-                    "minAllowed": group_data.get("min", 0),
-                    "maxAllowed": group_data.get("max", 999),
+                    "name": group_data.get("name", "") if isinstance(group_data, dict) else "",
+                    "minAllowed": group_data.get("min", 0) if isinstance(group_data, dict) else 0,
+                    "maxAllowed": group_data.get("max", 999) if isinstance(group_data, dict) else 999,
                     "modifiers": []
                 }
                 
                 # Add modifiers to group
-                for modifier_id in group_data.get("subProducts", []):
-                    new_group["modifiers"].append(modifier_id)
-                    
-                    # Add to all_modifier_groups
-                    all_modifier_groups[group_id] = new_group
+                if isinstance(group_data, dict):
+                    sub_products = group_data.get("subProducts", [])
+                    if isinstance(sub_products, list):
+                        for modifier_id in sub_products:
+                            new_group["modifiers"].append(modifier_id)
+                    else:
+                        logger.warning(f"[DELIVERECT-MENU] subProducts is not a list: {type(sub_products)}")
+                
+                # Add to all_modifier_groups
+                all_modifier_groups[group_id] = new_group
     
     # Process all modifiers in the menu
-    for modifier_id, modifier_data in deliverect_menu.get("modifiers", {}).items():
+    modifiers_data = deliverect_menu.get("modifiers", {})
+    if not isinstance(modifiers_data, dict):
+        logger.warning(f"[DELIVERECT-MENU] modifiers is not a dictionary: {type(modifiers_data)}")
+        modifiers_data = {}
+        
+    for modifier_id, modifier_data in modifiers_data.items():
         # Skip if already processed
         if modifier_id in processed_modifier_ids:
             continue
             
         processed_modifier_ids.add(modifier_id)
         
+        # Check if modifier_data is a dictionary
+        if not isinstance(modifier_data, dict):
+            logger.warning(f"[DELIVERECT-MENU] Modifier data for {modifier_id} is not a dictionary: {type(modifier_data)}")
+            continue
+        
         # Create the modifier record
-        new_modifier = {
-            "id": modifier_id,
-            "name": modifier_data.get("name", ""),
-            "price": modifier_data.get("price", 0) / 100,
-            "available": modifier_data.get("available", True),
-            "snoozed": not modifier_data.get("available", True),
-            "reference_handler": modifier_data.get("plu", "")
-        }
+        try:
+            price = modifier_data.get("price", 0)
+            if isinstance(price, (int, float)):
+                price = price / 100
+            else:
+                price = 0
+                logger.warning(f"[DELIVERECT-MENU] Invalid price for modifier {modifier_id}: {price}")
+            
+            new_modifier = {
+                "id": modifier_id,
+                "name": modifier_data.get("name", ""),
+                "price": price,
+                "available": modifier_data.get("available", True),
+                "snoozed": not modifier_data.get("available", True),
+                "reference_handler": modifier_data.get("plu", "")
+            }
+        except Exception as e:
+            logger.error(f"[DELIVERECT-MENU] Error creating modifier {modifier_id}: {e}")
+            continue
         
         # Add to all_modifiers
         all_modifiers[modifier_id] = new_modifier
@@ -1105,14 +1137,28 @@ def add_name_variants(item_name, variants_dict):
         item_name: The item name to generate variants for
         variants_dict: Dictionary to update with variants
     """
+    # Log args for debugging
+    logger.debug(f"[NAME-VARIANTS] Adding variants for: '{item_name}', type: {type(item_name)}")
+    
     # Validate input arguments
-    if not item_name:
+    if item_name is None:
+        logger.warning("[NAME-VARIANTS] Cannot add variants for None item_name")
         return
         
     if not isinstance(item_name, str):
-        item_name = str(item_name)
+        logger.warning(f"[NAME-VARIANTS] Converting non-string name to string: {type(item_name)}")
+        try:
+            item_name = str(item_name)
+        except Exception as e:
+            logger.error(f"[NAME-VARIANTS] Failed to convert item name to string: {e}")
+            return
+        
+    if not item_name.strip():
+        logger.warning("[NAME-VARIANTS] Cannot add variants for empty item_name")
+        return
         
     if not isinstance(variants_dict, dict):
+        logger.error(f"[NAME-VARIANTS] variants_dict is not a dictionary: {type(variants_dict)}")
         raise ValueError("variants_dict must be a dictionary")
         
     # Convert to lowercase for consistent matching

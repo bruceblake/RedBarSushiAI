@@ -1,0 +1,106 @@
+{
+  "items": [
+    {
+      "id": "p1",
+      "name": "California Roll",
+      "price": 9.95,
+      "reference_handler": "CAL-ROLL",
+      "description": "Crab, avocado and cucumber",
+      "imageUrl": "",
+      "snoozed": false,
+      "category": "Sushi",
+      "categoryId": "cat1",
+      "available": true
+    },
+    {
+      "id": "p2",
+      "name": "Spicy Tuna Roll",
+      "price": 12.95,
+      "reference_handler": "SPICY-TUNA",
+      "description": "Fresh tuna with spicy sauce",
+      "imageUrl": "",
+      "snoozed": false,
+      "category": "Sushi",
+      "categoryId": "cat1",
+      "available": true
+    },
+    {
+      "id": "p3",
+      "name": "Edamame",
+      "price": 5.95,
+      "reference_handler": "EDAMAME",
+      "description": "Steamed soybeans with sea salt",
+      "imageUrl": "",
+      "snoozed": false,
+      "category": "Appetizers",
+      "categoryId": "cat2",
+      "available": true
+    },
+    {
+      "id": "p4",
+      "name": "Veggie Burger",
+      "price": 12.95,
+      "reference_handler": "VEG-BURG",
+      "description": "Plant-based burger with lettuce and tomato",
+      "imageUrl": "",
+      "snoozed": false,
+      "category": "Burgers",
+      "categoryId": "cat3",
+      "available": true,
+      "modifierGroups": [
+        "mg1"
+      ]
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "m1",
+      "name": "Cheese",
+      "price": 1.0,
+      "available": true,
+      "snoozed": false,
+      "reference_handler": "CHEESE"
+    },
+    {
+      "id": "m2",
+      "name": "Avocado",
+      "price": 1.5,
+      "available": true,
+      "snoozed": false,
+      "reference_handler": "AVOCADO"
+    },
+    {
+      "id": "m3",
+      "name": "Bacon",
+      "price": 2.0,
+      "available": true,
+      "snoozed": false,
+      "reference_handler": "BACON"
+    }
+  ],
+  "modifierGroups": [
+    {
+      "id": "mg1",
+      "name": "Burger Toppings",
+      "minAllowed": 0,
+      "maxAllowed": 3,
+      "modifiers": [
+        "m1",
+        "m2",
+        "m3"
+      ]
+    }
+  ],
+  "name_variants": {
+    "california roll": "California Roll",
+    "california": "California Roll",
+    "roll": "California Roll",
+    "spicy tuna roll": "Spicy Tuna Roll",
+    "spicy": "Spicy Tuna Roll",
+    "tuna": "Spicy Tuna Roll",
+    "edamame": "Edamame",
+    "veggie burger": "Veggie Burger",
+    "veggie": "Veggie Burger",
+    "burger": "Veggie Burger"
+  }
+}
