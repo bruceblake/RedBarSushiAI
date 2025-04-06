@@ -28,10 +28,24 @@ export OPENAI_REALTIME_AVAILABLE=1
 export NODE_TLS_REJECT_UNAUTHORIZED=0 # Allow self-signed certificates in dev environments
 export PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
 
-# Ensure we have the realtime client
-if [ ! -f "/usr/local/lib/python3.11/site-packages/openai_realtime_client/__init__.py" ]; then
-    echo "Installing OpenAI Realtime client..."
-    pip install openai-realtime-client==0.1.0
+# Ensure we have all required dependencies in the right order
+echo "Installing or upgrading required dependencies..."
+pip install --no-cache-dir websockets==13.1
+pip install --no-cache-dir python-socketio==5.8.0 eventlet==0.33.3 gevent==23.9.1 gevent-websocket==0.10.1
+pip install --no-cache-dir openai-realtime-client==0.1.0
+
+# Check if installation was successful
+if [ -f "/usr/local/lib/python3.11/site-packages/openai_realtime_client/__init__.py" ]; then
+    echo "✅ OpenAI Realtime client installed successfully!"
+else
+    echo "⚠️ Could not find OpenAI Realtime client, using fallback methods"
+fi
+
+# Run diagnostic script
+if [ -f "diagnose.py" ]; then
+    echo "Running diagnostic tests..."
+    python diagnose.py
+    echo "Diagnostic tests complete"
 fi
 
 # Explicitly set the Python path to avoid import issues

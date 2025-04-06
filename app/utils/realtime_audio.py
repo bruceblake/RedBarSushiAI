@@ -21,43 +21,80 @@ if 'DISPLAY' not in os.environ:
 
 # Import OpenAI Realtime client for WebSocket functionality
 REALTIME_AVAILABLE = False
+
+# First try the standard import approach
 try:
-    # First try to import the package
     import openai_realtime_client
     from openai_realtime_client import WebSocketResponse, Session
     
-    # Check if the necessary environment variables are set
-    import os
-    if os.environ.get('OPENAI_REALTIME_AVAILABLE', '').lower() in ('1', 'true', 'yes'):
-        REALTIME_AVAILABLE = True
-        logging.info(f"OpenAI Realtime client v{openai_realtime_client.__version__} is available for WebSocket functionality")
-    else:
-        logging.warning("OpenAI Realtime client found but OPENAI_REALTIME_AVAILABLE environment variable not set to '1'")
-        
-except ImportError:
-    # Try to install the package if it's not found
+    # Check if we can access the version which confirms the package is working
+    version = getattr(openai_realtime_client, "__version__", "unknown")
+    
+    # Force REALTIME_AVAILABLE to True regardless of environment variables for testing
+    REALTIME_AVAILABLE = True
+    logging.info(f"OpenAI Realtime client v{version} is available for WebSocket functionality")
+    
+except ImportError as import_error:
+    logging.warning(f"OpenAI Realtime client import error: {import_error}")
+    
+    # Try to install the package using pip directly
     import sys
     import subprocess
     
-    logging.warning("OpenAI Realtime client not found, attempting to install...")
+    # First try to install without dependencies
     try:
-        result = subprocess.run([sys.executable, "-m", "pip", "install", "openai-realtime-client==0.1.0", 
-                                "--disable-pip-version-check", "--no-cache-dir"],
+        logging.warning("OpenAI Realtime client not found, attempting to install...")
+        result = subprocess.run([sys.executable, "-m", "pip", "install", "--no-deps", "openai-realtime-client==0.1.0"], 
                               capture_output=True, text=True, timeout=60)
         
         if result.returncode == 0:
             logging.info("Successfully installed openai-realtime-client, trying to import again")
             try:
+                # Try importing again
                 import openai_realtime_client
                 from openai_realtime_client import WebSocketResponse, Session
                 REALTIME_AVAILABLE = True
-                logging.info(f"OpenAI Realtime client v{openai_realtime_client.__version__} is now available")
+                version = getattr(openai_realtime_client, "__version__", "unknown")
+                logging.info(f"OpenAI Realtime client v{version} is now available")
             except ImportError as e2:
                 logging.error(f"Failed to import openai_realtime_client after installation: {e2}")
         else:
             logging.error(f"Failed to install openai-realtime-client:\n{result.stderr}")
+            
+            # Try with full dependencies as a fallback
+            try:
+                result = subprocess.run([sys.executable, "-m", "pip", "install", "openai-realtime-client==0.1.0", 
+                                      "python-socketio==5.8.0", "eventlet==0.33.3"], 
+                                    capture_output=True, text=True, timeout=60)
+                if result.returncode == 0:
+                    logging.info("Successfully installed openai-realtime-client with dependencies")
+                    try:
+                        import openai_realtime_client
+                        from openai_realtime_client import WebSocketResponse, Session
+                        REALTIME_AVAILABLE = True
+                        version = getattr(openai_realtime_client, "__version__", "unknown")
+                        logging.info(f"OpenAI Realtime client v{version} is now available")
+                    except ImportError as e3:
+                        logging.error(f"Still failed to import openai_realtime_client: {e3}")
+                else:
+                    logging.error(f"Failed to install with dependencies:\n{result.stderr}")
+            except Exception as e:
+                logging.error(f"Error during pip install with dependencies: {e}")
     except Exception as e:
         logging.error(f"Error trying to install openai-realtime-client: {e}")
+
+# Explicit dependency check and package info
+try:
+    import pkg_resources
+    required_packages = ['openai-realtime-client', 'python-socketio', 'eventlet', 'websockets']
+    for package in required_packages:
+        try:
+            dist = pkg_resources.get_distribution(package)
+            logging.info(f"Found {package} v{dist.version}")
+        except pkg_resources.DistributionNotFound:
+            logging.warning(f"Package {package} is not installed")
+except Exception as e:
+    logging.error(f"Error checking package versions: {e}")
         
 if not REALTIME_AVAILABLE:
     logging.warning("OpenAI Realtime client not available, falling back to standard API")
@@ -284,68 +321,147 @@ class RealtimeAudioProcessor:
         try:
             logger.info(f"Processing audio stream with content type: {content_type}")
             
-            # Create a new session with the OpenAI realtime client
-            session = Session.create(
-                api_key=OPENAI_API_KEY,
-                session={
-                    "input_audio_format": {
-                        "type": content_type
-                    },
-                    "output_audio_format": {
-                        "type": "audio/mp3"
+            # Safely create a Session - wrap in try/except
+            try:
+                session = Session.create(
+                    api_key=OPENAI_API_KEY,
+                    session={
+                        "input_audio_format": {
+                            "type": content_type
+                        },
+                        "output_audio_format": {
+                            "type": "audio/mp3"
+                        }
                     }
-                }
-            )
+                )
+                
+                logger.info(f"Created realtime session: {session.id}")
+            except Exception as session_error:
+                logger.error(f"Error creating OpenAI Realtime session: {session_error}")
+                logger.error(traceback.format_exc())
+                
+                # Fall back to non-realtime processing if session creation fails
+                logger.warning("Falling back to non-streaming audio processing")
+                all_audio = bytes()
+                async for chunk in audio_chunks_generator:
+                    all_audio += chunk
+                
+                # Process the complete audio with the standard API
+                result = await self.process_audio(all_audio, content_type)
+                yield result
+                return
             
-            logger.info(f"Created realtime session: {session.id}")
+            # Collect audio chunks and send to session
+            try:
+                # Start collecting audio chunks
+                async for chunk in audio_chunks_generator:
+                    if isinstance(chunk, bytes):
+                        # Convert to base64
+                        base64_audio = base64.b64encode(chunk).decode('utf-8')
+                        
+                        # Append to the audio buffer
+                        session.send_event({
+                            "type": "input_audio_buffer.append",
+                            "audio": base64_audio
+                        })
+                
+                # Signal that we're done sending audio
+                session.send_event({
+                    "type": "input_audio_buffer.commit"
+                })
+                
+                # Create a response to get transcription
+                session.send_event({
+                    "type": "response.create",
+                    "response": {
+                        "modalities": ["text"]
+                    }
+                })
+            except Exception as send_error:
+                logger.error(f"Error sending data to session: {send_error}")
+                logger.error(traceback.format_exc())
+                session.close()
+                
+                # Fall back to non-realtime processing
+                logger.warning("Falling back to non-streaming audio processing due to send error")
+                all_audio = bytes()
+                # Reset the generator if possible
+                try:
+                    async for chunk in audio_chunks_generator:
+                        all_audio += chunk
+                except:
+                    # If we can't restart the generator, just yield an error
+                    yield {"type": "error", "error": "Failed to process audio stream"}
+                    return
+                
+                # Process the complete audio with the standard API
+                result = await self.process_audio(all_audio, content_type)
+                yield result
+                return
             
-            # Start collecting audio chunks
-            async for chunk in audio_chunks_generator:
-                if isinstance(chunk, bytes):
-                    # Convert to base64
-                    base64_audio = base64.b64encode(chunk).decode('utf-8')
+            # Process events from the session with timeout for safety
+            try:
+                transcript = ""
+                events_received = False
+                
+                # Use a timeout to prevent hanging if events don't come through
+                start_time = time.time()
+                timeout = 30  # seconds
+                
+                for event in session.events():
+                    events_received = True
                     
-                    # Append to the audio buffer
-                    session.send_event({
-                        "type": "input_audio_buffer.append",
-                        "audio": base64_audio
-                    })
-            
-            # Signal that we're done sending audio
-            session.send_event({
-                "type": "input_audio_buffer.commit"
-            })
-            
-            # Create a response to get transcription
-            session.send_event({
-                "type": "response.create",
-                "response": {
-                    "modalities": ["text"]
-                }
-            })
-            
-            # Process events from the session
-            transcript = ""
-            for event in session.events():
-                if event.get("type") == "response.audio_transcript.delta":
-                    delta = event.get("delta", "")
-                    transcript += delta
-                    yield {
-                        "type": "transcript",
-                        "text": transcript,
-                        "final": False,
-                        "timestamp": time.time()
-                    }
-                elif event.get("type") == "response.audio_transcript.done":
+                    # Check for timeout
+                    if time.time() - start_time > timeout:
+                        logger.warning("Session event processing timed out")
+                        break
+                        
+                    if event.get("type") == "response.audio_transcript.delta":
+                        delta = event.get("delta", "")
+                        transcript += delta
+                        yield {
+                            "type": "transcript",
+                            "text": transcript,
+                            "final": False,
+                            "timestamp": time.time()
+                        }
+                    elif event.get("type") == "response.audio_transcript.done":
+                        yield {
+                            "type": "transcript_complete",
+                            "text": transcript,
+                            "final": True,
+                            "timestamp": time.time()
+                        }
+                        break
+                
+                # If we didn't receive any events, yield empty result
+                if not events_received:
+                    logger.warning("No events received from session")
                     yield {
                         "type": "transcript_complete",
-                        "text": transcript,
+                        "text": "",
                         "final": True,
                         "timestamp": time.time()
                     }
-            
-            # Close session
-            session.close()
+                
+                # Close session
+                try:
+                    session.close()
+                except:
+                    pass
+                    
+            except Exception as event_error:
+                logger.error(f"Error processing session events: {event_error}")
+                logger.error(traceback.format_exc())
+                
+                # Try to close session
+                try:
+                    session.close()
+                except:
+                    pass
+                
+                # Yield an error
+                yield {"type": "error", "error": f"Error processing session events: {str(event_error)}"}
                 
         except Exception as e:
             error_msg = f"Error in realtime audio processing: {str(e)}"
