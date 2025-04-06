@@ -14,10 +14,13 @@ from datetime import datetime, timezone, time as dt_time
 
 logger = logging.getLogger(__name__)
 
-# Cache variables
+# Cache variables - increased cache duration for Render
 _menu_cache = None
 _last_refresh_time = 0
-_cache_duration = 30  # 30 seconds cache duration for menu data
+_cache_duration = 300  # 5 minutes cache duration for menu data in production
+# Use a shorter duration in development
+if not os.environ.get('RENDER', False):
+    _cache_duration = 30  # 30 seconds for development
 
 # Default paths - ensure they work in production environment
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -160,7 +163,7 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None) 
         logger.error(f"Error writing menu file: {e}")
         return False
 
-def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = None, skip_validation: bool = False) -> Dict[str, Any]:
+def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = None, skip_validation: bool = False, timeout: int = 5) -> Dict[str, Any]:
     """
     Load menu data from file or cache.
     Tries multiple locations to find a valid menu file.
