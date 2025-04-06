@@ -589,6 +589,7 @@ def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
 def process_deliverect_menu(deliverect_menu, location_id=None):
     """
     Converts Deliverect menu format to our internal format required for ordering.
+    Ensures that all items have valid names for Deliverect integration.
     
     Args:
         deliverect_menu: The menu data from Deliverect
@@ -596,6 +597,9 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         
     Returns:
         dict: Processed menu in our internal format
+        
+    Raises:
+        ValueError: If menu data is invalid or cannot be processed
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -628,7 +632,32 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         # Process each product in the category
         for product in products:
             prod_id = product.get("id")
-            prod_name = product.get("name", "")
+            prod_name = product.get("name")
+            
+            # Check if name is missing or empty
+            if not prod_name:
+                logger.warning(f"[DELIVERECT] Product with ID {prod_id} has no name, attempting to generate one")
+                # Try to generate a name from other fields
+                if product.get("title"):
+                    prod_name = product.get("title")
+                    logger.info(f"[DELIVERECT] Using 'title' as name for product {prod_id}")
+                elif product.get("plu"):
+                    prod_name = f"Item-{product.get('plu')}"
+                    logger.info(f"[DELIVERECT] Using PLU to generate name for product {prod_id}")
+                elif prod_id:
+                    prod_name = f"Item-{prod_id}"
+                    logger.info(f"[DELIVERECT] Using ID to generate name for product {prod_id}")
+                else:
+                    # Generate a placeholder name with index
+                    prod_name = f"Unnamed Product {len(processed_item_ids) + 1}"
+                    logger.warning(f"[DELIVERECT] Generated generic name for product without ID or name")
+            elif prod_name == "":
+                # Empty string name
+                if prod_id:
+                    prod_name = f"Item-{prod_id}"
+                else:
+                    prod_name = f"Unnamed Product {len(processed_item_ids) + 1}"
+                logger.warning(f"[DELIVERECT] Fixed empty string name for product {prod_id}")
             
             # Skip duplicates
             if prod_id in processed_item_ids:
@@ -749,6 +778,14 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     
     # Add name variants to the result
     result["name_variants"] = name_variants
+    
+    # Final validation to ensure all items have names
+    items_missing_names = [item for item in result.get("items", []) if not item.get("name")]
+    if items_missing_names:
+        missing_count = len(items_missing_names)
+        item_indices = [result.get("items", []).index(item) for item in items_missing_names[:3]]
+        logger.error(f"[DELIVERECT] {missing_count} items still missing names after processing. Problem indices: {item_indices}")
+        raise ValueError("Menu items must have names")
     
     # Log summary
     logger.info(f"[DELIVERECT] Processed: {len(result['items'])} items, " + 

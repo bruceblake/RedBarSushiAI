@@ -337,3 +337,38 @@ Our menu has these ...
 2025-04-06 04:29:10,422 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'intent': 'other'}
 2025-04-06 04:29:10,422 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
 2025-04-06 04:29:10,422 - INFO - werkzeug - 127.0.0.1 - - [06/Apr/2025 04:29:10] "POST /take_order HTTP/1.1" 200 -
+2025-04-06 04:31:22,783 - DEBUG - httpcore.connection - close.started
+2025-04-06 04:31:22,783 - DEBUG - httpcore.connection - close.complete
+2025-04-06 04:31:23,315 - INFO - app.routes.menu - [MENU-UPDATE] Received menu update data: [{'title': 'Dragon Roll', 'price': 14.95, 'description': 'Eel and avocado with special sauce', 'available': True}, {'product_name': 'Rainbow Roll', 'price': 15.95, 'description': 'California roll topp...
+2025-04-06 04:31:23,315 - INFO - app.routes.menu - [MENU-UPDATE] Converting list of 4 items to menu format
+2025-04-06 04:31:23,315 - INFO - app.routes.menu - [MENU-UPDATE] Generating name variants
+2025-04-06 04:31:23,315 - INFO - app.routes.menu - [MENU-ITEM] 'None' → ''
+2025-04-06 04:31:23,315 - INFO - app.routes.menu - [MENU-ITEM] 'None' → ''
+2025-04-06 04:31:23,315 - INFO - app.routes.menu - [MENU-ITEM] 'None' → ''
+2025-04-06 04:31:23,315 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-06 04:31:23,315 - INFO - root - [MENU-LOAD] Using 6 name variants from menu data
+2025-04-06 04:31:23,316 - INFO - root - [MENU-PRICES] Loaded 6 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Fixed missing name for item: 'Unnamed Item 1'
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Item 'unknown' is missing ID, setting to: ITEM-ad921d60
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Item unknown is missing reference_handler, setting to: REF-ad921d60
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Fixed missing name for item: 'Unnamed Item 2'
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Item 'unknown' is missing ID, setting to: ITEM-ad921d60
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Item unknown is missing reference_handler, setting to: REF-ad921d60
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Fixed missing name for item: 'Unnamed Item 3'
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Item 'unknown' is missing ID, setting to: ITEM-ad921d60
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Item unknown is missing reference_handler, setting to: REF-ad921d60
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Item 'Tempura' is missing ID, setting to: ITEM-35b1a6c9
+2025-04-06 04:31:23,316 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Tempura is missing reference_handler, setting to: REF-5a5ce01c
+2025-04-06 04:31:23,316 - INFO - app.utils.menu_validator - Fixed 4 items, 0 modifier groups, and 0 modifiers
+2025-04-06 04:31:23,316 - INFO - app.routes.menu - [MENU-UPDATE] Menu data validated and fixed
+2025-04-06 04:31:23,327 - INFO - app.utils.menu_utils - Menu backup created at /home/proxyie/MySoftware/RedBarSushiAI/backups/menu_backup_20250406_043123.json
+2025-04-06 04:31:23,327 - INFO - app.utils.menu_utils - Menu data written to /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-06 04:31:23,328 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-06 04:31:23,328 - INFO - app.utils.menu_utils - item: Unnamed Item 1 (snoozed: False)
+2025-04-06 04:31:23,328 - INFO - app.utils.menu_utils - item: Unnamed Item 2 (snoozed: False)
+2025-04-06 04:31:23,328 - INFO - app.utils.menu_utils - item: Unnamed Item 3 (snoozed: False)
+2025-04-06 04:31:23,328 - INFO - app.utils.menu_utils - item: Tempura (snoozed: False)
+2025-04-06 04:31:23,328 - INFO - app.utils.menu_utils - Menu stats: 4 total items, 4 available, 0 snoozed
+2025-04-06 04:31:23,328 - INFO - app.utils.menu_utils - Menu categories: {'Uncategorized': 4}
+2025-04-06 04:31:23,328 - INFO - app.routes.menu - [MENU-UPDATE] Menu updated successfully with 4 items
+2025-04-06 04:31:23,328 - INFO - werkzeug - 127.0.0.1 - - [06/Apr/2025 04:31:23] "POST /menu_update HTTP/1.1" 200 -
