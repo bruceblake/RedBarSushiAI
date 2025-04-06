@@ -81,7 +81,7 @@ DELIVERECT_API_URL = os.getenv("DELIVERECT_API_URL", 'https://api.staging.delive
 # ------------------------------
 # Local File Paths
 # ------------------------------
-MENU_FILE_PATH = os.getenv("MENU_FILE_PATH", "/home/pegasus/mysite/RedBarSushiAI/menu_data.json")
+MENU_FILE_PATH = os.getenv("MENU_FILE_PATH", "menu_data.json")
 
 # Add a more robust fallback to account for deployment paths
 if not os.path.exists(MENU_FILE_PATH):
@@ -106,9 +106,6 @@ if not os.path.exists(MENU_FILE_PATH):
 if os.environ.get('RENDER', '').lower() == 'true' or os.environ.get('RENDER_SERVICE_ID'):
     # Use Render-specific URL
     BASE_URL = os.getenv('BASE_URL', 'https://redbarsushiai.onrender.com')
-else:
-    # Default for other environments
-    BASE_URL = os.getenv('BASE_URL', 'https://redbarsushi.pythonanywhere.com')
 
 # ------------------------------
 # Redis and Celery Configuration
