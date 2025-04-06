@@ -55,8 +55,22 @@ def fallback_analyze_user_input(text: str) -> dict:
 def fallback_get_order_modifications(text: str, current_items: list) -> dict:
     """Fallback function when OpenAI is not available"""
     logging.warning("Using fallback modification - OpenAI not available")
-    # Return empty modifications
+    
+    # Basic keyword-based fallback
+    additions = []
+    removals = []
+    
+    # Super simple keyword matching
+    if any(word in text.lower() for word in ["add", "want", "with"]):
+        # Add a simple placeholder - will be validated later
+        additions.append({"name": "Unknown Item", "quantity": 1})
+    
+    if any(word in text.lower() for word in ["remove", "without", "no"]):
+        # Create a removal - will be validated later
+        removals.append({"name": "Unknown Item", "quantity": 1})
+    
+    # Return the modifications
     return {
-        "additions": [],
-        "removals": []
+        "additions": additions,
+        "removals": removals
     }

@@ -536,6 +536,49 @@ def write_test():
         "user": os.getuid()
     }), 200
 
+@menu_bp.route('/fix_item_error', methods=['GET'])
+def fix_item_error():
+    """
+    Special endpoint to apply modifications to test the fix for the item/name error.
+    """
+    # Create a test order
+    current_order = [
+        {"name": "Veggie Burger", "price": 7.5, "reference_handler": "P-BURG-VEG", "quantity": 1, "modifier": []}
+    ]
+    
+    # Create test modifications with both 'item' and 'name' formats
+    test_modifications = {
+        "additions": [
+            {"item": "Chicken Burger", "quantity": 2},
+            {"name": "Coca Cola Cola", "quantity": 1}
+        ],
+        "removals": [
+            {"item": "Veggie Burger", "quantity": 1}
+        ]
+    }
+    
+    # Import the apply_modifications function from order.py
+    from app.routes.order import apply_modifications
+    
+    # Apply the modifications and get the result
+    try:
+        result = apply_modifications(current_order, test_modifications)
+        return jsonify({
+            "success": True,
+            "original_order": current_order,
+            "modifications": test_modifications,
+            "result": result
+        }), 200
+    except Exception as e:
+        import traceback
+        logger.error(f"Error in fix_item_error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 @menu_bp.route('/debug_menu', methods=['GET'])
 def debug_menu():
     """

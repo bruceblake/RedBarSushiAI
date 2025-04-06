@@ -425,13 +425,33 @@ def new_modify_order():
 
 
 def apply_modifications(current_order, modifications):
-    """Apply modifications to an order, handling both old and new formats"""
+    """Apply modifications to an order, handling all possible formats"""
     # Extract additions and removals from modifications
     additions = modifications.get("additions", [])
     removals = modifications.get("removals", [])
     
+    # Ensure all removals have a "name" field
+    for removal in removals:
+        if isinstance(removal, dict):
+            if "item" in removal and "name" not in removal:
+                removal["name"] = removal["item"]
+                logger.info(f"[ORDER-FIX] Copying 'item' to 'name' field in removal: {removal}")
+    
+    # Ensure all additions have a "name" field
+    for addition in additions:
+        if isinstance(addition, dict):
+            if "item" in addition and "name" not in addition:
+                addition["name"] = addition["item"]
+                logger.info(f"[ORDER-FIX] Copying 'item' to 'name' field in addition: {addition}")
+    
     # Create a dictionary of current order items by name (case-insensitive)
     current_order_by_name = {item["name"].lower(): item for item in current_order}
+    
+    # Detailed logging for debugging
+    logger.info(f"[ORDER-MODIFY] Processing modifications: {json.dumps(modifications)}")
+    logger.info(f"[ORDER-MODIFY] Current order: {json.dumps(current_order)}")
+    logger.info(f"[ORDER-MODIFY] Processed additions: {json.dumps(additions)}")
+    logger.info(f"[ORDER-MODIFY] Processed removals: {json.dumps(removals)}")
     
     # Process removals
     for removal in removals:
@@ -446,9 +466,27 @@ def apply_modifications(current_order, modifications):
                 quantity = 1
                 item_name = removal.strip().lower()
         else:
-            # Use the dictionary format
-            item_name = removal["name"].lower()
-            quantity = removal["quantity"]
+            # Handle dictionary format with different possible key names
+            # Look for 'name', 'item', or field containing the item name
+            if "name" in removal:
+                item_name = removal["name"].lower()
+            elif "item" in removal:
+                item_name = removal["item"].lower()
+            else:
+                # Try to find a string field that might contain the item name
+                item_name = None
+                for key, value in removal.items():
+                    if isinstance(value, str) and len(value) > 2:
+                        item_name = value.lower()
+                        break
+                
+                # If we still don't have an item name, skip this removal
+                if item_name is None:
+                    logger.warning(f"[ORDER-MODIFY] Skipping removal with no item name: {removal}")
+                    continue
+            
+            # Get quantity
+            quantity = removal.get("quantity", 1)
         
         # If item exists, decrease quantity or remove it
         if item_name in current_order_by_name:
@@ -482,28 +520,58 @@ def apply_modifications(current_order, modifications):
                     "modifier": []
                 }
             else:
-                # Check if the item exists in the menu before adding
-                menu_item = find_menu_item_by_name(item_name)
-                if menu_item:
-                    # Found in menu, use proper data including reference handler
-                    addition = {
-                        "name": menu_item.get("name"),
-                        "price": menu_item.get("price", 0),
-                        "reference_handler": menu_item.get("reference_handler", ""),
-                        "quantity": quantity,
-                        "modifier": []
-                    }
-                else:
-                    # Not found in menu, create basic structure but tell the user
-                    logger.warning(f"[ORDER-MODIFY] Item not found in menu: {item_name}")
-                    # This item will fail validation later and be removed
-                    addition = {
-                        "name": item_name.title(), 
-                        "quantity": quantity,
-                        "modifier": []
-                    }
-        
-        # Use the dictionary format
+                # Not found in menu, create basic structure but tell the user
+                logger.warning(f"[ORDER-MODIFY] Item not found in menu: {item_name}")
+                # This item will fail validation later and be removed
+                addition = {
+                    "name": item_name.title(), 
+                    "quantity": quantity,
+                    "modifier": []
+                }
+        else:
+            # Handle dictionary format with different possible key names
+            # Look for 'name', 'item', or field containing the item name
+            if "name" in addition:
+                item_name = addition["name"].lower()
+            elif "item" in addition:
+                item_name = addition["item"].lower()
+            else:
+                # Try to find a string field that might contain the item name
+                item_name = None
+                for key, value in addition.items():
+                    if isinstance(value, str) and len(value) > 2 and key != "modifier":
+                        item_name = value.lower()
+                        break
+                
+                # If we still don't have an item name, skip this addition
+                if item_name is None:
+                    logger.warning(f"[ORDER-MODIFY] Skipping addition with no item name: {addition}")
+                    continue
+            
+            # Get quantity
+            quantity = addition.get("quantity", 1)
+            
+            # Find the item in the menu to get complete information
+            menu_item = find_menu_item_by_name(item_name)
+            if menu_item:
+                # Update the addition with complete menu information
+                if "name" not in addition or not addition["name"]:
+                    addition["name"] = menu_item.get("name")
+                if "price" not in addition or not addition["price"]:
+                    addition["price"] = menu_item.get("price", 0)
+                if "reference_handler" not in addition or not addition["reference_handler"]:
+                    addition["reference_handler"] = menu_item.get("reference_handler", "")
+                if "modifier" not in addition:
+                    addition["modifier"] = []
+            else:
+                # Make sure the item has the necessary fields for processing
+                if "name" not in addition or not addition["name"]:
+                    # Use the item_name we identified earlier
+                    addition["name"] = item_name.title()
+                if "modifier" not in addition:
+                    addition["modifier"] = []
+                    
+        # Prepare for dictionary lookup and update
         item_name = addition.get("name", "").lower()
         quantity = addition.get("quantity", 1)
         
@@ -511,7 +579,7 @@ def apply_modifications(current_order, modifications):
         if item_name in current_order_by_name:
             current_order_by_name[item_name]["quantity"] += quantity
             # Update modifiers if provided
-            if "modifier" in addition:
+            if "modifier" in addition and addition["modifier"]:
                 current_order_by_name[item_name]["modifier"] = addition.get("modifier", [])
         else:
             # Add new item
