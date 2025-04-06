@@ -24,6 +24,12 @@ def make_celery(app):
     # Set task module name
     celery.conf.imports = ('tasks',)
     
+    # Memory management settings
+    celery.conf.worker_max_memory_per_child = 50000  # 50MB per worker
+    celery.conf.worker_max_tasks_per_child = 10  # Restart worker after 10 tasks
+    celery.conf.task_time_limit = 600  # 10 minute hard time limit
+    celery.conf.task_soft_time_limit = 300  # 5 minute soft time limit
+    
     # Set up periodic tasks
     celery.conf.beat_schedule = {
         'sync-menu-references-every-hour': {
