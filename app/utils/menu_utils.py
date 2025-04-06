@@ -724,8 +724,21 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 if "categories" in first_item:
                     # It's a list where first item has the menu structure
                     logger.info("[DELIVERECT-MENU] List format with first item containing categories")
-                    # Directly process the first item and return the result to avoid nested processing
-                    return process_deliverect_menu(first_item, location_id)
+                    
+                    # Verify categories contain actual products before processing
+                    if isinstance(first_item["categories"], list):
+                        for cat in first_item["categories"]:
+                            if isinstance(cat, dict) and "products" in cat:
+                                # Check if products contain valid items with names
+                                if isinstance(cat["products"], list):
+                                    for prod in cat["products"]:
+                                        if isinstance(prod, dict) and "name" in prod:
+                                            logger.info(f"[DELIVERECT-MENU] Found valid product in category: {prod.get('name')}")
+                                            # At least one real product found, process normally
+                                            return process_deliverect_menu(first_item, location_id)
+                    
+                    # No valid products found in categories, attempt deep inspection
+                    logger.info("[DELIVERECT-MENU] Categories found but no valid products, attempting deep inspection")
                     
                 # Check for nested menu structure - test_nested_menu_structure case
                 elif "menu" in first_item and isinstance(first_item["menu"], dict) and "categories" in first_item["menu"]:
@@ -766,6 +779,29 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 else:
                     # It's a list of menu items
                     logger.info("[DELIVERECT-MENU] List format with direct menu items")
+                    
+                    # First, look for real products directly in the list
+                    real_products_found = False
+                    for i, item in enumerate(deliverect_menu):
+                        if isinstance(item, dict) and "name" in item and ("price" in item or "plu" in item or "id" in item):
+                            logger.info(f"[DELIVERECT-MENU] Found direct product: {item.get('name')}")
+                            real_products_found = True
+                            break
+                            
+                    if real_products_found:
+                        # Process the list as direct products
+                        logger.info("[DELIVERECT-MENU] Processing list as direct products")
+                        # Create a synthetic structure with one category
+                        structured_menu = {
+                            "categories": [
+                                {
+                                    "id": f"synthetic-category-{int(time.time())}",
+                                    "name": "Menu Items",
+                                    "products": [item for item in deliverect_menu if isinstance(item, dict)]
+                                }
+                            ]
+                        }
+                        return process_deliverect_menu(structured_menu, location_id)
                     
                     # Process each item in the list to ensure it has a name
                     for i, item in enumerate(deliverect_menu):
@@ -1367,7 +1403,7 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     logger.info(f"[DELIVERECT-MENU] Creating synthetic product from string in category {cat_name}")
                     products = [{
                         "id": f"syn-{int(time.time())}",
-                        "name": f"{cat_name} Item",
+                        "name": f"{cat_name} Item", # Synthetic product name
                         "description": f"Generated from text: {products[:100]}...",
                         "price": 0.0
                     }]
@@ -1413,7 +1449,7 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
             # Create a new product record
             menu_item = {
                 "id": f"auto-{len(result['items'])}",
-                "name": f"{cat_name} Item",  # Use category name instead of generic "Item N"
+                "name": "",  # Will be set from product below
                 "price": 0.0,
                 "reference_handler": "",  # Will be set from PLU below - don't use generic references
                 "description": "",
@@ -1422,6 +1458,13 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 "available": True,
                 "snoozed": False
             }
+            
+            # Always use product name when available to avoid synthetic category-based names
+            if isinstance(product, dict) and product.get("name"):
+                menu_item["name"] = product["name"]
+            else:
+                # Only use synthetic name as fallback
+                menu_item["name"] = f"{cat_name} Item"  # Use category name as fallback
             
             # Handle different product types
             if isinstance(product, dict):
