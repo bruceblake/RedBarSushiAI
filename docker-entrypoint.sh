@@ -116,7 +116,8 @@ try:
         if len(auth_parts) > 1:
             username = auth_parts[-2].split('/')[-1]  # Extract username
             print(f'Connecting as user: {username}', file=sys.stderr)
-            print(f'To database host: {parts[1].split('/')[0]}', file=sys.stderr)
+            host_part = parts[1].split('/')
+            print(f'To database host: {host_part[0]}', file=sys.stderr)
     
     print('Creating database engine...', file=sys.stderr)
     engine = create_engine(db_uri)

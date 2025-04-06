@@ -228,6 +228,29 @@ def confirm_order_from_initial():
     
     # Handle "yes" - process the order
     if interpreted == "yes":
+        # Check for newly snoozed items
+        from app.utils.snooze_validator import validate_items_availability
+        menu_data = load_menu_data(force_refresh=True)
+        
+        # Deep check for snoozed items
+        available_items = validate_items_availability(order_items)
+        unavailable_items = [item["name"] for item in order_items if item not in available_items]
+        
+        if unavailable_items:
+            logger.info(f"Items unavailable at order confirmation: {unavailable_items}")
+            with response.gather(
+                input='speech dtmf',
+                action='/handle_newly_snoozed_in_checkout',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                num_digits=1
+            ) as g:
+                g.say("Sorry, the following item(s) are now unavailable: " +
+                      ", ".join(unavailable_items) + ". Press 1 to remove them, 2 to cancel.")
+            return Response(str(response), mimetype='text/xml')
+            
         # Check cooldown
         if not can_process_action(sender, 'order_food', 60):
             response.say(
@@ -520,10 +543,16 @@ def confirm_order_after_modification():
     
     # Handle "yes" - process the order
     if interpreted == "yes":
-        # Check for newly snoozed items
-        newly_snoozed = [item["name"] for item in order_items if is_item_snoozed_timebased(item)]
-        if newly_snoozed:
-            logger.info(f"Items newly unavailable in checkout: {newly_snoozed}")
+        # Check for newly snoozed items using comprehensive validator
+        from app.utils.snooze_validator import validate_items_availability
+        menu_data = load_menu_data(force_refresh=True)
+        
+        # Deep check for snoozed items
+        available_items = validate_items_availability(order_items)
+        unavailable_items = [item["name"] for item in order_items if item not in available_items]
+        
+        if unavailable_items:
+            logger.info(f"Items unavailable at final confirmation: {unavailable_items}")
             with response.gather(
                 input='speech dtmf',
                 action='/handle_newly_snoozed_in_checkout',
@@ -534,7 +563,7 @@ def confirm_order_after_modification():
                 num_digits=1
             ) as g:
                 g.say("Sorry, the following item(s) are now unavailable: " +
-                      ", ".join(newly_snoozed) + ". Press 1 to remove them, 2 to cancel.")
+                      ", ".join(unavailable_items) + ". Press 1 to remove them, 2 to cancel.")
             return Response(str(response), mimetype='text/xml')
         
         # Check cooldown
@@ -659,27 +688,27 @@ def handle_newly_snoozed_in_checkout():
     # Get order items
     order_items = json.loads(session.get('order_items_json', '[]'))
     
-    # Find snoozed items
-    newly_snoozed = [item["name"] for item in order_items if is_item_snoozed_timebased(item)]
+    # Use comprehensive validator from snooze_validator
+    from app.utils.snooze_validator import validate_items_availability
     
-    # If no explicitly snoozed items found, check against menu
-    if not newly_snoozed:
-        menu_data = load_menu_data(force_refresh=True)
-        for item in order_items:
-            ref = item.get("reference_handler", "")
-            for menu_item in menu_data.get("items", []):
-                if menu_item.get("reference_handler") == ref and menu_item.get("snoozed", False):
-                    newly_snoozed.append(item.get("name", "Unknown Item"))
+    # Get available items
+    available_items = validate_items_availability(order_items)
+    
+    # Find unavailable items using the difference between original and available
+    unavailable_items = []
+    for item in order_items:
+        if item not in available_items:
+            unavailable_items.append(item.get("name", "Unknown Item"))
     
     # Format item names for speech
-    snoozed_items_str = ", ".join(newly_snoozed) if newly_snoozed else "Some items"
+    snoozed_items_str = ", ".join(unavailable_items) if unavailable_items else "Some items"
     
     # Handle "yes" - remove items and continue
     if dtmf_input == '1' or user_said_yes(user_resp):
         logger.info(f"Customer chose to remove unavailable items and continue")
         
-        # Remove snoozed items
-        updated_items = [item for item in order_items if not is_item_snoozed_timebased(item)]
+        # Remove unavailable items using validator results
+        updated_items = available_items
         logger.info(f"Removed {len(order_items) - len(updated_items)} items from order")
         
         # If order is now empty, cancel
