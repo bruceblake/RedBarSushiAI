@@ -150,36 +150,45 @@ def menu_update():
             
             # Check for items without names and filter/fix them
             valid_items = []
+            item_count = 0
+            non_dict_count = 0
+            
             for i, item in enumerate(data):
-                if isinstance(item, dict):
-                    # If item has no name, try to fix it
-                    if not item.get("name"):
-                        if item.get("title"):
-                            logger.info(f"[MENU-UPDATE] Using 'title' field as name for item {i}")
-                            item["name"] = item["title"]
-                        elif item.get("product_name"):
-                            logger.info(f"[MENU-UPDATE] Using 'product_name' field as name for item {i}")
-                            item["name"] = item["product_name"]
-                        elif item.get("label"):
-                            logger.info(f"[MENU-UPDATE] Using 'label' field as name for item {i}")
-                            item["name"] = item["label"]
-                        elif item.get("id") or item.get("product_id"):
-                            # Generate a name from ID
-                            item_id = item.get("id") or item.get("product_id")
-                            logger.info(f"[MENU-UPDATE] Using ID to generate name for item {i}: Item {item_id}")
-                            item["name"] = f"Item {item_id}"
+                if not isinstance(item, dict):
+                    logger.warning(f"[MENU-UPDATE] Item at index {i} is not a dictionary: {type(item)}")
+                    non_dict_count += 1
+                    continue
+                    
+                item_count += 1
+                
+                # If item has no name, try to fix it
+                if not item.get("name"):
+                    if item.get("title"):
+                        logger.info(f"[MENU-UPDATE] Using 'title' field as name for item {i}")
+                        item["name"] = item["title"]
+                    elif item.get("product_name"):
+                        logger.info(f"[MENU-UPDATE] Using 'product_name' field as name for item {i}")
+                        item["name"] = item["product_name"]
+                    elif item.get("label"):
+                        logger.info(f"[MENU-UPDATE] Using 'label' field as name for item {i}")
+                        item["name"] = item["label"]
+                    elif item.get("id") or item.get("product_id"):
+                        # Generate a name from ID
+                        item_id = item.get("id") or item.get("product_id")
+                        logger.info(f"[MENU-UPDATE] Using ID to generate name for item {i}: Item {item_id}")
+                        item["name"] = f"Item {item_id}"
+                    else:
+                        # Auto-generate a name from description if available
+                        if item.get("description"):
+                            desc = item["description"]
+                            name = desc.split()[0:2]  # Use first two words of description
+                            name = " ".join(name)
+                            logger.info(f"[MENU-UPDATE] Using description to generate name for item {i}: {name}")
+                            item["name"] = name
                         else:
-                            # Auto-generate a name from description if available
-                            if item.get("description"):
-                                desc = item["description"]
-                                name = desc.split()[0:2]  # Use first two words of description
-                                name = " ".join(name)
-                                logger.info(f"[MENU-UPDATE] Using description to generate name for item {i}: {name}")
-                                item["name"] = name
-                            else:
-                                # Last resort: auto-generate a name
-                                logger.info(f"[MENU-UPDATE] Auto-generating name for item {i}: Menu Item {i+1}")
-                                item["name"] = f"Menu Item {i+1}"
+                            # Last resort: auto-generate a name
+                            logger.info(f"[MENU-UPDATE] Auto-generating name for item {i}: Menu Item {i+1}")
+                            item["name"] = f"Menu Item {i+1}"
                     
                     # Add required fields if missing
                     if not item.get("reference_handler"):
@@ -195,9 +204,12 @@ def menu_update():
                     # Now that item is fixed, add it to valid items
                     valid_items.append(item)
                     
-            # Log any fixes
-            if len(valid_items) < len(data):
-                logger.warning(f"[MENU-UPDATE] Filtered out {len(data) - len(valid_items)} invalid items")
+            # Log any fixes and counters
+            if non_dict_count > 0:
+                logger.warning(f"[MENU-UPDATE] Filtered out {non_dict_count} non-dictionary items")
+            
+            if len(valid_items) < item_count:
+                logger.warning(f"[MENU-UPDATE] Filtered out {item_count - len(valid_items)} invalid dictionary items")
                 
             # Convert list of valid items to our standard format
             data = {
@@ -276,8 +288,49 @@ def menu_update():
                 # Verify the conversion worked
                 items_count = len(processed_data.get("items", []))
                 if items_count == 0:
-                    logger.warning("[MENU-UPDATE] Processed Deliverect data has no items!")
-                    return jsonify({"error": "Failed to extract any items from Deliverect data"}), 400
+                    logger.warning("[MENU-UPDATE] Processed Deliverect data has no items, checking for direct products list")
+                    
+                    # Additional fallback - if deliverect sent us direct products at the top level, try to use those
+                    if "products" in data and isinstance(data["products"], list):
+                        valid_products = []
+                        for product in data["products"]:
+                            if isinstance(product, dict) and product.get("name"):
+                                # Add any missing fields
+                                if not product.get("reference_handler") and product.get("plu"):
+                                    product["reference_handler"] = product["plu"]
+                                elif not product.get("reference_handler"):
+                                    product["reference_handler"] = f"PROD-{len(valid_products):04d}"
+                                
+                                if not product.get("price") and product.get("price", 0) == 0:
+                                    product["price"] = 10.0  # Default price
+                                elif isinstance(product["price"], (int, float)) and product["price"] > 100:
+                                    product["price"] = product["price"] / 100
+                                    
+                                valid_products.append(product)
+                        
+                        if valid_products:
+                            processed_data = {
+                                "items": valid_products,
+                                "modifiers": processed_data.get("modifiers", []),
+                                "modifierGroups": processed_data.get("modifierGroups", []),
+                                "name_variants": {}
+                            }
+                            
+                            # Generate name variants
+                            for item in valid_products:
+                                try:
+                                    item_name = item.get("name", "")
+                                    if item_name and isinstance(item_name, str):
+                                        add_name_variants(item_name, processed_data["name_variants"])
+                                except Exception as e:
+                                    logger.warning(f"[MENU-UPDATE] Error adding name variants during fallback: {e}")
+                            
+                            logger.info(f"[MENU-UPDATE] Recovered {len(valid_products)} products from direct products list")
+                            items_count = len(valid_products)
+                        else:
+                            return jsonify({"error": "Failed to extract any items from Deliverect data"}), 400
+                    else:
+                        return jsonify({"error": "Failed to extract any items from Deliverect data"}), 400
                     
                 logger.info(f"[MENU-UPDATE] Successfully processed {items_count} items from Deliverect data")
                     
