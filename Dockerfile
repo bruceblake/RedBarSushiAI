@@ -97,5 +97,5 @@ EXPOSE 8080
 # Use our updated entrypoint script
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
-# Default command - reduce workers to save memory
-CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "120", "--worker-class", "gevent", "--log-level", "debug"]
+# Default command - using single worker to prevent out of memory issues
+CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "120", "--worker-class", "gevent", "--log-level", "debug"]

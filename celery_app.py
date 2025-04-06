@@ -14,55 +14,83 @@ def make_celery(app):
     
     # Fix malformed Redis URLs that might be coming from Render
     if broker_url:
-        # First, ensure the URL has the proper redis:// prefix
+        # Special handling for Render's format (red-cvp9ic3e5dus73cd1uq0:6379/0)
+        if ':' in broker_url and not broker_url.startswith('redis://'):
+            if broker_url.count(':') == 1 and '/' in broker_url:
+                # Format appears to be hostname:port/db
+                host_port, db = broker_url.rsplit('/', 1)
+                host, port = host_port.split(':')
+                # Make sure we have a valid DB number
+                try:
+                    db_num = int(db)
+                except ValueError:
+                    db_num = 0
+                # Reconstruct proper Redis URL
+                broker_url = f"redis://{host}:{port}/{db_num}"
+            else:
+                # Just prefix with redis://
+                broker_url = f"redis://{broker_url}"
+        
+        # Ensure the URL has the proper redis:// prefix
         if not broker_url.startswith('redis://'):
             broker_url = f"redis://{broker_url}"
         
-        # Next, fix the DB number format if needed
         try:
-            import redis.utils
-            # This will validate the URL format or raise appropriate exceptions
-            parsed = redis.utils.from_url(broker_url)
-        except ValueError:
-            # If there's an error parsing, it might be due to the DB format
-            # Try to fix common issues with Render-provided Redis URLs
-            parts = broker_url.split('/')
-            if len(parts) >= 4:  # redis://hostname:port/db
-                # Ensure the database is a simple number
-                host_part = '/'.join(parts[:-1])
-                db_part = parts[-1].split(':')[0]  # Remove any additional parameters
-                try:
-                    db_num = int(db_part)
-                    broker_url = f"{host_part}/{db_num}"
-                except ValueError:
-                    # If we can't convert to int, default to DB 0
-                    broker_url = f"{host_part}/0"
+            # Print the broker URL for debugging
+            print(f"Using broker URL: {broker_url}")
+            
+            # Import Redis for validation (but catch import errors)
+            try:
+                import redis.utils
+                # This will validate the URL format or raise appropriate exceptions
+                parsed = redis.utils.from_url(broker_url)
+            except (ImportError, AttributeError):
+                # If redis.utils doesn't exist or doesn't have from_url, continue anyway
+                pass
+        except Exception as e:
+            # If there's any error, default to localhost
+            print(f"Error parsing Redis URL: {e}")
+            broker_url = 'redis://localhost:6379/0'
     
     # Apply the same fixes to result_backend
     if result_backend:
-        # First, ensure the URL has the proper redis:// prefix
+        # Special handling for Render's format (red-cvp9ic3e5dus73cd1uq0:6379/0)
+        if ':' in result_backend and not result_backend.startswith('redis://'):
+            if result_backend.count(':') == 1 and '/' in result_backend:
+                # Format appears to be hostname:port/db
+                host_port, db = result_backend.rsplit('/', 1)
+                host, port = host_port.split(':')
+                # Make sure we have a valid DB number
+                try:
+                    db_num = int(db)
+                except ValueError:
+                    db_num = 0
+                # Reconstruct proper Redis URL
+                result_backend = f"redis://{host}:{port}/{db_num}"
+            else:
+                # Just prefix with redis://
+                result_backend = f"redis://{result_backend}"
+        
+        # Ensure the URL has the proper redis:// prefix
         if not result_backend.startswith('redis://'):
             result_backend = f"redis://{result_backend}"
         
-        # Next, fix the DB number format if needed
         try:
-            import redis.utils
-            # This will validate the URL format or raise appropriate exceptions
-            parsed = redis.utils.from_url(result_backend)
-        except ValueError:
-            # If there's an error parsing, it might be due to the DB format
-            # Try to fix common issues with Render-provided Redis URLs
-            parts = result_backend.split('/')
-            if len(parts) >= 4:  # redis://hostname:port/db
-                # Ensure the database is a simple number
-                host_part = '/'.join(parts[:-1])
-                db_part = parts[-1].split(':')[0]  # Remove any additional parameters
-                try:
-                    db_num = int(db_part)
-                    result_backend = f"{host_part}/{db_num}"
-                except ValueError:
-                    # If we can't convert to int, default to DB 0
-                    result_backend = f"{host_part}/0"
+            # Print the result backend URL for debugging
+            print(f"Using result backend URL: {result_backend}")
+            
+            # Import Redis for validation (but catch import errors)
+            try:
+                import redis.utils
+                # This will validate the URL format or raise appropriate exceptions
+                parsed = redis.utils.from_url(result_backend)
+            except (ImportError, AttributeError):
+                # If redis.utils doesn't exist or doesn't have from_url, continue anyway
+                pass
+        except Exception as e:
+            # If there's any error, default to localhost
+            print(f"Error parsing Redis URL: {e}")
+            result_backend = 'redis://localhost:6379/0'
 
     celery = Celery(
         "tasks",

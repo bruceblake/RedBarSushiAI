@@ -12,13 +12,46 @@ import openai
 from openai import OpenAI
 
 # Import OpenAI Realtime client for WebSocket functionality
+REALTIME_AVAILABLE = False
 try:
+    # First try to import the package
     import openai_realtime_client
     from openai_realtime_client import WebSocketResponse, Session
-    REALTIME_AVAILABLE = True
-    logging.info("OpenAI Realtime client is available for WebSocket functionality")
+    
+    # Check if the necessary environment variables are set
+    import os
+    if os.environ.get('OPENAI_REALTIME_AVAILABLE', '').lower() in ('1', 'true', 'yes'):
+        REALTIME_AVAILABLE = True
+        logging.info(f"OpenAI Realtime client v{openai_realtime_client.__version__} is available for WebSocket functionality")
+    else:
+        logging.warning("OpenAI Realtime client found but OPENAI_REALTIME_AVAILABLE environment variable not set to '1'")
+        
 except ImportError:
-    REALTIME_AVAILABLE = False
+    # Try to install the package if it's not found
+    import sys
+    import subprocess
+    
+    logging.warning("OpenAI Realtime client not found, attempting to install...")
+    try:
+        result = subprocess.run([sys.executable, "-m", "pip", "install", "openai-realtime-client==0.1.0", 
+                                "--disable-pip-version-check", "--no-cache-dir"],
+                              capture_output=True, text=True, timeout=60)
+        
+        if result.returncode == 0:
+            logging.info("Successfully installed openai-realtime-client, trying to import again")
+            try:
+                import openai_realtime_client
+                from openai_realtime_client import WebSocketResponse, Session
+                REALTIME_AVAILABLE = True
+                logging.info(f"OpenAI Realtime client v{openai_realtime_client.__version__} is now available")
+            except ImportError as e2:
+                logging.error(f"Failed to import openai_realtime_client after installation: {e2}")
+        else:
+            logging.error(f"Failed to install openai-realtime-client:\n{result.stderr}")
+    except Exception as e:
+        logging.error(f"Error trying to install openai-realtime-client: {e}")
+        
+if not REALTIME_AVAILABLE:
     logging.warning("OpenAI Realtime client not available, falling back to standard API")
 
 OPENAI_STREAMING_AVAILABLE = True
