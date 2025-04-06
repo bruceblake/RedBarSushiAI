@@ -102,8 +102,8 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         bool: True if successful, False otherwise
     """
     try:
-        # Define a production path for consistent file location
-        PRODUCTION_PATH = os.environ.get('MENU_FILE_PATH', MENU_FILE_PATH)
+        # Get production path from environment variable or use default
+        production_path = os.environ.get('MENU_FILE_PATH', MENU_FILE_PATH)
         
         # Always ensure root directory path is preferred
         root_dir = os.getcwd()
@@ -119,9 +119,9 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
             actual_path = os.path.join(os.path.dirname(MENU_FILE_PATH), location_path)
         else:
             # Prioritize production path if exists
-            if PRODUCTION_PATH and os.path.exists(os.path.dirname(PRODUCTION_PATH)):
-                actual_path = PRODUCTION_PATH
-                logger.info(f"Using production path: {PRODUCTION_PATH}")
+            if production_path and os.path.exists(os.path.dirname(production_path)):
+                actual_path = production_path
+                logger.info(f"Using production path: {production_path}")
             else:
                 # Fallback to root directory path
                 actual_path = root_menu_path
@@ -171,6 +171,8 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         paths_to_try = [
             # First check if we're in Docker and prioritize Docker path
             DOCKER_MENU_PATH if os.path.exists(DOCKER_ROOT) else None,
+            # Use the production path we defined earlier
+            production_path,
             # Then try the root directory of the current environment
             os.path.join(os.getcwd(), 'menu_data.json'),
             # Then try the path that was requested

@@ -498,8 +498,8 @@ def delete_menu():
 @menu_bp.route('/simple_menu_update', methods=['POST'])
 def simple_menu_update():
     """
-    Simplified endpoint for Deliverect menu updates that attempts to save the menu file
-    but returns success even if it fails.
+    Simplified endpoint for Deliverect menu updates that directly writes to a known
+    working location and always returns success even if it fails.
     This is a fallback solution when the standard endpoint is having issues.
     """
     logger.info(f"[SIMPLE-MENU] Processing menu update request from {request.remote_addr}")
@@ -548,27 +548,38 @@ def simple_menu_update():
             items_count = len(processed_data.get("items", []))
             logger.info(f"[SIMPLE-MENU] Processed menu has {items_count} items")
             
-            # Attempt to save the menu
+            # Attempt to save the menu directly to a known working location
             if items_count > 0:
                 try:
-                    result = write_menu_file(processed_data)
-                    if result:
-                        logger.info(f"[SIMPLE-MENU] Successfully saved menu with {items_count} items")
-                    else:
-                        logger.warning(f"[SIMPLE-MENU] Failed to save menu file (returned False)")
-                        
-                        # Try a last-resort save to /tmp
-                        import time
-                        fallback_path = f"/tmp/menu_data_fallback_{int(time.time())}.json"
-                        logger.info(f"[SIMPLE-MENU] Attempting fallback write to {fallback_path}")
+                    # Try direct write to tmp location first, bypass the normal write function
+                    import json
+                    import time
+                    
+                    # Write to Docker path first if in Docker
+                    if os.path.exists('/app'):
                         try:
-                            with open(fallback_path, 'w') as f:
+                            with open('/app/menu_data.json', 'w') as f:
                                 json.dump(processed_data, f, indent=2)
-                            logger.info(f"[SIMPLE-MENU] Successfully wrote fallback menu to {fallback_path}")
-                        except Exception as fallback_e:
-                            logger.error(f"[SIMPLE-MENU] Fallback write failed: {fallback_e}")
-                except Exception as write_e:
-                    logger.error(f"[SIMPLE-MENU] Error writing menu file: {write_e}")
+                            logger.info(f"[SIMPLE-MENU] Successfully wrote menu to /app/menu_data.json")
+                        except Exception as docker_e:
+                            logger.error(f"[SIMPLE-MENU] Failed to write to Docker path: {docker_e}")
+                    
+                    # Also write to tmp as fallback
+                    fallback_path = f"/tmp/menu_data.json"
+                    with open(fallback_path, 'w') as f:
+                        json.dump(processed_data, f, indent=2)
+                    logger.info(f"[SIMPLE-MENU] Successfully wrote menu to {fallback_path}")
+                    
+                    # Try normal write function last
+                    try:
+                        result = write_menu_file(processed_data)
+                        if result:
+                            logger.info(f"[SIMPLE-MENU] Standard write_menu_file successful")
+                    except Exception as write_e:
+                        logger.warning(f"[SIMPLE-MENU] Standard write_menu_file failed: {write_e}")
+                        
+                except Exception as fallback_e:
+                    logger.error(f"[SIMPLE-MENU] All write attempts failed: {fallback_e}")
         except Exception as process_e:
             logger.error(f"[SIMPLE-MENU] Error processing menu data: {process_e}")
         
