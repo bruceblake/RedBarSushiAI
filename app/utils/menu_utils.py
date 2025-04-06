@@ -242,20 +242,20 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
                 # Validate that menu_data is a dictionary
                 if not isinstance(menu_data, dict):
                     logger.error(f"Menu data in {file_path} is not a dictionary, it's a {type(menu_data)}")
-                    menu_data = create_default_menu()
+                    menu_data = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
                     write_menu_file(menu_data, file_path)
-                    logger.info(f"Replaced non-dictionary menu data with default menu")
+                    logger.info(f"Replaced non-dictionary menu data with empty menu structure")
             except json.JSONDecodeError:
                 logger.error(f"Invalid JSON in menu file {file_path}")
-                menu_data = create_default_menu()
+                menu_data = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
                 write_menu_file(menu_data, file_path)
-                logger.info(f"Replaced corrupt menu file with default menu")
+                logger.info(f"Replaced corrupt menu file with empty menu structure")
         
-        # Check for empty or invalid data and fix it
+        # Check for empty or invalid data
         if (len(menu_data.get('items', [])) == 0 or 
             all(not item.get('name') for item in menu_data.get('items', []))):
             
-            # Case 1: It's Deliverect format with categories - convert it
+            # If it's Deliverect format with categories - convert it
             if "categories" in menu_data:
                 logger.info(f"Detected Deliverect format with categories - processing automatically")
                 try:
@@ -269,18 +269,14 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
                         logger.error(f"Processed Deliverect menu has 0 items - something went wrong")
                 except Exception as e:
                     logger.error(f"Error processing Deliverect menu: {e}")
-                    # Fall back to default menu
-                    menu_data = create_default_menu()
-                    write_menu_file(menu_data)
-                    
-            # Case 2: It's invalid data - use default menu
+                    # Use empty menu structure instead of default menu
+                    menu_data = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
+            
+            # If it's not a Deliverect format, just use an empty structure
             else:
-                logger.error(f"Invalid menu data detected - loading default menu")
-                menu_data = create_default_menu()
-                
-                # Save the default menu
-                write_menu_file(menu_data)
-                logger.info(f"Created default menu with {len(menu_data.get('items', []))} items")
+                logger.error(f"Invalid menu data detected - using empty menu structure")
+                menu_data = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
+                logger.info(f"Created empty menu structure")
             
         # Update cache
         _menu_cache = menu_data
@@ -311,79 +307,29 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
             
         return menu_data 
     except FileNotFoundError:
-        # Log the error and generate a simple default menu for demo purposes
-        logger.error(f"Menu file not found at {file_path} - using default menu data")
+        # Log the error and return an empty menu structure
+        logger.error(f"Menu file not found at {file_path} - using empty menu structure")
         
-        # Check if we have sample menu data
-        sample_menu_path = os.path.join(APP_ROOT_PARENT, 'testing_data', 'sample_menu.json')
-        if os.path.exists(sample_menu_path):
-            try:
-                with open(sample_menu_path, 'r') as f:
-                    menu_data = json.load(f)
-                logger.info(f"Loaded sample menu from {sample_menu_path}")
-                
-                # Cache this sample data
-                _menu_cache = menu_data
-                _last_refresh_time = current_time
-                
-                # Also write it to the expected location for future use
-                write_menu_file(menu_data, file_path)
-                
-                return menu_data
-            except Exception as e:
-                logger.error(f"Error loading sample menu: {e}")
-        
-        # Create a minimal default menu
-        default_menu = {
-            "items": [
-                {
-                    "id": "california_roll",
-                    "name": "California Roll",
-                    "price": 9.95,
-                    "reference_handler": "CAL-ROLL",
-                    "available": True,
-                    "category": "Rolls"
-                },
-                {
-                    "id": "spicy_tuna",
-                    "name": "Spicy Tuna Roll",
-                    "price": 12.95,
-                    "reference_handler": "SPICY-TUNA",
-                    "available": True,
-                    "category": "Rolls"
-                },
-                {
-                    "id": "edamame",
-                    "name": "Edamame",
-                    "price": 5.95,
-                    "reference_handler": "EDAMAME",
-                    "available": True,
-                    "category": "Appetizers"
-                }
-            ],
+        # Create an empty menu structure
+        empty_menu = {
+            "items": [],
             "modifiers": [],
             "modifierGroups": [],
-            "name_variants": {
-                "california roll": "California Roll",
-                "california": "California Roll",
-                "spicy tuna roll": "Spicy Tuna Roll",
-                "spicy tuna": "Spicy Tuna Roll",
-                "edamame": "Edamame"
-            }
+            "name_variants": {}
         }
         
-        # Save this default menu for future use
+        # Save the empty menu structure for future use
         try:
-            write_menu_file(default_menu, file_path)
-            logger.info(f"Created default menu at {file_path}")
+            write_menu_file(empty_menu, file_path)
+            logger.info(f"Created empty menu structure at {file_path}")
         except Exception as e:
-            logger.error(f"Could not write default menu: {e}")
+            logger.error(f"Could not write empty menu structure: {e}")
         
-        # Update cache with default menu
-        _menu_cache = default_menu
+        # Update cache with empty menu
+        _menu_cache = empty_menu
         _last_refresh_time = current_time
         
-        return default_menu
+        return empty_menu
     except Exception as e:
         logger.error(f"Error loading menu data: {e}")
         # Return empty structure if file can't be loaded
@@ -685,6 +631,7 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     1. Standard format with "categories" key
     2. List of menu items 
     3. List with first item containing categories and products
+    4. Handles string values in products lists and other unexpected formats
     
     Args:
         deliverect_menu: The menu data from Deliverect
@@ -692,15 +639,25 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         
     Returns:
         dict: Processed menu in our internal format
-        
-    Raises:
-        ValueError: If menu data is invalid or cannot be processed
     """
     # Log the raw structure to help diagnose issues
     import logging
     logger = logging.getLogger(__name__)
     logger.info("[DELIVERECT-MENU] Starting menu processing")
     
+    # Initialize result structure with empty collections
+    result = {
+        "items": [],
+        "modifiers": [],
+        "modifierGroups": [],
+        "name_variants": {}
+    }
+    
+    # Handle empty input
+    if not deliverect_menu:
+        logger.warning("[DELIVERECT-MENU] Empty menu data provided")
+        return result
+        
     # First, validate the input data and handle different formats
     if isinstance(deliverect_menu, list):
         # Handle list format (Deliverect sometimes sends menu as a list)
@@ -715,16 +672,10 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 else:
                     # It's a list of menu items
                     logger.info("[DELIVERECT-MENU] List format with direct menu items")
-                    # Create a direct menu structure with these items
-                    result = {
-                        "items": [],
-                        "modifiers": [],
-                        "modifierGroups": [],
-                        "name_variants": {}
-                    }
                     
                     # Process each item in the list to ensure it has a name
                     for i, item in enumerate(deliverect_menu):
+                        # Skip non-dictionary items
                         if not isinstance(item, dict):
                             logger.warning(f"[DELIVERECT-MENU] Skipping non-dict item at index {i}")
                             continue
@@ -744,6 +695,10 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                             else:
                                 item["name"] = f"Menu Item {i+1}"
                         
+                        # Ensure name is a string
+                        if item.get("name") and not isinstance(item["name"], str):
+                            item["name"] = str(item["name"])
+                        
                         # Add any other required fields
                         if not item.get("reference_handler") and item.get("plu"):
                             item["reference_handler"] = item["plu"]
@@ -760,75 +715,53 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     # Add name variants
                     for item in result["items"]:
                         if item.get("name"):
-                            # Make sure name is a string
-                            if not isinstance(item["name"], str):
-                                item["name"] = str(item["name"])
                             try:
                                 add_name_variants(item["name"], result["name_variants"])
                             except Exception as e:
                                 logger.warning(f"[DELIVERECT-MENU] Error adding variants for {item['name']}: {e}")
                                 # At minimum, add the base name
-                                result["name_variants"][item["name"].lower()] = item["name"]
+                                try:
+                                    result["name_variants"][item["name"].lower()] = item["name"]
+                                except:
+                                    pass
                         
                     logger.info(f"[DELIVERECT-MENU] Processed {len(result['items'])} items from list format")
                     return result
-            else:
-                logger.error("[DELIVERECT-MENU] List contains non-dictionary items")
-                raise ValueError("Menu data list contains non-dictionary items")
-        else:
-            logger.error("[DELIVERECT-MENU] Empty list provided")
-            raise ValueError("Empty menu data list provided")
+        
+        # If we reached here with a list but couldn't process it normally, try to extract any useful data
+        logger.warning("[DELIVERECT-MENU] List format but no valid processing path, attempting data extraction")
+        try:
+            for item in deliverect_menu:
+                if isinstance(item, dict) and "categories" in item:
+                    logger.info("[DELIVERECT-MENU] Found categories in list item, processing recursively")
+                    return process_deliverect_menu(item, location_id)
+        except Exception as e:
+            logger.error(f"[DELIVERECT-MENU] Error attempting data extraction from list: {e}")
     
-    # At this point we should have a dictionary
+    # At this point we either have a dictionary or need to create a valid one
     if not isinstance(deliverect_menu, dict):
-        logger.error(f"[DELIVERECT-MENU] Invalid menu data type: {type(deliverect_menu)}")
-        raise ValueError(f"Menu data must be a dictionary, got {type(deliverect_menu)}")
-        
-    # Check for required fields
-    if "categories" not in deliverect_menu:
-        logger.error("[DELIVERECT-MENU] Missing 'categories' in menu data")
-        categories = []
-    else:
-        categories = deliverect_menu.get("categories", [])
-        
-    # Log general structure
-    try:
-        cat_count = len(categories)
-        logger.info(f"[DELIVERECT-MENU] Processing menu with {cat_count} categories")
-        
-        # Count total products
-        product_count = sum(len(cat.get("products", [])) for cat in categories)
-        logger.info(f"[DELIVERECT-MENU] Found {product_count} total products across all categories")
-    except Exception as e:
-        logger.error(f"[DELIVERECT-MENU] Error analyzing menu structure: {e}")
-        # Continue with processing anyway
+        logger.error(f"[DELIVERECT-MENU] Invalid menu data type: {type(deliverect_menu)}, creating empty structure")
+        deliverect_menu = {"categories": []}
     
-    # Initialize result structure
-    result = {
-        "items": [],
-        "modifiers": [],
-        "modifierGroups": [],
-        "name_variants": {}
-    }
+    # Create/extract categories
+    categories = []
+    if "categories" in deliverect_menu:
+        categories_data = deliverect_menu.get("categories", [])
+        if isinstance(categories_data, list):
+            categories = categories_data
+        else:
+            logger.warning(f"[DELIVERECT-MENU] Categories is not a list: {type(categories_data)}")
     
     # Track IDs to avoid duplicates
     processed_item_ids = set()
-    processed_modifier_ids = set()
-    processed_modifier_group_ids = set()
     
     # Create name variants dictionary for easier item lookups
     name_variants = {}
     
-    # STEP 1: Extract categories and process the main products
-    categories = deliverect_menu.get("categories", [])
-    if not isinstance(categories, list):
-        logger.warning(f"[DELIVERECT] Categories is not a list: {type(categories)}")
-        categories = []
-    
     # Check for products at the top level as well (some Deliverect data has this format)
     root_products = deliverect_menu.get("products", [])
     if isinstance(root_products, list) and len(root_products) > 0:
-        logger.info(f"[DELIVERECT] Found {len(root_products)} products at the root level")
+        logger.info(f"[DELIVERECT-MENU] Found {len(root_products)} products at the root level")
         # Create a synthetic category for these products
         root_category = {
             "id": "root_products",
@@ -837,556 +770,259 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         }
         categories.append(root_category)
     
-    logger.info(f"[DELIVERECT] Processing {len(categories)} categories")
+    logger.info(f"[DELIVERECT-MENU] Processing {len(categories)} categories")
     
+    # Process each category
     for category in categories:
         # Ensure category is a dictionary
         if not isinstance(category, dict):
-            logger.warning(f"[DELIVERECT] Category is not a dictionary: {type(category)}")
+            logger.warning(f"[DELIVERECT-MENU] Category is not a dictionary: {type(category)}")
             continue
-        cat_id = category.get("id")
-        cat_name = category.get("name", "")
+            
+        cat_id = category.get("id", f"cat-{len(processed_item_ids)}")
+        cat_name = category.get("name", "Uncategorized")
         products = category.get("products", [])
         
         # Ensure products is a list
         if not isinstance(products, list):
-            logger.warning(f"[DELIVERECT] Products in category {cat_id} is not a list: {type(products)}")
+            logger.warning(f"[DELIVERECT-MENU] Products in category {cat_id} is not a list: {type(products)}")
             products = []
         
-        # Filter out non-dictionary products (strings, etc.)
-        valid_products = []
-        invalid_count = 0
-        parsed_count = 0
-        
-        for prod in products:
-            if isinstance(prod, dict):
-                valid_products.append(prod)
-            else:
-                # Try to parse string products as JSON if they look like JSON objects
-                # Try to parse as JSON object first
-                if isinstance(prod, str) and prod.strip().startswith('{') and prod.strip().endswith('}'):
-                    try:
-                        import json
-                        parsed_prod = json.loads(prod)
-                        if isinstance(parsed_prod, dict):
-                            logger.info(f"[DELIVERECT] Successfully parsed string product as JSON in category {cat_id}")
-                            valid_products.append(parsed_prod)
-                            parsed_count += 1
-                            continue
-                    except Exception as e:
-                        logger.warning(f"[DELIVERECT] Failed to parse string product as JSON: {e}")
-                
-                # If we get here, try to extract product data from the string if it contains useful data
-                if isinstance(prod, str) and len(prod) > 5:  # Make sure it's a real string with content
-                    try:
-                        # Try to extract data using common patterns
-                        import re
-                        
-                        # Try multiple regex patterns to extract product information
-                        # Pattern for quoted name: name="Product Name" or name='Product Name'
-                        name_match1 = re.search(r'name["\']?\s*[:=]\s*["\']([^"\']+)["\']', prod)
-                        # Pattern for unquoted name: name=ProductName
-                        name_match2 = re.search(r'name=([^,\s]+)', prod)
-                        # Pattern for product description: Product with name='Product Name'
-                        name_match3 = re.search(r'Product.*?name=["\']?([^"\',\s]+)["\']?', prod)
-                        # Even more generic pattern to find anything that looks like a product name
-                        name_match4 = re.search(r'name\W+([a-zA-Z0-9 ]+)', prod)
-                        
-                        # Use the first match found
-                        name_match = name_match1 or name_match2 or name_match3 or name_match4
-                        
-                        # Do the same for ID, PLU, and price
-                        id_match1 = re.search(r'id["\']?\s*[:=]\s*["\']([^"\']+)["\']', prod)
-                        id_match2 = re.search(r'id=([^,\s]+)', prod)
-                        id_match3 = re.search(r'id\W+([a-zA-Z0-9]+)', prod)
-                        id_match = id_match1 or id_match2 or id_match3
-                        
-                        plu_match1 = re.search(r'plu["\']?\s*[:=]\s*["\']([^"\']+)["\']', prod)
-                        plu_match2 = re.search(r'plu=([^,\s]+)', prod)
-                        plu_match3 = re.search(r'plu\W+([a-zA-Z0-9\-]+)', prod)
-                        plu_match = plu_match1 or plu_match2 or plu_match3
-                        
-                        price_match1 = re.search(r'price["\']?\s*[:=]\s*(\d+)', prod)
-                        price_match2 = re.search(r'price=([^,\s]+)', prod)
-                        price_match3 = re.search(r'price\W+(\d+)', prod)
-                        price_match = price_match1 or price_match2 or price_match3
-                        
-                        if name_match:
-                            # We found enough data to create a product
-                            logger.info(f"[DELIVERECT] Extracted product data from string in category {cat_id}")
-                            
-                            extracted_prod = {
-                                "name": name_match.group(1),
-                                "id": id_match.group(1) if id_match else f"extracted-{len(valid_products)}",
-                                "reference_handler": plu_match.group(1) if plu_match else f"PLU-{len(valid_products)}",
-                                "price": int(price_match.group(1))/100 if price_match else 10.0,
-                                "description": "",
-                                "available": True
-                            }
-                            
-                            valid_products.append(extracted_prod)
-                            parsed_count += 1
-                            continue
-                    except Exception as e:
-                        logger.warning(f"[DELIVERECT] Failed to extract data from string product: {e}")
-                
-                invalid_count += 1
-        
-        if invalid_count > 0:
-            if parsed_count > 0:
-                logger.info(f"[DELIVERECT] Successfully parsed {parsed_count} string products as JSON in category {cat_id}")
-            
-            logger.warning(f"[DELIVERECT] Filtered out {invalid_count} invalid products in category {cat_id}")
-            products = valid_products
-        
-        # Process each product in the category
-        for product in products:
-            # Ensure product is a dictionary
-            if not isinstance(product, dict):
-                logger.warning(f"[DELIVERECT] Product in category {cat_id} is not a dictionary: {type(product)}")
-                continue
-            prod_id = product.get("id")
-            prod_name = product.get("name")
-            
-            # Check if name is missing or empty
-            if not prod_name:
-                logger.warning(f"[DELIVERECT] Product with ID {prod_id} has no name, attempting to generate one")
-                # Try to generate a name from other fields
-                if product.get("title"):
-                    prod_name = product.get("title")
-                    logger.info(f"[DELIVERECT] Using 'title' as name for product {prod_id}")
-                elif product.get("plu"):
-                    prod_name = f"Item-{product.get('plu')}"
-                    logger.info(f"[DELIVERECT] Using PLU to generate name for product {prod_id}")
-                elif prod_id:
-                    prod_name = f"Item-{prod_id}"
-                    logger.info(f"[DELIVERECT] Using ID to generate name for product {prod_id}")
-                else:
-                    # Generate a placeholder name with index
-                    prod_name = f"Unnamed Product {len(processed_item_ids) + 1}"
-                    logger.warning(f"[DELIVERECT] Generated generic name for product without ID or name")
-            elif prod_name == "":
-                # Empty string name
-                if prod_id:
-                    prod_name = f"Item-{prod_id}"
-                else:
-                    prod_name = f"Unnamed Product {len(processed_item_ids) + 1}"
-                logger.warning(f"[DELIVERECT] Fixed empty string name for product {prod_id}")
-            
-            # Skip duplicates
-            if prod_id in processed_item_ids:
-                continue
-                
-            processed_item_ids.add(prod_id)
-            
-            # Get PLU (reference_handler) from the product
-            plu = product.get("plu", "")
-            
-            # Location-specific PLU override if provided
-            if location_id:
-                locations = product.get("locations", [])
-                if not isinstance(locations, list):
-                    logger.warning(f"[DELIVERECT] locations for product {prod_id} is not a list: {type(locations)}")
-                    locations = []
-                    
-                for location in locations:
-                    if not isinstance(location, dict):
-                        logger.warning(f"[DELIVERECT] Location in product {prod_id} is not a dictionary: {type(location)}")
-                        continue
-                        
-                    if location.get("id") == location_id and location.get("plu"):
-                        plu = location.get("plu")
-                        price_value = location.get("price", product.get("price", 0))
-                        if isinstance(price_value, (int, float)):
-                            price = price_value / 100
-                        else:
-                            logger.warning(f"[DELIVERECT] Invalid price for location {location_id}: {price_value}")
-                            price = 0
-                        break
-                else:
-                    price_value = product.get("price", 0)
-                    if isinstance(price_value, (int, float)):
-                        price = price_value / 100
-                    else:
-                        logger.warning(f"[DELIVERECT] Invalid price for product {prod_id}: {price_value}")
-                        price = 0
-            else:
-                price_value = product.get("price", 0)
-                if isinstance(price_value, (int, float)):
-                    price = price_value / 100
-                else:
-                    logger.warning(f"[DELIVERECT] Invalid price for product {prod_id}: {price_value}")
-                    price = 0
-            
-            # Create menu item with complete data
+        # Process each product in this category
+        for i, product in enumerate(products):
+            # Create a new product record
             menu_item = {
-                "id": prod_id,
-                "name": prod_name,
-                "price": price,
-                "reference_handler": plu,
-                "description": product.get("description", ""),
-                "imageUrl": product.get("imageUrl", ""),
-                "snoozed": not product.get("available", True),
+                "id": f"auto-{len(result['items'])}",
+                "name": f"Item {len(result['items']) + 1}",
+                "price": 0.0,
+                "reference_handler": f"REF-{len(result['items']):04d}",
+                "description": "",
                 "category": cat_name,
                 "categoryId": cat_id,
-                "available": product.get("available", True)
+                "available": True,
+                "snoozed": False
             }
             
-            # Add availability schedule if present
-            if "availability" in product:
-                availability_data = product.get("availability", [])
-                try:
-                    menu_item["availabilities"] = convert_availability(availability_data)
-                except Exception as e:
-                    logger.warning(f"[DELIVERECT] Error converting availability for product {prod_id}: {e}")
-                    menu_item["availabilities"] = []
-            # Also check for "availabilities" (plural) which is sometimes used
-            elif "availabilities" in product:
-                availability_data = product.get("availabilities", [])
-                try:
-                    menu_item["availabilities"] = convert_availability(availability_data)
-                except Exception as e:
-                    logger.warning(f"[DELIVERECT] Error converting availabilities for product {prod_id}: {e}")
-                    menu_item["availabilities"] = []
-            
-            # Process modifier groups references
-            mod_group_ids = []
-            # Ensure modifierGroups is a list
-            modifier_groups = product.get("modifierGroups", [])
-            if not isinstance(modifier_groups, list):
-                logger.warning(f"[DELIVERECT] modifierGroups for product {prod_id} is not a list: {type(modifier_groups)}")
-                modifier_groups = []
-                
-            for group in modifier_groups:
-                # Ensure group is a dictionary
-                if not isinstance(group, dict):
-                    logger.warning(f"[DELIVERECT] Modifier group for product {prod_id} is not a dictionary: {type(group)}")
-                    continue
-                    
-                group_id = group.get("id")
-                if group_id:
-                    mod_group_ids.append(group_id)
-            
-            if mod_group_ids:
-                menu_item["modifierGroups"] = mod_group_ids
-                
-            # Add to items list
-            result["items"].append(menu_item)
-            
-            # Generate name variants for this item (for easier lookup)
-            add_name_variants(prod_name, name_variants)
-    
-    # STEP 2: Process modifiers and modifier groups
-    all_modifiers = {}
-    all_modifier_groups = {}
-    
-    # First collect all modifier groups from the nested structure
-    for category in categories:
-        # Ensure category is a dictionary
-        if not isinstance(category, dict):
-            logger.warning(f"[DELIVERECT-MENU] Category is not a dictionary in collecting modifiers: {type(category)}")
-            continue
-            
-        # Get products and ensure it's a list
-        products = category.get("products", [])
-        if not isinstance(products, list):
-            logger.warning(f"[DELIVERECT-MENU] Products in category {category.get('id', 'unknown')} is not a list: {type(products)}")
-            continue
-            
-        for product in products:
-            # Ensure product is a dictionary
-            if not isinstance(product, dict):
-                logger.warning(f"[DELIVERECT-MENU] Product in category {category.get('id', 'unknown')} is not a dictionary: {type(product)}")
-                continue
-                
-            # Get modifierGroups and ensure it's a list
-            modifier_groups = product.get("modifierGroups", [])
-            if not isinstance(modifier_groups, list):
-                logger.warning(f"[DELIVERECT-MENU] ModifierGroups in product {product.get('id', 'unknown')} is not a list: {type(modifier_groups)}")
-                continue
-                
-            for group in modifier_groups:
-                # Ensure group is a dictionary
-                if not isinstance(group, dict):
-                    logger.warning(f"[DELIVERECT-MENU] Group in product {product.get('id', 'unknown')} is not a dictionary: {type(group)}")
-                    continue
-                    
-                group_id = group.get("id")
+            # Handle different product types
+            if isinstance(product, dict):
+                # It's a normal dictionary product - extract fields
+                prod_id = product.get("id")
+                prod_name = product.get("name")
                 
                 # Skip duplicates
-                if group_id in processed_modifier_group_ids:
+                if prod_id and prod_id in processed_item_ids:
                     continue
+                
+                if prod_id:
+                    processed_item_ids.add(prod_id)
+                    menu_item["id"] = prod_id
+                
+                # Process name (ensuring it's a string)
+                if prod_name is not None:
+                    if isinstance(prod_name, str):
+                        menu_item["name"] = prod_name
+                    else:
+                        menu_item["name"] = str(prod_name)
+                elif product.get("title"):
+                    menu_item["name"] = product.get("title")
+                
+                # Get PLU (reference_handler)
+                if product.get("plu"):
+                    menu_item["reference_handler"] = product.get("plu")
+                
+                # Get price (converting from cents if needed)
+                price_value = product.get("price", 0)
+                if isinstance(price_value, (int, float)):
+                    menu_item["price"] = price_value / 100 if price_value > 100 else price_value
+                
+                # Get description
+                if product.get("description"):
+                    menu_item["description"] = product.get("description")
+                
+                # Get availability
+                if "available" in product:
+                    menu_item["available"] = bool(product.get("available"))
+                    menu_item["snoozed"] = not menu_item["available"]
+                
+                # Get image URL
+                if product.get("imageUrl"):
+                    menu_item["imageUrl"] = product.get("imageUrl")
+                
+                # Process availability schedule
+                if "availability" in product:
+                    try:
+                        menu_item["availabilities"] = convert_availability(product.get("availability", []))
+                    except Exception as e:
+                        logger.warning(f"[DELIVERECT-MENU] Error converting availability: {e}")
+                elif "availabilities" in product:
+                    try:
+                        menu_item["availabilities"] = convert_availability(product.get("availabilities", []))
+                    except Exception as e:
+                        logger.warning(f"[DELIVERECT-MENU] Error converting availabilities: {e}")
+                
+                # Process modifier groups
+                mod_groups = product.get("modifierGroups", [])
+                if isinstance(mod_groups, list):
+                    mod_group_ids = []
+                    for group in mod_groups:
+                        if isinstance(group, dict) and group.get("id"):
+                            mod_group_ids.append(group.get("id"))
+                    if mod_group_ids:
+                        menu_item["modifierGroups"] = mod_group_ids
+            
+            elif isinstance(product, str):
+                # It's a string - try to extract product data from it
+                import re
+                import json
+                
+                # Try to parse JSON first if it looks like a JSON string
+                if product.strip().startswith('{') and product.strip().endswith('}'):
+                    try:
+                        parsed = json.loads(product)
+                        if isinstance(parsed, dict):
+                            # If parsing worked, process this as a new dictionary product
+                            if parsed.get("name"):
+                                menu_item["name"] = parsed.get("name")
+                            if parsed.get("id"):
+                                menu_item["id"] = parsed.get("id")
+                            if parsed.get("plu"):
+                                menu_item["reference_handler"] = parsed.get("plu")
+                            if "price" in parsed and isinstance(parsed["price"], (int, float)):
+                                menu_item["price"] = parsed["price"] / 100 if parsed["price"] > 100 else parsed["price"]
+                            if parsed.get("description"):
+                                menu_item["description"] = parsed.get("description")
+                            logger.info(f"[DELIVERECT-MENU] Successfully parsed string product as JSON")
+                    except Exception:
+                        # If JSON parsing fails, continue with regex approach
+                        pass
+                
+                # Try regex patterns if JSON parsing failed or string isn't JSON
+                if menu_item["name"] == f"Item {len(result['items']) + 1}":  # Only if we haven't set a name yet
+                    # Multiple regex patterns for different string formats
+                    name_patterns = [
+                        r'name["\']?\s*[:=]\s*["\']([^"\']+)["\']',  # name="Product Name"
+                        r'name=([^,\s]+)',                            # name=ProductName
+                        r'Product.*?name=["\']?([^"\',\s]+)["\']?',   # Product...name="Name"
+                        r'name\W+([a-zA-Z0-9 ]+)',                    # name: Product
+                        r'product_name["\']?\s*[:=]\s*["\']([^"\']+)["\']',  # product_name="Name"
+                        r'title["\']?\s*[:=]\s*["\']([^"\']+)["\']'   # title="Name"
+                    ]
                     
-                processed_modifier_group_ids.add(group_id)
+                    # Try each pattern
+                    for pattern in name_patterns:
+                        match = re.search(pattern, product)
+                        if match:
+                            menu_item["name"] = match.group(1)
+                            break
+                    
+                    # Try to extract other fields with regex
+                    id_match = re.search(r'id["\']?\s*[:=]\s*["\']?([^"\',\s]+)["\']?', product)
+                    if id_match:
+                        menu_item["id"] = id_match.group(1)
+                        
+                    plu_match = re.search(r'plu["\']?\s*[:=]\s*["\']?([^"\',\s]+)["\']?', product)
+                    if plu_match:
+                        menu_item["reference_handler"] = plu_match.group(1)
+                    
+                    price_match = re.search(r'price["\']?\s*[:=]\s*(\d+)', product)
+                    if price_match:
+                        try:
+                            price = int(price_match.group(1))
+                            menu_item["price"] = price / 100 if price > 100 else price
+                        except (ValueError, TypeError):
+                            pass
+            
+            else:
+                # It's some other type - create a generic placeholder
+                menu_item["name"] = f"Item Type {type(product).__name__} {i+1}"
+                menu_item["description"] = f"Auto-generated from non-standard data type: {type(product).__name__}"
+            
+            # Add the processed item to our results
+            if menu_item["name"] != f"Item {len(result['items']) + 1}" or len(result['items']) == 0:
+                # Only add if we got a real name or it's our first item
+                result["items"].append(menu_item)
                 
-                # Create the modifier group record
-                modifier_groups = deliverect_menu.get("modifierGroups", {})
-                if isinstance(modifier_groups, dict):
-                    group_data = modifier_groups.get(group_id, {})
+                # Add name variants for easier search
+                try:
+                    add_name_variants(menu_item["name"], name_variants)
+                except Exception as e:
+                    logger.warning(f"[DELIVERECT-MENU] Error adding name variants: {e}")
+    
+    # Process modifier groups
+    modifier_groups_data = deliverect_menu.get("modifierGroups", {})
+    if isinstance(modifier_groups_data, dict):
+        for group_id, group_data in modifier_groups_data.items():
+            if not isinstance(group_data, dict):
+                logger.warning(f"[DELIVERECT-MENU] Modifier group data for {group_id} is not a dictionary: {type(group_data)}")
+                continue
+                
+            # Create the group structure
+            group = {
+                "id": group_id,
+                "name": group_data.get("name", f"Group {group_id}"),
+                "minAllowed": group_data.get("min", 0),
+                "maxAllowed": group_data.get("max", 999),
+                "modifiers": []
+            }
+            
+            # Add modifiers to the group
+            modifiers = group_data.get("subProducts", [])
+            if isinstance(modifiers, list):
+                for mod in modifiers:
+                    if isinstance(mod, str):
+                        group["modifiers"].append(mod)
+                    elif isinstance(mod, dict) and "id" in mod:
+                        group["modifiers"].append(mod["id"])
+            
+            # Add the group to the result
+            result["modifierGroups"].append(group)
+    else:
+        logger.warning(f"[DELIVERECT-MENU] modifierGroups is not a dictionary: {type(modifier_groups_data)}")
+    
+    # Process modifiers
+    modifiers_data = deliverect_menu.get("modifiers", {})
+    if isinstance(modifiers_data, dict):
+        for modifier_id, modifier_data in modifiers_data.items():
+            if not isinstance(modifier_data, dict):
+                logger.warning(f"[DELIVERECT-MENU] Modifier data for {modifier_id} is not a dictionary: {type(modifier_data)}")
+                continue
+                
+            # Create the modifier record
+            try:
+                price = modifier_data.get("price", 0)
+                if isinstance(price, (int, float)):
+                    price = price / 100 if price > 100 else price
                 else:
-                    # Handle the case where modifierGroups is not a dictionary
-                    logger.warning(f"[DELIVERECT-MENU] ModifierGroups is not a dictionary: {type(modifier_groups)}")
-                    group_data = {}
+                    price = 0
                 
-                new_group = {
-                    "id": group_id,
-                    "name": group_data.get("name", "") if isinstance(group_data, dict) else "",
-                    "minAllowed": group_data.get("min", 0) if isinstance(group_data, dict) else 0,
-                    "maxAllowed": group_data.get("max", 999) if isinstance(group_data, dict) else 999,
-                    "modifiers": []
+                modifier = {
+                    "id": modifier_id,
+                    "name": modifier_data.get("name", f"Modifier {modifier_id}"),
+                    "price": price,
+                    "available": modifier_data.get("available", True),
+                    "snoozed": not modifier_data.get("available", True),
+                    "reference_handler": modifier_data.get("plu", "")
                 }
                 
-                # Add modifiers to group
-                if isinstance(group_data, dict):
-                    sub_products = group_data.get("subProducts", [])
-                    if isinstance(sub_products, list):
-                        for modifier_id in sub_products:
-                            new_group["modifiers"].append(modifier_id)
-                    else:
-                        logger.warning(f"[DELIVERECT-MENU] subProducts is not a list: {type(sub_products)}")
-                
-                # Add to all_modifier_groups
-                all_modifier_groups[group_id] = new_group
-    
-    # Process all modifiers in the menu
-    modifiers_data = deliverect_menu.get("modifiers", {})
-    if not isinstance(modifiers_data, dict):
+                # Add the modifier to the result
+                result["modifiers"].append(modifier)
+            except Exception as e:
+                logger.error(f"[DELIVERECT-MENU] Error creating modifier {modifier_id}: {e}")
+    else:
         logger.warning(f"[DELIVERECT-MENU] modifiers is not a dictionary: {type(modifiers_data)}")
-        modifiers_data = {}
-        
-    for modifier_id, modifier_data in modifiers_data.items():
-        # Skip if already processed
-        if modifier_id in processed_modifier_ids:
-            continue
-            
-        processed_modifier_ids.add(modifier_id)
-        
-        # Check if modifier_data is a dictionary
-        if not isinstance(modifier_data, dict):
-            logger.warning(f"[DELIVERECT-MENU] Modifier data for {modifier_id} is not a dictionary: {type(modifier_data)}")
-            continue
-        
-        # Create the modifier record
-        try:
-            price = modifier_data.get("price", 0)
-            if isinstance(price, (int, float)):
-                price = price / 100
-            else:
-                price = 0
-                logger.warning(f"[DELIVERECT-MENU] Invalid price for modifier {modifier_id}: {price}")
-            
-            new_modifier = {
-                "id": modifier_id,
-                "name": modifier_data.get("name", ""),
-                "price": price,
-                "available": modifier_data.get("available", True),
-                "snoozed": not modifier_data.get("available", True),
-                "reference_handler": modifier_data.get("plu", "")
-            }
-        except Exception as e:
-            logger.error(f"[DELIVERECT-MENU] Error creating modifier {modifier_id}: {e}")
-            continue
-        
-        # Add to all_modifiers
-        all_modifiers[modifier_id] = new_modifier
-    
-    # Now add all modifiers and modifier groups to the result
-    for modifier_id, modifier in all_modifiers.items():
-        result["modifiers"].append(modifier)
-        
-    for group_id, group in all_modifier_groups.items():
-        result["modifierGroups"].append(group)
     
     # Add name variants to the result
     result["name_variants"] = name_variants
     
-    # Final validation to ensure all items have names
-    items_missing_names = [item for item in result.get("items", []) if not item.get("name")]
-    if items_missing_names:
-        missing_count = len(items_missing_names)
-        item_indices = [result.get("items", []).index(item) for item in items_missing_names[:3]]
-        logger.error(f"[DELIVERECT] {missing_count} items still missing names after processing. Problem indices: {item_indices}")
-        raise ValueError("Menu items must have names")
-    
     # Log summary
-    logger.info(f"[DELIVERECT] Processed: {len(result['items'])} items, " + 
+    logger.info(f"[DELIVERECT-MENU] Processed: {len(result['items'])} items, " + 
                 f"{len(result['modifiers'])} modifiers, " + 
                 f"{len(result['modifierGroups'])} modifier groups, " + 
                 f"{len(name_variants)} name variants")
     
     return result
 
-def create_default_menu():
-    """
-    Creates a default menu with basic items when no valid menu is available.
-    This ensures the system always has something to work with.
-    
-    Returns:
-        dict: A basic menu with required structure and sample items
-    """
-    logger.warning("Creating default menu - this should only happen when no valid menu exists")
-    
-    # Create a more comprehensive default menu with common items
-    default_menu = {
-        "items": [
-            # Sushi rolls
-            {
-                "id": "default_001",
-                "name": "California Roll",
-                "price": 9.95,
-                "reference_handler": "CAL-ROLL",
-                "description": "Crab, avocado and cucumber roll",
-                "available": True,
-                "snoozed": False,
-                "category": "Sushi"
-            },
-            {
-                "id": "default_002",
-                "name": "Spicy Tuna Roll",
-                "price": 12.95,
-                "reference_handler": "SPICY-TUNA",
-                "description": "Spicy tuna roll with cucumber",
-                "available": True,
-                "snoozed": False,
-                "category": "Sushi"
-            },
-            {
-                "id": "default_003",
-                "name": "Dragon Roll",
-                "price": 14.95,
-                "reference_handler": "DRAGON",
-                "description": "Eel, avocado and cucumber with special sauce",
-                "available": True,
-                "snoozed": False,
-                "category": "Special Rolls"
-            },
-            # Appetizers
-            {
-                "id": "default_004",
-                "name": "Edamame",
-                "price": 5.95,
-                "reference_handler": "EDAMAME",
-                "description": "Steamed soy beans with sea salt",
-                "available": True,
-                "snoozed": False,
-                "category": "Appetizers"
-            },
-            {
-                "id": "default_005",
-                "name": "Gyoza",
-                "price": 7.95,
-                "reference_handler": "GYOZA",
-                "description": "Pan-fried dumplings filled with vegetables and pork",
-                "available": True,
-                "snoozed": False,
-                "category": "Appetizers"
-            },
-            {
-                "id": "default_006",
-                "name": "Miso Soup",
-                "price": 3.95,
-                "reference_handler": "MISO",
-                "description": "Traditional Japanese soup with tofu and seaweed",
-                "available": True,
-                "snoozed": False,
-                "category": "Soup"
-            },
-            # Main dishes
-            {
-                "id": "default_007",
-                "name": "Vegetable Tempura",
-                "price": 10.95,
-                "reference_handler": "VEG-TEMP",
-                "description": "Assorted vegetables, lightly battered and deep fried",
-                "available": True,
-                "snoozed": False,
-                "category": "Tempura"
-            },
-            {
-                "id": "default_008",
-                "name": "Chicken Teriyaki",
-                "price": 14.95,
-                "reference_handler": "CHIX-TERI",
-                "description": "Grilled chicken with teriyaki sauce",
-                "available": True,
-                "snoozed": False,
-                "category": "Main Dish"
-            },
-            {
-                "id": "default_009",
-                "name": "Salmon Teriyaki",
-                "price": 16.95,
-                "reference_handler": "SALM-TERI",
-                "description": "Grilled salmon with teriyaki sauce",
-                "available": True,
-                "snoozed": False,
-                "category": "Main Dish"
-            },
-            # Desserts
-            {
-                "id": "default_010",
-                "name": "Mochi Ice Cream",
-                "price": 5.95,
-                "reference_handler": "MOCHI",
-                "description": "Japanese rice cake filled with ice cream, 2 pieces",
-                "available": True,
-                "snoozed": False,
-                "category": "Dessert"
-            },
-            # Burgers for demonstration
-            {
-                "id": "default_011",
-                "name": "Veggie Burger",
-                "price": 12.95,
-                "reference_handler": "VEG-BURG",
-                "description": "Plant-based burger patty with lettuce, tomato, and special sauce",
-                "available": True,
-                "snoozed": False,
-                "category": "Burgers"
-            }
-        ],
-        "modifiers": [],
-        "modifierGroups": [],
-        "name_variants": {
-            # Sushi rolls
-            "california roll": "California Roll",
-            "california": "California Roll",
-            "spicy tuna roll": "Spicy Tuna Roll",
-            "spicy tuna": "Spicy Tuna Roll",
-            "tuna roll": "Spicy Tuna Roll",
-            "dragon roll": "Dragon Roll",
-            
-            # Appetizers
-            "edamame": "Edamame",
-            "beans": "Edamame",
-            "gyoza": "Gyoza",
-            "dumplings": "Gyoza",
-            "potstickers": "Gyoza",
-            "miso soup": "Miso Soup",
-            "miso": "Miso Soup",
-            
-            # Main dishes
-            "vegetable tempura": "Vegetable Tempura",
-            "tempura": "Vegetable Tempura",
-            "veg tempura": "Vegetable Tempura",
-            "chicken teriyaki": "Chicken Teriyaki",
-            "teriyaki chicken": "Chicken Teriyaki",
-            "salmon teriyaki": "Salmon Teriyaki",
-            "teriyaki salmon": "Salmon Teriyaki",
-            
-            # Desserts
-            "mochi": "Mochi Ice Cream",
-            "mochi ice cream": "Mochi Ice Cream",
-            
-            # Burgers
-            "veggie burger": "Veggie Burger",
-            "vegetable burger": "Veggie Burger",
-            "vegan burger": "Veggie Burger"
-        }
-    }
-    
-    logger.info(f"Created default menu with {len(default_menu['items'])} items")
-    return default_menu
+# Empty menu creation function removed
 
 def add_name_variants(item_name, variants_dict):
     """

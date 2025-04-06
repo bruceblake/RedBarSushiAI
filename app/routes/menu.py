@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 import logging
 import json
 import os
+import requests
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.menu_validator import validate_and_fix_menu_data
 from app.utils.menu_utils import process_deliverect_menu, load_menu_data, write_menu_file, sync_reference_handlers, MENU_FILE_PATH
@@ -19,740 +20,222 @@ def menu_update():
     
     Accepts:
     1. Deliverect format (with "categories")
-    2. Our internal format (with "items", "modifiers", "modifierGroups")
-    3. Simple list of menu items
+    2. Deliverect async format (with "body.menus", "body.stores", "body.callback")
+    3. Our internal format (with "items", "modifiers", "modifierGroups")
+    4. Simple list of menu items
     
     Returns:
         JSON response with success status
     """
-    # Log the raw request headers to debug issues with Deliverect
-    logger.info(f"[MENU-UPDATE] Request headers: {dict(request.headers)}")
+    # Basic logging of request info
+    logger.info(f"[MENU-UPDATE] Processing menu update request from {request.remote_addr}")
+    
     try:
-        logger.info(f"[MENU-UPDATE] Request content type: {request.content_type}")
-        if request.content_length:
-            logger.info(f"[MENU-UPDATE] Content length: {request.content_length}")
-    except Exception as e:
-        logger.info(f"[MENU-UPDATE] Error logging request info: {e}")
-    try:
-        import time  # Import here for alt_path creation
+        # Get raw data and parse as JSON
+        raw_data = request.get_data()
+        raw_data_length = len(raw_data) if raw_data else 0
+        logger.info(f"[MENU-UPDATE] Raw data length: {raw_data_length} bytes")
         
-        # Log the start of request processing
-        logger.info(f"[MENU-UPDATE] Processing menu update request from {request.remote_addr}")
-        
-        # Get content length for logging
-        content_length = request.headers.get('Content-Length', 'unknown')
-        logger.info(f"[MENU-UPDATE] Request Content-Length: {content_length}")
-        
-        # Try to get the raw data first for maximum debugging
-        try:
-            raw_data = request.get_data()
-            raw_data_length = len(raw_data)
-            logger.info(f"[MENU-UPDATE] Raw data length: {raw_data_length} bytes")
+        if raw_data_length == 0:
+            logger.error("[MENU-UPDATE] No data provided in request")
+            return jsonify({"error": "No data provided"}), 400
             
-            # Log a sample of the raw data for debugging (careful with large data)
-            if raw_data_length > 0:
-                sample_size = min(200, raw_data_length)
-                sample = raw_data[:sample_size]
-                try:
-                    sample_str = sample.decode('utf-8')
-                    logger.info(f"[MENU-UPDATE] Raw data sample: {sample_str}...")
-                except:
-                    logger.info(f"[MENU-UPDATE] Raw data sample (binary): {sample}...")
-        except Exception as raw_e:
-            logger.error(f"[MENU-UPDATE] Error getting raw data: {raw_e}")
-            
-        # Now try to parse as JSON
+        # Try to parse JSON using multiple methods
         try:
             # First try normal JSON parsing
             data = request.get_json(silent=True, force=False)
             
             # If that fails, try with force=True
             if data is None:
-                logger.error("[MENU-UPDATE] Failed to parse JSON, trying with force=True")
+                logger.warning("[MENU-UPDATE] Standard JSON parsing failed, trying with force=True")
                 data = request.get_json(silent=True, force=True)
                 
-            # If still no data, try manually parsing the raw data
-            if data is None and raw_data_length > 0:
-                logger.error("[MENU-UPDATE] Both JSON parsing methods failed, trying manual parsing")
+            # If still no data, try manual parsing
+            if data is None:
+                logger.warning("[MENU-UPDATE] Both JSON parsing methods failed, trying manual parsing")
                 import json
                 try:
                     data = json.loads(raw_data.decode('utf-8'))
                     logger.info("[MENU-UPDATE] Manual JSON parsing succeeded")
                 except Exception as manual_e:
                     logger.error(f"[MENU-UPDATE] Manual JSON parsing failed: {manual_e}")
-                
-            # Check if we got valid data
-            if not data:
-                logger.error("[MENU-UPDATE] No data provided in request or invalid JSON")
-                return jsonify({"error": "No data provided or invalid JSON format"}), 400
-                
-            # Log data type and size for debugging
-            data_type = type(data).__name__
-            data_size = len(str(data)) if data else 0
-            logger.info(f"[MENU-UPDATE] Got data of type {data_type}, approximate size: {data_size} bytes")
-            
-            # If it's a dict, log the keys
-            if isinstance(data, dict):
-                logger.info(f"[MENU-UPDATE] Data keys: {list(data.keys())}")
-            # If it's a list, check for special Deliverect format and transform
-            elif isinstance(data, list):
-                # Check if this is the Deliverect menu in alternative format (list with menu items data)
-                if len(data) > 0 and isinstance(data[0], dict):
-                    # Check for expected fields in the first item
-                    first_item = data[0]
-                    if ("availabilities" in first_item or "categories" in first_item or 
-                        "modifierGroups" in first_item or "products" in first_item):
-                        logger.info("[MENU-UPDATE] Detected Deliverect menu in list format")
-                        
-                        # First, check if it has "categories" directly (standard Deliverect format)
-                        if "categories" in first_item:
-                            transformed_data = first_item
-                            logger.info(f"[MENU-UPDATE] Using first item in list as main menu: {list(transformed_data.keys())}")
-                        # Otherwise, construct a menu structure that uses the list items as products
-                        else:
-                            # Create a standard format with these list items as products
-                            transformed_data = {
-                                "items": data,  # Use the entire list as direct menu items
-                                "modifiers": [],
-                                "modifierGroups": [],
-                                "name_variants": {}
-                            }
-                            logger.info("[MENU-UPDATE] Transformed list to standard menu format")
-                        
-                        data = transformed_data
-                    else:
-                        logger.info("[MENU-UPDATE] List format but not recognized as Deliverect menu format")
-                
-                # Log info about the list (after possible transformation)
-                if isinstance(data, list):
-                    sample_items = data[:3] if len(data) > 3 else data
-                    sample_types = [type(item).__name__ for item in sample_items]
-                    logger.info(f"[MENU-UPDATE] Data is a list with {len(data)} items. Sample types: {sample_types}")
-            
+                    return jsonify({"error": f"Failed to parse JSON data: {str(manual_e)}"}), 400
         except Exception as e:
             logger.error(f"[MENU-UPDATE] JSON parsing error: {str(e)}")
-            return jsonify({
-                "error": f"Failed to parse JSON: {str(e)}",
-                "data_sample": str(raw_data[:200]) if 'raw_data' in locals() else "No sample available"
-            }), 400
-            
-        # Handle empty arrays or empty objects
-        if (isinstance(data, list) and len(data) == 0) or (isinstance(data, dict) and len(data) == 0):
-            logger.warning("[MENU-UPDATE] Received empty menu data - creating basic default menu")
-            from app.utils.menu_utils import create_default_menu
-            data = create_default_menu()
+            return jsonify({"error": f"Failed to parse JSON data: {str(e)}"}), 400
         
-        # Handle case where data is a list instead of a dictionary
-        # Note: we still need this code even though we have transformation above
-        # because the transformation may have been skipped if the list didn't match the expected patterns
-        if isinstance(data, list):
-            logger.info(f"[MENU-UPDATE] Processing list data with {len(data)} items")
+        # Check if we have any data
+        if not data:
+            logger.error("[MENU-UPDATE] No valid data after parsing")
+            return jsonify({"error": "No valid data provided"}), 400
             
-            # Check for items without names and filter/fix them
-            valid_items = []
-            item_count = 0
-            non_dict_count = 0
-            
-            for i, item in enumerate(data):
-                if not isinstance(item, dict):
-                    logger.warning(f"[MENU-UPDATE] Item at index {i} is not a dictionary: {type(item)}")
-                    non_dict_count += 1
-                    continue
-                    
-                item_count += 1
-                
-                # If item has no name, try to fix it
-                if not item.get("name"):
-                    if item.get("title"):
-                        logger.info(f"[MENU-UPDATE] Using 'title' field as name for item {i}")
-                        item["name"] = item["title"]
-                    elif item.get("product_name"):
-                        logger.info(f"[MENU-UPDATE] Using 'product_name' field as name for item {i}")
-                        item["name"] = item["product_name"]
-                    elif item.get("label"):
-                        logger.info(f"[MENU-UPDATE] Using 'label' field as name for item {i}")
-                        item["name"] = item["label"]
-                    elif item.get("id") or item.get("product_id"):
-                        # Generate a name from ID
-                        item_id = item.get("id") or item.get("product_id")
-                        logger.info(f"[MENU-UPDATE] Using ID to generate name for item {i}: Item {item_id}")
-                        item["name"] = f"Item {item_id}"
-                    else:
-                        # Auto-generate a name from description if available
-                        if item.get("description"):
-                            desc = item["description"]
-                            name = desc.split()[0:2]  # Use first two words of description
-                            name = " ".join(name)
-                            logger.info(f"[MENU-UPDATE] Using description to generate name for item {i}: {name}")
-                            item["name"] = name
-                        else:
-                            # Last resort: auto-generate a name
-                            logger.info(f"[MENU-UPDATE] Auto-generating name for item {i}: Menu Item {i+1}")
-                            item["name"] = f"Menu Item {i+1}"
-                    
-                    # Add required fields if missing
-                    if not item.get("reference_handler"):
-                        if item.get("plu"):
-                            item["reference_handler"] = item["plu"]
-                        else:
-                            item["reference_handler"] = f"REF-{i:04d}"
-                    
-                    # Convert price from cents to dollars if needed
-                    if "price" in item and isinstance(item["price"], (int, float)) and item["price"] > 100:
-                        item["price"] = item["price"] / 100
-                    
-                    # Now that item is fixed, add it to valid items
-                    valid_items.append(item)
-                    
-            # Log any fixes and counters
-            if non_dict_count > 0:
-                logger.warning(f"[MENU-UPDATE] Filtered out {non_dict_count} non-dictionary items")
-            
-            if len(valid_items) < item_count:
-                logger.warning(f"[MENU-UPDATE] Filtered out {item_count - len(valid_items)} invalid dictionary items")
-                
-            # Convert list of valid items to our standard format
-            data = {
-                "items": valid_items,
-                "modifiers": [],
-                "modifierGroups": [],
-                "name_variants": {}
-            }
-            
-            # Generate name variants for these items
-            from app.utils.menu_utils import add_name_variants
-            for item in data["items"]:
-                try:
-                    # Make sure item name is a string
-                    if item.get("name") is not None:
-                        if not isinstance(item["name"], str):
-                            item["name"] = str(item["name"])
-                        add_name_variants(item["name"], data["name_variants"])
-                except Exception as e:
-                    logger.warning(f"[MENU-UPDATE] Error adding name variants - {str(e)}")
-                    # Ensure at least the base name is in variants - safely
-                    try:
-                        if item.get("name") and isinstance(item["name"], str):
-                            data["name_variants"][item["name"].lower()] = item["name"]
-                    except Exception as inner_e:
-                        logger.error(f"[MENU-UPDATE] Even failed to add basic variant: {str(inner_e)}")
-        else:
-            # Log receipt of dictionary data
-            logger.info(f"[MENU-UPDATE] Received menu update. Keys: {list(data.keys())}")
+        # Log data type and basic structure
+        data_type = type(data).__name__
+        logger.info(f"[MENU-UPDATE] Received data of type {data_type}")
         
-        # Process based on format - with chunk processing for large menus
+        # Check for Deliverect Async format
+        callback_url = None
+        stores = None
+        
+        # Handle the async format with body, menus, stores, callback
+        if isinstance(data, dict) and "body" in data:
+            body = data.get("body", {})
+            
+            if isinstance(body, dict):
+                # Extract callback URL
+                callback_url = body.get("callback")
+                logger.info(f"[MENU-UPDATE] Found callback URL: {callback_url}")
+                
+                # Extract stores
+                stores = body.get("stores", [])
+                logger.info(f"[MENU-UPDATE] Found stores: {stores}")
+                
+                # Extract menus data - this is what we'll actually process
+                menus = body.get("menus", [])
+                if isinstance(menus, list) and len(menus) > 0:
+                    logger.info(f"[MENU-UPDATE] Found {len(menus)} menus in async format")
+                    # Use the first menu as our data to process
+                    data = menus[0]
+                    logger.info(f"[MENU-UPDATE] Using first menu for processing")
+        
+        # Process the menu data through our robust formatter
         try:
-            if "categories" in data:
-                # Deliverect format
-                categories = data.get('categories', [])
-                if not isinstance(categories, list):
-                    logger.error(f"[MENU-UPDATE] Categories is not a list: {type(categories)}")
-                    return jsonify({"error": "Categories is not a list. Invalid format."}), 400
-                    
-                categories_count = len(categories)
-                logger.info(f"[MENU-UPDATE] Processing Deliverect format with {categories_count} categories")
-                
-                # Check if menu is very large (might cause memory issues)
-                if categories_count > 30:
-                    logger.warning(f"[MENU-UPDATE] Large menu detected with {categories_count} categories - processing with caution")
-                
-                try:
-                    # Log memory usage before processing
-                    import resource, gc
-                    mem_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-                    logger.info(f"[MENU-UPDATE] Memory usage before processing: {mem_before/1024:.2f} MB")
-                    
-                    # Try/catch to get more detailed error info
-                    try:
-                        # Process the menu data
-                        processed_data = process_deliverect_menu(data)
-                    except Exception as e:
-                        import traceback
-                        logger.error(f"[MENU-UPDATE] Error in process_deliverect_menu: {e}")
-                        logger.error(f"[MENU-UPDATE] Error type: {type(e)}")
-                        logger.error(f"[MENU-UPDATE] Traceback: {traceback.format_exc()}")
-                        # Return a clear error message to the client
-                        return jsonify({"error": f"Error processing menu: {str(e)}"}), 400
-                    
-                    # Force garbage collection
-                    gc.collect()
-                    
-                    # Log memory after processing
-                    mem_after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-                    logger.info(f"[MENU-UPDATE] Memory usage after processing: {mem_after/1024:.2f} MB (change: {(mem_after-mem_before)/1024:.2f} MB)")
-                
-                except MemoryError:
-                    logger.error("[MENU-UPDATE] Memory error processing menu - menu may be too large")
-                    return jsonify({"error": "Menu is too large to process with available memory"}), 413
-                
-                # Verify the conversion worked
-                items_count = len(processed_data.get("items", []))
-                if items_count == 0:
-                    logger.warning("[MENU-UPDATE] Processed Deliverect data has no items, checking for direct products list")
-                    
-                    # Create an empty structure to fill
-                    processed_data = {
-                        "items": [],
-                        "modifiers": [],
-                        "modifierGroups": [],
-                        "name_variants": {}
-                    }
-                    
-                    # Try to extract modifiers from the data (they might be valid even if products weren't)
-                    if "modifiers" in data and isinstance(data["modifiers"], dict):
-                        for modifier_id, modifier_data in data["modifiers"].items():
-                            if isinstance(modifier_data, dict):
-                                # Create a proper modifier entry
-                                try:
-                                    price = modifier_data.get("price", 0)
-                                    if isinstance(price, (int, float)) and price > 100:
-                                        price = price / 100
-                                        
-                                    modifier = {
-                                        "id": modifier_id,
-                                        "name": modifier_data.get("name", f"Modifier {modifier_id}"),
-                                        "price": price,
-                                        "reference_handler": modifier_data.get("plu", ""),
-                                        "available": modifier_data.get("available", True)
-                                    }
-                                    processed_data["modifiers"].append(modifier)
-                                except Exception as e:
-                                    logger.warning(f"[MENU-UPDATE] Error processing modifier {modifier_id}: {e}")
-                                    
-                        logger.info(f"[MENU-UPDATE] Extracted {len(processed_data['modifiers'])} modifiers")
-                        
-                    # Try to extract modifier groups from the data
-                    if "modifierGroups" in data and isinstance(data["modifierGroups"], dict):
-                        for group_id, group_data in data["modifierGroups"].items():
-                            if isinstance(group_data, dict):
-                                # Create a proper modifier group entry
-                                try:
-                                    group = {
-                                        "id": group_id,
-                                        "name": group_data.get("name", f"Group {group_id}"),
-                                        "minAllowed": group_data.get("min", 0),
-                                        "maxAllowed": group_data.get("max", 999),
-                                        "modifiers": group_data.get("subProducts", [])
-                                    }
-                                    processed_data["modifierGroups"].append(group)
-                                except Exception as e:
-                                    logger.warning(f"[MENU-UPDATE] Error processing modifier group {group_id}: {e}")
-                                    
-                        logger.info(f"[MENU-UPDATE] Extracted {len(processed_data['modifierGroups'])} modifier groups")
-                    
-                    # Additional fallback - if deliverect sent us direct products at the top level, try to use those
-                    if "products" in data and isinstance(data["products"], list):
-                        valid_products = []
-                        parsed_count = 0
-                        
-                        for product in data["products"]:
-                            # Handle dictionary products
-                            if isinstance(product, dict) and product.get("name"):
-                                # Add any missing fields
-                                if not product.get("reference_handler") and product.get("plu"):
-                                    product["reference_handler"] = product["plu"]
-                                elif not product.get("reference_handler"):
-                                    product["reference_handler"] = f"PROD-{len(valid_products):04d}"
-                                
-                                if not product.get("price") and product.get("price", 0) == 0:
-                                    product["price"] = 10.0  # Default price
-                                elif isinstance(product["price"], (int, float)) and product["price"] > 100:
-                                    product["price"] = product["price"] / 100
-                                    
-                                valid_products.append(product)
-                            
-                            # Try to parse string products as JSON
-                            elif isinstance(product, str) and product.strip().startswith('{') and product.strip().endswith('}'):
-                                try:
-                                    import json
-                                    parsed_product = json.loads(product)
-                                    if isinstance(parsed_product, dict) and parsed_product.get("name"):
-                                        logger.info(f"[MENU-UPDATE] Successfully parsed string product as JSON")
-                                        
-                                        # Add any missing fields
-                                        if not parsed_product.get("reference_handler") and parsed_product.get("plu"):
-                                            parsed_product["reference_handler"] = parsed_product["plu"]
-                                        elif not parsed_product.get("reference_handler"):
-                                            parsed_product["reference_handler"] = f"PROD-{len(valid_products):04d}"
-                                        
-                                        if not parsed_product.get("price") and parsed_product.get("price", 0) == 0:
-                                            parsed_product["price"] = 10.0  # Default price
-                                        elif isinstance(parsed_product["price"], (int, float)) and parsed_product["price"] > 100:
-                                            parsed_product["price"] = parsed_product["price"] / 100
-                                            
-                                        valid_products.append(parsed_product)
-                                        parsed_count += 1
-                                except Exception as e:
-                                    logger.warning(f"[MENU-UPDATE] Failed to parse string product as JSON: {e}")
-                                    
-                            # If string isn't valid JSON, try to extract product data from it
-                            elif isinstance(product, str) and len(product) > 5:  # Make sure it's a real string with content
-                                try:
-                                    # Try to extract data using common patterns
-                                    import re
-                                    
-                                    # Look for key patterns in the string
-                                    name_match = re.search(r'name["\']?\s*[:=]\s*["\']([^"\']+)["\']', product)
-                                    id_match = re.search(r'id["\']?\s*[:=]\s*["\']([^"\']+)["\']', product)
-                                    plu_match = re.search(r'plu["\']?\s*[:=]\s*["\']([^"\']+)["\']', product)
-                                    price_match = re.search(r'price["\']?\s*[:=]\s*(\d+)', product)
-                                    
-                                    if name_match:
-                                        # We found enough data to create a product
-                                        logger.info(f"[MENU-UPDATE] Extracted product data from string")
-                                        
-                                        extracted_product = {
-                                            "name": name_match.group(1),
-                                            "id": id_match.group(1) if id_match else f"extracted-{len(valid_products)}",
-                                            "reference_handler": plu_match.group(1) if plu_match else f"PROD-{len(valid_products):04d}",
-                                            "price": int(price_match.group(1))/100 if price_match else 10.0,
-                                            "description": "",
-                                            "available": True
-                                        }
-                                        
-                                        valid_products.append(extracted_product)
-                                        parsed_count += 1
-                                except Exception as e:
-                                    logger.warning(f"[MENU-UPDATE] Failed to extract data from string product: {e}")
-                                    
-                        if parsed_count > 0:
-                            logger.info(f"[MENU-UPDATE] Successfully parsed {parsed_count} string products as JSON")
-                        
-                        if valid_products:
-                            # Add the valid products to our empty structure
-                            processed_data["items"] = valid_products
-                            
-                            # Generate name variants
-                            for item in valid_products:
-                                try:
-                                    item_name = item.get("name", "")
-                                    if item_name and isinstance(item_name, str):
-                                        add_name_variants(item_name, processed_data["name_variants"])
-                                except Exception as e:
-                                    logger.warning(f"[MENU-UPDATE] Error adding name variants during fallback: {e}")
-                            
-                            logger.info(f"[MENU-UPDATE] Recovered {len(valid_products)} products from direct products list")
-                            items_count = len(valid_products)
-                        else:
-                            # Try manual last resort extraction from the raw data
-                            logger.warning("[MENU-UPDATE] All extraction methods failed. Attempting raw string search.")
-                            try:
-                                # Use regex to find product patterns in the entire data string
-                                import re
-                                import json
-                                
-                                # Get JSON string representation of data for regex extraction
-                                data_string = json.dumps(data)
-                                
-                                # Extract any product-like patterns with multiple formats
-                                product_patterns = set()  # Use a set to avoid duplicates
-                                
-                                # Try multiple patterns to capture different formats
-                                patterns = [
-                                    r'["\']?name["\']?\s*[:=]\s*["\']([^"\']+)["\']',  # name="Product"
-                                    r'name=([^,\s]+)',  # name=Product
-                                    r'Product.*?name=["\']?([^"\',\s]+)["\']?',  # Product...name="Product"
-                                    r'name\W+([a-zA-Z0-9 ]+)',  # name: Product
-                                    r'"id"\s*:\s*"[^"]+"\s*,\s*"name"\s*:\s*"([^"]+)"',  # "id":"ID","name":"Product"
-                                    r'productName["\']?\s*[:=]\s*["\']([^"\']+)["\']',  # productName="Product"
-                                    r'title["\']?\s*[:=]\s*["\']([^"\']+)["\']'  # title="Product"
-                                ]
-                                
-                                # Try each pattern
-                                for pattern in patterns:
-                                    matches = re.findall(pattern, data_string)
-                                    for match in matches:
-                                        if match and len(match) > 2:  # Avoid very short names
-                                            product_patterns.add(match)
-                                            
-                                # Convert set to list
-                                product_patterns = list(product_patterns)
-                                
-                                if product_patterns:
-                                    logger.info(f"[MENU-UPDATE] Found {len(product_patterns)} product names in raw data.")
-                                    
-                                    # Create basic products from extracted names
-                                    for i, name in enumerate(product_patterns):
-                                        if len(name) > 2:  # Skip very short names that might be noise
-                                            processed_data["items"].append({
-                                                "id": f"extracted-{i}",
-                                                "name": name,
-                                                "reference_handler": f"REF-{i:04d}",
-                                                "price": 10.0,
-                                                "description": "",
-                                                "available": True
-                                            })
-                                    
-                                    if processed_data["items"]:
-                                        # Generate name variants
-                                        for item in processed_data["items"]:
-                                            from app.utils.menu_utils import add_name_variants
-                                            add_name_variants(item["name"], processed_data["name_variants"])
-                                        
-                                        items_count = len(processed_data["items"])
-                                        logger.info(f"[MENU-UPDATE] Created {items_count} products from raw string extraction")
-                                        return jsonify({"success": True, "items": items_count}), 200
-                            except Exception as e:
-                                logger.error(f"[MENU-UPDATE] Raw string extraction failed: {e}")
-                            
-                            # Return error rather than using default menu
-                            return jsonify({"error": "Failed to extract any items from Deliverect data"}), 400
-                    else:
-                        # Return error rather than using default menu
-                        return jsonify({"error": "Failed to extract any items from Deliverect data"}), 400
-                    
-                logger.info(f"[MENU-UPDATE] Successfully processed {items_count} items from Deliverect data")
-                    
-            elif "items" in data:
-                # Our internal format
-                items = data.get('items', [])
-                item_count = len(items)
-                logger.info(f"[MENU-UPDATE] Processing internal format with {item_count} items")
-                
-                # Fix items without names
-                fixed_items = []
-                for i, item in enumerate(items):
-                    if isinstance(item, dict):
-                        # If item has no name, try to fix it
-                        if not item.get("name"):
-                            if item.get("title"):
-                                logger.info(f"[MENU-UPDATE] Using 'title' field as name for item {i}")
-                                item["name"] = item["title"]
-                            elif item.get("product_name"):
-                                logger.info(f"[MENU-UPDATE] Using 'product_name' field as name for item {i}")
-                                item["name"] = item["product_name"]
-                            elif item.get("label"):
-                                logger.info(f"[MENU-UPDATE] Using 'label' field as name for item {i}")
-                                item["name"] = item["label"]
-                            elif item.get("id") or item.get("product_id"):
-                                # Generate a name from ID
-                                item_id = item.get("id") or item.get("product_id")
-                                logger.info(f"[MENU-UPDATE] Using ID to generate name for item {i}: Item {item_id}")
-                                item["name"] = f"Item {item_id}"
-                            else:
-                                # Auto-generate a name from description if available
-                                if item.get("description"):
-                                    desc = item["description"]
-                                    name = desc.split()[0:2]  # Use first two words of description
-                                    name = " ".join(name)
-                                    logger.info(f"[MENU-UPDATE] Using description to generate name for item {i}: {name}")
-                                    item["name"] = name
-                                else:
-                                    # Last resort: auto-generate a name
-                                    logger.info(f"[MENU-UPDATE] Auto-generating name for item {i}: Menu Item {i+1}")
-                                    item["name"] = f"Menu Item {i+1}"
-                                
-                        # Add the fixed item
-                        fixed_items.append(item)
-                
-                # Log fixes
-                if len(fixed_items) != item_count:
-                    logger.warning(f"[MENU-UPDATE] Fixed or filtered {item_count - len(fixed_items)} invalid items")
-                
-                # Replace the items in the data
-                data["items"] = fixed_items
-                processed_data = data.copy()
-            else:
-                # Unknown format
-                logger.error(f"[MENU-UPDATE] Unsupported data format. Keys: {list(data.keys())}")
-                return jsonify({
-                    "error": "Unsupported format", 
-                    "keys": list(data.keys()),
-                    "expected": ["categories", "items"]
-                }), 400
-                
-            # Ensure items have required fields
-            if "items" in processed_data:
-                for i, item in enumerate(processed_data["items"]):
-                    if isinstance(item, dict):
-                        # Ensure required fields
-                        if not item.get("id"):
-                            item["id"] = f"auto_{i+1:04d}"
-                        if not item.get("reference_handler") and item.get("name"):
-                            # Generate a simple reference code from name
-                            name = item.get("name", "item").upper()
-                            item["reference_handler"] = ''.join(c for c in name if c.isalpha())[:10]
-                        # Ensure availability flags
-                        if "snoozed" not in item:
-                            item["snoozed"] = False
-                        if "available" not in item:
-                            item["available"] = True
-        except Exception as format_error:
-            logger.error(f"[MENU-UPDATE] Error processing data format: {format_error}")
-            return jsonify({"error": f"Data processing error: {str(format_error)}"}), 400
-        
-        # Ensure all expected structures exist
-        if "items" not in processed_data:
-            processed_data["items"] = []
-        if "modifiers" not in processed_data:
-            processed_data["modifiers"] = []
-        if "modifierGroups" not in processed_data:
-            processed_data["modifierGroups"] = []
-        if "name_variants" not in processed_data:
-            processed_data["name_variants"] = {}
-        
-        # Generate name variants if missing
-        try:
-            if processed_data.get("items") and not processed_data.get("name_variants", {}):
-                logger.info("[MENU-UPDATE] Generating missing name variants")
-                processed_data["name_variants"] = {}
-                
-                for item in processed_data["items"]:
-                    if isinstance(item, dict) and item.get("name"):
-                        try:
-                            add_name_variants(item["name"], processed_data["name_variants"])
-                        except Exception as e:
-                            logger.warning(f"[MENU-UPDATE] Error adding variants for {item.get('name')}: {e}")
-                            # At minimum, add the base name itself as a variant
-                            processed_data["name_variants"][item["name"].lower()] = item["name"]
-        except Exception as e:
-            logger.error(f"[MENU-UPDATE] Error generating name variants: {e}")
-            # Create a basic name variants dictionary as fallback
-            if processed_data.get("items"):
-                processed_data["name_variants"] = {
-                    item.get("name", "").lower(): item.get("name", "") 
-                    for item in processed_data["items"]
-                    if isinstance(item, dict) and item.get("name")
-                }
-        
-        # Validate and fix menu data
-        try:
-            # Make sure processed_data is a dictionary before validating
-            if not isinstance(processed_data, dict):
-                logger.error(f"[MENU-UPDATE] processed_data is not a dictionary: {type(processed_data)}")
-                processed_data = {
-                    "items": [],
-                    "modifiers": [],
-                    "modifierGroups": [],
-                    "name_variants": {}
-                }
-                
+            # First pass - process through the Deliverect menu processor
+            processed_data = process_deliverect_menu(data)
+            
+            # Second pass - validate and fix any remaining issues
             processed_data = validate_and_fix_menu_data(processed_data)
-            logger.info("[MENU-UPDATE] Menu data validated and fixed")
-        except ValueError as ve:
-            # This is a critical validation error that must be returned to the caller
-            error_msg = str(ve)
-            logger.error(f"[MENU-UPDATE] Critical validation error: {error_msg}")
-            return jsonify({"error": error_msg}), 400
-        except Exception as ve:
-            logger.error(f"[MENU-UPDATE] Validation error: {ve}")
-            logger.error(f"[MENU-UPDATE] Validation error type: {type(ve)}")
-            # Try to recover with an empty menu structure
-            processed_data = {
-                "items": [],
-                "modifiers": [],
-                "modifierGroups": [],
-                "name_variants": {}
-            }
-            logger.warning("[MENU-UPDATE] Using empty menu structure after validation failure")
-        
-        # Log stats about the processed menu
-        logger.info(f"[MENU-UPDATE] Final menu has {len(processed_data.get('items', []))} items, " +
-                   f"{len(processed_data.get('modifiers', []))} modifiers, " +
-                   f"{len(processed_data.get('modifierGroups', []))} modifier groups")
-        
-        # Save to file - try multiple paths
-        production_path = '/home/pegasus/mysite/RedBarSushiAI/menu_data.json'
-        paths_to_try = [
-            production_path,  # Try production path first
-            MENU_FILE_PATH,   # Then try the configured path
-            os.path.join(os.getcwd(), 'menu_data.json'),  # Try current directory
-            f"/tmp/menu_data_{int(time.time())}.json"  # Fallback to tmp
-        ]
-        
-        # Calculate item count for logging
-        item_count = len(processed_data.get("items", []))
-        logger.info(f"[MENU-UPDATE] Preparing to save menu with {item_count} items")
-        
-        # Log a few sample items
-        sample_items = processed_data.get("items", [])[:3]
-        for i, item in enumerate(sample_items):
-            logger.info(f"[MENU-UPDATE] Sample item {i+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}")
-        
-        # Make sure we don't have duplicate references
-        reference_counts = {}
-        for item in processed_data.get("items", []):
-            ref = item.get("reference_handler", "")
-            if ref:
-                reference_counts[ref] = reference_counts.get(ref, 0) + 1
-        
-        # Log duplicate references
-        duplicates = [ref for ref, count in reference_counts.items() if count > 1]
-        if duplicates:
-            logger.warning(f"[MENU-UPDATE] Found {len(duplicates)} duplicate reference handlers: {duplicates[:5]}")
-        
-        # Try to write to each path
-        success = False
-        for path in paths_to_try:
-            logger.info(f"[MENU-UPDATE] Attempting to write menu to: {path}")
-            try:
-                # Get directory
-                directory = os.path.dirname(path)
+            
+            # Calculate statistics
+            items_count = len(processed_data.get("items", []))
+            modifiers_count = len(processed_data.get("modifiers", []))
+            groups_count = len(processed_data.get("modifierGroups", []))
+            variants_count = len(processed_data.get("name_variants", {}))
+            
+            logger.info(f"[MENU-UPDATE] Processed menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups")
+            
+            # Log a few sample items for debugging
+            if items_count > 0:
+                sample_items = processed_data.get("items", [])[:3]
+                for i, item in enumerate(sample_items):
+                    logger.info(f"[MENU-UPDATE] Sample item {i+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}")
+            
+            # If we have no items after processing, return error
+            if items_count == 0:
+                logger.error("[MENU-UPDATE] No valid menu items extracted from data")
                 
-                # Try to create directory if needed
-                if directory and not os.path.exists(directory):
+                # If we have a callback URL, send a FAILED status
+                if callback_url:
                     try:
-                        os.makedirs(directory, exist_ok=True)
-                        logger.info(f"[MENU-UPDATE] Created directory: {directory}")
-                    except Exception as mkdir_err:
-                        logger.error(f"[MENU-UPDATE] Failed to create directory {directory}: {mkdir_err}")
-                        continue
+                        callback_response = requests.post(
+                            callback_url,
+                            json={"status": "FAILED", "comment": "No valid menu items could be extracted"}
+                        )
+                        logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
+                    except Exception as callback_e:
+                        logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
                 
-                # Check write permissions
-                if directory and not os.access(directory, os.W_OK):
-                    logger.error(f"[MENU-UPDATE] No write permissions for directory: {directory}")
-                    continue
+                return jsonify({"error": "No valid menu items could be extracted from the provided data"}), 400
                 
-                # Try to write file
-                if write_menu_file(processed_data, path):
-                    success = True
-                    logger.info(f"[MENU-UPDATE] Successfully wrote menu to: {path}")
-                    break
-            except Exception as path_err:
-                logger.error(f"[MENU-UPDATE] Error writing to {path}: {path_err}")
-        
-        if not success:
-            logger.error("[MENU-UPDATE] Failed to write menu file to any location")
-            return jsonify({"error": "Failed to write menu file"}), 500
-        
-        # Verify the menu file was written correctly by forcing a reload
-        reloaded_menu = load_menu_data(force_refresh=True)
-        if len(reloaded_menu.get("items", [])) == 0:
-            logger.warning("[MENU-UPDATE] Menu reload verification failed!")
-            return jsonify({"error": "Menu reload verification failed - menu has 0 items"}), 500
-        
-        # Log the actual items in the reloaded menu for debugging
-        logger.info(f"[MENU-UPDATE] Reloaded menu has {len(reloaded_menu.get('items', []))} items")
-        for idx, item in enumerate(reloaded_menu.get("items", [])[:5]):  # Log first 5 items
-            logger.info(f"[MENU-UPDATE] Reloaded item {idx+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}")
-        else:
-            logger.info(f"[MENU-UPDATE] Menu reload verification confirmed {len(reloaded_menu['items'])} items")
-        
-        # Return success response with stats
-        return jsonify({
-            "success": True,
-            "items": len(processed_data.get("items", [])),
-            "modifiers": len(processed_data.get("modifiers", [])),
-            "modifierGroups": len(processed_data.get("modifierGroups", [])),
-            "name_variants": len(processed_data.get("name_variants", {}))
-        }), 200
+            # Save the processed menu
+            import time
+            result = write_menu_file(processed_data)
+            
+            if not result:
+                logger.error("[MENU-UPDATE] Failed to write menu file")
+                
+                # If we have a callback URL, send a FAILED status
+                if callback_url:
+                    try:
+                        callback_response = requests.post(
+                            callback_url,
+                            json={"status": "FAILED", "comment": "Failed to save menu data"}
+                        )
+                        logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
+                    except Exception as callback_e:
+                        logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
+                
+                return jsonify({"error": "Failed to save menu data"}), 500
+                
+            # Verify the menu was saved correctly
+            reloaded_menu = load_menu_data(force_refresh=True)
+            reloaded_count = len(reloaded_menu.get("items", []))
+            
+            if reloaded_count == 0:
+                logger.warning("[MENU-UPDATE] Menu reload verification failed")
+                
+                # If we have a callback URL, send a FAILED status
+                if callback_url:
+                    try:
+                        callback_response = requests.post(
+                            callback_url,
+                            json={"status": "FAILED", "comment": "Menu reload verification failed - menu has 0 items"}
+                        )
+                        logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
+                    except Exception as callback_e:
+                        logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
+                
+                return jsonify({"error": "Menu reload verification failed - menu has 0 items"}), 500
+                
+            logger.info(f"[MENU-UPDATE] Menu update successful with {reloaded_count} items")
+            
+            # If we have a callback URL, send a success status
+            if callback_url:
+                try:
+                    callback_response = requests.post(
+                        callback_url,
+                        json={"status": "ONLINE", "comment": f"Menu update successful with {reloaded_count} items"}
+                    )
+                    logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
+                except Exception as callback_e:
+                    logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
+            
+            # Return success response
+            return jsonify({
+                "success": True,
+                "items": items_count,
+                "modifiers": modifiers_count,
+                "modifierGroups": groups_count,
+                "name_variants": variants_count
+            }), 200
+            
+        except Exception as e:
+            import traceback
+            logger.error(f"[MENU-UPDATE] Error processing menu data: {e}")
+            logger.error(f"[MENU-UPDATE] Traceback: {traceback.format_exc()}")
+            
+            # If we have a callback URL, send a FAILED status
+            if callback_url:
+                try:
+                    callback_response = requests.post(
+                        callback_url,
+                        json={"status": "FAILED", "comment": str(e)[:200]}  # Limit length of error message
+                    )
+                    logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
+                except Exception as callback_e:
+                    logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
+            
+            # Check for memory errors
+            error_str = str(e).lower()
+            if "memory" in error_str or "allocation" in error_str:
+                return jsonify({
+                    "error": "Menu processing failed due to memory limitations. Try a smaller menu.",
+                    "details": str(e)
+                }), 413
+                
+            # For all other errors
+            return jsonify({
+                "error": f"Menu processing failed: {str(e)}",
+                "details": str(e)
+            }), 400
             
     except Exception as e:
         import traceback
-        logger.error(f"[MENU-UPDATE] Error: {e}")
+        logger.error(f"[MENU-UPDATE] Unexpected error: {e}")
         logger.error(f"[MENU-UPDATE] Traceback: {traceback.format_exc()}")
         
-        # Try to handle memory errors specially
-        error_str = str(e).lower()
-        if "memory" in error_str or "allocation" in error_str:
-            return jsonify({
-                "error": "Menu update failed due to memory limitations. Try a smaller menu or contact support.",
-                "details": str(e)
-            }), 413  # Request Entity Too Large
-        
-        # For all other errors
         return jsonify({
-            "error": "Menu update failed. See server logs for details.",
+            "error": "Menu update failed due to an unexpected error",
             "details": str(e)
         }), 500
 
