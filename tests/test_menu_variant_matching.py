@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 def test_menu_variant_matching(app, setup_test_menu):
     """Test that menu variant matching works correctly."""
-    from app.utils.order_utils import find_menu_item
+    from app.utils.menu_utils import find_menu_item_by_name
     
     # Create mock menu data with name variants
     mock_menu = {

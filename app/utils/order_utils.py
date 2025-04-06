@@ -35,7 +35,8 @@ def user_said_no(text: str) -> bool:
     text = text.lower().strip()
     
     # Simple pattern matching for no responses
-    negatives = ["no", "nope", "nah", "not correct", "that's wrong", "incorrect"]
+    negatives = ["no", "nope", "nah", "not correct", "that's wrong", "incorrect", 
+                "need to make changes", "needs changes", "change", "changes"]
     return any(word in text for word in negatives)
 
 def dtmf_yes_no(dtmf: str) -> str:
@@ -132,7 +133,8 @@ def validate_order_items(order_items: List[Dict[str, Any]]) -> List[Dict[str, An
         
         # Otherwise look it up by name
         elif "name" in item and item["name"]:
-            menu_item = find_menu_item_by_name(item["name"])
+            # First try to find the item with availability check - default behavior
+            menu_item = find_menu_item_by_name(item["name"], check_availability=True)
             if menu_item and menu_item.get("reference_handler"):
                 # Found a match - fill in the reference handler
                 item["reference_handler"] = menu_item["reference_handler"]
@@ -140,8 +142,18 @@ def validate_order_items(order_items: List[Dict[str, Any]]) -> List[Dict[str, An
                 logger.info(f"[ORDER-VALIDATE] Found item by name: {item['name']} → {item['reference_handler']}")
                 valid_items.append(item)
             else:
-                # No match found
-                logger.warning(f"[ORDER-VALIDATE] Item not found in menu: {item.get('name')}")
+                # Try again without availability check - find unavailable items too, but log it
+                menu_item = find_menu_item_by_name(item["name"], check_availability=False)
+                if menu_item and menu_item.get("reference_handler"):
+                    # Found a match but it's unavailable - still add the reference handler
+                    item["reference_handler"] = menu_item["reference_handler"]
+                    item["price"] = menu_item.get("price", 0.0)
+                    logger.warning(f"[ORDER-VALIDATE] Found unavailable item by name: {item['name']} → {item['reference_handler']}")
+                    # Still add it to valid items, we need the reference_handler for error reporting
+                    valid_items.append(item)
+                else:
+                    # No match found at all
+                    logger.warning(f"[ORDER-VALIDATE] Item not found in menu: {item.get('name')}")
         else:
             logger.warning(f"[ORDER-VALIDATE] Item has no name or reference handler, skipping")
     
@@ -238,6 +250,20 @@ def prepare_order_for_deliverect(order_items: List[Dict[str, Any]]) -> List[Dict
     
     # Step 2: Validate modifiers exist and are available
     valid_items_with_modifiers = validate_modifiers(valid_items)
+    
+    # Step 3: Ensure all items have reference handlers before returning
+    for item in valid_items_with_modifiers:
+        if not item.get("reference_handler"):
+            # Try to find it again by name as a last resort
+            menu_item = find_menu_item_by_name(item.get("name", ""))
+            if menu_item and menu_item.get("reference_handler"):
+                item["reference_handler"] = menu_item["reference_handler"]
+                item["price"] = menu_item.get("price", 0.0)
+                logger.info(f"[ORDER-VALIDATE-FINAL] Found missing reference handler for {item.get('name')}")
+            else:
+                # If we still can't find a reference handler, log it and remove the item
+                logger.warning(f"[ORDER-VALIDATE-FINAL] Item {item.get('name')} has no reference handler, removing from order")
+                valid_items_with_modifiers.remove(item)
     
     # Return the validated order
     return valid_items_with_modifiers
