@@ -108,6 +108,22 @@ def menu_update():
             # Second pass - validate and fix any remaining issues
             processed_data = validate_and_fix_menu_data(processed_data)
             
+            # CRITICAL: Verify that PLUs were preserved during processing
+            # This ensures proper integration with Deliverect
+            plu_count = 0
+            missing_plu_count = 0
+            for item in processed_data.get("items", []):
+                if item.get("plu") or (item.get("reference_handler") and not item.get("reference_handler").startswith("PROD-")):
+                    plu_count += 1
+                else:
+                    missing_plu_count += 1
+                    logger.error(f"[MENU-UPDATE] Item missing PLU: {item.get('name')} - This will cause Deliverect order failures!")
+            
+            if missing_plu_count > 0:
+                logger.warning(f"[MENU-UPDATE] WARNING: {missing_plu_count} items missing PLUs! These items will not work with Deliverect orders.")
+            else:
+                logger.info(f"[MENU-UPDATE] All {plu_count} items have valid PLUs for Deliverect integration.")
+            
             # Calculate statistics
             items_count = len(processed_data.get("items", []))
             modifiers_count = len(processed_data.get("modifiers", []))
@@ -120,7 +136,7 @@ def menu_update():
             if items_count > 0:
                 sample_items = processed_data.get("items", [])[:3]
                 for i, item in enumerate(sample_items):
-                    logger.info(f"[MENU-UPDATE] Sample item {i+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}")
+                    logger.info(f"[MENU-UPDATE] Sample item {i+1}: {item.get('name', 'No name')} -> PLU: {item.get('plu', 'Missing!')} | Reference: {item.get('reference_handler', 'Missing!')}")
             
             # If we have no items after processing, return error
             if items_count == 0:
@@ -558,9 +574,31 @@ def simple_menu_update():
             processed_data = process_deliverect_menu(data)
             processed_data = validate_and_fix_menu_data(processed_data)
             
+            # CRITICAL: Verify that PLUs were preserved during processing
+            # This ensures proper integration with Deliverect
+            plu_count = 0
+            missing_plu_count = 0
+            for item in processed_data.get("items", []):
+                if item.get("plu") or (item.get("reference_handler") and not item.get("reference_handler").startswith("PROD-")):
+                    plu_count += 1
+                else:
+                    missing_plu_count += 1
+                    logger.error(f"[SIMPLE-MENU] Item missing PLU: {item.get('name')} - This will cause Deliverect order failures!")
+            
+            if missing_plu_count > 0:
+                logger.warning(f"[SIMPLE-MENU] WARNING: {missing_plu_count} items missing PLUs! These items will not work with Deliverect orders.")
+            else:
+                logger.info(f"[SIMPLE-MENU] All {plu_count} items have valid PLUs for Deliverect integration.")
+            
             # Log the processed menu stats
             items_count = len(processed_data.get("items", []))
             logger.info(f"[SIMPLE-MENU] Processed menu has {items_count} items")
+            
+            # Log a few sample items with their PLUs
+            if items_count > 0:
+                sample_items = processed_data.get("items", [])[:3]
+                for i, item in enumerate(sample_items):
+                    logger.info(f"[SIMPLE-MENU] Sample item {i+1}: {item.get('name', 'No name')} -> PLU: {item.get('plu', 'Missing!')} | Reference: {item.get('reference_handler', 'Missing!')}")
             
             # Attempt to save the menu directly to a known working location
             if items_count > 0:

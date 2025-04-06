@@ -205,25 +205,23 @@ def validate_and_fix_menu_data(menu_data):
         # At this point we have a string name
         item_name_lower = item_name.lower()
         
-        # Fix reference handler if missing - prioritize preserving existing reference handlers
+        # CRITICAL: For Deliverect integration, PLU must be preserved in reference_handler
+        # Fix reference handler if missing
         if not item.get("reference_handler"):
-            # Check if it exists in current menu
-            if item_name_lower in existing_items and existing_items[item_name_lower].get("reference_handler"):
+            # HIGHEST PRIORITY: Use PLU directly if available
+            if item.get("plu"):
+                item["reference_handler"] = item.get("plu")
+                logger.info(f"[MENU-FIX] CRITICAL: Using PLU as reference_handler for {item_name}: {item.get('plu')}")
+            # SECOND PRIORITY: Check if item exists in current menu
+            elif item_name_lower in existing_items and existing_items[item_name_lower].get("reference_handler"):
                 # Preserve the existing reference handler
                 item["reference_handler"] = existing_items[item_name_lower]["reference_handler"]
                 logger.info(f"[MENU-FIX] Preserved existing reference_handler for {item_name}")
-            # Check if the item has a PLU to use
-            elif item.get("plu"):
-                item["reference_handler"] = item.get("plu")
-                logger.info(f"[MENU-FIX] Using PLU as reference_handler for {item_name}")
-            # Check common prices as a fallback
-            elif any(key == item_name_lower or key in item_name_lower for key in common_prices.keys()):
-                for key, price_info in common_prices.items():
-                    if key == item_name_lower or key in item_name_lower:
-                        item["reference_handler"] = price_info.get("reference_handler", f"FB-{item_name_lower[:8]}")
-                        logger.info(f"[MENU-FIX] Set reference_handler for {item_name} to common price entry: {item['reference_handler']}")
-                        break
-            # Last resort: generate a new reference handler
+                # Also check if existing item had a PLU and copy it
+                if existing_items[item_name_lower].get("plu"):
+                    item["plu"] = existing_items[item_name_lower]["plu"]
+                    logger.info(f"[MENU-FIX] Preserved existing PLU for {item_name}: {item['plu']}")
+            # Last resort: generate a new reference handler, but log a warning
             else:
                 import re
                 try:
@@ -241,7 +239,13 @@ def validate_and_fix_menu_data(menu_data):
                     import time
                     item["reference_handler"] = f"PROD-{int(time.time())}-{i}"
                 
-                logger.warning(f"[MENU-FIX] Item {item_name} is missing reference_handler, setting to: {item['reference_handler']}")
+                logger.error(f"[MENU-FIX] CRITICAL ISSUE: Item {item_name} has no PLU! Using synthetic reference: {item['reference_handler']}. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!")
+            item_fixed = True
+            
+        # Ensure reference_handler is also stored as PLU for Deliverect integration
+        if not item.get("plu") and item.get("reference_handler"):
+            item["plu"] = item["reference_handler"]
+            logger.info(f"[MENU-FIX] Setting PLU to match reference_handler for {item_name}: {item['plu']}")
             item_fixed = True
             
         # Ensure price is valid - prioritize preserving existing prices

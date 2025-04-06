@@ -237,60 +237,31 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         logger.error(f"Error writing menu file: {e}")
         return False
 
-def create_default_menu():
-    """Create a default menu with some basic items when no menu file is found."""
-    logger.warning("Creating default menu with basic items")
+def create_empty_menu():
+    """Create an empty menu structure when no menu file is found.
     
-    # Log where the default menu will likely be stored
+    IMPORTANT: We don't create default items anymore - all menu data must come from Deliverect.
+    Only using an empty structure as a placeholder until real data arrives.
+    """
+    logger.warning("Creating empty menu structure - NO DEFAULT ITEMS")
+    
+    # Log where the empty menu will likely be stored
     if os.path.exists(DOCKER_ROOT):
         logger.info(f"Running in Docker environment, menu will be stored at {DOCKER_MENU_PATH}")
     else:
         logger.info(f"Running in non-Docker environment, menu will be stored at {os.path.join(os.getcwd(), 'menu_data.json')}")
     
-    # Create a basic menu structure with some common sushi items
-    default_menu = {
-        "items": [
-            {
-                "name": "California Roll",
-                "price": 8.99,
-                "reference_handler": "cali-roll-1",
-                "available": True,
-                "snoozed": False
-            },
-            {
-                "name": "Spicy Tuna Roll",
-                "price": 9.99,
-                "reference_handler": "spicy-tuna-1", 
-                "available": True,
-                "snoozed": False
-            },
-            {
-                "name": "Salmon Nigiri",
-                "price": 7.99,
-                "reference_handler": "salmon-nigiri-1",
-                "available": True,
-                "snoozed": False
-            },
-            {
-                "name": "Dragon Roll",
-                "price": 12.99,
-                "reference_handler": "dragon-roll-1",
-                "available": True,
-                "snoozed": False
-            }
-        ],
+    # Create an empty menu structure with no items
+    empty_menu = {
+        "items": [],
         "modifiers": [],
         "modifierGroups": [],
-        "name_variants": {
-            "california": "California Roll",
-            "cali roll": "California Roll",
-            "spicy tuna": "Spicy Tuna Roll",
-            "salmon": "Salmon Nigiri",
-            "dragon": "Dragon Roll"
-        }
+        "name_variants": {}
     }
     
-    return default_menu
+    logger.warning("ATTENTION: Menu is empty! The application will not function correctly until Deliverect sends real menu data.")
+    
+    return empty_menu
 
 def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = None, skip_validation: bool = False, timeout: int = 5) -> Dict[str, Any]:
     """
@@ -444,38 +415,39 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
         # Log the error and create a default menu with sample items
         logger.error(f"Menu file not found at {file_path} - using default menu")
         
-        # Create a default menu with common sushi items instead of an empty one
-        default_menu = create_default_menu()
+        # Create an empty menu structure - NO DEFAULT ITEMS
+        # All menu data must come directly from Deliverect
+        empty_menu = create_empty_menu()
         
-        # Save the default menu for future use
+        # Save the empty menu structure for future use
         try:
-            write_menu_file(default_menu, file_path)
-            logger.info(f"Created default menu at {file_path}")
+            write_menu_file(empty_menu, file_path)
+            logger.info(f"Created empty menu structure at {file_path}")
         except Exception as e:
-            logger.error(f"Could not write default menu: {e}")
+            logger.error(f"Could not write empty menu structure: {e}")
         
-        # Update cache with default menu
-        _menu_cache = default_menu
+        # Update cache with empty menu
+        _menu_cache = empty_menu
         _last_refresh_time = current_time
         
-        return default_menu
+        return empty_menu
     except Exception as e:
         logger.error(f"Error loading menu data: {e}")
-        # Return default menu structure with sample items instead of empty
-        default_menu = create_default_menu()
+        # Return empty menu structure - NO DEFAULT ITEMS
+        empty_menu = create_empty_menu()
         
-        # Update cache with default menu to avoid repeat errors
-        _menu_cache = default_menu
+        # Update cache to avoid repeat errors
+        _menu_cache = empty_menu
         _last_refresh_time = current_time
         
         # Try to save it for future use
         try:
-            write_menu_file(default_menu, os.path.join(os.getcwd(), 'menu_data.json'))
-            logger.info("Saved default menu after loading error")
+            write_menu_file(empty_menu, os.path.join(os.getcwd(), 'menu_data.json'))
+            logger.info("Saved empty menu structure after loading error")
         except Exception:
             pass
             
-        return default_menu
+        return empty_menu
 
 def find_menu_item_by_name(item_name: str, check_availability: bool = True) -> Optional[Dict[str, Any]]:
     """
@@ -822,7 +794,11 @@ def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
 def process_deliverect_menu(deliverect_menu, location_id=None):
     """
     Converts Deliverect menu format to our internal format required for ordering.
-    Ensures that all items have valid names for Deliverect integration.
+    Ensures that all items have valid names and PLUs for Deliverect integration.
+    
+    CRITICAL: The PLU field from Deliverect is the unique identifier and must be
+    preserved and used as the reference_handler for all items. No synthetic IDs 
+    or default menus should be used - all menu data must come directly from Deliverect.
     
     Handles multiple Deliverect formats:
     1. Standard format with "categories" key
@@ -1761,13 +1737,20 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     menu_item["name"] = product.get("title")
                 
                 # Get PLU (reference_handler)
-                # PLU is the most important reference - this is what Deliverect requires 
+                # CRITICAL: PLU is the unique identifier for Deliverect integration
+                # Orders will FAIL without the correct PLU
                 if product.get("plu"):
                     menu_item["reference_handler"] = product.get("plu")
+                    # Also store the original PLU in a separate field to ensure we don't lose it
+                    menu_item["plu"] = product.get("plu")
+                    # Log PLU to ensure traceability
+                    logger.info(f"[DELIVERECT-MENU] Using PLU '{product.get('plu')}' for item '{menu_item['name']}'")
                 # If no PLU, try using product ID, which may still work with Deliverect
                 elif product.get("id"):
                     menu_item["reference_handler"] = product.get("id")
-                # If neither, use the product name to create a stable reference
+                    menu_item["plu"] = product.get("id")
+                    logger.warning(f"[DELIVERECT-MENU] No PLU found for '{menu_item['name']}', using ID: {product.get('id')}")
+                # Last resort - but log that this will likely cause issues with Deliverect
                 elif product.get("name"):
                     # Create a reference based on name - ensures consistency
                     import re
@@ -1778,6 +1761,8 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     else:
                         # Last resort
                         menu_item["reference_handler"] = f"PROD-{i}"
+                    
+                    logger.error(f"[DELIVERECT-MENU] NO PLU OR ID found for '{menu_item['name']}'. Using synthetic reference: {menu_item['reference_handler']}. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!")
                 
                 # Get price (converting from cents if needed)
                 price_value = product.get("price", 0)
