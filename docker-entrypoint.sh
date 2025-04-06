@@ -32,7 +32,7 @@ export PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
 echo "Installing or upgrading required dependencies..."
 pip install --no-cache-dir websockets==13.1 
 pip install --no-cache-dir python-socketio==5.8.0 eventlet==0.33.3 gevent==23.9.1 gevent-websocket==0.10.1
-pip install --no-cache-dir --upgrade openai-realtime-client==0.1.1
+pip install --no-cache-dir --upgrade openai-realtime-client==0.1.0
 
 # Check if installation was successful
 if [ -f "/usr/local/lib/python3.11/site-packages/openai_realtime_client/__init__.py" ]; then
