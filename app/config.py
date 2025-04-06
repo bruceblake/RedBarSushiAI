@@ -1,49 +1,54 @@
 # app/config.py
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if it exists
+load_dotenv()
 
 # ------------------------------
 # General Application Settings
 # ------------------------------
-APP_SECRET_KEY = "bd0acf5c060feaa576051293a661a49a"
+APP_SECRET_KEY = os.getenv("APP_SECRET_KEY", "bd0acf5c060feaa576051293a661a49a")
 
 # ------------------------------
 # Database Configuration
 # ------------------------------
-SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://pegasus:Redbar2024!!@pegasus.mysql.pythonanywhere-services.com/pegasus$CALLER_INFORMATION'
-SQLALCHEMY_TRACK_MODIFICATIONS = False
+SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI", 'mysql+pymysql://pegasus:Redbar2024\!\!@pegasus.mysql.pythonanywhere-services.com/pegasus$CALLER_INFORMATION')
+SQLALCHEMY_TRACK_MODIFICATIONS = os.getenv("SQLALCHEMY_TRACK_MODIFICATIONS", "False").lower() == "true"
 
 # ------------------------------
 # Ngrok & Twilio Configuration
 # ------------------------------
-NGROK_AUTHTOKEN = "2TPx8vjcOGWQiJj5x3rgkJ09uQ0_6krep2WJjqsNyzMedv4ew"
+NGROK_AUTHTOKEN = os.getenv("NGROK_AUTHTOKEN", "2TPx8vjcOGWQiJj5x3rgkJ09uQ0_6krep2WJjqsNyzMedv4ew")
 
-TWILIO_ACCOUNT_SID = "ACb8391ed8d92871d85180ca9adea481b6"
-TWILIO_API_KEY_SID = "SK55c8d2ec3e662acffb868fcc42ed75ac"
-TWILIO_API_SECRET = "Ky6uApOQMFAZKCbhe5aaZkyGIBzdIRMT"
-TWILIO_AUTH_TOKEN = "d4830ea0bb52ffdb63620c2333fcdd59"
-TWILIO_NUMBER = "+18333247207"
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "ACb8391ed8d92871d85180ca9adea481b6")
+TWILIO_API_KEY_SID = os.getenv("TWILIO_API_KEY_SID", "SK55c8d2ec3e662acffb868fcc42ed75ac")
+TWILIO_API_SECRET = os.getenv("TWILIO_API_SECRET", "Ky6uApOQMFAZKCbhe5aaZkyGIBzdIRMT")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "d4830ea0bb52ffdb63620c2333fcdd59")
+TWILIO_NUMBER = os.getenv("TWILIO_NUMBER", "+18333247207")
 
 # ------------------------------
 # AssemblyAI (if used)
 # ------------------------------
-ASSEMBLYAI_API_KEY = "a116ce3f35164bd78f295ddd6ccd7ee0"
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY", "a116ce3f35164bd78f295ddd6ccd7ee0")
 
 # ------------------------------
 # OpenAI Configuration
 # ------------------------------
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+
 # ------------------------------
 # Stripe Configuration
 # ------------------------------
-STRIPE_API_KEY = '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'
-STRIPE_PRODUCT_ID = 'prod_QbXflydy7HavBH'
+STRIPE_API_KEY = os.getenv("STRIPE_API_KEY", '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')
+STRIPE_PRODUCT_ID = os.getenv("STRIPE_PRODUCT_ID", 'prod_QbXflydy7HavBH')
 
 # ------------------------------
 # Deliverect Configuration
 # ------------------------------
-DELIVERECT_CLIENT_ID = 'w2ajqOd1CMUsRBPF'
-DELIVERECT_CLIENT_SECRET = 'byOTwZy7CvhgFgQBuvdGVZVcWoxlfTj1'
-DELIVERECT_API_URL = 'https://api.staging.deliverect.com/nextgen/order/66e88f33475a66c53e90e62b'
+DELIVERECT_CLIENT_ID = os.getenv("DELIVERECT_CLIENT_ID", 'w2ajqOd1CMUsRBPF')
+DELIVERECT_CLIENT_SECRET = os.getenv("DELIVERECT_CLIENT_SECRET", 'byOTwZy7CvhgFgQBuvdGVZVcWoxlfTj1')
+DELIVERECT_API_URL = os.getenv("DELIVERECT_API_URL", 'https://api.staging.deliverect.com/nextgen/order/66e88f33475a66c53e90e62b')
 
 # ------------------------------
 # Local File Paths
@@ -69,4 +74,11 @@ if not os.path.exists(MENU_FILE_PATH):
 # ------------------------------
 # Base URL Configuration
 # ------------------------------
-BASE_URL = os.environ.get('BASE_URL', 'https://redbarsushi.pythonanywhere.com')
+BASE_URL = os.getenv('BASE_URL', 'https://redbarsushi.pythonanywhere.com')
+
+# ------------------------------
+# Redis and Celery Configuration
+# ------------------------------
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', REDIS_URL)
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', REDIS_URL)
