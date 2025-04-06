@@ -171,8 +171,8 @@ class SushiMenuTool:
             list: All menu categories
         """
         categories = set()
-        for item in self.menu_data.get("items", []):
-            category = item.get("category")
+        for item in self.menu_data.get('items', []):
+            category = item.get('category')
             if category:
                 categories.add(category)
         return sorted(list(categories))
