@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "id": "prod1",
+      "name": "California Roll",
+      "price": 9.95,
+      "reference_handler": "CAL-ROLL",
+      "description": "Crab, avocado and cucumber roll",
+      "category": "Sushi Rolls",
+      "categoryId": "cat1",
+      "available": true,
+      "snoozed": false
+    },
+    {
+      "id": "prod2",
+      "name": "Spicy Tuna Roll",
+      "price": 12.95,
+      "reference_handler": "SPICY-TUNA",
+      "description": "Spicy tuna roll with cucumber",
+      "category": "Sushi Rolls",
+      "categoryId": "cat1",
+      "available": true,
+      "snoozed": false
+    }
+  ],
+  "modifiers": [],
+  "modifierGroups": [],
+  "name_variants": {
+    "california roll": "California Roll",
+    "california": "California Roll",
+    "roll": "California Roll",
+    "spicy tuna roll": "Spicy Tuna Roll",
+    "spicy": "Spicy Tuna Roll",
+    "tuna": "Spicy Tuna Roll"
+  }
+}

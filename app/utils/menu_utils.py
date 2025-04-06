@@ -359,44 +359,100 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     
     # Normalize name for case-insensitive matching
     item_name_lower = item_name.lower().strip()
-    logger.debug(f"[MENU-LOOKUP] Normalized to: '{item_name_lower}'")
     
-    # Check name variants first
+    # Also clean the name for more flexible matching
+    import re
+    item_name_clean = re.sub(r'[^\w\s]', ' ', item_name_lower)
+    item_name_clean = re.sub(r'\s+', ' ', item_name_clean).strip()
+    
+    logger.info(f"[MENU-LOOKUP] Normalized to: '{item_name_lower}', Cleaned to: '{item_name_clean}'")
+    
+    # Check name variants first - exact matches
     name_variants = menu_data.get("name_variants", {})
-    logger.debug(f"[MENU-LOOKUP] Checking against {len(name_variants)} name variants")
+    logger.info(f"[MENU-LOOKUP] Checking against {len(name_variants)} name variants")
     
-    # Log available variants for debugging
+    # Log sample variants for debugging
     variant_keys = list(name_variants.keys())
-    logger.debug(f"[MENU-LOOKUP] Available variants: {variant_keys[:5]}...")
+    if variant_keys:
+        sample_keys = variant_keys[:5] if len(variant_keys) > 5 else variant_keys
+        logger.info(f"[MENU-LOOKUP] Sample variants: {sample_keys}")
     
+    # Check for exact matches in variants
+    exact_match_names = []
+    
+    # First try exact match with original name (most reliable)
     if item_name_lower in name_variants:
         actual_name = name_variants[item_name_lower]
-        logger.info(f"[MENU-LOOKUP] Found name variant match: '{item_name_lower}' → '{actual_name}'")
+        logger.info(f"[MENU-LOOKUP] Found exact name variant match: '{item_name_lower}' → '{actual_name}'")
+        exact_match_names.append(actual_name)
+    
+    # Then try exact match with cleaned name
+    if item_name_clean in name_variants:
+        actual_name = name_variants[item_name_clean]
+        logger.info(f"[MENU-LOOKUP] Found exact clean variant match: '{item_name_clean}' → '{actual_name}'")
+        if actual_name not in exact_match_names:
+            exact_match_names.append(actual_name)
+    
+    # Look up the items for the exact matches first
+    for actual_name in exact_match_names:
         for item in menu_data.get("items", []):
             if item.get("name", "").lower() == actual_name.lower():
                 logger.info(f"[MENU-LOOKUP] Found matching menu item: {item.get('name')}")
                 return item
     
-    # Try partial variant match if exact match fails
-    for variant, actual_name in name_variants.items():
-        if variant in item_name_lower or item_name_lower in variant:
-            logger.info(f"[MENU-LOOKUP] Found partial name variant match: '{item_name_lower}' ⊂ '{variant}' → '{actual_name}'")
-            for item in menu_data.get("items", []):
-                if item.get("name", "").lower() == actual_name.lower():
-                    logger.info(f"[MENU-LOOKUP] Found matching menu item via partial variant: {item.get('name')}")
-                    return item
-    
-    # Try direct match
-    logger.debug(f"[MENU-LOOKUP] Checking against {len(menu_data.get('items', []))} menu items")
+    # Try direct item name match
     for item in menu_data.get("items", []):
         item_name_in_menu = item.get("name", "").lower()
         if item_name_in_menu == item_name_lower:
             logger.info(f"[MENU-LOOKUP] Found direct match: '{item_name_lower}' = '{item_name_in_menu}'")
             return item
-        # Try partial matches within menu items
-        elif item_name_lower in item_name_in_menu or item_name_in_menu in item_name_lower:
-            logger.info(f"[MENU-LOOKUP] Found partial item match: '{item_name_lower}' ⊂ '{item_name_in_menu}'")
-            return item
+    
+    # No exact matches found, try keyword matches by checking if the name contains a food keyword
+    food_keywords = {
+        "burger": ["hamburger", "cheeseburger", "beef burger"],
+        "steak": ["beef", "sirloin", "filet", "ribeye"],
+        "chicken": ["grilled chicken", "fried chicken"],
+        "pizza": ["pie", "flatbread"],
+        "salad": ["greens", "garden", "caesar"],
+        "sandwich": ["sub", "hoagie", "wrap"],
+        "pasta": ["spaghetti", "noodles", "linguine"],
+        "sushi": ["roll", "maki", "nigiri"],
+    }
+    
+    # Check for keyword matches
+    for keyword, alternatives in food_keywords.items():
+        if keyword in item_name_lower:
+            logger.info(f"[MENU-LOOKUP] Found keyword '{keyword}' in query")
+            # Look for items that contain this keyword
+            for item in menu_data.get("items", []):
+                item_name_in_menu = item.get("name", "").lower()
+                if keyword in item_name_in_menu:
+                    logger.info(f"[MENU-LOOKUP] Found keyword match: '{keyword}' in '{item_name_in_menu}'")
+                    return item
+    
+    # Try partial variant match if both above fail
+    partial_matches = []
+    for variant, actual_name in name_variants.items():
+        # Check if variant is contained in search term or vice versa
+        if len(variant) >= 4 and (variant in item_name_lower or item_name_lower in variant):
+            logger.info(f"[MENU-LOOKUP] Found partial name variant match: '{item_name_lower}' ⟷ '{variant}' → '{actual_name}'")
+            partial_matches.append(actual_name)
+    
+    # Look up items for partial matches
+    for actual_name in partial_matches:
+        for item in menu_data.get("items", []):
+            if item.get("name", "").lower() == actual_name.lower():
+                logger.info(f"[MENU-LOOKUP] Found matching menu item via partial variant: {item.get('name')}")
+                return item
+    
+    # Try partial matches within menu items - last resort
+    for item in menu_data.get("items", []):
+        item_name_in_menu = item.get("name", "").lower()
+        # Only do partial matching if both strings are reasonably long
+        if len(item_name_lower) >= 4 and len(item_name_in_menu) >= 4:
+            if item_name_lower in item_name_in_menu or item_name_in_menu in item_name_lower:
+                logger.info(f"[MENU-LOOKUP] Found partial item match: '{item_name_lower}' ⊂ '{item_name_in_menu}'")
+                return item
     
     # No match found
     logger.warning(f"[MENU-LOOKUP] No match found for '{item_name}'")
@@ -712,18 +768,49 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                         # Add item to result
                         result["items"].append(item)
                         
-                    # Add name variants
+                    # Reset name variants for a clean slate (prevents one item from overwriting another)
+                    name_variants = {}
+                    
+                    # Add name variants - process each item individually
                     for item in result["items"]:
                         if item.get("name"):
+                            # Clear temp_variants for each item to prevent carrying variants from one item to another
+                            temp_variants = {}
                             try:
-                                add_name_variants(item["name"], result["name_variants"])
+                                logger.info(f"[DELIVERECT-MENU] Adding name variants for item: '{item['name']}'")
+                                add_name_variants(item["name"], temp_variants)
+                                
+                                # Now add these to the main variants dictionary
+                                for variant, variant_name in temp_variants.items():
+                                    # For direct exact matches (e.g., "cheeseburger" for Cheeseburger), 
+                                    # always use the exact match over partial matches
+                                    if variant.lower() == item["name"].lower() or variant == item["name"].lower():
+                                        name_variants[variant] = item["name"]
+                                        logger.info(f"[DELIVERECT-MENU] Added exact match variant: '{variant}' → '{item['name']}'")
+                                    # For keyword variants, try to avoid duplicates by checking the variant length
+                                    # Prefer more specific matches (specific food words like "veggie" should go to "Veggie Burger")
+                                    elif variant in name_variants:
+                                        # Check if this is a more specific match (contains the variant as a word)
+                                        if variant in item["name"].lower() and variant not in name_variants[variant].lower():
+                                            name_variants[variant] = item["name"]
+                                            logger.info(f"[DELIVERECT-MENU] Replaced variant with better match: '{variant}' → '{item['name']}'")
+                                        else:
+                                            logger.info(f"[DELIVERECT-MENU] Keeping existing variant mapping: '{variant}' → '{name_variants[variant]}'")
+                                    else:
+                                        name_variants[variant] = item["name"]
+                                        logger.info(f"[DELIVERECT-MENU] Added variant: '{variant}' → '{item['name']}'")
                             except Exception as e:
                                 logger.warning(f"[DELIVERECT-MENU] Error adding variants for {item['name']}: {e}")
                                 # At minimum, add the base name
                                 try:
-                                    result["name_variants"][item["name"].lower()] = item["name"]
-                                except:
-                                    pass
+                                    name_variants[item["name"].lower()] = item["name"]
+                                    logger.info(f"[DELIVERECT-MENU] Added basic variant for {item['name']}")
+                                except Exception as be:
+                                    logger.error(f"[DELIVERECT-MENU] Failed to add even basic variant: {be}")
+                    
+                    # Set the result name variants
+                    result["name_variants"] = name_variants
+                    logger.info(f"[DELIVERECT-MENU] Added {len(name_variants)} name variants for {len(result['items'])} items")
                         
                     logger.info(f"[DELIVERECT-MENU] Processed {len(result['items'])} items from list format")
                     return result
@@ -731,10 +818,38 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         # If we reached here with a list but couldn't process it normally, try to extract any useful data
         logger.warning("[DELIVERECT-MENU] List format but no valid processing path, attempting data extraction")
         try:
+            # Look for items with categories to process
             for item in deliverect_menu:
                 if isinstance(item, dict) and "categories" in item:
                     logger.info("[DELIVERECT-MENU] Found categories in list item, processing recursively")
                     return process_deliverect_menu(item, location_id)
+            
+            # If we didn't find categories, create a synthetic category structure
+            if len(deliverect_menu) > 0:
+                logger.info("[DELIVERECT-MENU] Creating synthetic category from list items")
+                synthetic_menu = {
+                    "categories": [
+                        {
+                            "id": "synthetic_category",
+                            "name": "Menu Items",
+                            "products": []
+                        }
+                    ]
+                }
+                
+                # Add items to the synthetic category
+                products = []
+                for item in deliverect_menu:
+                    if isinstance(item, dict):
+                        # If it has a name and price, it's likely a product
+                        if item.get("name") or item.get("title") or item.get("plu"):
+                            products.append(item)
+                
+                # If we found any products, use them
+                if products:
+                    synthetic_menu["categories"][0]["products"] = products
+                    logger.info(f"[DELIVERECT-MENU] Created synthetic category with {len(products)} products")
+                    return process_deliverect_menu(synthetic_menu, location_id)
         except Exception as e:
             logger.error(f"[DELIVERECT-MENU] Error attempting data extraction from list: {e}")
     
@@ -937,12 +1052,33 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 menu_item["name"] = f"Item Type {type(product).__name__} {i+1}"
                 menu_item["description"] = f"Auto-generated from non-standard data type: {type(product).__name__}"
             
-            # Add the processed item to our results
-            if menu_item["name"] != f"Item {len(result['items']) + 1}" or len(result['items']) == 0:
-                # Only add if we got a real name or it's our first item
+            # Add the processed item to our results - only if it has a meaningful name
+            if menu_item["name"] != f"Item {len(result['items']) + 1}" and menu_item["name"].strip():
+                # Capture the original name for logging
+                original_name = menu_item["name"]
                 result["items"].append(menu_item)
                 
                 # Add name variants for easier search
+                try:
+                    logger.info(f"[DELIVERECT-MENU] Adding name variants for: '{menu_item['name']}'")
+                    add_name_variants(menu_item["name"], name_variants)
+                except Exception as e:
+                    logger.warning(f"[DELIVERECT-MENU] Error adding name variants for '{original_name}': {e}")
+                    # Add at least the basic variant
+                    try:
+                        name_lower = menu_item["name"].lower()
+                        name_variants[name_lower] = menu_item["name"]
+                        logger.info(f"[DELIVERECT-MENU] Added basic variant: '{name_lower}' -> '{menu_item['name']}'")
+                    except Exception as basic_e:
+                        logger.warning(f"[DELIVERECT-MENU] Even basic variant failed: {basic_e}")
+            elif len(result['items']) == 0:
+                # If it's our first item and it has a generic name, try to use a better name from the category
+                if cat_name and cat_name != "Uncategorized":
+                    menu_item["name"] = f"{cat_name} Item"
+                    logger.info(f"[DELIVERECT-MENU] Using category name for first item: '{menu_item['name']}'")
+                result["items"].append(menu_item)
+                
+                # Add name variants for the category-based name
                 try:
                     add_name_variants(menu_item["name"], name_variants)
                 except Exception as e:
@@ -1034,7 +1170,7 @@ def add_name_variants(item_name, variants_dict):
         variants_dict: Dictionary to update with variants
     """
     # Log args for debugging
-    logger.debug(f"[NAME-VARIANTS] Adding variants for: '{item_name}', type: {type(item_name)}")
+    logger.info(f"[NAME-VARIANTS] Adding variants for: '{item_name}', type: {type(item_name)}")
     
     # Validate input arguments
     if item_name is None:
@@ -1057,38 +1193,65 @@ def add_name_variants(item_name, variants_dict):
         logger.error(f"[NAME-VARIANTS] variants_dict is not a dictionary: {type(variants_dict)}")
         raise ValueError("variants_dict must be a dictionary")
         
-    # Convert to lowercase for consistent matching
-    item_name_lower = item_name.lower()
+    # Convert to lowercase for consistent matching and remove special characters
+    import re
+    item_name_clean = re.sub(r'[^\w\s]', ' ', item_name.lower())
+    item_name_clean = re.sub(r'\s+', ' ', item_name_clean).strip()
+    item_name_lower = item_name.lower().strip()
     
-    # Add the base name
+    # Add the base names
     variants_dict[item_name_lower] = item_name
+    if item_name_clean != item_name_lower:
+        variants_dict[item_name_clean] = item_name
+        logger.info(f"[NAME-VARIANTS] Added cleaned variant: '{item_name_clean}'")
     
     # Split into words
-    words = item_name_lower.split()
+    words = item_name_clean.split()
     
-    # Handle single-word items
-    if len(words) == 1:
-        return
-        
+    # Add without the first word (e.g., "Spicy Tuna Roll" -> "Tuna Roll")
+    if len(words) > 2:
+        without_first = ' '.join(words[1:])
+        variants_dict[without_first] = item_name
+        logger.info(f"[NAME-VARIANTS] Added without first word: '{without_first}'")
+    
+    # Add without the last word (e.g., "Spicy Tuna Roll" -> "Spicy Tuna")
+    if len(words) > 2:
+        without_last = ' '.join(words[:-1])
+        variants_dict[without_last] = item_name
+        logger.info(f"[NAME-VARIANTS] Added without last word: '{without_last}'")
+    
     # For multi-word items, add key words as variants
     for word in words:
         # Only add meaningful words (4+ chars, not common stopwords)
-        if len(word) >= 4 and word not in ["with", "and", "the", "for", "or"]:
-            if word not in variants_dict:
-                variants_dict[word] = item_name
+        if len(word) >= 4 and word not in ["with", "and", "the", "for", "or", "from"]:
+            variants_dict[word] = item_name
+            logger.info(f"[NAME-VARIANTS] Added keyword variant: '{word}'")
     
-    # Common food word handling
-    if "burger" in item_name_lower:
-        variants_dict["burger"] = item_name
-        
-    if "fries" in item_name_lower:
-        variants_dict["fries"] = item_name
-        
-    if "chicken" in item_name_lower:
-        variants_dict["chicken"] = item_name
-        
-    if "pizza" in item_name_lower:
-        variants_dict["pizza"] = item_name
+    # Common food categories and variants
+    food_keywords = {
+        "burger": ["hamburger", "cheeseburger", "beef burger", "veggie burger"],
+        "steak": ["beef", "sirloin", "filet", "ribeye", "t-bone"],
+        "chicken": ["grilled chicken", "fried chicken", "wings", "poultry"],
+        "pizza": ["pie", "flat bread", "flatbread"],
+        "salad": ["greens", "garden salad", "caesar"],
+        "sandwich": ["sub", "hoagie", "wrap", "panini"],
+        "pasta": ["spaghetti", "fettuccine", "penne", "linguine", "noodles"],
+        "sushi": ["roll", "maki", "nigiri", "sashimi"],
+    }
+    
+    # Add food-specific variants
+    for keyword, alternatives in food_keywords.items():
+        if keyword in item_name_lower:
+            # Add the base keyword
+            variants_dict[keyword] = item_name
+            logger.info(f"[NAME-VARIANTS] Added food keyword: '{keyword}'")
+            
+            # Add alternatives that might be used
+            for alt in alternatives:
+                variants_dict[alt] = item_name
+                logger.info(f"[NAME-VARIANTS] Added food keyword alternative: '{alt}'")
+    
+    return variants_dict
     
 def convert_availability(availability_data):
     """
