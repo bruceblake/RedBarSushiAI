@@ -102,6 +102,12 @@ def main():
             try:
                 validated_menu = validate_and_fix_menu_data(processed_menu)
                 print("Menu validation successful")
+                
+                # Print out changes that were made
+                if hasattr(validated_menu, "_fixes"):
+                    print("\nFixes applied during validation:")
+                    for fix in validated_menu._fixes:
+                        print(f"- {fix}")
             except Exception as e:
                 print(f"Menu validation error: {e}")
             

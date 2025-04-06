@@ -869,15 +869,39 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
             
             # Location-specific PLU override if provided
             if location_id:
-                for location in product.get("locations", []):
+                locations = product.get("locations", [])
+                if not isinstance(locations, list):
+                    logger.warning(f"[DELIVERECT] locations for product {prod_id} is not a list: {type(locations)}")
+                    locations = []
+                    
+                for location in locations:
+                    if not isinstance(location, dict):
+                        logger.warning(f"[DELIVERECT] Location in product {prod_id} is not a dictionary: {type(location)}")
+                        continue
+                        
                     if location.get("id") == location_id and location.get("plu"):
                         plu = location.get("plu")
-                        price = location.get("price", product.get("price", 0)) / 100
+                        price_value = location.get("price", product.get("price", 0))
+                        if isinstance(price_value, (int, float)):
+                            price = price_value / 100
+                        else:
+                            logger.warning(f"[DELIVERECT] Invalid price for location {location_id}: {price_value}")
+                            price = 0
                         break
                 else:
-                    price = product.get("price", 0) / 100
+                    price_value = product.get("price", 0)
+                    if isinstance(price_value, (int, float)):
+                        price = price_value / 100
+                    else:
+                        logger.warning(f"[DELIVERECT] Invalid price for product {prod_id}: {price_value}")
+                        price = 0
             else:
-                price = product.get("price", 0) / 100
+                price_value = product.get("price", 0)
+                if isinstance(price_value, (int, float)):
+                    price = price_value / 100
+                else:
+                    logger.warning(f"[DELIVERECT] Invalid price for product {prod_id}: {price_value}")
+                    price = 0
             
             # Create menu item with complete data
             menu_item = {
@@ -895,7 +919,20 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
             
             # Add availability schedule if present
             if "availability" in product:
-                menu_item["availabilities"] = convert_availability(product.get("availability", []))
+                availability_data = product.get("availability", [])
+                try:
+                    menu_item["availabilities"] = convert_availability(availability_data)
+                except Exception as e:
+                    logger.warning(f"[DELIVERECT] Error converting availability for product {prod_id}: {e}")
+                    menu_item["availabilities"] = []
+            # Also check for "availabilities" (plural) which is sometimes used
+            elif "availabilities" in product:
+                availability_data = product.get("availabilities", [])
+                try:
+                    menu_item["availabilities"] = convert_availability(availability_data)
+                except Exception as e:
+                    logger.warning(f"[DELIVERECT] Error converting availabilities for product {prod_id}: {e}")
+                    menu_item["availabilities"] = []
             
             # Process modifier groups references
             mod_group_ids = []
@@ -1274,60 +1311,98 @@ def convert_availability(availability_data):
     Returns:
         list: Formatted availability blocks
     """
+    logger = logging.getLogger(__name__)
     result = []
     
     # Handle different format types
-    if not availability_data:
+    if availability_data is None:
+        logger.warning("[AVAILABILITY] availability_data is None")
         return result
         
     # Sometimes availability_data is a string (e.g. "[]")
     if isinstance(availability_data, str):
+        logger.info(f"[AVAILABILITY] Converting string availability data: {availability_data[:50]}...")
         try:
             import json
             availability_data = json.loads(availability_data)
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error parsing availability string: {e}")
+            logger.error(f"[AVAILABILITY] Error parsing availability string: {e}")
             return result
     
     # If it's not a list by now, return empty
     if not isinstance(availability_data, list):
+        logger.warning(f"[AVAILABILITY] Availability data is not a list: {type(availability_data)}")
         return result
     
     # Process each day
-    for day_data in availability_data:
-        # Skip if not a dictionary
-        if not isinstance(day_data, dict):
-            continue
-            
-        day = day_data.get("dayOfWeek")
-        # Some formats have timeSlots, others have direct startTime/endTime
-        if "timeSlots" in day_data:
-            time_slots = day_data.get("timeSlots", [])
-            
-            for slot in time_slots:
-                if not isinstance(slot, dict):
-                    continue
-                start_time = slot.get("startTime", "00:00")
-                end_time = slot.get("endTime", "23:59")
+    for i, day_data in enumerate(availability_data):
+        try:
+            # Skip if not a dictionary
+            if not isinstance(day_data, dict):
+                logger.warning(f"[AVAILABILITY] Day data at index {i} is not a dictionary: {type(day_data)}")
+                continue
                 
-                result.append({
-                    "dayOfWeek": day,
-                    "startTime": start_time,
-                    "endTime": end_time
-                })
-        else:
-            # Direct start/end time
-            start_time = day_data.get("startTime", "00:00")
-            end_time = day_data.get("endTime", "23:59")
-            
-            result.append({
-                "dayOfWeek": day,
-                "startTime": start_time,
-                "endTime": end_time
-            })
+            day = day_data.get("dayOfWeek")
+            if day is None:
+                logger.warning(f"[AVAILABILITY] Missing dayOfWeek in day data at index {i}")
+                continue
+                
+            # Some formats have timeSlots, others have direct startTime/endTime
+            if "timeSlots" in day_data:
+                time_slots = day_data.get("timeSlots", [])
+                if not isinstance(time_slots, list):
+                    logger.warning(f"[AVAILABILITY] timeSlots for day {day} is not a list: {type(time_slots)}")
+                    time_slots = []
+                
+                for j, slot in enumerate(time_slots):
+                    try:
+                        if not isinstance(slot, dict):
+                            logger.warning(f"[AVAILABILITY] Slot at index {j} for day {day} is not a dictionary: {type(slot)}")
+                            continue
+                            
+                        start_time = slot.get("startTime", "00:00")
+                        end_time = slot.get("endTime", "23:59")
+                        
+                        # Validate time format
+                        if not isinstance(start_time, str) or not isinstance(end_time, str):
+                            logger.warning(f"[AVAILABILITY] Invalid time format for day {day}, slot {j}")
+                            start_time = "00:00" if not isinstance(start_time, str) else start_time
+                            end_time = "23:59" if not isinstance(end_time, str) else end_time
+                        
+                        result.append({
+                            "dayOfWeek": day,
+                            "startTime": start_time,
+                            "endTime": end_time
+                        })
+                    except Exception as slot_e:
+                        logger.error(f"[AVAILABILITY] Error processing slot at index {j} for day {day}: {slot_e}")
+                        continue
+            else:
+                # Direct start/end time
+                try:
+                    start_time = day_data.get("startTime", "00:00")
+                    end_time = day_data.get("endTime", "23:59")
+                    
+                    # Validate time format
+                    if not isinstance(start_time, str) or not isinstance(end_time, str):
+                        logger.warning(f"[AVAILABILITY] Invalid time format for day {day}")
+                        start_time = "00:00" if not isinstance(start_time, str) else start_time
+                        end_time = "23:59" if not isinstance(end_time, str) else end_time
+                    
+                    result.append({
+                        "dayOfWeek": day,
+                        "startTime": start_time,
+                        "endTime": end_time
+                    })
+                except Exception as time_e:
+                    logger.error(f"[AVAILABILITY] Error processing direct time for day {day}: {time_e}")
+                    continue
+        except Exception as day_e:
+            logger.error(f"[AVAILABILITY] Error processing day data at index {i}: {day_e}")
+            continue
     
     # Log the result
-    logging.getLogger(__name__).info(f"Converted availability data: {len(result)} time blocks")
+    logger.info(f"[AVAILABILITY] Converted availability data: {len(result)} time blocks")
     return result
 
 def process_product_changes(product_id, data, location_id=None):
