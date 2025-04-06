@@ -759,7 +759,23 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                         if not item.get("reference_handler") and item.get("plu"):
                             item["reference_handler"] = item["plu"]
                         elif not item.get("reference_handler"):
-                            item["reference_handler"] = f"REF-{i:04d}"
+                            # Use the item ID as the reference if available, otherwise use a product ID based on timestamp
+                            if item.get("id"):
+                                item["reference_handler"] = f"{item['id']}"
+                            elif item.get("name"):
+                                # Create a reference based on name - ensures consistency
+                                import re
+                                import hashlib
+                                # Clean the name for reference use
+                                clean_name = re.sub(r'[^a-zA-Z0-9]', '', item["name"])
+                                if clean_name:
+                                    item["reference_handler"] = f"{clean_name[:10]}-{i}"
+                                else:
+                                    # Last resort if name has no alphanumeric chars
+                                    item["reference_handler"] = f"PROD-{int(time.time() * 1000) % 1000000}-{i}"
+                            else:
+                                # Very last resort
+                                item["reference_handler"] = f"PROD-{int(time.time() * 1000) % 1000000}-{i}"
                             
                         # Ensure price is in correct format (dollars, not cents)
                         if "price" in item and isinstance(item["price"], (int, float)) and item["price"] > 100:
@@ -908,9 +924,9 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
             # Create a new product record
             menu_item = {
                 "id": f"auto-{len(result['items'])}",
-                "name": f"Item {len(result['items']) + 1}",
+                "name": f"{cat_name} Item",  # Use category name instead of generic "Item N"
                 "price": 0.0,
-                "reference_handler": f"REF-{len(result['items']):04d}",
+                "reference_handler": "",  # Will be set from PLU below - don't use generic references
                 "description": "",
                 "category": cat_name,
                 "categoryId": cat_id,
@@ -942,8 +958,23 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     menu_item["name"] = product.get("title")
                 
                 # Get PLU (reference_handler)
+                # PLU is the most important reference - this is what Deliverect requires 
                 if product.get("plu"):
                     menu_item["reference_handler"] = product.get("plu")
+                # If no PLU, try using product ID, which may still work with Deliverect
+                elif product.get("id"):
+                    menu_item["reference_handler"] = product.get("id")
+                # If neither, use the product name to create a stable reference
+                elif product.get("name"):
+                    # Create a reference based on name - ensures consistency
+                    import re
+                    # Clean the name for reference use
+                    clean_name = re.sub(r'[^a-zA-Z0-9]', '', product.get("name"))
+                    if clean_name:
+                        menu_item["reference_handler"] = f"{clean_name[:15]}"
+                    else:
+                        # Last resort
+                        menu_item["reference_handler"] = f"PROD-{i}"
                 
                 # Get price (converting from cents if needed)
                 price_value = product.get("price", 0)
