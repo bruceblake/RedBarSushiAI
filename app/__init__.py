@@ -69,11 +69,11 @@ def create_app(test_config=None):
     from app.routes.location import location_bp
 
     # Register blueprints with explicit URL prefixes for clarity
-    # Register blueprints with explicit URL prefixes, except voice which needs to be at root for Twilio
+    # Register blueprints with original structure for backwards compatibility
     app.register_blueprint(voice_bp)  # Keep at root level for Twilio webhook compatibility
-    app.register_blueprint(menu_bp, url_prefix='/menu')
+    app.register_blueprint(menu_bp)   # Keep at root level for existing Deliverect integrations
     app.register_blueprint(order_bp)  # Keep at root level for order webhooks
-    app.register_blueprint(location_bp, url_prefix='/location')
+    app.register_blueprint(location_bp) # Keep at root level for consistency
 
     # Configure optimized logging
     # Clear any existing handlers to avoid duplicates
@@ -118,6 +118,48 @@ def create_app(test_config=None):
     @app.route('/')
     def index():
         return {"message": "Welcome to Red Bar Sushi AI API", "version": "1.0.0"}
+        
+    @app.route('/menu-check')
+    def menu_check():
+        """Diagnostic endpoint to check menu status"""
+        from app.utils.menu_utils import load_menu_data, MENU_FILE_PATH
+        import os
+        
+        result = {
+            "menu_file_path": MENU_FILE_PATH,
+            "exists": os.path.exists(MENU_FILE_PATH),
+            "locations_checked": [],
+            "items_count": 0
+        }
+        
+        # Check common locations
+        for path in [
+            MENU_FILE_PATH,
+            os.path.join(os.getcwd(), 'menu_data.json'),
+            '/app/menu_data.json',
+            '/var/task/menu_data.json'
+        ]:
+            exists = os.path.exists(path)
+            size = os.path.getsize(path) if exists else 0
+            result["locations_checked"].append({
+                "path": path,
+                "exists": exists,
+                "size": size,
+                "permissions": oct(os.stat(path).st_mode) if exists else "N/A"
+            })
+            
+        # Actually load the menu
+        try:
+            menu = load_menu_data(force_refresh=True)
+            result["load_success"] = True
+            result["items_count"] = len(menu.get("items", []))
+            result["items_sample"] = [item.get("name") for item in menu.get("items", [])[:5]]
+            result["variants_count"] = len(menu.get("name_variants", {}))
+        except Exception as e:
+            result["load_success"] = False
+            result["error"] = str(e)
+            
+        return result
         
     # Add a comprehensive health check endpoint
     @app.route('/healthcheck')
