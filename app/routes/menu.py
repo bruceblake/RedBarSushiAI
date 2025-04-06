@@ -156,87 +156,92 @@ def menu_update():
                 
                 return jsonify({"error": "No valid menu items could be extracted from the provided data"}), 400
                 
-            # EMERGENCY BYPASS - Completely skip write_menu_file and go straight to direct writes
-            logger.info(f"[MENU-UPDATE] EMERGENCY BYPASS ACTIVE - attempting direct writes")
+            # Save the processed menu
+            import time
+            import os
             
+            # CRITICAL: Make a backup of the menu data before attempting to save
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Create backup directory if it doesn't exist
+            backup_folder = '/tmp/redbar_backups'
             try:
-                # IMPORTANT: This code must be self-contained and not depend on any other functions
-                # Try all possible file locations directly
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                
-                # First create a backup
-                try:
-                    backup_folder = '/tmp/redbar_backups'
-                    os.makedirs(backup_folder, exist_ok=True)
-                    backup_path = os.path.join(backup_folder, f"menu_backup_{timestamp}.json")
-                    with open(backup_path, 'w') as f:
-                        json.dump(processed_data, f, indent=2)
-                    logger.info(f"[MENU-UPDATE] EMERGENCY Backup created at {backup_path}")
-                except Exception as backup_e:
-                    logger.warning(f"[MENU-UPDATE] EMERGENCY Backup failed: {backup_e}")
-                
-                # Try all possible paths directly
-                success = False
-                error_messages = []
-                
-                # Docker path
-                try:
-                    if os.path.exists('/app'):
-                        with open('/app/menu_data.json', 'w') as f:
-                            json.dump(processed_data, f, indent=2)
-                        logger.info("[MENU-UPDATE] EMERGENCY Write to /app/menu_data.json successful")
-                        success = True
-                except Exception as e1:
-                    error_messages.append(f"Docker path error: {str(e1)}")
-                
-                # Current directory path
-                try:
-                    with open(os.path.join(os.getcwd(), 'menu_data.json'), 'w') as f:
-                        json.dump(processed_data, f, indent=2)
-                    logger.info(f"[MENU-UPDATE] EMERGENCY Write to {os.getcwd()}/menu_data.json successful")
-                    success = True
-                except Exception as e2:
-                    error_messages.append(f"CWD path error: {str(e2)}")
-                
-                # Tmp path
-                try:
-                    with open('/tmp/menu_data.json', 'w') as f:
-                        json.dump(processed_data, f, indent=2)
-                    logger.info("[MENU-UPDATE] EMERGENCY Write to /tmp/menu_data.json successful")
-                    success = True
-                except Exception as e3:
-                    error_messages.append(f"TMP path error: {str(e3)}")
-                
-                # Skip using load_menu_data to avoid potential errors in that function
-                if success:
-                    return jsonify({
-                        "success": True,
-                        "items": items_count,
-                        "modifiers": modifiers_count,
-                        "modifierGroups": groups_count,
-                        "name_variants": variants_count,
-                        "path": "EMERGENCY DIRECT WRITE"
-                    }), 200
-                
-                # If all failed, log the errors and return error response
-                logger.error(f"[MENU-UPDATE] EMERGENCY All write methods failed: {', '.join(error_messages)}")
-                return jsonify({
-                    "error": "Failed to save menu data",
-                    "details": "Emergency direct writes failed. Errors: " + "; ".join(error_messages)
-                }), 500
-                
-            except Exception as emergency_e:
-                # Something went really wrong, return error
-                logger.error(f"[MENU-UPDATE] EMERGENCY BYPASS failed with exception: {emergency_e}")
-                return jsonify({
-                    "error": "EMERGENCY bypass failed",
-                    "details": str(emergency_e)
-                }), 500
-                
-            # The following code is unreachable - we return from the emergency block above
-            # But we keep it for reference
+                os.makedirs(backup_folder, exist_ok=True)
+                # Create a backup with timestamp
+                backup_path = os.path.join(backup_folder, f"menu_backup_{timestamp}.json")
+                with open(backup_path, 'w') as f:
+                    json.dump(processed_data, f, indent=2)
+                logger.info(f"[MENU-UPDATE] Menu backup created at {backup_path}")
+            except Exception as backup_e:
+                logger.warning(f"[MENU-UPDATE] Failed to create backup: {backup_e}")
+            
+            # Detailed logging before attempting to write
+            logger.info(f"[MENU-UPDATE] About to write menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups")
+            
             # DIRECT WRITE APPROACH - Skip the problematic write_menu_file function entirely
             success = False
+            paths_written = []
+            
+            # 1. Try Docker path first if in Docker environment
+            if os.path.exists('/app'):
+                try:
+                    docker_path = '/app/menu_data.json'
+                    with open(docker_path, 'w') as f:
+                        json.dump(processed_data, f, indent=2)
+                    logger.info(f"[MENU-UPDATE] Successfully wrote menu to {docker_path}")
+                    paths_written.append(docker_path)
+                    success = True
+                except Exception as docker_e:
+                    logger.error(f"[MENU-UPDATE] Failed writing to Docker path: {docker_e}")
+            
+            # 2. Always try app directory path 
+            try:
+                app_path = os.path.join(os.getcwd(), 'menu_data.json')
+                with open(app_path, 'w') as f:
+                    json.dump(processed_data, f, indent=2)
+                logger.info(f"[MENU-UPDATE] Successfully wrote menu to {app_path}")
+                paths_written.append(app_path)
+                success = True
+            except Exception as app_e:
+                logger.error(f"[MENU-UPDATE] Failed writing to app path: {app_e}")
+            
+            # 3. Always try tmp path as a reliable fallback
+            try:
+                tmp_path = '/tmp/menu_data.json'
+                with open(tmp_path, 'w') as f:
+                    json.dump(processed_data, f, indent=2)
+                logger.info(f"[MENU-UPDATE] Successfully wrote menu to {tmp_path}")
+                paths_written.append(tmp_path)
+                success = True
+            except Exception as tmp_e:
+                logger.error(f"[MENU-UPDATE] Failed writing to tmp path: {tmp_e}")
+                
+            # Check if any write method succeeded
+            if not success:
+                logger.error("[MENU-UPDATE] All menu write methods failed")
+                
+                # If we have a callback URL, send a FAILED status
+                if callback_url:
+                    try:
+                        callback_response = requests.post(
+                            callback_url,
+                            json={"status": "FAILED", "comment": "Failed to save menu data after multiple attempts"}
+                        )
+                        logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
+                    except Exception as callback_e:
+                        logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
+                
+                # Only return error if all methods failed
+                return jsonify({
+                    "error": "Failed to save menu data", 
+                    "details": "The menu was processed successfully but could not be saved despite multiple attempts."
+                }), 500
+            else:
+                logger.info(f"[MENU-UPDATE] Successfully saved menu to {len(paths_written)} locations: {', '.join(paths_written)}")
+                
+            # Verify the menu was saved correctly
+            reloaded_menu = load_menu_data(force_refresh=True)
+            reloaded_count = len(reloaded_menu.get("items", []))
             
             if reloaded_count == 0:
                 logger.warning("[MENU-UPDATE] Menu reload verification failed")
@@ -612,41 +617,36 @@ def simple_menu_update():
             
             # Attempt to save the menu directly to a known working location
             if items_count > 0:
-                # ULTRA SIMPLE DIRECT WRITE - NO DEPENDENCIES
-                logger.info(f"[SIMPLE-MENU] EMERGENCY DIRECT WRITE ACTIVE")
-                success = False
-                errors = []
-                
-                # Attempt Docker path
-                if os.path.exists('/app'):
-                    try:
-                        with open('/app/menu_data.json', 'w') as f:
-                            f.write(json.dumps(processed_data, indent=2))
-                        logger.info("[SIMPLE-MENU] EMERGENCY Direct write to /app/menu_data.json SUCCESS")
-                        success = True
-                    except Exception as e1:
-                        errors.append(f"Docker path: {str(e1)}")
-                
-                # Attempt CWD path
                 try:
-                    with open(os.path.join(os.getcwd(), 'menu_data.json'), 'w') as f:
-                        f.write(json.dumps(processed_data, indent=2))
-                    logger.info(f"[SIMPLE-MENU] EMERGENCY Direct write to {os.getcwd()}/menu_data.json SUCCESS")
-                    success = True 
-                except Exception as e2:
-                    errors.append(f"CWD path: {str(e2)}")
+                    # Try direct write to tmp location first, bypass the normal write function
+                    import json
+                    import time
                     
-                # Always try tmp path
-                try:
-                    with open('/tmp/menu_data.json', 'w') as f:
-                        f.write(json.dumps(processed_data, indent=2))
-                    logger.info("[SIMPLE-MENU] EMERGENCY Direct write to /tmp/menu_data.json SUCCESS")
-                    success = True
-                except Exception as e3:
-                    errors.append(f"TMP path: {str(e3)}")
-                
-                if not success:
-                    logger.error(f"[SIMPLE-MENU] CRITICAL: All direct writes failed: {'; '.join(errors)}")
+                    # Write to Docker path first if in Docker
+                    if os.path.exists('/app'):
+                        try:
+                            with open('/app/menu_data.json', 'w') as f:
+                                json.dump(processed_data, f, indent=2)
+                            logger.info(f"[SIMPLE-MENU] Successfully wrote menu to /app/menu_data.json")
+                        except Exception as docker_e:
+                            logger.error(f"[SIMPLE-MENU] Failed to write to Docker path: {docker_e}")
+                    
+                    # Also write to tmp as fallback
+                    fallback_path = f"/tmp/menu_data.json"
+                    with open(fallback_path, 'w') as f:
+                        json.dump(processed_data, f, indent=2)
+                    logger.info(f"[SIMPLE-MENU] Successfully wrote menu to {fallback_path}")
+                    
+                    # Try normal write function last
+                    try:
+                        result = write_menu_file(processed_data)
+                        if result:
+                            logger.info(f"[SIMPLE-MENU] Standard write_menu_file successful")
+                    except Exception as write_e:
+                        logger.warning(f"[SIMPLE-MENU] Standard write_menu_file failed: {write_e}")
+                        
+                except Exception as fallback_e:
+                    logger.error(f"[SIMPLE-MENU] All write attempts failed: {fallback_e}")
         except Exception as process_e:
             logger.error(f"[SIMPLE-MENU] Error processing menu data: {process_e}")
         
