@@ -4,19 +4,57 @@
       "name": "Veggie Burger",
       "available": true,
       "reference_handler": "VEG-001",
-      "price": 9.99
+      "price": 9.99,
+      "category": "Burgers"
     },
     {
       "name": "Chicken Burger",
       "available": true,
       "reference_handler": "CHKN-001",
-      "price": 10.99
+      "price": 10.99,
+      "category": "Burgers"
     },
     {
       "name": "Cheeseburger",
       "available": true,
       "reference_handler": "CHEESE-001",
-      "price": 8.99
+      "price": 8.99,
+      "category": "Burgers"
+    },
+    {
+      "name": "Delicious Steak Frites",
+      "available": true,
+      "reference_handler": "STK-01",
+      "price": 14.99,
+      "category": "Entrees"
+    },
+    {
+      "name": "Hawaiian Pizza",
+      "available": true,
+      "reference_handler": "PIZZA-001",
+      "price": 12.99,
+      "category": "Pizzas"
+    },
+    {
+      "name": "Chicken Tenders",
+      "available": true,
+      "reference_handler": "CHKN-TENDERS",
+      "price": 9.99,
+      "category": "Appetizers"
+    },
+    {
+      "name": "Coca Cola",
+      "available": true,
+      "reference_handler": "DRINK-001",
+      "price": 2.99,
+      "category": "Drinks"
+    },
+    {
+      "name": "Diet Coke",
+      "available": true,
+      "reference_handler": "DRINK-002",
+      "price": 2.99,
+      "category": "Drinks"
     }
   ],
   "modifiers": [],
@@ -24,10 +62,21 @@
   "name_variants": {
     "veggie": "Veggie Burger",
     "veggie burger": "Veggie Burger",
-    "chicken": "Chicken Burger",
     "chicken burger": "Chicken Burger",
+    "chicken": "Chicken Burger",
     "cheeseburger": "Cheeseburger",
+    "cheese burger": "Cheeseburger",
     "cheese": "Cheeseburger",
-    "cheese burger": "Cheeseburger"
+    "steak": "Delicious Steak Frites",
+    "steak frites": "Delicious Steak Frites",
+    "frites": "Delicious Steak Frites",
+    "hawaiian": "Hawaiian Pizza",
+    "hawaiian pizza": "Hawaiian Pizza",
+    "pizza": "Hawaiian Pizza",
+    "tenders": "Chicken Tenders",
+    "chicken tenders": "Chicken Tenders",
+    "coca cola": "Coca Cola",
+    "coke": "Coca Cola",
+    "diet coke": "Diet Coke"
   }
 }
