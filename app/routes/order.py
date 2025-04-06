@@ -21,7 +21,16 @@ from app.utils.order_utils import (
 from app.utils.menu_utils import load_menu_data, is_item_snoozed_timebased
 from app.utils.helpers import log_info, commit_with_retry
 from twilio.twiml.messaging_response import MessagingResponse
-from app.utils.agent_utils import analyze_user_input, get_order_modifications
+# Try to import from the original module first 
+try:
+    from app.utils.agent_utils import analyze_user_input, get_order_modifications
+    logger = logging.getLogger(__name__)
+    logger.info("Successfully imported OpenAI agent utilities in order routes")
+except ImportError:
+    # If that fails, use our simplified implementation
+    from app.utils.agent_utils_simple import analyze_user_input, get_order_modifications
+    logger = logging.getLogger(__name__)
+    logger.warning("Using simplified agent utilities in order routes (OpenAI not available)")
 from app import db
 from app.models import Order
 
