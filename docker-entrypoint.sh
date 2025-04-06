@@ -150,8 +150,7 @@ for module in required_modules:
         print(f'✗ {module} - MISSING', file=sys.stderr)
 
 if missing:
-    missing_str = ", ".join(missing)
-    print(f'ERROR: Missing required modules: {missing_str}', file=sys.stderr)
+    print('ERROR: Missing required modules: ' + ', '.join(missing), file=sys.stderr)
     sys.exit(1)
 else:
     print('All required modules are available', file=sys.stderr)
