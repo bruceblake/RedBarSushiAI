@@ -1,46 +1,73 @@
-# Base Image: Python 3.11 (matches your development environment)
-FROM python:3.11-slim
+# Stage 1: Base image with system dependencies
+FROM python:3.11-slim AS base
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-# Render sets PORT environment variable automatically
-ENV PORT=8080
-
-# Set working directory
-WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install system dependencies and build tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    git \
-    gcc \
-    g++ \
-    libpq-dev \
+        git \
+        gcc \
+        g++ \
+        libpq-dev \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies first (leverages Docker cache)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Stage 2: Install dependencies
+FROM base AS dependencies
 
-# Install PostgreSQL drivers and other dependencies for Docker environment
-RUN pip install --no-cache-dir psycopg2-binary
+WORKDIR /install
 
-# Install Gunicorn with websocket support
-RUN pip install --no-cache-dir gunicorn flask-sock gevent-websocket
+# Copy requirements files
+COPY requirements.txt requirements.prod.txt ./
 
-# Copy the application code
-COPY . .
+# Install base Python packages with retries and timeouts
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    # Try production requirements first (more stable)
+    if [ -f "requirements.prod.txt" ]; then \
+        pip install --no-cache-dir -r requirements.prod.txt || \
+        pip install --no-cache-dir -r requirements.txt; \
+    else \
+        pip install --no-cache-dir -r requirements.txt; \
+    fi
 
-# Create directories for logs and data if they don't exist
+# Install specific packages explicitly with version pinning
+RUN pip install --no-cache-dir psycopg2-binary==2.9.9 \
+                             gunicorn==21.2.0 \
+                             gevent==23.9.1 \
+                             flask-sock==0.6.0 \
+                             gevent-websocket==0.10.1
+
+# Stage 3: Final runtime image
+FROM base AS final
+
+WORKDIR /app
+
+# Copy only installed packages from dependencies stage
+COPY --from=dependencies /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=dependencies /usr/local/bin /usr/local/bin
+
+# Create necessary directories
 RUN mkdir -p /app/logs /app/data /app/backups
 
-# Make the entrypoint script executable
+# Copy application code
+COPY . .
+
+# Set up entrypoint
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-# Expose port for documentation (Render still uses the PORT env var)
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:$PORT/healthcheck || exit 1
+
+# Expose port
 EXPOSE 8080
 
-# Use entrypoint script to initialize and run the application
+# Use entrypoint script
 ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -73,5 +73,10 @@ def create_app(test_config=None):
     @app.route('/healthcheck')
     def healthcheck():
         return {'status': 'ok', 'message': 'RedBarSushiAI is running'}
+        
+    # Add database connection cleanup to prevent memory leaks
+    @app.teardown_appcontext
+    def cleanup_db_resources(exception=None):
+        db.session.close()
 
     return app

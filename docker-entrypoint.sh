@@ -61,8 +61,8 @@ with app.app_context():
 # Determine which process to start based on the PROCESS environment variable
 # This allows us to run the web server or Celery worker with the same Docker image
 if [ "$PROCESS" = "celery" ]; then
-    echo "Starting Celery worker..."
-    exec celery -A celery_app worker --loglevel=INFO
+    echo "Starting Celery worker with memory optimizations..."
+    exec celery -A celery_app worker --loglevel=INFO --concurrency=2 --max-memory-per-child=50000
 elif [ "$PROCESS" = "celery-beat" ]; then
     echo "Starting Celery beat scheduler..."
     exec celery -A celery_app beat --loglevel=INFO

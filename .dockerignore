@@ -1,34 +1,78 @@
 
-# Git files
+# Version control
 .git
 .gitignore
+.github
 
 # Docker files
-Dockerfile
+Dockerfile*
+docker-compose*
 .dockerignore
 
 # Python virtual environment & cache
-venv
-.venv
-env
+venv/
+.venv/
+env/
+ENV/
 *.pyc
 __pycache__/
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
 
 # OS / IDE specific
 .idea/
 .vscode/
+*.swp
+*.swo
 *.DS_Store
 Thumbs.db
+.ipynb_checkpoints
 
-# Local secrets / config (use environment variables instead!)
+# Local secrets / environment
+.env*
+!.env.example
+*.pem
+*.key
 local_settings.py
-*.env
-.env.*
 
-# Test files (optional, depends if needed in image)
+# Data files
+*.sqlite
+*.db
+*.rdb
+logs/
+backups/
+
+# Test files
 tests/
+test_*.py
+test_*_*.py
 pytest.ini
-.coverage
 
-# Add any other files/folders to ignore
+# Documentation
+docs/
+*.md
+!README.md
+!CONTRIBUTING.md
+
+# Build artifacts
+node_modules/
+*.egg-info/
+.installed.cfg
+*.egg
+build/
+dist/
+
+# Keep essential data (but not huge files)
+!menu_data.json
+*.csv
+*.pickle
+*.pkl
+*.parquet
+data/large_files/

@@ -2,6 +2,10 @@
 import logging
 import stripe
 import requests
+import os
+import gc
+import time
+import resource
 from app import db, twilio_client, create_app
 from app.models import Order
 from app.utils.helpers import log_info, commit_with_retry
@@ -10,10 +14,42 @@ import app.config as config
 # Import celery instance after it's fully defined
 from celery_app import celery
 
+# Memory profiling decorator for tasks
+def memory_profiler(func):
+    def wrapper(*args, **kwargs):
+        # Only profile if debug is enabled
+        if not os.environ.get('CELERY_PROFILE_MEMORY', 'false').lower() == 'true':
+            return func(*args, **kwargs)
+            
+        task_name = func.__name__
+        start_time = time.time()
+        
+        # Get initial memory usage
+        gc.collect()  # Collect garbage before measurement
+        start_memory = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        logging.info(f"[MEMORY] {task_name} starting - Current memory: {start_memory/1024:.2f}MB")
+        
+        # Execute the task
+        result = func(*args, **kwargs)
+        
+        # Get final memory usage
+        gc.collect()  # Collect garbage after task
+        end_memory = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        memory_diff = end_memory - start_memory
+        end_time = time.time()
+        
+        logging.info(f"[MEMORY] {task_name} completed in {end_time-start_time:.2f}s - "
+                   f"Final memory: {end_memory/1024:.2f}MB, "
+                   f"Diff: {memory_diff/1024:.2f}MB")
+        
+        return result
+    return wrapper
+
 TWILIO_PHONE_NUMBER = config.TWILIO_NUMBER
 OWNER_WHATSAPP_NUMBER = 'whatsapp:+17032972632'
 
 @celery.task(name="tasks.sync_menu_references")
+@memory_profiler
 def sync_menu_references():
     """
     Periodic task to ensure menu reference handlers and prices are synchronized
@@ -50,6 +86,7 @@ def sync_menu_references():
             return False
 
 @celery.task(name="tasks.send_confirmation_sms_task")
+@memory_profiler
 def send_confirmation_sms_task(order_id, order_message, sender, caller_name, bill_amount, order_items, location_id=None):
     app = create_app()
     with app.app_context():
@@ -140,6 +177,7 @@ def send_confirmation_sms_task(order_id, order_message, sender, caller_name, bil
         return f"Confirmation SMS sent for order {order_id}"
 
 @celery.task(name="tasks.send_order_status_update_task")
+@memory_profiler
 def send_order_status_update_task(order_id, status_message, location_id=None):
     app = create_app()
     with app.app_context():
