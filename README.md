@@ -2,10 +2,11 @@
 
 This repository implements a restaurant order processing system that integrates several technologies to handle customer calls, process orders, and interact with external APIs. It combines:
 
-- **Flask** for handling HTTP requests, Twilio voice calls, and webhooks.
+- **Flask** for handling HTTP requests, WebSockets, and Twilio voice calls.
+- **WebSockets** for real-time speech and audio processing.
 - **SQLAlchemy** for interacting with a MySQL database.
-- **Twilio** for voice and SMS messaging.
-- **OpenAI** (GPT-4o-2024-11-20) for natural language processing of spoken orders.
+- **Twilio** for traditional voice and SMS messaging.
+- **OpenAI** (GPT-4o) for natural language processing and real-time audio streaming.
 - **Stripe** for creating payment links.
 - **Deliverect** for external order management.
 - **Celery** for background task processing.
@@ -256,19 +257,59 @@ The system offloads long-running operations to background tasks using Celery. Tw
 
 ---
 
-## 8. Final Thoughts
+## 8. Real-time Audio Integration
+
+The system now implements real-time audio processing using WebSockets and OpenAI's streaming APIs:
+
+### a. WebSocket Endpoints
+
+- **/api/ws/speech-to-text:**  
+  A WebSocket endpoint that receives streaming audio from the browser and returns real-time transcription results.
+  
+- **/api/ws/text-to-speech:**  
+  Converts text to speech in real-time, streaming audio chunks back to the client.
+  
+- **/api/ws/conversation:**  
+  A full-featured endpoint that handles the entire conversation flow: speech-to-text, AI processing, and text-to-speech response generation.
+
+### b. Key Features
+
+- **Real-time Transcription:**  
+  Audio is streamed in chunks to OpenAI's API, with transcription results returned as they become available.
+  
+- **Streaming AI Responses:**  
+  AI responses are streamed token-by-token, providing immediate feedback.
+  
+- **Voice Synthesis:**  
+  AI responses are converted to speech and streamed back to the client.
+  
+- **Conversation Management:**  
+  The system maintains conversation history for context-aware responses.
+
+### c. Demo Implementation
+
+A complete demo is available at the `/demo` endpoint, showcasing the real-time conversation capabilities with:
+- Browser-based audio recording
+- Streaming transcription display
+- Real-time response generation
+- Audio playback of responses
+
+For complete API documentation, see [REALTIME_AUDIO.md](REALTIME_AUDIO.md).
+
+## 9. Final Thoughts
 
 This program integrates multiple components into a cohesive order processing system:
 
-- **Flask** handles HTTP requests, Twilio voice calls, and webhooks.
+- **Flask** handles HTTP requests, WebSockets, Twilio voice calls, and webhooks.
+- **WebSockets** enable real-time audio streaming for a more interactive experience.
 - **SQLAlchemy** manages persistent order storage.
-- **Twilio** delivers voice feedback and SMS notifications.
-- **OpenAI** processes and understands spoken orders.
+- **Twilio** delivers traditional voice feedback and SMS notifications.
+- **OpenAI** processes orders through both traditional APIs and real-time streaming.
 - **Stripe** generates payment links for online payments.
 - **Deliverect** interfaces with external order management systems.
 - **Celery** offloads long-running tasks to background workers, ensuring responsiveness.
 
-Each component is carefully integrated to create a robust, scalable system that manages orders from the moment a customer calls until the order is confirmed and processed externally.
+Each component is carefully integrated to create a robust, scalable system that manages orders from the moment a customer interacts until the order is confirmed and processed externally.
 
 ---
 
