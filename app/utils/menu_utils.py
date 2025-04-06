@@ -824,7 +824,19 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     if not isinstance(categories, list):
         logger.warning(f"[DELIVERECT] Categories is not a list: {type(categories)}")
         categories = []
-        
+    
+    # Check for products at the top level as well (some Deliverect data has this format)
+    root_products = deliverect_menu.get("products", [])
+    if isinstance(root_products, list) and len(root_products) > 0:
+        logger.info(f"[DELIVERECT] Found {len(root_products)} products at the root level")
+        # Create a synthetic category for these products
+        root_category = {
+            "id": "root_products",
+            "name": "Menu Items",
+            "products": root_products
+        }
+        categories.append(root_category)
+    
     logger.info(f"[DELIVERECT] Processing {len(categories)} categories")
     
     for category in categories:
@@ -840,6 +852,19 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         if not isinstance(products, list):
             logger.warning(f"[DELIVERECT] Products in category {cat_id} is not a list: {type(products)}")
             products = []
+        
+        # Filter out non-dictionary products (strings, etc.)
+        valid_products = []
+        invalid_count = 0
+        for prod in products:
+            if isinstance(prod, dict):
+                valid_products.append(prod)
+            else:
+                invalid_count += 1
+        
+        if invalid_count > 0:
+            logger.warning(f"[DELIVERECT] Filtered out {invalid_count} invalid products in category {cat_id}")
+            products = valid_products
         
         # Process each product in the category
         for product in products:
