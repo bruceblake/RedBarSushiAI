@@ -1,0 +1,7 @@
+2025-04-06 03:21:25,540 - INFO - werkzeug - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.17.86.233:5000
+2025-04-06 03:21:25,540 - INFO - werkzeug - [33mPress CTRL+C to quit[0m
+2025-04-06 03:21:26,997 - DEBUG - httpcore.connection - close.started
+2025-04-06 03:21:26,997 - DEBUG - httpcore.connection - close.complete
