@@ -259,67 +259,35 @@ The system offloads long-running operations to background tasks using Celery. Tw
 
 ## 8. Real-time Audio Integration
 
-The system now implements real-time audio processing using WebSockets and OpenAI's Realtime API:
+The system implements real-time audio processing using WebSockets and OpenAI's Realtime API:
 
 ### a. WebSocket Endpoints
 
 - **/api/ws/speech-to-text:**  
-  A WebSocket endpoint that receives streaming audio from the browser and returns real-time transcription results.
+  Receives streaming audio and returns real-time transcription results.
   
 - **/api/ws/text-to-speech:**  
   Converts text to speech in real-time, streaming audio chunks back to the client.
   
 - **/api/ws/conversation:**  
-  A full-featured endpoint that handles the entire conversation flow: speech-to-text, AI processing, and text-to-speech response generation.
+  Full-featured endpoint for the entire conversation flow: speech-to-text, AI processing, and text-to-speech.
 
 ### b. Key Features
 
-- **Real-time Transcription:**  
-  Audio is streamed in chunks to OpenAI's API, with transcription results returned as they become available.
-  
-- **Streaming AI Responses:**  
-  AI responses are streamed token-by-token, providing immediate feedback.
-  
-- **Voice Synthesis:**  
-  AI responses are converted to speech and streamed back to the client.
-  
-- **Conversation Management:**  
-  The system maintains conversation history for context-aware responses.
-  
-- **Headless Operation:**  
-  Works in headless environments (like Docker on Render) without requiring X11 display server.
-  
-- **Dual Implementation:**  
-  - **RealtimeAudioProcessor:** Uses OpenAI's WebSocket API via `openai-realtime-client`
-  - **BasicAudioProcessor:** Fallback implementation using standard REST API
+- **Real-time Transcription:** Audio streamed in chunks with results returned immediately.
+- **Streaming AI Responses:** Responses streamed token-by-token for immediate feedback.
+- **Voice Synthesis:** AI responses converted to speech and streamed back to the client.
+- **Conversation Management:** Maintains conversation history for context-aware responses.
+- **Headless Operation:** Works in headless environments without requiring X11 display server.
+- **Robust Fallbacks:** Multiple processing options based on available capabilities.
 
-### c. Testing WebSockets
+### c. Testing and Documentation
 
-You can test the WebSocket implementation using:
+- **Interactive Demo:** Visit `/demo` endpoint to try the real-time audio interface.
+- **Diagnostic Tool:** Run `python diagnose.py` to verify WebSocket functionality.
+- **Integration Guide:** See [WEBSOCKET_IMPLEMENTATION.md](WEBSOCKET_IMPLEMENTATION.md) for complete setup and implementation details.
 
-1. **Demo Page:**  
-   Visit the `/demo` endpoint to try the interactive WebSocket demo with real-time audio.
-
-2. **Test Script:**  
-   Use the included test script to verify WebSocket functionality:
-
-   ```bash
-   # Test all WebSocket features
-   python test_websocket.py --server http://localhost:8080 --test all
-   
-   # Test just the conversation endpoint
-   python test_websocket.py --test conversation --text "I'd like to order a California Roll"
-   ```
-
-### d. Demo Implementation
-
-A complete demo is available at the `/demo` endpoint, showcasing the real-time conversation capabilities with:
-- Browser-based audio recording
-- Streaming transcription display
-- Real-time response generation
-- Audio playback of responses
-
-For complete API documentation, see [REALTIME_AUDIO.md](REALTIME_AUDIO.md).
+For information on the WebSocket protocol and API, see [REALTIME_AUDIO.md](REALTIME_AUDIO.md).
 
 ## 9. Final Thoughts
 
