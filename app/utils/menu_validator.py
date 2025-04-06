@@ -28,8 +28,20 @@ def validate_and_fix_menu_data(menu_data):
     """
     # Make sure we have the expected structure
     if not isinstance(menu_data, dict):
-        logger.warning("Menu data is not a dictionary, creating empty structure")
-        menu_data = {}
+        # Check if it's a list of menu items (Deliverect can send this format)
+        if isinstance(menu_data, list) and len(menu_data) > 0 and isinstance(menu_data[0], dict):
+            # Create a standard menu structure with these items
+            logger.warning("Menu data is a list, converting to dictionary structure")
+            temp_data = {
+                "items": menu_data,
+                "modifiers": [],
+                "modifierGroups": [],
+                "name_variants": {}
+            }
+            menu_data = temp_data
+        else:
+            logger.warning("Menu data is not a dictionary, creating empty structure")
+            menu_data = {}
         
     # Ensure required keys exist
     if "items" not in menu_data:

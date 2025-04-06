@@ -611,6 +611,11 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     Converts Deliverect menu format to our internal format required for ordering.
     Ensures that all items have valid names for Deliverect integration.
     
+    Handles multiple Deliverect formats:
+    1. Standard format with "categories" key
+    2. List of menu items 
+    3. List with first item containing categories and products
+    
     Args:
         deliverect_menu: The menu data from Deliverect
         location_id: Optional location ID for location-specific settings
@@ -626,7 +631,76 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     logger = logging.getLogger(__name__)
     logger.info("[DELIVERECT-MENU] Starting menu processing")
     
-    # First, validate the input data
+    # First, validate the input data and handle different formats
+    if isinstance(deliverect_menu, list):
+        # Handle list format (Deliverect sometimes sends menu as a list)
+        if len(deliverect_menu) > 0:
+            if isinstance(deliverect_menu[0], dict):
+                # Check if first item has categories or is a direct menu item
+                first_item = deliverect_menu[0]
+                if "categories" in first_item:
+                    # It's a list where first item has the menu structure
+                    logger.info("[DELIVERECT-MENU] List format with first item containing categories")
+                    deliverect_menu = first_item
+                else:
+                    # It's a list of menu items
+                    logger.info("[DELIVERECT-MENU] List format with direct menu items")
+                    # Create a direct menu structure with these items
+                    result = {
+                        "items": [],
+                        "modifiers": [],
+                        "modifierGroups": [],
+                        "name_variants": {}
+                    }
+                    
+                    # Process each item in the list to ensure it has a name
+                    for i, item in enumerate(deliverect_menu):
+                        if not isinstance(item, dict):
+                            logger.warning(f"[DELIVERECT-MENU] Skipping non-dict item at index {i}")
+                            continue
+                            
+                        # Make sure item has a name
+                        if not item.get("name"):
+                            # Try to get name from other fields
+                            if item.get("title"):
+                                item["name"] = item["title"]
+                            elif item.get("product_name"):
+                                item["name"] = item["product_name"]
+                            elif item.get("plu"):
+                                item["name"] = f"Item-{item['plu']}"
+                            elif item.get("id") or item.get("_id"):
+                                item_id = item.get("id") or item.get("_id")
+                                item["name"] = f"Item-{item_id}"
+                            else:
+                                item["name"] = f"Menu Item {i+1}"
+                        
+                        # Add any other required fields
+                        if not item.get("reference_handler") and item.get("plu"):
+                            item["reference_handler"] = item["plu"]
+                        elif not item.get("reference_handler"):
+                            item["reference_handler"] = f"REF-{i:04d}"
+                            
+                        # Ensure price is in correct format (dollars, not cents)
+                        if "price" in item and isinstance(item["price"], (int, float)) and item["price"] > 100:
+                            item["price"] = item["price"] / 100  # Convert cents to dollars
+                            
+                        # Add item to result
+                        result["items"].append(item)
+                        
+                    # Add name variants
+                    for item in result["items"]:
+                        add_name_variants(item["name"], result["name_variants"])
+                        
+                    logger.info(f"[DELIVERECT-MENU] Processed {len(result['items'])} items from list format")
+                    return result
+            else:
+                logger.error("[DELIVERECT-MENU] List contains non-dictionary items")
+                raise ValueError("Menu data list contains non-dictionary items")
+        else:
+            logger.error("[DELIVERECT-MENU] Empty list provided")
+            raise ValueError("Empty menu data list provided")
+    
+    # At this point we should have a dictionary
     if not isinstance(deliverect_menu, dict):
         logger.error(f"[DELIVERECT-MENU] Invalid menu data type: {type(deliverect_menu)}")
         raise ValueError(f"Menu data must be a dictionary, got {type(deliverect_menu)}")
