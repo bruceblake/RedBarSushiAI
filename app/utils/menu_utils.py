@@ -128,11 +128,9 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         except (PermissionError, OSError) as e:
             logger.warning(f"Could not create backup: {e}")
         
-        # Try to write to production path first, then fallback to provided path
+        # Try to write to the path that was requested first, then fallback to other paths
         paths_to_try = [
-            # First try the production path if we're not already using it
-            PRODUCTION_PATH if actual_path != PRODUCTION_PATH else None,
-            # Then try the path that was requested
+            # First try the path that was requested
             actual_path,
             # Then try some additional fallbacks
             os.path.join(APP_ROOT, 'menu_data.json'),

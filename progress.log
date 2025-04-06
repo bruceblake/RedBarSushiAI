@@ -380,3 +380,7 @@ Our menu has these ...
 2025-04-06 05:12:38,441 - INFO - werkzeug -  * Restarting with stat
 2025-04-06 05:12:41,623 - DEBUG - httpcore.connection - close.started
 2025-04-06 05:12:41,623 - DEBUG - httpcore.connection - close.complete
+2025-04-06 12:18:39,226 - INFO - root - Application starting in development mode
+2025-04-06 12:18:39,226 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-06 12:18:39,391 - DEBUG - httpcore.connection - close.started
+2025-04-06 12:18:39,391 - DEBUG - httpcore.connection - close.complete
