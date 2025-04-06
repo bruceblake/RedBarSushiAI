@@ -25,6 +25,14 @@ def menu_update():
     Returns:
         JSON response with success status
     """
+    # Log the raw request headers to debug issues with Deliverect
+    logger.info(f"[MENU-UPDATE] Request headers: {dict(request.headers)}")
+    try:
+        logger.info(f"[MENU-UPDATE] Request content type: {request.content_type}")
+        if request.content_length:
+            logger.info(f"[MENU-UPDATE] Content length: {request.content_length}")
+    except Exception as e:
+        logger.info(f"[MENU-UPDATE] Error logging request info: {e}")
     try:
         import time  # Import here for alt_path creation
         
@@ -35,13 +43,43 @@ def menu_update():
         content_length = request.headers.get('Content-Length', 'unknown')
         logger.info(f"[MENU-UPDATE] Request Content-Length: {content_length}")
         
-        # Get JSON data from request with timeout and size limit
+        # Try to get the raw data first for maximum debugging
         try:
-            # First try to get request data
+            raw_data = request.get_data()
+            raw_data_length = len(raw_data)
+            logger.info(f"[MENU-UPDATE] Raw data length: {raw_data_length} bytes")
+            
+            # Log a sample of the raw data for debugging (careful with large data)
+            if raw_data_length > 0:
+                sample_size = min(200, raw_data_length)
+                sample = raw_data[:sample_size]
+                try:
+                    sample_str = sample.decode('utf-8')
+                    logger.info(f"[MENU-UPDATE] Raw data sample: {sample_str}...")
+                except:
+                    logger.info(f"[MENU-UPDATE] Raw data sample (binary): {sample}...")
+        except Exception as raw_e:
+            logger.error(f"[MENU-UPDATE] Error getting raw data: {raw_e}")
+            
+        # Now try to parse as JSON
+        try:
+            # First try normal JSON parsing
             data = request.get_json(silent=True, force=False)
+            
+            # If that fails, try with force=True
             if data is None:
                 logger.error("[MENU-UPDATE] Failed to parse JSON, trying with force=True")
                 data = request.get_json(silent=True, force=True)
+                
+            # If still no data, try manually parsing the raw data
+            if data is None and raw_data_length > 0:
+                logger.error("[MENU-UPDATE] Both JSON parsing methods failed, trying manual parsing")
+                import json
+                try:
+                    data = json.loads(raw_data.decode('utf-8'))
+                    logger.info("[MENU-UPDATE] Manual JSON parsing succeeded")
+                except Exception as manual_e:
+                    logger.error(f"[MENU-UPDATE] Manual JSON parsing failed: {manual_e}")
                 
             # Check if we got valid data
             if not data:
@@ -53,9 +91,21 @@ def menu_update():
             data_size = len(str(data)) if data else 0
             logger.info(f"[MENU-UPDATE] Got data of type {data_type}, approximate size: {data_size} bytes")
             
+            # If it's a dict, log the keys
+            if isinstance(data, dict):
+                logger.info(f"[MENU-UPDATE] Data keys: {list(data.keys())}")
+            # If it's a list, log its length and first few items' types
+            elif isinstance(data, list):
+                sample_items = data[:3] if len(data) > 3 else data
+                sample_types = [type(item).__name__ for item in sample_items]
+                logger.info(f"[MENU-UPDATE] Data is a list with {len(data)} items. Sample types: {sample_types}")
+            
         except Exception as e:
             logger.error(f"[MENU-UPDATE] JSON parsing error: {str(e)}")
-            return jsonify({"error": f"Failed to parse JSON: {str(e)}"}), 400
+            return jsonify({
+                "error": f"Failed to parse JSON: {str(e)}",
+                "data_sample": str(raw_data[:200]) if 'raw_data' in locals() else "No sample available"
+            }), 400
             
         # Handle empty arrays or empty objects
         if (isinstance(data, list) and len(data) == 0) or (isinstance(data, dict) and len(data) == 0):
@@ -292,16 +342,60 @@ def menu_update():
         paths_to_try = [
             production_path,  # Try production path first
             MENU_FILE_PATH,   # Then try the configured path
+            os.path.join(os.getcwd(), 'menu_data.json'),  # Try current directory
             f"/tmp/menu_data_{int(time.time())}.json"  # Fallback to tmp
         ]
         
+        # Calculate item count for logging
+        item_count = len(processed_data.get("items", []))
+        logger.info(f"[MENU-UPDATE] Preparing to save menu with {item_count} items")
+        
+        # Log a few sample items
+        sample_items = processed_data.get("items", [])[:3]
+        for i, item in enumerate(sample_items):
+            logger.info(f"[MENU-UPDATE] Sample item {i+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}")
+        
+        # Make sure we don't have duplicate references
+        reference_counts = {}
+        for item in processed_data.get("items", []):
+            ref = item.get("reference_handler", "")
+            if ref:
+                reference_counts[ref] = reference_counts.get(ref, 0) + 1
+        
+        # Log duplicate references
+        duplicates = [ref for ref, count in reference_counts.items() if count > 1]
+        if duplicates:
+            logger.warning(f"[MENU-UPDATE] Found {len(duplicates)} duplicate reference handlers: {duplicates[:5]}")
+        
+        # Try to write to each path
         success = False
         for path in paths_to_try:
             logger.info(f"[MENU-UPDATE] Attempting to write menu to: {path}")
-            if write_menu_file(processed_data, path):
-                success = True
-                logger.info(f"[MENU-UPDATE] Successfully wrote menu to: {path}")
-                break
+            try:
+                # Get directory
+                directory = os.path.dirname(path)
+                
+                # Try to create directory if needed
+                if directory and not os.path.exists(directory):
+                    try:
+                        os.makedirs(directory, exist_ok=True)
+                        logger.info(f"[MENU-UPDATE] Created directory: {directory}")
+                    except Exception as mkdir_err:
+                        logger.error(f"[MENU-UPDATE] Failed to create directory {directory}: {mkdir_err}")
+                        continue
+                
+                # Check write permissions
+                if directory and not os.access(directory, os.W_OK):
+                    logger.error(f"[MENU-UPDATE] No write permissions for directory: {directory}")
+                    continue
+                
+                # Try to write file
+                if write_menu_file(processed_data, path):
+                    success = True
+                    logger.info(f"[MENU-UPDATE] Successfully wrote menu to: {path}")
+                    break
+            except Exception as path_err:
+                logger.error(f"[MENU-UPDATE] Error writing to {path}: {path_err}")
         
         if not success:
             logger.error("[MENU-UPDATE] Failed to write menu file to any location")
@@ -514,6 +608,57 @@ def clear_menu_cache():
         "message": f"Menu cache cleared, {item_count} items loaded",
         "file_path": MENU_FILE_PATH
     }), 200
+
+
+@menu_bp.route('/delete_menu', methods=['GET'])
+def delete_menu():
+    """
+    Delete the current menu file to force a clean slate
+    This can help when the menu file is corrupted
+    """
+    import os
+    
+    try:
+        # Known menu file locations
+        menu_paths = [
+            '/home/pegasus/mysite/RedBarSushiAI/menu_data.json',
+            MENU_FILE_PATH,
+            os.path.join(os.getcwd(), 'menu_data.json'),
+            '/tmp/menu_data.json'
+        ]
+        
+        deleted_paths = []
+        for path in menu_paths:
+            if os.path.exists(path):
+                try:
+                    # Create a backup first
+                    backup_path = f"{path}.bak"
+                    import shutil
+                    shutil.copy2(path, backup_path)
+                    logger.info(f"[DELETE-MENU] Created backup at {backup_path}")
+                    
+                    # Now delete the file
+                    os.remove(path)
+                    deleted_paths.append(path)
+                    logger.info(f"[DELETE-MENU] Deleted menu file at {path}")
+                except Exception as e:
+                    logger.error(f"[DELETE-MENU] Failed to delete {path}: {e}")
+        
+        # Force menu cache to be cleared
+        from app.utils.menu_utils import load_menu_data
+        _ = load_menu_data(force_refresh=True)
+        
+        return jsonify({
+            "success": True,
+            "message": "Menu files deleted. The next menu update will start with a clean slate.",
+            "deleted_files": deleted_paths
+        }), 200
+    except Exception as e:
+        logger.error(f"[DELETE-MENU] Error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": f"Failed to delete menu: {str(e)}"
+        }), 500
 
 
 @menu_bp.route('/debug_menu', methods=['GET'])

@@ -621,8 +621,34 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     Raises:
         ValueError: If menu data is invalid or cannot be processed
     """
+    # Log the raw structure to help diagnose issues
     import logging
     logger = logging.getLogger(__name__)
+    logger.info("[DELIVERECT-MENU] Starting menu processing")
+    
+    # First, validate the input data
+    if not isinstance(deliverect_menu, dict):
+        logger.error(f"[DELIVERECT-MENU] Invalid menu data type: {type(deliverect_menu)}")
+        raise ValueError(f"Menu data must be a dictionary, got {type(deliverect_menu)}")
+        
+    # Check for required fields
+    if "categories" not in deliverect_menu:
+        logger.error("[DELIVERECT-MENU] Missing 'categories' in menu data")
+        categories = []
+    else:
+        categories = deliverect_menu.get("categories", [])
+        
+    # Log general structure
+    try:
+        cat_count = len(categories)
+        logger.info(f"[DELIVERECT-MENU] Processing menu with {cat_count} categories")
+        
+        # Count total products
+        product_count = sum(len(cat.get("products", [])) for cat in categories)
+        logger.info(f"[DELIVERECT-MENU] Found {product_count} total products across all categories")
+    except Exception as e:
+        logger.error(f"[DELIVERECT-MENU] Error analyzing menu structure: {e}")
+        # Continue with processing anyway
     
     # Initialize result structure
     result = {
@@ -825,9 +851,10 @@ def create_default_menu():
     """
     logger.warning("Creating default menu - this should only happen when no valid menu exists")
     
-    # Create a minimal default menu with a few items
+    # Create a more comprehensive default menu with common items
     default_menu = {
         "items": [
+            # Sushi rolls
             {
                 "id": "default_001",
                 "name": "California Roll",
@@ -850,6 +877,17 @@ def create_default_menu():
             },
             {
                 "id": "default_003",
+                "name": "Dragon Roll",
+                "price": 14.95,
+                "reference_handler": "DRAGON",
+                "description": "Eel, avocado and cucumber with special sauce",
+                "available": True,
+                "snoozed": False,
+                "category": "Special Rolls"
+            },
+            # Appetizers
+            {
+                "id": "default_004",
                 "name": "Edamame",
                 "price": 5.95,
                 "reference_handler": "EDAMAME",
@@ -857,18 +895,118 @@ def create_default_menu():
                 "available": True,
                 "snoozed": False,
                 "category": "Appetizers"
+            },
+            {
+                "id": "default_005",
+                "name": "Gyoza",
+                "price": 7.95,
+                "reference_handler": "GYOZA",
+                "description": "Pan-fried dumplings filled with vegetables and pork",
+                "available": True,
+                "snoozed": False,
+                "category": "Appetizers"
+            },
+            {
+                "id": "default_006",
+                "name": "Miso Soup",
+                "price": 3.95,
+                "reference_handler": "MISO",
+                "description": "Traditional Japanese soup with tofu and seaweed",
+                "available": True,
+                "snoozed": False,
+                "category": "Soup"
+            },
+            # Main dishes
+            {
+                "id": "default_007",
+                "name": "Vegetable Tempura",
+                "price": 10.95,
+                "reference_handler": "VEG-TEMP",
+                "description": "Assorted vegetables, lightly battered and deep fried",
+                "available": True,
+                "snoozed": False,
+                "category": "Tempura"
+            },
+            {
+                "id": "default_008",
+                "name": "Chicken Teriyaki",
+                "price": 14.95,
+                "reference_handler": "CHIX-TERI",
+                "description": "Grilled chicken with teriyaki sauce",
+                "available": True,
+                "snoozed": False,
+                "category": "Main Dish"
+            },
+            {
+                "id": "default_009",
+                "name": "Salmon Teriyaki",
+                "price": 16.95,
+                "reference_handler": "SALM-TERI",
+                "description": "Grilled salmon with teriyaki sauce",
+                "available": True,
+                "snoozed": False,
+                "category": "Main Dish"
+            },
+            # Desserts
+            {
+                "id": "default_010",
+                "name": "Mochi Ice Cream",
+                "price": 5.95,
+                "reference_handler": "MOCHI",
+                "description": "Japanese rice cake filled with ice cream, 2 pieces",
+                "available": True,
+                "snoozed": False,
+                "category": "Dessert"
+            },
+            # Burgers for demonstration
+            {
+                "id": "default_011",
+                "name": "Veggie Burger",
+                "price": 12.95,
+                "reference_handler": "VEG-BURG",
+                "description": "Plant-based burger patty with lettuce, tomato, and special sauce",
+                "available": True,
+                "snoozed": False,
+                "category": "Burgers"
             }
         ],
         "modifiers": [],
         "modifierGroups": [],
         "name_variants": {
+            # Sushi rolls
             "california roll": "California Roll",
             "california": "California Roll",
             "spicy tuna roll": "Spicy Tuna Roll",
             "spicy tuna": "Spicy Tuna Roll",
-            "tuna": "Spicy Tuna Roll",
+            "tuna roll": "Spicy Tuna Roll",
+            "dragon roll": "Dragon Roll",
+            
+            # Appetizers
             "edamame": "Edamame",
-            "beans": "Edamame"
+            "beans": "Edamame",
+            "gyoza": "Gyoza",
+            "dumplings": "Gyoza",
+            "potstickers": "Gyoza",
+            "miso soup": "Miso Soup",
+            "miso": "Miso Soup",
+            
+            # Main dishes
+            "vegetable tempura": "Vegetable Tempura",
+            "tempura": "Vegetable Tempura",
+            "veg tempura": "Vegetable Tempura",
+            "chicken teriyaki": "Chicken Teriyaki",
+            "teriyaki chicken": "Chicken Teriyaki",
+            "salmon teriyaki": "Salmon Teriyaki",
+            "teriyaki salmon": "Salmon Teriyaki",
+            
+            # Desserts
+            "mochi": "Mochi Ice Cream",
+            "mochi ice cream": "Mochi Ice Cream",
+            
+            # Burgers
+            "veggie burger": "Veggie Burger",
+            "vegetable burger": "Veggie Burger",
+            "vegan burger": "Veggie Burger"
         }
     }
     
