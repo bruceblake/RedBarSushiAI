@@ -14,88 +14,46 @@ logger = logging.getLogger(__name__)
 @menu_bp.route('/menu_update', methods=['POST'])
 def menu_update():
     """
-    Handle menu updates from various sources.
+    Handle menu updates from Deliverect or our internal format.
     
-    Supports both Deliverect format (with "categories") and our internal format.
+    Accepts:
+    1. Deliverect format (with "categories")
+    2. Our internal format (with "items", "modifiers", "modifierGroups")
+    
+    Returns:
+        JSON response with success status
     """
     try:
+        import time  # Import here for alt_path creation
+        
+        # Get JSON data from request
         data = request.get_json()
         if not data:
             logger.error("[MENU-UPDATE] No data provided in request")
             return jsonify({"error": "No data provided"}), 400
         
-        # Log the receipt of data
-        logger.info(f"[MENU-UPDATE] Received menu update data: {str(data)[:200]}...")
+        # Log receipt of data
+        logger.info(f"[MENU-UPDATE] Received menu update. Keys: {list(data.keys())}")
         
-        processed_data = None
-        
-        # Handle different data formats
+        # Process based on format
         if "categories" in data:
-            # Deliverect format with categories
-            item_count = len(data.get("categories", []))
-            logger.info(f"[MENU-UPDATE] Processing Deliverect format with {item_count} categories")
+            # Deliverect format
+            logger.info(f"[MENU-UPDATE] Processing Deliverect format with {len(data.get('categories', []))} categories")
             processed_data = process_deliverect_menu(data)
         elif "items" in data:
-            # Our internal format already
-            logger.info(f"[MENU-UPDATE] Processing direct menu format with {len(data.get('items', []))} items")
+            # Our internal format
+            logger.info(f"[MENU-UPDATE] Processing internal format with {len(data.get('items', []))} items")
             processed_data = data.copy()
-        elif isinstance(data, list):
-            # List of items, convert to our format
-            logger.info(f"[MENU-UPDATE] Converting list of {len(data)} items to menu format")
-            processed_data = {
-                "items": data,
-                "modifiers": [],
-                "modifierGroups": [],
-                "name_variants": {}
-            }
         else:
-            # Try to determine format and convert
-            logger.warning(f"[MENU-UPDATE] Unknown format, attempting to auto-detect")
-            
-            # Check if it's a nested object with products
-            if "products" in data:
-                logger.info("[MENU-UPDATE] Detected products list, converting to our format")
-                items = []
-                for product in data.get("products", []):
-                    items.append({
-                        "id": product.get("id", str(len(items))),
-                        "name": product.get("name", f"Item {len(items)}"),
-                        "price": product.get("price", 0) / 100 if product.get("price", 0) > 100 else product.get("price", 0),
-                        "reference_handler": product.get("plu", ""),
-                        "available": product.get("available", True),
-                        "category": product.get("category", "Uncategorized")
-                    })
-                
-                processed_data = {
-                    "items": items,
-                    "modifiers": [],
-                    "modifierGroups": [],
-                    "name_variants": {}
-                }
-            elif len(data.keys()) < 5:
-                # Simple object, probably a single item
-                logger.info("[MENU-UPDATE] Converting single item to menu format")
-                processed_data = {
-                    "items": [data],
-                    "modifiers": [],
-                    "modifierGroups": [],
-                    "name_variants": {}
-                }
-            else:
-                # Unknown format
-                logger.error("[MENU-UPDATE] Could not determine format")
-                return jsonify({
-                    "error": "Unsupported format", 
-                    "keys": list(data.keys()),
-                    "supported": ["categories", "items", "products"]
-                }), 400
+            # Unknown format
+            logger.error(f"[MENU-UPDATE] Unsupported data format. Keys: {list(data.keys())}")
+            return jsonify({
+                "error": "Unsupported format", 
+                "keys": list(data.keys()),
+                "expected": ["categories", "items"]
+            }), 400
         
-        # Validate the processed data
-        if processed_data is None:
-            logger.error("[MENU-UPDATE] Processing resulted in None")
-            return jsonify({"error": "Failed to process menu data"}), 500
-            
-        # Ensure basic structure exists
+        # Ensure all expected structures exist
         if "items" not in processed_data:
             processed_data["items"] = []
         if "modifiers" not in processed_data:
@@ -104,74 +62,56 @@ def menu_update():
             processed_data["modifierGroups"] = []
         if "name_variants" not in processed_data:
             processed_data["name_variants"] = {}
-            
-        # Generate name variants for any items that lack them
-        if processed_data.get("items") and not processed_data.get("name_variants"):
-            logger.info("[MENU-UPDATE] Generating name variants")
-            variants = {}
+        
+        # Generate name variants if missing
+        if processed_data["items"] and not processed_data["name_variants"]:
+            logger.info("[MENU-UPDATE] Generating missing name variants")
             for item in processed_data["items"]:
                 if "name" in item:
-                    item_name = item["name"]
-                    item_name_lower = item_name.lower()
-                    variants[item_name_lower] = item_name
-                    
-                    # Add simple variants
-                    words = item_name_lower.split()
-                    if len(words) > 1:
-                        # Add first and last words as variants if they're meaningful
-                        if len(words[0]) >= 4 and words[0] not in ["with", "and", "the"]:
-                            variants[words[0]] = item_name
-                        if len(words[-1]) >= 4 and words[-1] not in ["with", "and", "the"]:
-                            variants[words[-1]] = item_name
-            
-            processed_data["name_variants"] = variants
-            
-        # Log sample of processed items
-        if processed_data.get('items'):
-            sample_items = processed_data.get('items')[:3]
-            for item in sample_items:
-                logger.info(f"[MENU-ITEM] '{item.get('name')}' → '{item.get('reference_handler', '')}'")
-            
-        # Run the menu through validation
+                    add_name_variants(item["name"], processed_data["name_variants"])
+        
+        # Validate and fix menu data
         try:
-            from app.utils.menu_validator import validate_and_fix_menu_data
             processed_data = validate_and_fix_menu_data(processed_data)
             logger.info("[MENU-UPDATE] Menu data validated and fixed")
         except Exception as ve:
-            logger.warning(f"[MENU-UPDATE] Validation error: {ve}, continuing with unvalidated data")
-            
-        # Write to file
+            logger.warning(f"[MENU-UPDATE] Validation warning: {ve}")
+            # Continue with unvalidated data rather than failing
+        
+        # Log stats about the processed menu
+        logger.info(f"[MENU-UPDATE] Final menu has {len(processed_data.get('items', []))} items, " +
+                   f"{len(processed_data.get('modifiers', []))} modifiers, " +
+                   f"{len(processed_data.get('modifierGroups', []))} modifier groups")
+        
+        # Save to file
         success = write_menu_file(processed_data)
         if not success:
-            logger.error("[MENU-UPDATE] Failed to write menu file")
-            # Try an alternative location
-            alt_path = f"/tmp/menu_data_{time.time()}.json"
+            logger.error("[MENU-UPDATE] Failed to write menu file, trying alternate location")
+            # Try alternative location
+            alt_path = f"/tmp/menu_data_{int(time.time())}.json"
             success = write_menu_file(processed_data, alt_path)
             if not success:
-                return jsonify({"error": "Failed to write menu file to any location"}), 500
-            logger.info(f"[MENU-UPDATE] Wrote menu to alternative location: {alt_path}")
+                return jsonify({"error": "Failed to write menu file"}), 500
+            logger.info(f"[MENU-UPDATE] Wrote menu to alternate location: {alt_path}")
         
-        # Verify menu file was written correctly by forcing a reload
+        # Verify the menu file was written correctly by forcing a reload
         reloaded_menu = load_menu_data(force_refresh=True)
-        if not reloaded_menu.get("items") and processed_data.get("items"):
-            logger.warning("[MENU-UPDATE] Menu verification failed - creating fallback")
-            # Create a fallback in /tmp
-            with open("/tmp/menu_data_fallback.json", "w") as f:
-                json.dump(processed_data, f)
-            logger.info("[MENU-UPDATE] Created fallback menu in /tmp/menu_data_fallback.json")
-            
-        logger.info(f"[MENU-UPDATE] Menu updated successfully with {len(processed_data.get('items', []))} items")
+        if len(reloaded_menu.get("items", [])) == 0:
+            logger.warning("[MENU-UPDATE] Menu reload verification failed!")
+        else:
+            logger.info(f"[MENU-UPDATE] Menu reload verification confirmed {len(reloaded_menu['items'])} items")
         
-        # Return success response
+        # Return success response with stats
         return jsonify({
             "success": True,
             "items": len(processed_data.get("items", [])),
+            "modifiers": len(processed_data.get("modifiers", [])),
             "modifierGroups": len(processed_data.get("modifierGroups", [])),
             "name_variants": len(processed_data.get("name_variants", {}))
         }), 200
             
     except Exception as e:
-        logger.error(f"Error updating menu: {e}")
+        logger.error(f"[MENU-UPDATE] Error: {e}")
         return jsonify({"error": f"Menu update failed: {str(e)}"}), 500
 
 

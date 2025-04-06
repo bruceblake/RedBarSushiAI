@@ -61,8 +61,8 @@ def take_order():
         response.hangup()
         return Response(str(response), mimetype='text/xml')
 
-    # Load menu and check availability
-    menu_data = load_menu_data()
+    # Load menu and check availability - force refresh to ensure we have latest data
+    menu_data = load_menu_data(force_refresh=True)
     
     # Debug logging to see if menu data is loaded correctly
     logger.info(f"Menu data loaded: {len(menu_data.get('items', [])) if menu_data else 0} items found")
@@ -70,10 +70,23 @@ def take_order():
     # Get available items - items with names and not snoozed
     available_items = [
         item for item in menu_data.get('items', [])
-        if item.get('name') and item.get("snoozed", False) == False
+        if item.get('name') and item.get("snoozed", False) == False and item.get("available", True) == True
     ]
     
     logger.info(f"Available (not snoozed) items: {len(available_items)}")
+    
+    if not available_items:
+        # Try to process the menu directly - it might be in Deliverect format
+        from app.utils.menu_utils import process_deliverect_menu
+        if "categories" in menu_data:
+            logger.info("Attempting to process Deliverect format directly")
+            menu_data = process_deliverect_menu(menu_data)
+            # Try again with the processed data
+            available_items = [
+                item for item in menu_data.get('items', [])
+                if item.get('name') and item.get("snoozed", False) == False
+            ]
+            logger.info(f"After processing: {len(available_items)} available items")
     
     if not available_items:
         response = VoiceResponse()
