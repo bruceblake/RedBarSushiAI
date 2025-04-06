@@ -427,8 +427,7 @@ def get_location_webhook_urls(location_id):
     except Exception as e:
         logger.error(f"Error generating location webhook URLs: {e}")
         # Fall back to default URLs
-        from app.config import BASE_URL
-        base_url = BASE_URL
+        base_url = "https://redbarsushiai.onrender.com"
         return {
             "statusUpdateURL": f"{base_url}/order_status",
             "menuUpdateURL": f"{base_url}/menu_update",
