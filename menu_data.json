@@ -1,8 +1,33 @@
 {
   "items": [
     {
-      "name": "Test Item",
+      "name": "Veggie Burger",
+      "available": true,
+      "reference_handler": "VEG-001",
       "price": 9.99
+    },
+    {
+      "name": "Chicken Burger",
+      "available": true,
+      "reference_handler": "CHKN-001",
+      "price": 10.99
+    },
+    {
+      "name": "Cheeseburger",
+      "available": true,
+      "reference_handler": "CHEESE-001",
+      "price": 8.99
     }
-  ]
+  ],
+  "modifiers": [],
+  "modifierGroups": [],
+  "name_variants": {
+    "veggie": "Veggie Burger",
+    "veggie burger": "Veggie Burger",
+    "chicken": "Chicken Burger",
+    "chicken burger": "Chicken Burger",
+    "cheeseburger": "Cheeseburger",
+    "cheese": "Cheeseburger",
+    "cheese burger": "Cheeseburger"
+  }
 }

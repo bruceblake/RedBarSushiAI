@@ -7,15 +7,7 @@ import json
 import sys
 from datetime import datetime, timedelta
 from flask import session
-from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET
-from app.models import Location
-import time
-import requests
-import logging
-import uuid
-import json
-from flask import session
-from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET
+from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET, BASE_URL
 from app.models import Location
 from app import db
 
@@ -333,10 +325,14 @@ def register_new_location(location_id, location_name, api_credentials=None, webh
     """
     # Store location settings in database
     try:
+        # Log what we're trying to register
+        logger.info(f"Registering location {location_id} with name '{location_name}'")
+        
         # Check if location already exists
         existing = db.session.query(Location).filter_by(id=location_id).first()
         if existing:
             # Update existing location
+            logger.info(f"Updating existing location {location_id}")
             existing.name = location_name
             existing.status = "registered"
             if api_credentials:
@@ -346,15 +342,26 @@ def register_new_location(location_id, location_name, api_credentials=None, webh
             db.session.commit()
         else:
             # Create new location
+            logger.info(f"Creating new location {location_id}")
+            # Safely handle JSON serialization
+            api_key_json = None
+            if api_credentials:
+                try:
+                    api_key_json = json.dumps(api_credentials)
+                except Exception as e:
+                    logger.error(f"Error serializing API credentials: {e}")
+            
             new_location = Location(
                 id=location_id,
                 name=location_name,
                 status="registered",
                 webhook_base=webhook_base,
-                api_key=json.dumps(api_credentials) if api_credentials else None
+                api_key=api_key_json
             )
             db.session.add(new_location)
             db.session.commit()
+        
+        logger.info(f"Location {location_id} registered successfully")
         return True
     except Exception as e:
         logger.error(f"Error registering location: {e}")
@@ -374,13 +381,16 @@ def update_location_status(location_id, status):
         bool: Success status
     """
     try:
+        logger.info(f"Updating location {location_id} status to '{status}'")
         location = db.session.query(Location).filter_by(id=location_id).first()
         if not location:
+            logger.warning(f"Location {location_id} not found, cannot update status")
             return False
             
         location.status = status
         location.updated_at = datetime.now()
         db.session.commit()
+        logger.info(f"Location {location_id} status updated to '{status}'")
         return True
     except Exception as e:
         logger.error(f"Error updating location status: {e}")
@@ -396,44 +406,51 @@ def get_location_webhook_urls(location_id):
         location_id: The unique location identifier
         
     Returns:
-        dict: Dictionary of webhook URLs
+        dict: Dictionary of webhook URLs matching Deliverect's expected format
     """
     try:
-        # Import BASE_URL from config
-        from app.config import BASE_URL
+        logger.info(f"Generating webhook URLs for location {location_id} with BASE_URL: {BASE_URL}")
         
         location = db.session.query(Location).filter_by(id=location_id).first()
         if not location or not location.webhook_base:
             # For non-existent locations, use the regular endpoints without the location prefix
-            return {
+            # THIS IS THE STANDARD FORMAT EXPECTED BY DELIVERECT
+            response = {
                 "statusUpdateURL": f"{BASE_URL}/order_status",
                 "menuUpdateURL": f"{BASE_URL}/menu_update",
                 "snoozeUnsnoozeURL": f"{BASE_URL}/snoozeUnsnooze", 
                 "busyModeURL": f"{BASE_URL}/busy_mode",
                 "updatePrepTimeURL": f"{BASE_URL}/updatePrepTime",
-                "courierUpdateURL": f"{BASE_URL}/courierUpdate"
+                "courierUpdateURL": f"{BASE_URL}/courierUpdate",
+                "paymentUpdateURL": f"{BASE_URL}/payment_update"
             }
+            logger.info(f"Generated standard webhook URLs: {json.dumps(response)}")
+            return response
         else:
             # For existing locations, use the location-specific endpoints
-            return {
+            # NOTE: Some Deliverect implementations may not accept these prefixed URLs
+            urls = {
                 "statusUpdateURL": f"{BASE_URL}/location/{location_id}/order_status",
                 "menuUpdateURL": f"{BASE_URL}/location/{location_id}/menu_update",
                 "snoozeUnsnoozeURL": f"{BASE_URL}/location/{location_id}/snoozeUnsnooze",
                 "busyModeURL": f"{BASE_URL}/location/{location_id}/busy_mode",
                 "updatePrepTimeURL": f"{BASE_URL}/location/{location_id}/updatePrepTime",
-                "courierUpdateURL": f"{BASE_URL}/location/{location_id}/courierUpdate"
+                "courierUpdateURL": f"{BASE_URL}/location/{location_id}/courierUpdate",
+                "paymentUpdateURL": f"{BASE_URL}/location/{location_id}/payment_update"
             }
+            logger.info(f"Generated location-specific webhook URLs: {json.dumps(urls)}")
+            return urls
     except Exception as e:
         logger.error(f"Error generating location webhook URLs: {e}")
-        # Import BASE_URL here too, in case it wasn't imported above
-        from app.config import BASE_URL
         
-        # Fall back to default URLs
+        # Fall back to default URLs - most compatible option
+        logger.info(f"Falling back to default webhook URLs with BASE_URL: {BASE_URL}")
         return {
             "statusUpdateURL": f"{BASE_URL}/order_status",
             "menuUpdateURL": f"{BASE_URL}/menu_update",
             "snoozeUnsnoozeURL": f"{BASE_URL}/snoozeUnsnooze",
             "busyModeURL": f"{BASE_URL}/busy_mode",
             "updatePrepTimeURL": f"{BASE_URL}/updatePrepTime",
-            "courierUpdateURL": f"{BASE_URL}/courierUpdate"
+            "courierUpdateURL": f"{BASE_URL}/courierUpdate",
+            "paymentUpdateURL": f"{BASE_URL}/payment_update"
         }
