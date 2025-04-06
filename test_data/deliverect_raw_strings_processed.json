@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": "root1",
+      "name": "Root Level Item",
+      "price": 0.09949999999999999,
+      "reference_handler": "REF-fc7e4461",
+      "description": "",
+      "imageUrl": "",
+      "snoozed": false,
+      "category": "Menu Items",
+      "categoryId": "root_products",
+      "available": true
+    }
+  ],
+  "modifiers": [],
+  "modifierGroups": [],
+  "name_variants": {
+    "root level item": "Root Level Item",
+    "root": "Root Level Item",
+    "level": "Root Level Item",
+    "item": "Root Level Item"
+  }
+}

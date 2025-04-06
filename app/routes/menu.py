@@ -385,6 +385,36 @@ def menu_update():
                                 except Exception as e:
                                     logger.warning(f"[MENU-UPDATE] Failed to parse string product as JSON: {e}")
                                     
+                            # If string isn't valid JSON, try to extract product data from it
+                            elif isinstance(product, str) and len(product) > 5:  # Make sure it's a real string with content
+                                try:
+                                    # Try to extract data using common patterns
+                                    import re
+                                    
+                                    # Look for key patterns in the string
+                                    name_match = re.search(r'name["\']?\s*[:=]\s*["\']([^"\']+)["\']', product)
+                                    id_match = re.search(r'id["\']?\s*[:=]\s*["\']([^"\']+)["\']', product)
+                                    plu_match = re.search(r'plu["\']?\s*[:=]\s*["\']([^"\']+)["\']', product)
+                                    price_match = re.search(r'price["\']?\s*[:=]\s*(\d+)', product)
+                                    
+                                    if name_match:
+                                        # We found enough data to create a product
+                                        logger.info(f"[MENU-UPDATE] Extracted product data from string")
+                                        
+                                        extracted_product = {
+                                            "name": name_match.group(1),
+                                            "id": id_match.group(1) if id_match else f"extracted-{len(valid_products)}",
+                                            "reference_handler": plu_match.group(1) if plu_match else f"PROD-{len(valid_products):04d}",
+                                            "price": int(price_match.group(1))/100 if price_match else 10.0,
+                                            "description": "",
+                                            "available": True
+                                        }
+                                        
+                                        valid_products.append(extracted_product)
+                                        parsed_count += 1
+                                except Exception as e:
+                                    logger.warning(f"[MENU-UPDATE] Failed to extract data from string product: {e}")
+                                    
                         if parsed_count > 0:
                             logger.info(f"[MENU-UPDATE] Successfully parsed {parsed_count} string products as JSON")
                         
@@ -404,19 +434,72 @@ def menu_update():
                             logger.info(f"[MENU-UPDATE] Recovered {len(valid_products)} products from direct products list")
                             items_count = len(valid_products)
                         else:
-                            # FINAL FALLBACK: If we still have no items after all attempts, create a default menu
-                            logger.warning("[MENU-UPDATE] All attempts to extract items failed. Creating default menu.")
-                            from app.utils.menu_utils import create_default_menu
-                            processed_data = create_default_menu()
-                            items_count = len(processed_data.get("items", []))
-                            logger.info(f"[MENU-UPDATE] Created default menu with {items_count} items")
+                            # Try manual last resort extraction from the raw data
+                            logger.warning("[MENU-UPDATE] All extraction methods failed. Attempting raw string search.")
+                            try:
+                                # Use regex to find product patterns in the entire data string
+                                import re
+                                import json
+                                
+                                # Get JSON string representation of data for regex extraction
+                                data_string = json.dumps(data)
+                                
+                                # Extract any product-like patterns with multiple formats
+                                product_patterns = set()  # Use a set to avoid duplicates
+                                
+                                # Try multiple patterns to capture different formats
+                                patterns = [
+                                    r'["\']?name["\']?\s*[:=]\s*["\']([^"\']+)["\']',  # name="Product"
+                                    r'name=([^,\s]+)',  # name=Product
+                                    r'Product.*?name=["\']?([^"\',\s]+)["\']?',  # Product...name="Product"
+                                    r'name\W+([a-zA-Z0-9 ]+)',  # name: Product
+                                    r'"id"\s*:\s*"[^"]+"\s*,\s*"name"\s*:\s*"([^"]+)"',  # "id":"ID","name":"Product"
+                                    r'productName["\']?\s*[:=]\s*["\']([^"\']+)["\']',  # productName="Product"
+                                    r'title["\']?\s*[:=]\s*["\']([^"\']+)["\']'  # title="Product"
+                                ]
+                                
+                                # Try each pattern
+                                for pattern in patterns:
+                                    matches = re.findall(pattern, data_string)
+                                    for match in matches:
+                                        if match and len(match) > 2:  # Avoid very short names
+                                            product_patterns.add(match)
+                                            
+                                # Convert set to list
+                                product_patterns = list(product_patterns)
+                                
+                                if product_patterns:
+                                    logger.info(f"[MENU-UPDATE] Found {len(product_patterns)} product names in raw data.")
+                                    
+                                    # Create basic products from extracted names
+                                    for i, name in enumerate(product_patterns):
+                                        if len(name) > 2:  # Skip very short names that might be noise
+                                            processed_data["items"].append({
+                                                "id": f"extracted-{i}",
+                                                "name": name,
+                                                "reference_handler": f"REF-{i:04d}",
+                                                "price": 10.0,
+                                                "description": "",
+                                                "available": True
+                                            })
+                                    
+                                    if processed_data["items"]:
+                                        # Generate name variants
+                                        for item in processed_data["items"]:
+                                            from app.utils.menu_utils import add_name_variants
+                                            add_name_variants(item["name"], processed_data["name_variants"])
+                                        
+                                        items_count = len(processed_data["items"])
+                                        logger.info(f"[MENU-UPDATE] Created {items_count} products from raw string extraction")
+                                        return jsonify({"success": True, "items": items_count}), 200
+                            except Exception as e:
+                                logger.error(f"[MENU-UPDATE] Raw string extraction failed: {e}")
+                            
+                            # Return error rather than using default menu
+                            return jsonify({"error": "Failed to extract any items from Deliverect data"}), 400
                     else:
-                        # FINAL FALLBACK: If we still have no items after all attempts, create a default menu
-                        logger.warning("[MENU-UPDATE] All attempts to extract items failed. Creating default menu.")
-                        from app.utils.menu_utils import create_default_menu
-                        processed_data = create_default_menu()
-                        items_count = len(processed_data.get("items", []))
-                        logger.info(f"[MENU-UPDATE] Created default menu with {items_count} items")
+                        # Return error rather than using default menu
+                        return jsonify({"error": "Failed to extract any items from Deliverect data"}), 400
                     
                 logger.info(f"[MENU-UPDATE] Successfully processed {items_count} items from Deliverect data")
                     

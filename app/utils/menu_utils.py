@@ -863,6 +863,7 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 valid_products.append(prod)
             else:
                 # Try to parse string products as JSON if they look like JSON objects
+                # Try to parse as JSON object first
                 if isinstance(prod, str) and prod.strip().startswith('{') and prod.strip().endswith('}'):
                     try:
                         import json
@@ -874,6 +875,60 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                             continue
                     except Exception as e:
                         logger.warning(f"[DELIVERECT] Failed to parse string product as JSON: {e}")
+                
+                # If we get here, try to extract product data from the string if it contains useful data
+                if isinstance(prod, str) and len(prod) > 5:  # Make sure it's a real string with content
+                    try:
+                        # Try to extract data using common patterns
+                        import re
+                        
+                        # Try multiple regex patterns to extract product information
+                        # Pattern for quoted name: name="Product Name" or name='Product Name'
+                        name_match1 = re.search(r'name["\']?\s*[:=]\s*["\']([^"\']+)["\']', prod)
+                        # Pattern for unquoted name: name=ProductName
+                        name_match2 = re.search(r'name=([^,\s]+)', prod)
+                        # Pattern for product description: Product with name='Product Name'
+                        name_match3 = re.search(r'Product.*?name=["\']?([^"\',\s]+)["\']?', prod)
+                        # Even more generic pattern to find anything that looks like a product name
+                        name_match4 = re.search(r'name\W+([a-zA-Z0-9 ]+)', prod)
+                        
+                        # Use the first match found
+                        name_match = name_match1 or name_match2 or name_match3 or name_match4
+                        
+                        # Do the same for ID, PLU, and price
+                        id_match1 = re.search(r'id["\']?\s*[:=]\s*["\']([^"\']+)["\']', prod)
+                        id_match2 = re.search(r'id=([^,\s]+)', prod)
+                        id_match3 = re.search(r'id\W+([a-zA-Z0-9]+)', prod)
+                        id_match = id_match1 or id_match2 or id_match3
+                        
+                        plu_match1 = re.search(r'plu["\']?\s*[:=]\s*["\']([^"\']+)["\']', prod)
+                        plu_match2 = re.search(r'plu=([^,\s]+)', prod)
+                        plu_match3 = re.search(r'plu\W+([a-zA-Z0-9\-]+)', prod)
+                        plu_match = plu_match1 or plu_match2 or plu_match3
+                        
+                        price_match1 = re.search(r'price["\']?\s*[:=]\s*(\d+)', prod)
+                        price_match2 = re.search(r'price=([^,\s]+)', prod)
+                        price_match3 = re.search(r'price\W+(\d+)', prod)
+                        price_match = price_match1 or price_match2 or price_match3
+                        
+                        if name_match:
+                            # We found enough data to create a product
+                            logger.info(f"[DELIVERECT] Extracted product data from string in category {cat_id}")
+                            
+                            extracted_prod = {
+                                "name": name_match.group(1),
+                                "id": id_match.group(1) if id_match else f"extracted-{len(valid_products)}",
+                                "reference_handler": plu_match.group(1) if plu_match else f"PLU-{len(valid_products)}",
+                                "price": int(price_match.group(1))/100 if price_match else 10.0,
+                                "description": "",
+                                "available": True
+                            }
+                            
+                            valid_products.append(extracted_prod)
+                            parsed_count += 1
+                            continue
+                    except Exception as e:
+                        logger.warning(f"[DELIVERECT] Failed to extract data from string product: {e}")
                 
                 invalid_count += 1
         
