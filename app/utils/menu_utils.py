@@ -840,32 +840,10 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     logger.info("[DELIVERECT-MENU] Found categories in list item, processing recursively")
                     return process_deliverect_menu(item, location_id)
             
-            # If we didn't find categories, create a synthetic category structure
-            if len(deliverect_menu) > 0:
-                logger.info("[DELIVERECT-MENU] Creating synthetic category from list items")
-                synthetic_menu = {
-                    "categories": [
-                        {
-                            "id": "synthetic_category",
-                            "name": "Menu Items",
-                            "products": []
-                        }
-                    ]
-                }
-                
-                # Add items to the synthetic category
-                products = []
-                for item in deliverect_menu:
-                    if isinstance(item, dict):
-                        # If it has a name and price, it's likely a product
-                        if item.get("name") or item.get("title") or item.get("plu"):
-                            products.append(item)
-                
-                # If we found any products, use them
-                if products:
-                    synthetic_menu["categories"][0]["products"] = products
-                    logger.info(f"[DELIVERECT-MENU] Created synthetic category with {len(products)} products")
-                    return process_deliverect_menu(synthetic_menu, location_id)
+            # Skip synthetic category creation completely - we want to return empty menu data when we can't process
+            # If we have actual categories in any item, use that, otherwise just return empty
+            logger.warning("[DELIVERECT-MENU] Could not extract valid menu data from list")
+            return result
         except Exception as e:
             logger.error(f"[DELIVERECT-MENU] Error attempting data extraction from list: {e}")
     

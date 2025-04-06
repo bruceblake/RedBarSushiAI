@@ -225,11 +225,22 @@ def validate_and_fix_menu_data(menu_data):
                         break
             # Last resort: generate a new reference handler
             else:
+                import re
                 try:
-                    item["reference_handler"] = generate_consistent_reference_id(item_name)
+                    # Create a reference based on name - ensures consistency
+                    clean_name = re.sub(r'[^\w]', '', item_name)
+                    if clean_name:
+                        item["reference_handler"] = clean_name[:15]  # Use first 15 chars of name
+                    else:
+                        # Use a hash-based ID if name has no alphanumeric chars
+                        import hashlib
+                        hash_obj = hashlib.md5(item_name.encode())
+                        item["reference_handler"] = f"PROD-{hash_obj.hexdigest()[:8]}"
                 except:
                     # Very basic fallback in case the function fails
-                    item["reference_handler"] = f"ITEM-{i:04d}"
+                    import time
+                    item["reference_handler"] = f"PROD-{int(time.time())}-{i}"
+                
                 logger.warning(f"[MENU-FIX] Item {item_name} is missing reference_handler, setting to: {item['reference_handler']}")
             item_fixed = True
             
@@ -472,7 +483,17 @@ def validate_and_fix_menu_data(menu_data):
                 modifier["reference_handler"] = modifier.get("plu")
                 logger.warning(f"[MENU-FIX] Using PLU as reference_handler for modifier {mod_name}")
             else:
-                plu = f"PLU-MOD-{i:04d}"
+                import re
+                # Create a reference based on modifier name
+                clean_name = re.sub(r'[^\w]', '', mod_name)
+                if clean_name:
+                    plu = f"MOD-{clean_name[:10]}"
+                else:
+                    # Use a hash-based ID if name has no alphanumeric chars
+                    import hashlib
+                    hash_obj = hashlib.md5(mod_name.encode())
+                    plu = f"MOD-{hash_obj.hexdigest()[:8]}"
+                    
                 logger.warning(f"[MENU-FIX] Modifier {mod_name} is missing reference_handler, fixing to: {plu}")
                 modifier["reference_handler"] = plu
             mod_fixed = True
