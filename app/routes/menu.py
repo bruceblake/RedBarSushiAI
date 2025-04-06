@@ -4,6 +4,7 @@ import logging
 import json
 import os
 import requests
+from datetime import datetime
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.menu_validator import validate_and_fix_menu_data
 from app.utils.menu_utils import process_deliverect_menu, load_menu_data, write_menu_file, sync_reference_handlers, MENU_FILE_PATH
@@ -29,8 +30,6 @@ def menu_update():
     Returns:
         JSON response with success status
     """
-    # IMMEDIATELY REDIRECT TO THE SIMPLE ENDPOINT TO BYPASS THE WRITE_MENU_FILE ERROR
-    return simple_menu_update()
     # Basic logging of request info
     logger.info(f"[MENU-UPDATE] Processing menu update request from {request.remote_addr}")
     
@@ -159,17 +158,29 @@ def menu_update():
                 
             # Save the processed menu
             import time
+            import os
+            
+            # CRITICAL: Make a backup of the menu data before attempting to save
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Create backup directory if it doesn't exist
+            backup_folder = '/tmp/redbar_backups'
+            try:
+                os.makedirs(backup_folder, exist_ok=True)
+                # Create a backup with timestamp
+                backup_path = os.path.join(backup_folder, f"menu_backup_{timestamp}.json")
+                with open(backup_path, 'w') as f:
+                    json.dump(processed_data, f, indent=2)
+                logger.info(f"[MENU-UPDATE] Menu backup created at {backup_path}")
+            except Exception as backup_e:
+                logger.warning(f"[MENU-UPDATE] Failed to create backup: {backup_e}")
             
             # Detailed logging before attempting to write
             logger.info(f"[MENU-UPDATE] About to write menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups")
-            logger.info(f"[MENU-UPDATE] Current menu file path: {MENU_FILE_PATH}")
             
-            # Try direct write to fixed locations first
+            # DIRECT WRITE APPROACH - Skip the problematic write_menu_file function entirely
             success = False
-            docker_success = False
-            fallback_success = False
-            default_success = False
-            fallback_path = f"/tmp/menu_data.json"
+            paths_written = []
             
             # 1. Try Docker path first if in Docker environment
             if os.path.exists('/app'):
@@ -178,32 +189,32 @@ def menu_update():
                     with open(docker_path, 'w') as f:
                         json.dump(processed_data, f, indent=2)
                     logger.info(f"[MENU-UPDATE] Successfully wrote menu to {docker_path}")
-                    docker_success = True
+                    paths_written.append(docker_path)
                     success = True
                 except Exception as docker_e:
                     logger.error(f"[MENU-UPDATE] Failed writing to Docker path: {docker_e}")
             
-            # 2. Always try tmp path as fallback
+            # 2. Always try app directory path 
             try:
-                with open(fallback_path, 'w') as f:
+                app_path = os.path.join(os.getcwd(), 'menu_data.json')
+                with open(app_path, 'w') as f:
                     json.dump(processed_data, f, indent=2)
-                logger.info(f"[MENU-UPDATE] Successfully wrote menu to {fallback_path}")
-                fallback_success = True
+                logger.info(f"[MENU-UPDATE] Successfully wrote menu to {app_path}")
+                paths_written.append(app_path)
+                success = True
+            except Exception as app_e:
+                logger.error(f"[MENU-UPDATE] Failed writing to app path: {app_e}")
+            
+            # 3. Always try tmp path as a reliable fallback
+            try:
+                tmp_path = '/tmp/menu_data.json'
+                with open(tmp_path, 'w') as f:
+                    json.dump(processed_data, f, indent=2)
+                logger.info(f"[MENU-UPDATE] Successfully wrote menu to {tmp_path}")
+                paths_written.append(tmp_path)
                 success = True
             except Exception as tmp_e:
                 logger.error(f"[MENU-UPDATE] Failed writing to tmp path: {tmp_e}")
-            
-            # 3. Try using the regular write function last
-            try:
-                result = write_menu_file(processed_data)
-                if result:
-                    logger.info(f"[MENU-UPDATE] Standard write_menu_file successful")
-                    default_success = True
-                    success = True
-                else:
-                    logger.error("[MENU-UPDATE] Failed to write menu file (returned False)")
-            except Exception as write_e:
-                logger.error(f"[MENU-UPDATE] Exception during standard menu write: {write_e}")
                 
             # Check if any write method succeeded
             if not success:
@@ -225,6 +236,8 @@ def menu_update():
                     "error": "Failed to save menu data", 
                     "details": "The menu was processed successfully but could not be saved despite multiple attempts."
                 }), 500
+            else:
+                logger.info(f"[MENU-UPDATE] Successfully saved menu to {len(paths_written)} locations: {', '.join(paths_written)}")
                 
             # Verify the menu was saved correctly
             reloaded_menu = load_menu_data(force_refresh=True)
