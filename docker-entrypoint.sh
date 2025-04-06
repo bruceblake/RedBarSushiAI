@@ -8,6 +8,10 @@ export DOCKER=true
 export PYNPUT_HEADLESS=1
 export DISPLAY=:99
 
+# Set environment variables for OpenAI Realtime API
+export OPENAI_REALTIME_AVAILABLE=1 
+export NODE_TLS_REJECT_UNAUTHORIZED=0 # Allow self-signed certificates in dev environments
+
 # Explicitly set the Python path to avoid import issues
 export PYTHONPATH=/app:$PYTHONPATH
 
