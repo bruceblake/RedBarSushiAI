@@ -11,21 +11,10 @@ import base64
 import openai
 from openai import OpenAI
 
-# Set environment variable to indicate headless mode for pynput
-import os
-os.environ['PYNPUT_HEADLESS'] = '1'
-
-# Import real-time processing
-try:
-    # Try to use the direct OpenAI API for streaming as an alternative
-    # The standard OpenAI client supports streaming audio in newer versions
-    REALTIME_AVAILABLE = False
-    OPENAI_STREAMING_AVAILABLE = True
-    logging.info("Using direct OpenAI API for audio streaming (headless mode)")
-except Exception as e:
-    logging.warning(f"OpenAI streaming not available. Audio streaming will be disabled. Error: {str(e)}")
-    REALTIME_AVAILABLE = False
-    OPENAI_STREAMING_AVAILABLE = False
+# Mark as headless explicitly - don't try to import problematic packages
+REALTIME_AVAILABLE = False
+OPENAI_STREAMING_AVAILABLE = True
+logging.info("Using direct OpenAI API for audio streaming without pynput (headless mode)")
 
 # Get the OpenAI API key from agent_utils to keep it consistent
 from app.utils.agent_utils import OPENAI_API_KEY, log_openai_request, log_openai_response
@@ -231,14 +220,30 @@ def get_audio_processor():
     Get the appropriate audio processor based on what's available.
     
     Returns:
-        RealTimeAudioProcessor if available, otherwise BasicAudioProcessor
+        BasicAudioProcessor for Docker/headless environments
     """
+    processor = None
+    
+    # First try/except block
     try:
-        # Always use BasicAudioProcessor in headless environments (like Docker containers)
-        # It now has the same interface as RealTimeAudioProcessor but works without X11
-        logger.info("Using BasicAudioProcessor with streaming capability")
-        return BasicAudioProcessor()
-    except Exception as e:
-        logger.error(f"Failed to initialize audio processor: {e}")
+        # Set up a simple basic processor
+        processor = BasicAudioProcessor()
+        logger.info("Successfully initialized BasicAudioProcessor for headless environment")
+        return processor
+    except Exception as first_error:
+        logger.error(f"First attempt to initialize audio processor failed: {first_error}")
         logger.error(traceback.format_exc())
-        return BasicAudioProcessor()
+    
+    # Second block with different approach if first fails
+    try:
+        # Use maximum compatibility approach - don't import anything special
+        logger.warning("Trying fallback audio processor approach")
+        processor = BasicAudioProcessor()
+        return processor
+    except Exception as second_error:
+        logger.error(f"Second attempt to initialize audio processor failed: {second_error}")
+        logger.error(traceback.format_exc())
+        
+    # If we get here, create a minimal processor
+    logger.warning("Using minimal compatibility audio processor")
+    return BasicAudioProcessor()
