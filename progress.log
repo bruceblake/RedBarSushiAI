@@ -387,3 +387,8 @@ Our menu has these ...
 2025-04-06 14:39:17,243 - INFO - root - Application starting in development mode
 2025-04-06 14:39:17,244 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
 2025-04-06 14:39:17,245 - INFO - run - Application created successfully on attempt 1
+2025-04-06 14:45:55,638 - INFO - root - Application starting in development mode
+2025-04-06 14:45:55,638 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-06 14:45:55,639 - INFO - run - Application created successfully on attempt 1
+2025-04-06 14:47:20,753 - DEBUG - httpcore.connection - close.started
+2025-04-06 14:47:20,753 - DEBUG - httpcore.connection - close.complete

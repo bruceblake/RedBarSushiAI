@@ -16,6 +16,8 @@ RUN apt-get update && \
         g++ \
         libpq-dev \
         curl \
+        portaudio19-dev \
+        python3-pyaudio \
     && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Install dependencies
@@ -24,12 +26,14 @@ FROM base AS dependencies
 WORKDIR /install
 
 # Copy requirements files
-COPY requirements.txt requirements.prod.txt ./
+COPY requirements.txt requirements.prod.txt requirements.docker.txt ./
 
 # Install base Python packages with retries and timeouts
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    # Try production requirements first (more stable)
-    if [ -f "requirements.prod.txt" ]; then \
+    # Try docker requirements first, then production, then default
+    if [ -f "requirements.docker.txt" ]; then \
+        pip install --no-cache-dir -r requirements.docker.txt; \
+    elif [ -f "requirements.prod.txt" ]; then \
         pip install --no-cache-dir -r requirements.prod.txt || \
         pip install --no-cache-dir -r requirements.txt; \
     else \
@@ -43,8 +47,10 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 RUN pip install --no-cache-dir psycopg2-binary==2.9.9 \
                              gunicorn==21.2.0 \
                              gevent==23.9.1 \
-                             flask-sock==0.6.0 \
-                             gevent-websocket==0.10.1
+                             flask-sock==0.7.0 \
+                             gevent-websocket==0.10.1 \
+                             simple-websocket==1.1.0 \
+                             openai-realtime-client==0.1.0
 
 # Stage 3: Final runtime image
 FROM base AS final
