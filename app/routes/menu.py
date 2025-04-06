@@ -5,7 +5,7 @@ import json
 import os
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.menu_validator import validate_and_fix_menu_data
-from app.utils.menu_utils import process_deliverect_menu, load_menu_data, write_menu_file, sync_reference_handlers
+from app.utils.menu_utils import process_deliverect_menu, load_menu_data, write_menu_file, sync_reference_handlers, MENU_FILE_PATH
 
 menu_bp = Blueprint('menu', __name__)
 logger = logging.getLogger(__name__)
@@ -237,21 +237,36 @@ def menu_update():
                    f"{len(processed_data.get('modifiers', []))} modifiers, " +
                    f"{len(processed_data.get('modifierGroups', []))} modifier groups")
         
-        # Save to file
-        success = write_menu_file(processed_data)
+        # Save to file - try multiple paths
+        production_path = '/home/pegasus/mysite/RedBarSushiAI/menu_data.json'
+        paths_to_try = [
+            production_path,  # Try production path first
+            MENU_FILE_PATH,   # Then try the configured path
+            f"/tmp/menu_data_{int(time.time())}.json"  # Fallback to tmp
+        ]
+        
+        success = False
+        for path in paths_to_try:
+            logger.info(f"[MENU-UPDATE] Attempting to write menu to: {path}")
+            if write_menu_file(processed_data, path):
+                success = True
+                logger.info(f"[MENU-UPDATE] Successfully wrote menu to: {path}")
+                break
+        
         if not success:
-            logger.error("[MENU-UPDATE] Failed to write menu file, trying alternate location")
-            # Try alternative location
-            alt_path = f"/tmp/menu_data_{int(time.time())}.json"
-            success = write_menu_file(processed_data, alt_path)
-            if not success:
-                return jsonify({"error": "Failed to write menu file"}), 500
-            logger.info(f"[MENU-UPDATE] Wrote menu to alternate location: {alt_path}")
+            logger.error("[MENU-UPDATE] Failed to write menu file to any location")
+            return jsonify({"error": "Failed to write menu file"}), 500
         
         # Verify the menu file was written correctly by forcing a reload
         reloaded_menu = load_menu_data(force_refresh=True)
         if len(reloaded_menu.get("items", [])) == 0:
             logger.warning("[MENU-UPDATE] Menu reload verification failed!")
+            return jsonify({"error": "Menu reload verification failed - menu has 0 items"}), 500
+        
+        # Log the actual items in the reloaded menu for debugging
+        logger.info(f"[MENU-UPDATE] Reloaded menu has {len(reloaded_menu.get('items', []))} items")
+        for idx, item in enumerate(reloaded_menu.get("items", [])[:5]):  # Log first 5 items
+            logger.info(f"[MENU-UPDATE] Reloaded item {idx+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}")
         else:
             logger.info(f"[MENU-UPDATE] Menu reload verification confirmed {len(reloaded_menu['items'])} items")
         
@@ -396,8 +411,41 @@ def get_menu():
     # Get location_id from query parameters
     location_id = request.args.get('location_id')
     
-    # Load menu data with optional location
-    menu_data = load_menu_data(force_refresh=False, location_id=location_id)
+    # Load menu data with optional location - force refresh to ensure latest
+    menu_data = load_menu_data(force_refresh=True, location_id=location_id)
+    
+    # Log menu details
+    item_count = len(menu_data.get("items", []))
+    logger.info(f"[GET-MENU] Returning menu with {item_count} items")
+    if item_count > 0:
+        for idx, item in enumerate(menu_data.get("items", [])[:3]):  # Log first 3 items
+            logger.info(f"[GET-MENU] Item {idx+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}")
+    
+    # Add file location to response for debugging
+    menu_data["_debug"] = {"file_path": MENU_FILE_PATH}
     
     # Return menu data
     return jsonify(menu_data), 200
+
+
+@menu_bp.route('/clear_menu_cache', methods=['GET'])
+def clear_menu_cache():
+    """
+    Force a refresh of the menu from disk and clear any cache
+    """
+    # Force a full reload
+    menu_data = load_menu_data(force_refresh=True)
+    
+    # Log reloaded data
+    item_count = len(menu_data.get("items", []))
+    logger.info(f"[CLEAR-CACHE] Reloaded menu with {item_count} items")
+    if item_count > 0:
+        for idx, item in enumerate(menu_data.get("items", [])[:5]):  # Log first 5 items
+            logger.info(f"[CLEAR-CACHE] Item {idx+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}")
+    
+    # Return status
+    return jsonify({
+        "success": True, 
+        "message": f"Menu cache cleared, {item_count} items loaded",
+        "file_path": MENU_FILE_PATH
+    }), 200
