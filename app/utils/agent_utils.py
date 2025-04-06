@@ -959,11 +959,11 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
     logger.info(f"[PARSED-ORDER]: {parsed_order}")
     
     # Determine intent based on the parsed order
-    if parsed_order.get("items"):
+    if parsed_order.get('items'):
         logger.info(f"[ANALYZE-RESULT] Found {len(parsed_order.get('items', []))} items, intent: 'order_food'")
         return {
             "intent": "order_food",
-            "menu_items": parsed_order.get("items", [])
+            "menu_items": parsed_order.get('items', [])
         }
     
     # Default to "other" intent if no clear intent is determined

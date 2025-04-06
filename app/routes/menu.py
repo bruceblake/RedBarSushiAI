@@ -133,12 +133,12 @@ def menu_update():
                 logger.info(f"[MENU-ITEM] '{item.get('name')}' → '{item.get('reference_handler', '')}'")
             
         # Run the menu through validation
-        try:
-            from app.utils.menu_validator import validate_and_fix_menu_data
-            processed_data = validate_and_fix_menu_data(processed_data)
-            logger.info("[MENU-UPDATE] Menu data validated and fixed")
-        except Exception as ve:
-            logger.warning(f"[MENU-UPDATE] Validation error: {ve}, continuing with unvalidated data")
+       # try:
+       #     from app.utils.menu_validator import validate_and_fix_menu_data
+       #     processed_data = validate_and_fix_menu_data(processed_data)
+       #     logger.info("[MENU-UPDATE] Menu data validated and fixed")
+       # except Exception as ve:
+       #     logger.warning(f"[MENU-UPDATE] Validation error: {ve}, continuing with unvalidated data")
             
         # Write to file
         success = write_menu_file(processed_data)
