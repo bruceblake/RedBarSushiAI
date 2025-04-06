@@ -881,8 +881,7 @@ def register_channel_route():
         return jsonify({"error": f"Invalid status: {status}"}), 400
     
     # Get base URL from configuration instead of hardcoding
-    from app.config import BASE_URL
-    base_url = BASE_URL
+    base_url = "https://redbarsushiai.onrender.com"
     
     # Return webhook URLs - keeping original paths for compatibility
     response_body = {
