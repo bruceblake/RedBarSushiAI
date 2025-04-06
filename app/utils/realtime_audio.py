@@ -13,12 +13,31 @@ from openai import OpenAI
 
 # Import real-time processing
 try:
-    from openai_realtime_client import RealTimeManager
-    from openai_realtime_client.events import MessageStreamEvent, MessageDeltaEvent, MessageEvent
-    from openai_realtime_client.audio import AudioTranscript, AudioTranscriptSegment, AudioGenerator, AudioContent
-    REALTIME_AVAILABLE = True
-except ImportError:
-    logging.warning("OpenAI real-time module not available. Real-time audio streaming will be disabled.")
+    # First try the exact import
+    try:
+        from openai_realtime_client import RealTimeManager
+        from openai_realtime_client.events import MessageStreamEvent, MessageDeltaEvent, MessageEvent
+        from openai_realtime_client.audio import AudioTranscript, AudioTranscriptSegment, AudioGenerator, AudioContent
+        REALTIME_AVAILABLE = True
+        logging.info("Successfully imported openai_realtime_client")
+    except ImportError as e1:
+        # If that fails, try pip installing it
+        logging.warning(f"First import attempt failed: {e1}")
+        import subprocess
+        import sys
+        
+        # Try to install the package
+        logging.info("Attempting to install openai-realtime-client")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openai-realtime-client==0.1.0"])
+        
+        # Try importing again
+        from openai_realtime_client import RealTimeManager
+        from openai_realtime_client.events import MessageStreamEvent, MessageDeltaEvent, MessageEvent
+        from openai_realtime_client.audio import AudioTranscript, AudioTranscriptSegment, AudioGenerator, AudioContent
+        REALTIME_AVAILABLE = True
+        logging.info("Successfully installed and imported openai_realtime_client")
+except Exception as e:
+    logging.warning(f"OpenAI real-time module not available. Real-time audio streaming will be disabled. Error: {str(e)}")
     REALTIME_AVAILABLE = False
 
 # Get the OpenAI API key from agent_utils to keep it consistent

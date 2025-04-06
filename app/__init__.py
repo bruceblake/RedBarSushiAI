@@ -18,10 +18,20 @@ sock = Sock()
 
 # Initialize clients with proper error handling
 try:
-    # Set timeouts for external API clients
-    twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, 
-                          timeout=10)  # 10 second timeout
-    logging.info("Twilio client initialized successfully")
+    # Initialize Twilio client
+    # Check which version of twilio we're using
+    import twilio
+    twilio_version = twilio.__version__.split('.')
+    
+    if int(twilio_version[0]) >= 7:
+        # Newer versions support timeout in the constructor
+        twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, 
+                              timeout=10)  # 10 second timeout
+    else:
+        # Older versions don't support timeout in constructor
+        twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        
+    logging.info(f"Twilio client initialized successfully (version {twilio.__version__})")
 except Exception as e:
     logging.error(f"Error initializing Twilio client: {e}")
     # Create a dummy client that won't crash the app
