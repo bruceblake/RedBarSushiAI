@@ -13,12 +13,18 @@ logger = logging.getLogger(__name__)
 def validate_and_fix_menu_data(menu_data):
     """
     Validates and fixes issues in menu data before it's saved.
+    This function enforces strict validation for Deliverect integration.
     
     Args:
         menu_data: Dict containing menu data with items, modifiers, etc.
         
     Returns:
         dict: Fixed menu data
+        
+    Raises:
+        ValueError: If menu items are missing required fields after fixing attempts.
+                   Specifically will raise "Menu items must have names" if any items
+                   are missing names after attempted fixes.
     """
     # Make sure we have the expected structure
     if not isinstance(menu_data, dict):
@@ -41,6 +47,7 @@ def validate_and_fix_menu_data(menu_data):
     
     # Process items
     fixed_item_count = 0
+    items_missing_names = []
     
     # First pass - build map of existing items by name for reference preservation
     for item in menu_data.get('items', []):
@@ -77,6 +84,9 @@ def validate_and_fix_menu_data(menu_data):
                 item['name'] = f"Unnamed Item {menu_data.get('items', []).index(item) + 1}"
             logger.warning(f"[MENU-FIX] Fixed missing name for item: '{item.get('name')}'")
             item_fixed = True
+            
+            # Track this item to verify it has a name after fixing
+            items_missing_names.append(item)
         
         # Fix missing item ID
         if not item_id:
@@ -222,5 +232,26 @@ def validate_and_fix_menu_data(menu_data):
     
     if fixed_item_count > 0 or fixed_modifier_group_count > 0 or fixed_modifier_count > 0:
         logger.info(f"Fixed {fixed_item_count} items, {fixed_modifier_group_count} modifier groups, and {fixed_modifier_count} modifiers")
+    
+    # Final validation: Ensure ALL items have names after fixing attempts
+    items_still_missing_names = [item for item in menu_data.get('items', []) if not item.get('name')]
+    if items_still_missing_names:
+        missing_count = len(items_still_missing_names)
+        item_indices = [menu_data.get('items', []).index(item) for item in items_still_missing_names[:3]]
+        logger.error(f"[MENU-VALIDATION] {missing_count} items still missing names after fixing attempts. Problem indices: {item_indices}")
+        raise ValueError("Menu items must have names")
+    
+    # Final validation: Check every item for empty string names
+    empty_name_items = [item for item in menu_data.get('items', []) if item.get('name') == ""]
+    if empty_name_items:
+        empty_count = len(empty_name_items)
+        item_indices = [menu_data.get('items', []).index(item) for item in empty_name_items[:3]]
+        logger.error(f"[MENU-VALIDATION] {empty_count} items have empty string names. Problem indices: {item_indices}")
+        
+        # Fix empty string names
+        for item in empty_name_items:
+            index = menu_data.get('items', []).index(item)
+            item['name'] = f"Unnamed Item {index + 1}"
+        logger.info(f"[MENU-FIX] Fixed {empty_count} items with empty string names")
     
     return menu_data

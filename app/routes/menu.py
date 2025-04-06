@@ -33,13 +33,60 @@ def menu_update():
         if not data:
             logger.error("[MENU-UPDATE] No data provided in request")
             return jsonify({"error": "No data provided"}), 400
+            
+        # Handle empty arrays or empty objects
+        if (isinstance(data, list) and len(data) == 0) or (isinstance(data, dict) and len(data) == 0):
+            logger.warning("[MENU-UPDATE] Received empty menu data - creating basic default menu")
+            from app.utils.menu_utils import create_default_menu
+            data = create_default_menu()
         
         # Handle case where data is a list instead of a dictionary
         if isinstance(data, list):
             logger.info(f"[MENU-UPDATE] Received list data with {len(data)} items")
-            # Convert list of items to our standard format
+            
+            # Check for items without names and filter/fix them
+            valid_items = []
+            for i, item in enumerate(data):
+                if isinstance(item, dict):
+                    # If item has no name, try to fix it
+                    if not item.get("name"):
+                        if item.get("title"):
+                            logger.info(f"[MENU-UPDATE] Using 'title' field as name for item {i}")
+                            item["name"] = item["title"]
+                        elif item.get("product_name"):
+                            logger.info(f"[MENU-UPDATE] Using 'product_name' field as name for item {i}")
+                            item["name"] = item["product_name"]
+                        elif item.get("label"):
+                            logger.info(f"[MENU-UPDATE] Using 'label' field as name for item {i}")
+                            item["name"] = item["label"]
+                        elif item.get("id") or item.get("product_id"):
+                            # Generate a name from ID
+                            item_id = item.get("id") or item.get("product_id")
+                            logger.info(f"[MENU-UPDATE] Using ID to generate name for item {i}: Item {item_id}")
+                            item["name"] = f"Item {item_id}"
+                        else:
+                            # Auto-generate a name from description if available
+                            if item.get("description"):
+                                desc = item["description"]
+                                name = desc.split()[0:2]  # Use first two words of description
+                                name = " ".join(name)
+                                logger.info(f"[MENU-UPDATE] Using description to generate name for item {i}: {name}")
+                                item["name"] = name
+                            else:
+                                # Last resort: auto-generate a name
+                                logger.info(f"[MENU-UPDATE] Auto-generating name for item {i}: Menu Item {i+1}")
+                                item["name"] = f"Menu Item {i+1}"
+                    
+                    # Now that name is fixed, add it to valid items
+                    valid_items.append(item)
+                    
+            # Log any fixes
+            if len(valid_items) < len(data):
+                logger.warning(f"[MENU-UPDATE] Filtered out {len(data) - len(valid_items)} invalid items")
+                
+            # Convert list of valid items to our standard format
             data = {
-                "items": data,
+                "items": valid_items,
                 "modifiers": [],
                 "modifierGroups": [],
                 "name_variants": {}
@@ -62,15 +109,52 @@ def menu_update():
                     
             elif "items" in data:
                 # Our internal format
-                item_count = len(data.get('items', []))
+                items = data.get('items', [])
+                item_count = len(items)
                 logger.info(f"[MENU-UPDATE] Processing internal format with {item_count} items")
                 
-                # Verify items have names
-                valid_items = [item for item in data.get('items', []) if item.get('name')]
-                if not valid_items and item_count > 0:
-                    logger.warning("[MENU-UPDATE] Menu has items but no valid names!")
-                    return jsonify({"error": "Menu items must have names"}), 400
-                    
+                # Fix items without names
+                fixed_items = []
+                for i, item in enumerate(items):
+                    if isinstance(item, dict):
+                        # If item has no name, try to fix it
+                        if not item.get("name"):
+                            if item.get("title"):
+                                logger.info(f"[MENU-UPDATE] Using 'title' field as name for item {i}")
+                                item["name"] = item["title"]
+                            elif item.get("product_name"):
+                                logger.info(f"[MENU-UPDATE] Using 'product_name' field as name for item {i}")
+                                item["name"] = item["product_name"]
+                            elif item.get("label"):
+                                logger.info(f"[MENU-UPDATE] Using 'label' field as name for item {i}")
+                                item["name"] = item["label"]
+                            elif item.get("id") or item.get("product_id"):
+                                # Generate a name from ID
+                                item_id = item.get("id") or item.get("product_id")
+                                logger.info(f"[MENU-UPDATE] Using ID to generate name for item {i}: Item {item_id}")
+                                item["name"] = f"Item {item_id}"
+                            else:
+                                # Auto-generate a name from description if available
+                                if item.get("description"):
+                                    desc = item["description"]
+                                    name = desc.split()[0:2]  # Use first two words of description
+                                    name = " ".join(name)
+                                    logger.info(f"[MENU-UPDATE] Using description to generate name for item {i}: {name}")
+                                    item["name"] = name
+                                else:
+                                    # Last resort: auto-generate a name
+                                    logger.info(f"[MENU-UPDATE] Auto-generating name for item {i}: Menu Item {i+1}")
+                                    item["name"] = f"Menu Item {i+1}"
+                                
+                        # Add the fixed item
+                        fixed_items.append(item)
+                
+                # Log fixes
+                if len(fixed_items) != item_count:
+                    logger.warning(f"[MENU-UPDATE] Fixed or filtered {item_count - len(fixed_items)} invalid items")
+                
+                # Replace the items in the data
+                data["items"] = fixed_items
                 processed_data = data.copy()
             else:
                 # Unknown format
@@ -139,6 +223,11 @@ def menu_update():
         try:
             processed_data = validate_and_fix_menu_data(processed_data)
             logger.info("[MENU-UPDATE] Menu data validated and fixed")
+        except ValueError as ve:
+            # This is a critical validation error that must be returned to the caller
+            error_msg = str(ve)
+            logger.error(f"[MENU-UPDATE] Critical validation error: {error_msg}")
+            return jsonify({"error": error_msg}), 400
         except Exception as ve:
             logger.warning(f"[MENU-UPDATE] Validation warning: {ve}")
             # Continue with unvalidated data rather than failing
