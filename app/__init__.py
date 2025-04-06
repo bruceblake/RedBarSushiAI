@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 import stripe
 from twilio.rest import Client
 import logging
+import sys
 from app.config import *
 import os
 
@@ -41,10 +42,36 @@ def create_app(test_config=None):
     app.register_blueprint(location_bp)
 
     # Configure logging - Set to DEBUG for maximum verbosity
-    logging.basicConfig(
-        filename='progress.log',
-        level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
-    )
+    # In Docker/Render, log to stderr, otherwise log to file
+    if os.environ.get('RENDER', False) or os.environ.get('DOCKER', False):
+        logging.basicConfig(
+            stream=sys.stderr,  # Log to stderr for Docker/Render
+            level=logging.DEBUG,
+            format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
+        )
+        print("Logging configured to use stderr for Docker/Render", file=sys.stderr)
+    else:
+        logging.basicConfig(
+            filename='progress.log',  # Local environment logs to file
+            level=logging.DEBUG,
+            format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
+        )
+        print("Logging configured to use file 'progress.log'")
+    
+    # Add an explicit console handler to ensure visibility in all environments
+    console = logging.StreamHandler()
+    console.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
+    
+    # Log the environment as a test
+    app.logger.debug("Application initialized with SQLAlchemy URI type: %s", 
+                    type(app.config['SQLALCHEMY_DATABASE_URI']))
+                    
+    # Add a health check endpoint
+    @app.route('/healthcheck')
+    def healthcheck():
+        return {'status': 'ok', 'message': 'RedBarSushiAI is running'}
 
     return app
