@@ -102,7 +102,7 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
     """
     try:
         # Get production path from environment variable or use default
-        production_path = os.environ.get('MENU_FILE_PATH', MENU_FILE_PATH)
+        production_path = "menu_data.json"
         
         # Always ensure root directory path is preferred
         root_dir = os.getcwd()
