@@ -163,6 +163,7 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None) 
 def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = None, skip_validation: bool = False) -> Dict[str, Any]:
     """
     Load menu data from file or cache.
+    Tries multiple locations to find a valid menu file.
     
     Args:
         force_refresh (bool): Force a refresh from disk instead of using cache
@@ -203,18 +204,27 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
     if not os.path.exists(file_path):
         # Try a series of well-known locations
         possible_files = [
+            # First try the production path explicitly
+            '/home/pegasus/mysite/RedBarSushiAI/menu_data.json',
+            # Then try configured paths
             MENU_FILE_PATH,
             PRODUCTION_PATH,
-            # Try various paths in the production environment
-            '/home/pegasus/mysite/RedBarSushiAI/menu_data.json',
+            # Try various alternative paths in the production environment
             '/home/pegasus/mysite/menu_data.json',
             '/home/pegasus/menu_data.json',
+            # Try various local paths
             os.path.join(APP_ROOT, 'menu_data.json'),
             os.path.join(APP_ROOT_PARENT, 'menu_data.json'),
             os.path.join(APP_ROOT_PARENT, 'redbar_menu_data.json'),
+            os.path.join(os.getcwd(), 'menu_data.json'),
+            os.path.join(os.getcwd(), 'redbar_menu_data.json'),
+            # Finally try temp paths
             '/tmp/menu_data.json',
             '/tmp/redbar_menu_data.json'
         ]
+        
+        # Log all paths we're checking
+        logger.info(f"[MENU-LOAD] Looking for menu file in these locations: {possible_files}")
         
         for path in possible_files:
             if os.path.exists(path):
@@ -241,10 +251,19 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
             # Case 1: It's Deliverect format with categories - convert it
             if "categories" in menu_data:
                 logger.info(f"Detected Deliverect format with categories - processing automatically")
-                menu_data = process_deliverect_menu(menu_data)
-                
-                # Save the processed menu for future use
-                if len(menu_data.get('items', [])) > 0:
+                try:
+                    menu_data = process_deliverect_menu(menu_data)
+                    
+                    # Save the processed menu for future use
+                    if len(menu_data.get('items', [])) > 0:
+                        write_menu_file(menu_data)
+                        logger.info(f"Processed Deliverect menu with {len(menu_data.get('items', []))} items and saved")
+                    else:
+                        logger.error(f"Processed Deliverect menu has 0 items - something went wrong")
+                except Exception as e:
+                    logger.error(f"Error processing Deliverect menu: {e}")
+                    # Fall back to default menu
+                    menu_data = create_default_menu()
                     write_menu_file(menu_data)
                     
             # Case 2: It's invalid data - use default menu
@@ -254,6 +273,7 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
                 
                 # Save the default menu
                 write_menu_file(menu_data)
+                logger.info(f"Created default menu with {len(menu_data.get('items', []))} items")
             
         # Update cache
         _menu_cache = menu_data
