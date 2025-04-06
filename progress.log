@@ -227,3 +227,113 @@ Our menu has these ...
 2025-04-06 04:15:42,262 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [{'name': 'Chicken Burger', 'price': 12.95, 'reference_handler': 'P-BURG-CHK', 'quantity': 1, 'modifier': []}, {'name': 'Seasoned Fries', 'price': 6.99, 'reference_handler': 'P-FRS-L-#U#-', 'quantity': 1, 'modifier': []}], 'intent': 'order_food'}
 2025-04-06 04:15:42,262 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] Found 2 items, intent: 'order_food'
 2025-04-06 04:15:42,262 - INFO - werkzeug - 127.0.0.1 - - [06/Apr/2025 04:15:42] "POST /take_order HTTP/1.1" 200 -
+2025-04-06 04:29:00,199 - DEBUG - httpcore.connection - close.started
+2025-04-06 04:29:00,211 - DEBUG - httpcore.connection - close.complete
+2025-04-06 04:29:01,549 - INFO - app.routes.menu - [MENU-UPDATE] Received menu update data: [{'name': 'California Roll', 'price': 9.95, 'description': 'Crab, avocado and cucumber roll', 'available': True}, {'name': 'Spicy Tuna Roll', 'price': 11.95, 'description': 'Spicy tuna roll with cucum...
+2025-04-06 04:29:01,549 - INFO - app.routes.menu - [MENU-UPDATE] Converting list of 3 items to menu format
+2025-04-06 04:29:01,549 - INFO - app.routes.menu - [MENU-UPDATE] Generating name variants
+2025-04-06 04:29:01,549 - INFO - app.routes.menu - [MENU-ITEM] 'California Roll' → ''
+2025-04-06 04:29:01,549 - INFO - app.routes.menu - [MENU-ITEM] 'Spicy Tuna Roll' → ''
+2025-04-06 04:29:01,549 - INFO - app.routes.menu - [MENU-ITEM] 'Edamame' → ''
+2025-04-06 04:29:01,549 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-06 04:29:01,560 - INFO - root - [MENU-LOAD] Using 76 name variants from menu data
+2025-04-06 04:29:01,560 - INFO - root - [MENU-PRICES] Loaded 76 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-06 04:29:01,560 - WARNING - app.utils.menu_validator - [MENU-FIX] Item 'California Roll' is missing ID, setting to: ITEM-2103791d
+2025-04-06 04:29:01,561 - WARNING - app.utils.menu_validator - [MENU-FIX] Item California Roll is missing reference_handler, setting to: REF-6be4181d
+2025-04-06 04:29:01,561 - WARNING - app.utils.menu_validator - [MENU-FIX] Item 'Spicy Tuna Roll' is missing ID, setting to: ITEM-51f918ff
+2025-04-06 04:29:01,561 - INFO - app.utils.menu_validator - [MENU-FIX] Set reference_handler for Spicy Tuna Roll to common price entry: PRT-02
+2025-04-06 04:29:01,561 - WARNING - app.utils.menu_validator - [MENU-FIX] Item 'Edamame' is missing ID, setting to: ITEM-16596780
+2025-04-06 04:29:01,561 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Edamame is missing reference_handler, setting to: REF-751305b9
+2025-04-06 04:29:01,561 - INFO - app.utils.menu_validator - Fixed 3 items, 0 modifier groups, and 0 modifiers
+2025-04-06 04:29:01,561 - INFO - app.routes.menu - [MENU-UPDATE] Menu data validated and fixed
+2025-04-06 04:29:01,562 - INFO - app.utils.menu_utils - Created backup directory: /home/proxyie/MySoftware/RedBarSushiAI/backups
+2025-04-06 04:29:01,563 - INFO - app.utils.menu_utils - Menu backup created at /home/proxyie/MySoftware/RedBarSushiAI/backups/menu_backup_20250406_042901.json
+2025-04-06 04:29:01,563 - INFO - app.utils.menu_utils - Menu data written to /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-06 04:29:01,563 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-06 04:29:01,563 - INFO - app.utils.menu_utils - item: California Roll (snoozed: False)
+2025-04-06 04:29:01,563 - INFO - app.utils.menu_utils - item: Spicy Tuna Roll (snoozed: False)
+2025-04-06 04:29:01,563 - INFO - app.utils.menu_utils - item: Edamame (snoozed: False)
+2025-04-06 04:29:01,563 - INFO - app.utils.menu_utils - Menu stats: 3 total items, 3 available, 0 snoozed
+2025-04-06 04:29:01,563 - INFO - app.utils.menu_utils - Menu categories: {'Uncategorized': 3}
+2025-04-06 04:29:01,563 - INFO - app.routes.menu - [MENU-UPDATE] Menu updated successfully with 3 items
+2025-04-06 04:29:01,564 - INFO - werkzeug - 127.0.0.1 - - [06/Apr/2025 04:29:01] "POST /menu_update HTTP/1.1" 200 -
+2025-04-06 04:29:09,727 - INFO - app.routes.order - Menu data loaded: 3 items found
+2025-04-06 04:29:09,727 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-06 04:29:09,728 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'I would like to order a hamburger with fries'
+2025-04-06 04:29:09,728 - INFO - app.utils.agent_utils - [ORDER-PARSE] Processing order text: 'I would like to order a hamburger with fries'
+2025-04-06 04:29:09,728 - INFO - app.utils.agent_utils - [ORDER-PARSE] Using menu categories: []
+2025-04-06 04:29:09,728 - INFO - app.utils.agent_utils - [OPENAI-REQUEST] Function: parse_order, Model: gpt-4o
+2025-04-06 04:29:09,728 - INFO - app.utils.agent_utils - [OPENAI-MESSAGES] system: You are a restaurant order parser. Extract menu items from customer orders into JSON.; user: Extract menu items from this order: I would like to order a hamburger with fries
+Our menu has these ...
+2025-04-06 04:29:09,731 - DEBUG - openai._base_client - Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': 'You are a restaurant order parser. Extract menu items from customer orders into JSON.'}, {'role': 'user', 'content': "Extract menu items from this order: I would like to order a hamburger with fries\nOur menu has these categories: \nRespond with a JSON object containing an 'items' array of item names."}], 'model': 'gpt-4o', 'response_format': {'type': 'json_object'}}}
+2025-04-06 04:29:09,731 - DEBUG - openai._base_client - Sending HTTP Request: POST https://api.openai.com/v1/chat/completions
+2025-04-06 04:29:09,731 - DEBUG - httpcore.connection - close.started
+2025-04-06 04:29:09,732 - DEBUG - httpcore.connection - close.complete
+2025-04-06 04:29:09,732 - DEBUG - httpcore.connection - connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+2025-04-06 04:29:09,840 - DEBUG - httpcore.connection - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fd412380160>
+2025-04-06 04:29:09,840 - DEBUG - httpcore.connection - start_tls.started ssl_context=<ssl.SSLContext object at 0x7fd41252d0a0> server_hostname='api.openai.com' timeout=5.0
+2025-04-06 04:29:09,881 - DEBUG - httpcore.connection - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fd412380050>
+2025-04-06 04:29:09,881 - DEBUG - httpcore.http11 - send_request_headers.started request=<Request [b'POST']>
+2025-04-06 04:29:09,881 - DEBUG - httpcore.http11 - send_request_headers.complete
+2025-04-06 04:29:09,882 - DEBUG - httpcore.http11 - send_request_body.started request=<Request [b'POST']>
+2025-04-06 04:29:09,882 - DEBUG - httpcore.http11 - send_request_body.complete
+2025-04-06 04:29:09,882 - DEBUG - httpcore.http11 - receive_response_headers.started request=<Request [b'POST']>
+2025-04-06 04:29:10,418 - DEBUG - httpcore.http11 - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Sun, 06 Apr 2025 08:29:27 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-expose-headers', b'X-Request-ID'), (b'openai-organization', b'red-bar-sushi'), (b'openai-processing-ms', b'389'), (b'openai-version', b'2020-10-01'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'800000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'799930'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'5ms'), (b'x-request-id', b'req_7bde043f5babc9abdc946f5c2b14669b'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=4WycYSiO0mr5VLg1ObdwfDlOys8jjz2bKDyu4JzC4WQ-1743928167-1.0.1.1-uQKyUi1ecx3znerpnIQCGp8oGetIZChrvzv9hWc5UCLpdsPRi8UgNWoSvuaGZyd2QvFQdScXXmstl4jIUZ7GXh54Bxrc2ZHCsQl6AAzfhA8; path=/; expires=Sun, 06-Apr-25 08:59:27 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92bfeae0ca3e4576-ATL'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2025-04-06 04:29:10,419 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-04-06 04:29:10,419 - DEBUG - httpcore.http11 - receive_response_body.started request=<Request [b'POST']>
+2025-04-06 04:29:10,419 - DEBUG - httpcore.http11 - receive_response_body.complete
+2025-04-06 04:29:10,419 - DEBUG - httpcore.http11 - response_closed.started
+2025-04-06 04:29:10,420 - DEBUG - httpcore.http11 - response_closed.complete
+2025-04-06 04:29:10,420 - DEBUG - openai._base_client - HTTP Response: POST https://api.openai.com/v1/chat/completions "200 OK" Headers({'date': 'Sun, 06 Apr 2025 08:29:27 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'access-control-expose-headers': 'X-Request-ID', 'openai-organization': 'red-bar-sushi', 'openai-processing-ms': '389', 'openai-version': '2020-10-01', 'x-ratelimit-limit-requests': '5000', 'x-ratelimit-limit-tokens': '800000', 'x-ratelimit-remaining-requests': '4999', 'x-ratelimit-remaining-tokens': '799930', 'x-ratelimit-reset-requests': '12ms', 'x-ratelimit-reset-tokens': '5ms', 'x-request-id': 'req_7bde043f5babc9abdc946f5c2b14669b', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'set-cookie': '__cf_bm=4WycYSiO0mr5VLg1ObdwfDlOys8jjz2bKDyu4JzC4WQ-1743928167-1.0.1.1-uQKyUi1ecx3znerpnIQCGp8oGetIZChrvzv9hWc5UCLpdsPRi8UgNWoSvuaGZyd2QvFQdScXXmstl4jIUZ7GXh54Bxrc2ZHCsQl6AAzfhA8; path=/; expires=Sun, 06-Apr-25 08:59:27 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92bfeae0ca3e4576-ATL', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+2025-04-06 04:29:10,420 - DEBUG - openai._base_client - request_id: req_7bde043f5babc9abdc946f5c2b14669b
+2025-04-06 04:29:10,420 - INFO - app.utils.agent_utils - [OPENAI-RESPONSE] Function: parse_order
+2025-04-06 04:29:10,420 - INFO - app.utils.agent_utils - [OPENAI-CONTENT] {
+  "items": [
+    "hamburger",
+    "fries"
+  ]
+}...
+2025-04-06 04:29:10,420 - INFO - app.utils.agent_utils - [OPENAI-FULL] ChatCompletion(id='chatcmpl-BJFfafTOR4WbTvUidSQ6fKIVft548', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='{\n  "items": [\n    "hamburger",\n    "fries"\n  ]\n}', refusal=None, role='assistant', annotations=[], audio=None, function_call=None, tool_calls=None))], created=1743928166, model='gpt-4o-2024-08-06', object='chat.completion', service_tier='default', system_fingerprint='fp_6dd05565ef', usage=CompletionUsage(completion_tokens=20, promp...
+2025-04-06 04:29:10,420 - INFO - app.utils.agent_utils - [ORDER-PARSE] Successfully received OpenAI response
+2025-04-06 04:29:10,420 - INFO - app.utils.agent_utils - [ORDER-PARSE] Extracted 2 potential items from order
+2025-04-06 04:29:10,420 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 2 potential items
+2025-04-06 04:29:10,420 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1] Verifying item: 'hamburger' using search_menu
+2025-04-06 04:29:10,420 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'hamburger'
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'hamburger'
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'california', 'roll', 'spicy tuna roll', 'spicy']...
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 3 menu items
+2025-04-06 04:29:10,421 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'hamburger'
+2025-04-06 04:29:10,421 - WARNING - app.utils.agent_utils - [ORDER-VERIFY-PASS1-FAIL] Could not verify 'hamburger' in first pass
+2025-04-06 04:29:10,421 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1] Verifying item: 'fries' using search_menu
+2025-04-06 04:29:10,421 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'fries'
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'fries'
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'california', 'roll', 'spicy tuna roll', 'spicy']...
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 3 menu items
+2025-04-06 04:29:10,421 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'fries'
+2025-04-06 04:29:10,421 - WARNING - app.utils.agent_utils - [ORDER-VERIFY-PASS1-FAIL] Could not verify 'fries' in first pass
+2025-04-06 04:29:10,421 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS2] Starting second pass verification for 2 items
+2025-04-06 04:29:10,421 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS2] Verifying item: 'hamburger' using direct lookup
+2025-04-06 04:29:10,421 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'hamburger'
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'hamburger'
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'california', 'roll', 'spicy tuna roll', 'spicy']...
+2025-04-06 04:29:10,421 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 3 menu items
+2025-04-06 04:29:10,421 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'hamburger'
+2025-04-06 04:29:10,421 - WARNING - app.utils.agent_utils - [ORDER-VERIFY-PASS2-FAIL] Could not verify 'hamburger' in second pass
+2025-04-06 04:29:10,422 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS2] Verifying item: 'fries' using direct lookup
+2025-04-06 04:29:10,422 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'fries'
+2025-04-06 04:29:10,422 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'fries'
+2025-04-06 04:29:10,422 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-06 04:29:10,422 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'california', 'roll', 'spicy tuna roll', 'spicy']...
+2025-04-06 04:29:10,422 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 3 menu items
+2025-04-06 04:29:10,422 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'fries'
+2025-04-06 04:29:10,422 - WARNING - app.utils.agent_utils - [ORDER-VERIFY-PASS2-FAIL] Could not verify 'fries' in second pass
+2025-04-06 04:29:10,422 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS3] Starting third pass verification with fuzzy matching for 2 items
+2025-04-06 04:29:10,422 - ERROR - app.utils.agent_utils - [ORDER-VERIFY-FAIL] Failed to verify item 'hamburger' after all verification passes
+2025-04-06 04:29:10,422 - ERROR - app.utils.agent_utils - [ORDER-VERIFY-FAIL] Failed to verify item 'fries' after all verification passes
+2025-04-06 04:29:10,422 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 0/2 items verified (0%)
+2025-04-06 04:29:10,422 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'intent': 'other'}
+2025-04-06 04:29:10,422 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-06 04:29:10,422 - INFO - werkzeug - 127.0.0.1 - - [06/Apr/2025 04:29:10] "POST /take_order HTTP/1.1" 200 -

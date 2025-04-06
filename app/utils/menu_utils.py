@@ -226,15 +226,34 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
     try:
         # Load menu data from file
         with open(file_path, 'r') as f:
-            menu_data = json.load(f)
+            try:
+                menu_data = json.load(f)
+            except json.JSONDecodeError:
+                logger.error(f"Invalid JSON in menu file {file_path}")
+                menu_data = create_default_menu()
+                write_menu_file(menu_data, file_path)
+                logger.info(f"Replaced corrupt menu file with default menu")
         
-        # Check if we have the Deliverect format with categories and need to process it
-        if len(menu_data.get('items', [])) == 0 and "categories" in menu_data:
-            logger.info(f"Detected Deliverect format with categories - processing automatically")
-            menu_data = process_deliverect_menu(menu_data)
+        # Check for empty or invalid data and fix it
+        if (len(menu_data.get('items', [])) == 0 or 
+            all(not item.get('name') for item in menu_data.get('items', []))):
             
-            # Save the processed menu for future use
-            write_menu_file(menu_data)
+            # Case 1: It's Deliverect format with categories - convert it
+            if "categories" in menu_data:
+                logger.info(f"Detected Deliverect format with categories - processing automatically")
+                menu_data = process_deliverect_menu(menu_data)
+                
+                # Save the processed menu for future use
+                if len(menu_data.get('items', [])) > 0:
+                    write_menu_file(menu_data)
+                    
+            # Case 2: It's invalid data - use default menu
+            else:
+                logger.error(f"Invalid menu data detected - loading default menu")
+                menu_data = create_default_menu()
+                
+                # Save the default menu
+                write_menu_file(menu_data)
             
         # Update cache
         _menu_cache = menu_data
@@ -738,6 +757,66 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 f"{len(name_variants)} name variants")
     
     return result
+
+def create_default_menu():
+    """
+    Creates a default menu with basic items when no valid menu is available.
+    This ensures the system always has something to work with.
+    
+    Returns:
+        dict: A basic menu with required structure and sample items
+    """
+    logger.warning("Creating default menu - this should only happen when no valid menu exists")
+    
+    # Create a minimal default menu with a few items
+    default_menu = {
+        "items": [
+            {
+                "id": "default_001",
+                "name": "California Roll",
+                "price": 9.95,
+                "reference_handler": "CAL-ROLL",
+                "description": "Crab, avocado and cucumber roll",
+                "available": True,
+                "snoozed": False,
+                "category": "Sushi"
+            },
+            {
+                "id": "default_002",
+                "name": "Spicy Tuna Roll",
+                "price": 12.95,
+                "reference_handler": "SPICY-TUNA",
+                "description": "Spicy tuna roll with cucumber",
+                "available": True,
+                "snoozed": False,
+                "category": "Sushi"
+            },
+            {
+                "id": "default_003",
+                "name": "Edamame",
+                "price": 5.95,
+                "reference_handler": "EDAMAME",
+                "description": "Steamed soy beans with sea salt",
+                "available": True,
+                "snoozed": False,
+                "category": "Appetizers"
+            }
+        ],
+        "modifiers": [],
+        "modifierGroups": [],
+        "name_variants": {
+            "california roll": "California Roll",
+            "california": "California Roll",
+            "spicy tuna roll": "Spicy Tuna Roll",
+            "spicy tuna": "Spicy Tuna Roll",
+            "tuna": "Spicy Tuna Roll",
+            "edamame": "Edamame",
+            "beans": "Edamame"
+        }
+    }
+    
+    logger.info(f"Created default menu with {len(default_menu['items'])} items")
+    return default_menu
 
 def add_name_variants(item_name, variants_dict):
     """
