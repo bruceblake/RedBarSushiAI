@@ -407,28 +407,8 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
             logger.info(f"[MENU-LOOKUP] Found direct match: '{item_name_lower}' = '{item_name_in_menu}'")
             return item
     
-    # No exact matches found, try keyword matches by checking if the name contains a food keyword
-    food_keywords = {
-        "burger": ["hamburger", "cheeseburger", "beef burger"],
-        "steak": ["beef", "sirloin", "filet", "ribeye"],
-        "chicken": ["grilled chicken", "fried chicken"],
-        "pizza": ["pie", "flatbread"],
-        "salad": ["greens", "garden", "caesar"],
-        "sandwich": ["sub", "hoagie", "wrap"],
-        "pasta": ["spaghetti", "noodles", "linguine"],
-        "sushi": ["roll", "maki", "nigiri"],
-    }
-    
-    # Check for keyword matches
-    for keyword, alternatives in food_keywords.items():
-        if keyword in item_name_lower:
-            logger.info(f"[MENU-LOOKUP] Found keyword '{keyword}' in query")
-            # Look for items that contain this keyword
-            for item in menu_data.get("items", []):
-                item_name_in_menu = item.get("name", "").lower()
-                if keyword in item_name_in_menu:
-                    logger.info(f"[MENU-LOOKUP] Found keyword match: '{keyword}' in '{item_name_in_menu}'")
-                    return item
+    # No exact matches - don't use static food categories
+    # Instead, try direct partial matching for what was provided
     
     # Try partial variant match if both above fail
     partial_matches = []
@@ -852,16 +832,18 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     if real_products_found:
                         # Process the list as direct products
                         logger.info("[DELIVERECT-MENU] Processing list as direct products")
-                        # Create a synthetic structure with one category
-                        structured_menu = {
-                            "categories": [
-                                {
-                                    "id": f"synthetic-category-{int(time.time())}",
-                                    "name": "Menu Items",
-                                    "products": [item for item in deliverect_menu if isinstance(item, dict)]
-                                }
-                            ]
-                        }
+                        # Create a category with only verified real products
+                        valid_products = [item for item in deliverect_menu if isinstance(item, dict) and "name" in item]
+                        if valid_products:
+                            structured_menu = {
+                                "categories": [
+                                    {
+                                        "id": f"category-{int(time.time())}",
+                                        "name": "", # Empty name - will not be shown in output data
+                                        "products": valid_products
+                                    }
+                                ]
+                            }
                         return process_deliverect_menu(structured_menu, location_id)
                     
                     # Process each item in the list to ensure it has a name
@@ -996,17 +978,17 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     for key in ["products", "menu", "items", "menuItems"]:
                         if key in item and isinstance(item[key], list) and len(item[key]) > 0:
                             logger.info(f"[DELIVERECT-MENU] Found products list in key: {key}")
-                            # Create a synthetic menu with properly structured categories
+                            # Create a menu with properly structured categories
                             products = item[key]
                             
-                            # Try to determine an appropriate category name
-                            category_name = "Menu Items"
+                            # Try to determine a category name using ONLY direct data
+                            category_name = ""  # Empty fallback - will be skipped
                             if item.get("name"):
                                 category_name = item.get("name")
                             elif item.get("category"):
                                 category_name = item.get("category")
                             elif item.get("type"):
-                                category_name = item.get("type") 
+                                category_name = item.get("type")
                                 
                             # Now check and clean up the products list
                             clean_products = []
@@ -1029,16 +1011,18 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                                 # Add to clean products
                                 clean_products.append(product)
                                 
-                            # Create a structured menu
-                            structured_menu = {
-                                "categories": [
-                                    {
-                                        "id": f"category-{int(time.time())}",
-                                        "name": category_name,
-                                        "products": clean_products
-                                    }
-                                ]
-                            }
+                            # Only create structured menu if we have valid products with real names
+                            valid_products = [p for p in clean_products if isinstance(p, dict) and p.get("name")]
+                            if valid_products:
+                                structured_menu = {
+                                    "categories": [
+                                        {
+                                            "id": f"category-{int(time.time())}",
+                                            "name": category_name,
+                                            "products": valid_products  # Only use products with real names
+                                        }
+                                    ]
+                                }
                             
                             logger.info(f"[DELIVERECT-MENU] Created menu with {len(clean_products)} products in '{category_name}' category")
                             return process_deliverect_menu(structured_menu, location_id)
@@ -1348,17 +1332,24 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 elif all_products:
                     logger.info(f"[DELIVERECT-MENU] Deep inspection found {len(all_products)} products")
                     
-                    # Create a synthetic category for all found products
-                    structured_menu = {
-                        "categories": [
-                            {
-                                "id": f"synthetic-category-{int(time.time())}",
-                                "name": "Menu Items",
-                                "products": all_products
-                            }
-                        ]
-                    }
-                    return process_deliverect_menu(structured_menu, location_id)
+                    # Filter for only products with real names
+                    valid_products = [p for p in all_products if isinstance(p, dict) and p.get("name")]
+                    if valid_products:
+                        logger.info(f"[DELIVERECT-MENU] {len(valid_products)} valid products with real names")
+                        # Create a category with only products that have real names
+                        structured_menu = {
+                            "categories": [
+                                {
+                                    "id": f"category-{int(time.time())}",
+                                    "name": "",  # No default name
+                                    "products": valid_products  # Only include products with real names
+                                }
+                            ]
+                        }
+                        return process_deliverect_menu(structured_menu, location_id)
+                    else:
+                        logger.warning("[DELIVERECT-MENU] No valid products with real names found")
+                        # Return empty result since we have no real products
                 
                 # Third attempt: Look for products with minimal structure requirements
                 all_potential_items = []
@@ -1382,14 +1373,34 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                         "name_variants": {}
                     }
                     
-                    # Process each potential item to ensure it has required fields
-                    for i, item in enumerate(all_potential_items):
+                    # Only process items that have an actual name - don't create any synthetic names
+                    valid_items = [item for item in all_potential_items if isinstance(item, dict) and 
+                                 (item.get("name") or item.get("title") or item.get("product_name") or item.get("productName"))]
+                                 
+                    # Process each valid item with real data
+                    for i, item in enumerate(valid_items):
+                        # Determine the actual name from various possible fields, but ONLY use real data
+                        item_name = ""
+                        if item.get("name"):
+                            item_name = item.get("name")
+                        elif item.get("title"):
+                            item_name = item.get("title")
+                        elif item.get("product_name"):
+                            item_name = item.get("product_name")
+                        elif item.get("productName"):
+                            item_name = item.get("productName")
+                            
+                        # Skip items without a real name
+                        if not item_name:
+                            continue
+                            
+                        # Create menu item with real data
                         menu_item = {
-                            "id": item.get("id", f"item-{i}"),
-                            "name": item.get("name", item.get("title", item.get("product_name", item.get("productName", f"Item {i+1}")))),
-                            "price": 0.0,
-                            "available": True,
-                            "snoozed": False,
+                            "id": item.get("id", ""),  # Use empty string as fallback, not synthetic ID
+                            "name": item_name,  # Only using real data
+                            "price": 0.0,  # Will be updated below if available
+                            "available": item.get("available", True),
+                            "snoozed": item.get("snoozed", False),
                             "description": item.get("description", "")
                         }
                         
@@ -1460,13 +1471,17 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
     root_products = deliverect_menu.get("products", [])
     if isinstance(root_products, list) and len(root_products) > 0:
         logger.info(f"[DELIVERECT-MENU] Found {len(root_products)} products at the root level")
-        # Create a synthetic category for these products
-        root_category = {
-            "id": "root_products",
-            "name": "Menu Items",
-            "products": root_products
-        }
-        categories.append(root_category)
+        # Only include products with actual names
+        valid_products = [p for p in root_products if isinstance(p, dict) and p.get("name")]
+        if valid_products:
+            logger.info(f"[DELIVERECT-MENU] Found {len(valid_products)} valid products with names at root level")
+            # Create a category for these products
+            root_category = {
+                "id": "root_products",
+                "name": "",  # No default name
+                "products": valid_products  # Only include products with real names
+            }
+            categories.append(root_category)
     
     logger.info(f"[DELIVERECT-MENU] Processing {len(categories)} categories")
     
@@ -1501,14 +1516,9 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                         logger.warning("[DELIVERECT-MENU] Products JSON string did not parse to a list")
                         products = []
                 else:
-                    # Create a synthetic product from the string
-                    logger.info(f"[DELIVERECT-MENU] Creating synthetic product from string in category {cat_name}")
-                    products = [{
-                        "id": f"syn-{int(time.time())}",
-                        "name": f"{cat_name} Item", # Synthetic product name
-                        "description": f"Generated from text: {products[:100]}...",
-                        "price": 0.0
-                    }]
+                    # Do not create synthetic products
+                    logger.warning(f"[DELIVERECT-MENU] Products in category {cat_name} is a string, not using synthetic data")
+                    products = []  # Empty products list instead of creating synthetic data
             except Exception as e:
                 logger.error(f"[DELIVERECT-MENU] Error handling string products: {e}")
                 products = []
@@ -1548,25 +1558,23 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         
         # Process each product in this category
         for i, product in enumerate(products):
-            # Create a new product record
+            # ONLY process if we have an actual product dictionary with a real name
+            # Skip anything that doesn't have direct Deliverect data
+            if not isinstance(product, dict) or not product.get("name"):
+                continue  # Skip this item entirely rather than creating synthetic data
+                
+            # Create a new product record ONLY with data directly from Deliverect
             menu_item = {
-                "id": f"auto-{len(result['items'])}",
-                "name": "",  # Will be set from product below
-                "price": 0.0,
-                "reference_handler": "",  # Will be set from PLU below - don't use generic references
-                "description": "",
+                "id": product.get("id", ""),  # Only use real product ID
+                "name": product.get("name", ""),  # Only use real product name
+                "price": 0.0,  # Will be set from product data below
+                "reference_handler": "",  # Will be set from PLU below
+                "description": product.get("description", ""),
                 "category": cat_name,
                 "categoryId": cat_id,
-                "available": True,
-                "snoozed": False
+                "available": product.get("available", True),
+                "snoozed": product.get("snoozed", False)
             }
-            
-            # Always use product name when available to avoid synthetic category-based names
-            if isinstance(product, dict) and product.get("name"):
-                menu_item["name"] = product["name"]
-            else:
-                # Only use synthetic name as fallback
-                menu_item["name"] = f"{cat_name} Item"  # Use category name as fallback
             
             # Handle different product types
             if isinstance(product, dict):
@@ -1887,34 +1895,14 @@ def add_name_variants(item_name, variants_dict):
     
     # For multi-word items, add key words as variants
     for word in words:
-        # Only add meaningful words (4+ chars, not common stopwords)
-        if len(word) >= 4 and word not in ["with", "and", "the", "for", "or", "from"]:
+        # Only filter out the most common English articles, conjunctions, and prepositions
+        # Don't filter by length - preserve all product words regardless of length
+        if word not in ["a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "with", "from"]:
             variants_dict[word] = item_name
             logger.info(f"[NAME-VARIANTS] Added keyword variant: '{word}'")
     
-    # Common food categories and variants
-    food_keywords = {
-        "burger": ["hamburger", "cheeseburger", "beef burger", "veggie burger"],
-        "steak": ["beef", "sirloin", "filet", "ribeye", "t-bone"],
-        "chicken": ["grilled chicken", "fried chicken", "wings", "poultry"],
-        "pizza": ["pie", "flat bread", "flatbread"],
-        "salad": ["greens", "garden salad", "caesar"],
-        "sandwich": ["sub", "hoagie", "wrap", "panini"],
-        "pasta": ["spaghetti", "fettuccine", "penne", "linguine", "noodles"],
-        "sushi": ["roll", "maki", "nigiri", "sashimi"],
-    }
-    
-    # Add food-specific variants
-    for keyword, alternatives in food_keywords.items():
-        if keyword in item_name_lower:
-            # Add the base keyword
-            variants_dict[keyword] = item_name
-            logger.info(f"[NAME-VARIANTS] Added food keyword: '{keyword}'")
-            
-            # Add alternatives that might be used
-            for alt in alternatives:
-                variants_dict[alt] = item_name
-                logger.info(f"[NAME-VARIANTS] Added food keyword alternative: '{alt}'")
+    # No hard-coded food categories or static keyword alternatives
+    # Only use the actual item name and its direct variants
     
     return variants_dict
     

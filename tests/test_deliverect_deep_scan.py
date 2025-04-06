@@ -64,12 +64,11 @@ def test_list_format_with_string_products():
     # Process the test data
     result = process_deliverect_menu(test_data)
     
-    # Verify the result - should create a synthetic product
+    # Verify the result - should NOT create a synthetic product
     assert isinstance(result, dict)
     assert "items" in result
-    assert len(result["items"]) > 0
-    assert "Sushi" in result["items"][0]["name"]
-    assert "Generated from text" in result["items"][0]["description"]
+    # No items should be created with empty/invalid data
+    assert len(result["items"]) == 0
 
 def test_nested_menu_structure():
     """Test processing deeply nested menu structure."""
