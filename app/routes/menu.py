@@ -618,32 +618,64 @@ def simple_menu_update():
             # Attempt to save the menu directly to a known working location
             if items_count > 0:
                 try:
-                    # Try direct write to tmp location first, bypass the normal write function
+                    # DIRECT WRITE APPROACH - Skip the problematic write_menu_file function
                     import json
                     import time
                     
-                    # Write to Docker path first if in Docker
+                    # Make a backup first
+                    backup_folder = '/tmp/redbar_backups'
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    try:
+                        os.makedirs(backup_folder, exist_ok=True)
+                        backup_path = os.path.join(backup_folder, f"menu_backup_{timestamp}.json")
+                        with open(backup_path, 'w') as f:
+                            json.dump(processed_data, f, indent=2)
+                        logger.info(f"[SIMPLE-MENU] Menu backup created at {backup_path}")
+                    except Exception as backup_e:
+                        logger.warning(f"[SIMPLE-MENU] Failed to create backup: {backup_e}")
+                    
+                    # Track success and paths written
+                    success = False
+                    paths_written = []
+                    
+                    # 1. Try Docker path first if in Docker environment
                     if os.path.exists('/app'):
                         try:
-                            with open('/app/menu_data.json', 'w') as f:
+                            docker_path = '/app/menu_data.json'
+                            with open(docker_path, 'w') as f:
                                 json.dump(processed_data, f, indent=2)
-                            logger.info(f"[SIMPLE-MENU] Successfully wrote menu to /app/menu_data.json")
+                            logger.info(f"[SIMPLE-MENU] Successfully wrote menu to {docker_path}")
+                            paths_written.append(docker_path)
+                            success = True
                         except Exception as docker_e:
-                            logger.error(f"[SIMPLE-MENU] Failed to write to Docker path: {docker_e}")
+                            logger.error(f"[SIMPLE-MENU] Failed writing to Docker path: {docker_e}")
                     
-                    # Also write to tmp as fallback
-                    fallback_path = f"/tmp/menu_data.json"
-                    with open(fallback_path, 'w') as f:
-                        json.dump(processed_data, f, indent=2)
-                    logger.info(f"[SIMPLE-MENU] Successfully wrote menu to {fallback_path}")
-                    
-                    # Try normal write function last
+                    # 2. Try app directory path 
                     try:
-                        result = write_menu_file(processed_data)
-                        if result:
-                            logger.info(f"[SIMPLE-MENU] Standard write_menu_file successful")
-                    except Exception as write_e:
-                        logger.warning(f"[SIMPLE-MENU] Standard write_menu_file failed: {write_e}")
+                        app_path = os.path.join(os.getcwd(), 'menu_data.json')
+                        with open(app_path, 'w') as f:
+                            json.dump(processed_data, f, indent=2)
+                        logger.info(f"[SIMPLE-MENU] Successfully wrote menu to {app_path}")
+                        paths_written.append(app_path)
+                        success = True
+                    except Exception as app_e:
+                        logger.error(f"[SIMPLE-MENU] Failed writing to app path: {app_e}")
+                    
+                    # 3. Always try tmp path as a reliable fallback
+                    try:
+                        tmp_path = '/tmp/menu_data.json'
+                        with open(tmp_path, 'w') as f:
+                            json.dump(processed_data, f, indent=2)
+                        logger.info(f"[SIMPLE-MENU] Successfully wrote menu to {tmp_path}")
+                        paths_written.append(tmp_path)
+                        success = True
+                    except Exception as tmp_e:
+                        logger.error(f"[SIMPLE-MENU] Failed writing to tmp path: {tmp_e}")
+                    
+                    if success:
+                        logger.info(f"[SIMPLE-MENU] Successfully saved menu to {len(paths_written)} locations: {', '.join(paths_written)}")
+                    else:
+                        logger.error("[SIMPLE-MENU] All menu write methods failed")
                         
                 except Exception as fallback_e:
                     logger.error(f"[SIMPLE-MENU] All write attempts failed: {fallback_e}")
