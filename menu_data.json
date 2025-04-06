@@ -136,10 +136,7 @@
       "snoozed": false,
       "category": "Steak and Burgers",
       "available": true,
-      "modifierGroups": [
-        "66e88f320a7c2604a63bf4de",
-        "66e88f320a7c2604a63bf49e"
-      ]
+      "modifierGroups": ["66e88f320a7c2604a63bf4de", "66e88f320a7c2604a63bf49e"]
     },
     {
       "id": "66e88f320a7c2604a63bf4f0",
@@ -173,9 +170,7 @@
       "snoozed": false,
       "category": "Sides",
       "available": true,
-      "modifierGroups": [
-        "66e88f320a7c2604a63bf4e8"
-      ]
+      "modifierGroups": ["66e88f320a7c2604a63bf4e8"]
     },
     {
       "id": "66e88f320a7c2604a63bf4e6",
@@ -187,9 +182,7 @@
       "snoozed": false,
       "category": "Sides",
       "available": true,
-      "modifierGroups": [
-        "66e88f320a7c2604a63bf4e8"
-      ]
+      "modifierGroups": ["66e88f320a7c2604a63bf4e8"]
     },
     {
       "id": "66e88f320a7c2604a63bf4ae",
@@ -201,9 +194,7 @@
       "snoozed": false,
       "category": "Sides",
       "available": true,
-      "modifierGroups": [
-        "66e88f320a7c2604a63bf4e8"
-      ]
+      "modifierGroups": ["66e88f320a7c2604a63bf4e8"]
     },
     {
       "id": "66e88f320a7c2604a63bf4b0",
@@ -215,9 +206,7 @@
       "snoozed": false,
       "category": "Sides",
       "available": true,
-      "modifierGroups": [
-        "66e88f320a7c2604a63bf4e8"
-      ]
+      "modifierGroups": ["66e88f320a7c2604a63bf4e8"]
     },
     {
       "id": "66e88f320a7c2604a63bf4aa",
@@ -229,10 +218,7 @@
       "snoozed": false,
       "category": "Chicken",
       "available": true,
-      "modifierGroups": [
-        "66e88f320a7c2604a63bf4e2",
-        "66e88f320a7c2604a63bf4e4"
-      ]
+      "modifierGroups": ["66e88f320a7c2604a63bf4e2", "66e88f320a7c2604a63bf4e4"]
     },
     {
       "id": "67e2089ea7301759a244bcee",
@@ -277,9 +263,7 @@
       "snoozed": false,
       "category": "Chicken",
       "available": true,
-      "modifierGroups": [
-        "66e88f320a7c2604a63bf514"
-      ]
+      "modifierGroups": ["66e88f320a7c2604a63bf514"]
     },
     {
       "id": "67e2089ea7301759a244bcfd",
@@ -291,10 +275,7 @@
       "snoozed": false,
       "category": "Pizza",
       "available": true,
-      "modifierGroups": [
-        "67e2089ea7301759a244bcf6",
-        "67e2089ea7301759a244bcfc"
-      ]
+      "modifierGroups": ["67e2089ea7301759a244bcf6", "67e2089ea7301759a244bcfc"]
     },
     {
       "id": "66e88f320a7c2604a63bf51a",
@@ -350,9 +331,7 @@
       "snoozed": false,
       "category": "Poke Bowls",
       "available": true,
-      "modifierGroups": [
-        "67e2089ea7301759a244bd02"
-      ]
+      "modifierGroups": ["67e2089ea7301759a244bd02"]
     },
     {
       "id": "67e2089ea7301759a244bd05",
@@ -375,9 +354,7 @@
       "snoozed": false,
       "category": "Poke Bowls",
       "available": true,
-      "modifierGroups": [
-        "67e2089ea7301759a244bd06"
-      ]
+      "modifierGroups": ["67e2089ea7301759a244bd06"]
     },
     {
       "id": "67e2089ea7301759a244bd09",
@@ -868,10 +845,7 @@
       "minAllowed": 0,
       "maxAllowed": 0,
       "multiMax": 99,
-      "modifiers": [
-        "66e88f320a7c2604a63bf4b2",
-        "66e88f320a7c2604a63bf4b4"
-      ]
+      "modifiers": ["66e88f320a7c2604a63bf4b2", "66e88f320a7c2604a63bf4b4"]
     },
     {
       "id": "66e88f320a7c2604a63bf4e2",
@@ -879,10 +853,7 @@
       "minAllowed": 0,
       "maxAllowed": 0,
       "multiMax": 99,
-      "modifiers": [
-        "66e88f320a7c2604a63bf4ac",
-        "66e88f320a7c2604a63bf4e6"
-      ]
+      "modifiers": ["66e88f320a7c2604a63bf4ac", "66e88f320a7c2604a63bf4e6"]
     },
     {
       "id": "66e88f320a7c2604a63bf4e4",
@@ -890,10 +861,7 @@
       "minAllowed": 0,
       "maxAllowed": 0,
       "multiMax": 99,
-      "modifiers": [
-        "66e88f320a7c2604a63bf4ae",
-        "66e88f320a7c2604a63bf4b0"
-      ]
+      "modifiers": ["66e88f320a7c2604a63bf4ae", "66e88f320a7c2604a63bf4b0"]
     },
     {
       "id": "66e88f320a7c2604a63bf514",
@@ -965,10 +933,7 @@
       "minAllowed": 1,
       "maxAllowed": 1,
       "multiMax": 1,
-      "modifiers": [
-        "67e2089ea7301759a244bd03",
-        "67e2089ea7301759a244bd07"
-      ]
+      "modifiers": ["67e2089ea7301759a244bd03", "67e2089ea7301759a244bd07"]
     },
     {
       "id": "67e2089ea7301759a244bd0b",
@@ -976,10 +941,7 @@
       "minAllowed": 1,
       "maxAllowed": 1,
       "multiMax": 1,
-      "modifiers": [
-        "67e2089ea7301759a244bd09",
-        "67e2089ea7301759a244bd0a"
-      ]
+      "modifiers": ["67e2089ea7301759a244bd09", "67e2089ea7301759a244bd0a"]
     },
     {
       "id": "67e2089ea7301759a244bd0f",

@@ -232,8 +232,9 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
         _last_refresh_time = current_time
         
         logger.info(f"Successfully loaded menu data from {file_path}")
-        logger.info(f"menu data: {menu_data}")
-        return menu_data
+        for item in menu_data.get("items", []):
+            logger.info(f"item: {item.get("name", " ")}")
+        return menu_data 
     except FileNotFoundError:
         # Log the error and generate a simple default menu for demo purposes
         logger.error(f"Menu file not found at {file_path} - using default menu data")

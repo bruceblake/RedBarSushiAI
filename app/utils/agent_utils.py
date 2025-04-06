@@ -172,7 +172,6 @@ class SushiMenuTool:
         """
         categories = set()
         for item in self.menu_data.get("items", []):
-            logger.info(f"item: {item.get("name", " ")}")
             category = item.get("category")
             if category:
                 categories.add(category)
