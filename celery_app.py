@@ -9,11 +9,13 @@ application = create_app()
 
 def make_celery(app):
     # Get the Redis URL from the environment or use a default value
+    broker_url = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+    result_backend = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 
     celery = Celery(
-        "tasks" ,
-        broker="amqps://mvfujzvj:qJH0m03hRpaG31WqfMoU4enFbI_z28z_@horse.lmq.cloudamqp.com/mvfujzvj",
-
+        "tasks",
+        broker=broker_url,
+        backend=result_backend
     )
 
     # Update Celery configuration with Flask's config

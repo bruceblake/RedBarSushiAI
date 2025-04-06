@@ -20,6 +20,7 @@ from app.utils.order_utils import (
 )
 from app.utils.menu_utils import load_menu_data, is_item_snoozed_timebased
 from app.utils.helpers import log_info, commit_with_retry
+from twilio.twiml.messaging_response import MessagingResponse
 from app.utils.agent_utils import analyze_user_input, get_order_modifications
 from app import db
 from app.models import Order
@@ -301,7 +302,7 @@ def confirm_order_from_initial():
         # Calculate prep time and respond
         time_taken = DEFAULT_PREP_TIME_BASE + (PREP_TIME_PER_ITEM * len(order_items))
         response.say(
-            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text will be sent. Thank you!")
+            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status. Thank you!")
         response.hangup()
 
     # Handle "no" - go to modification
@@ -612,7 +613,7 @@ def confirm_order_after_modification():
         
         # Confirm order
         response.say(
-            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text is on the way. Thank you for choosing Red Bar Sushi! Goodbye.")
+            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status. Thank you for choosing Red Bar Sushi! Goodbye.")
         response.hangup()
     
     # Handle "no" - go back to modification
@@ -743,8 +744,20 @@ def order_status():
         if not commit_with_retry(db.session):
             return jsonify({"error": "Database error"}), 500
         
-        # Send status update to customer
-        status_message = f"Your order ({order_id}) status is now: {status}"
+        # Create a more user-friendly status message
+        friendly_status = {
+            "NEW": "received and is being processed",
+            "ACCEPTED": "accepted and being prepared",
+            "PREPARING": "now being prepared in the kitchen",
+            "READY": "ready for pickup",
+            "COMPLETED": "completed. Thank you for your order!",
+            "FAILED": "could not be processed. Please call us",
+            "REJECTED": "could not be processed. Please call us",
+            "CANCELLED": "cancelled"
+        }.get(status, f"updated to: {status}")
+        
+        # Send status update to customer with user-friendly message
+        status_message = f"Your order ({order_id}) is {friendly_status}"
         from tasks import send_order_status_update_task
         send_order_status_update_task.delay(order_id, status_message)
         
@@ -753,6 +766,56 @@ def order_status():
         log_info(f"Error processing order status update: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
+
+@order_bp.route('/sms', methods=['POST'])
+def handle_sms():
+    """Handle incoming SMS messages for order status inquiries"""
+    # Get the message sent
+    message_body = request.values.get('Body', '').strip().lower()
+    from_number = request.values.get('From', '')
+    
+    # Create a response
+    resp = MessagingResponse()
+    
+    # Handle status requests
+    if 'status' in message_body:
+        try:
+            # Find the most recent order for this number
+            recent_order = db.session.query(Order).filter_by(
+                sender=from_number
+            ).order_by(Order.timestamp.desc()).first()
+            
+            if recent_order:
+                # Get status and create friendly message
+                order_status = recent_order.status or "NEW"
+                
+                friendly_status = {
+                    "NEW": "received and is being processed",
+                    "ACCEPTED": "accepted and being prepared",
+                    "PREPARING": "now being prepared in the kitchen",
+                    "READY": "ready for pickup",
+                    "COMPLETED": "completed. Thank you for your order!",
+                    "FAILED": "could not be processed. Please call us",
+                    "REJECTED": "could not be processed. Please call us",
+                    "CANCELLED": "cancelled"
+                }.get(order_status, order_status)
+                
+                # Create a brief but informative message
+                order_id = recent_order.id
+                status_message = f"Your order ({order_id[:8]}...) is {friendly_status}"
+                resp.message(status_message)
+            else:
+                resp.message("We couldn't find any recent orders for your number. Please call us for assistance.")
+        except Exception as e:
+            log_info(f"Error processing SMS status request: {str(e)}")
+            resp.message("Sorry, we encountered an error processing your request. Please call us for assistance.")
+    # Handle help or other inquiries    
+    elif 'help' in message_body:
+        resp.message("Text 'status' to check your order status. For other assistance, please call us.")
+    else:
+        resp.message("Thanks for your message! Text 'status' to check your order status or 'help' for assistance.")
+    
+    return Response(str(resp), mimetype='text/xml')
 
 @order_bp.route('/register', methods=['POST'])
 def register_channel_route():
