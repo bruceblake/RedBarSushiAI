@@ -689,7 +689,16 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                         
                     # Add name variants
                     for item in result["items"]:
-                        add_name_variants(item["name"], result["name_variants"])
+                        if item.get("name"):
+                            # Make sure name is a string
+                            if not isinstance(item["name"], str):
+                                item["name"] = str(item["name"])
+                            try:
+                                add_name_variants(item["name"], result["name_variants"])
+                            except Exception as e:
+                                logger.warning(f"[DELIVERECT-MENU] Error adding variants for {item['name']}: {e}")
+                                # At minimum, add the base name
+                                result["name_variants"][item["name"].lower()] = item["name"]
                         
                     logger.info(f"[DELIVERECT-MENU] Processed {len(result['items'])} items from list format")
                     return result
@@ -1096,8 +1105,15 @@ def add_name_variants(item_name, variants_dict):
         item_name: The item name to generate variants for
         variants_dict: Dictionary to update with variants
     """
+    # Validate input arguments
     if not item_name:
         return
+        
+    if not isinstance(item_name, str):
+        item_name = str(item_name)
+        
+    if not isinstance(variants_dict, dict):
+        raise ValueError("variants_dict must be a dictionary")
         
     # Convert to lowercase for consistent matching
     item_name_lower = item_name.lower()
@@ -1143,13 +1159,50 @@ def convert_availability(availability_data):
         list: Formatted availability blocks
     """
     result = []
-    for day_data in availability_data:
-        day = day_data.get("dayOfWeek")
-        time_slots = day_data.get("timeSlots", [])
+    
+    # Handle different format types
+    if not availability_data:
+        return result
         
-        for slot in time_slots:
-            start_time = slot.get("startTime", "00:00")
-            end_time = slot.get("endTime", "23:59")
+    # Sometimes availability_data is a string (e.g. "[]")
+    if isinstance(availability_data, str):
+        try:
+            import json
+            availability_data = json.loads(availability_data)
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Error parsing availability string: {e}")
+            return result
+    
+    # If it's not a list by now, return empty
+    if not isinstance(availability_data, list):
+        return result
+    
+    # Process each day
+    for day_data in availability_data:
+        # Skip if not a dictionary
+        if not isinstance(day_data, dict):
+            continue
+            
+        day = day_data.get("dayOfWeek")
+        # Some formats have timeSlots, others have direct startTime/endTime
+        if "timeSlots" in day_data:
+            time_slots = day_data.get("timeSlots", [])
+            
+            for slot in time_slots:
+                if not isinstance(slot, dict):
+                    continue
+                start_time = slot.get("startTime", "00:00")
+                end_time = slot.get("endTime", "23:59")
+                
+                result.append({
+                    "dayOfWeek": day,
+                    "startTime": start_time,
+                    "endTime": end_time
+                })
+        else:
+            # Direct start/end time
+            start_time = day_data.get("startTime", "00:00")
+            end_time = day_data.get("endTime", "23:59")
             
             result.append({
                 "dayOfWeek": day,
@@ -1157,6 +1210,8 @@ def convert_availability(availability_data):
                 "endTime": end_time
             })
     
+    # Log the result
+    logging.getLogger(__name__).info(f"Converted availability data: {len(result)} time blocks")
     return result
 
 def process_product_changes(product_id, data, location_id=None):
