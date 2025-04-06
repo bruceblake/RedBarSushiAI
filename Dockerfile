@@ -62,7 +62,8 @@ RUN mkdir -p /app/logs /app/data /app/backups
 COPY . .
 
 # Ensure entrypoint is executable
-RUN chmod +x /app/docker_entrypoint.sh
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Add wait-for-it script for database dependency management
 ADD https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh /usr/local/bin/wait-for-it.sh
@@ -79,7 +80,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8080
 
 # Use our updated entrypoint script
-ENTRYPOINT ["/app/docker_entrypoint.sh"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
 
 # Default command
 CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120", "--worker-class", "gevent"]

@@ -178,66 +178,29 @@ def menu_update():
             # Detailed logging before attempting to write
             logger.info(f"[MENU-UPDATE] About to write menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups")
             
-            # DIRECT WRITE APPROACH - Skip the problematic write_menu_file function entirely
-            success = False
-            paths_written = []
-            
-            # 1. Try Docker path first if in Docker environment
-            if os.path.exists('/app'):
-                try:
-                    docker_path = '/app/menu_data.json'
-                    with open(docker_path, 'w') as f:
-                        json.dump(processed_data, f, indent=2)
-                    logger.info(f"[MENU-UPDATE] Successfully wrote menu to {docker_path}")
-                    paths_written.append(docker_path)
-                    success = True
-                except Exception as docker_e:
-                    logger.error(f"[MENU-UPDATE] Failed writing to Docker path: {docker_e}")
-            
-            # 2. Always try app directory path 
-            try:
-                app_path = os.path.join(os.getcwd(), 'menu_data.json')
-                with open(app_path, 'w') as f:
-                    json.dump(processed_data, f, indent=2)
-                logger.info(f"[MENU-UPDATE] Successfully wrote menu to {app_path}")
-                paths_written.append(app_path)
+            # Use the standard write_menu_file function to write the menu data
+            if write_menu_file(processed_data):
+                logger.info("[MENU-UPDATE] Successfully wrote menu using write_menu_file")
                 success = True
-            except Exception as app_e:
-                logger.error(f"[MENU-UPDATE] Failed writing to app path: {app_e}")
-            
-            # 3. Always try tmp path as a reliable fallback
-            try:
-                tmp_path = '/tmp/menu_data.json'
-                with open(tmp_path, 'w') as f:
-                    json.dump(processed_data, f, indent=2)
-                logger.info(f"[MENU-UPDATE] Successfully wrote menu to {tmp_path}")
-                paths_written.append(tmp_path)
-                success = True
-            except Exception as tmp_e:
-                logger.error(f"[MENU-UPDATE] Failed writing to tmp path: {tmp_e}")
-                
-            # Check if any write method succeeded
-            if not success:
-                logger.error("[MENU-UPDATE] All menu write methods failed")
+            else:
+                logger.error("[MENU-UPDATE] Failed to write menu using write_menu_file")
                 
                 # If we have a callback URL, send a FAILED status
                 if callback_url:
                     try:
                         callback_response = requests.post(
                             callback_url,
-                            json={"status": "FAILED", "comment": "Failed to save menu data after multiple attempts"}
+                            json={"status": "FAILED", "comment": "Failed to save menu data"}
                         )
                         logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
                     except Exception as callback_e:
                         logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
                 
-                # Only return error if all methods failed
+                # Return error if write_menu_file failed
                 return jsonify({
                     "error": "Failed to save menu data", 
-                    "details": "The menu was processed successfully but could not be saved despite multiple attempts."
+                    "details": "The menu was processed successfully but could not be saved."
                 }), 500
-            else:
-                logger.info(f"[MENU-UPDATE] Successfully saved menu to {len(paths_written)} locations: {', '.join(paths_written)}")
                 
             # Verify the menu was saved correctly
             reloaded_menu = load_menu_data(force_refresh=True)
@@ -540,236 +503,8 @@ def delete_menu():
         }), 500
 
 
-@menu_bp.route('/simple_menu_update', methods=['POST'])
-def simple_menu_update():
-    """
-    Simplified endpoint for Deliverect menu updates that directly writes to a known
-    working location and always returns success even if it fails.
-    This is a fallback solution when the standard endpoint is having issues.
-    """
-    logger.info(f"[SIMPLE-MENU] Processing menu update request from {request.remote_addr}")
-    
-    try:
-        # Parse the menu JSON but don't save to disk
-        raw_data = request.get_data()
-        raw_data_length = len(raw_data) if raw_data else 0
-        logger.info(f"[SIMPLE-MENU] Raw data length: {raw_data_length} bytes")
-        
-        # Try to parse the JSON
-        data = request.get_json(silent=True)
-        if not data:
-            return jsonify({"success": True, "message": "No valid JSON data, but request received"}), 200
-        
-        # Log some basic stats about the menu
-        menu_type = "Unknown"
-        item_count = 0
-        
-        if isinstance(data, dict):
-            if "categories" in data:
-                menu_type = "Deliverect categories format"
-                item_count = sum(len(cat.get("products", [])) for cat in data.get("categories", []))
-            elif "items" in data:
-                menu_type = "RedBar internal format"
-                item_count = len(data.get("items", []))
-            elif "products" in data:
-                menu_type = "Deliverect products format"
-                item_count = len(data.get("products", []))
-            elif "body" in data and "menus" in data.get("body", {}):
-                menu_type = "Deliverect async format"
-                item_count = sum(len(menu.get("categories", [])) for menu in data.get("body", {}).get("menus", []))
-        elif isinstance(data, list):
-            menu_type = "List format"
-            item_count = len(data)
-        
-        logger.info(f"[SIMPLE-MENU] Received a {menu_type} with {item_count} potential items")
-        
-        # Try to process and save the menu, but always return success even if it fails
-        try:
-            # Process the data through our formatter
-            processed_data = process_deliverect_menu(data)
-            processed_data = validate_and_fix_menu_data(processed_data)
-            
-            # CRITICAL: Verify that PLUs were preserved during processing
-            # This ensures proper integration with Deliverect
-            plu_count = 0
-            missing_plu_count = 0
-            for item in processed_data.get("items", []):
-                if item.get("plu") or (item.get("reference_handler") and not item.get("reference_handler").startswith("PROD-")):
-                    plu_count += 1
-                else:
-                    missing_plu_count += 1
-                    logger.error(f"[SIMPLE-MENU] Item missing PLU: {item.get('name')} - This will cause Deliverect order failures!")
-            
-            if missing_plu_count > 0:
-                logger.warning(f"[SIMPLE-MENU] WARNING: {missing_plu_count} items missing PLUs! These items will not work with Deliverect orders.")
-            else:
-                logger.info(f"[SIMPLE-MENU] All {plu_count} items have valid PLUs for Deliverect integration.")
-            
-            # Log the processed menu stats
-            items_count = len(processed_data.get("items", []))
-            logger.info(f"[SIMPLE-MENU] Processed menu has {items_count} items")
-            
-            # Log a few sample items with their PLUs
-            if items_count > 0:
-                sample_items = processed_data.get("items", [])[:3]
-                for i, item in enumerate(sample_items):
-                    logger.info(f"[SIMPLE-MENU] Sample item {i+1}: {item.get('name', 'No name')} -> PLU: {item.get('plu', 'Missing!')} | Reference: {item.get('reference_handler', 'Missing!')}")
-            
-            # Attempt to save the menu directly to a known working location
-            if items_count > 0:
-                try:
-                    # Try direct write to tmp location first, bypass the normal write function
-                    import json
-                    import time
-                    
-                    # Write to Docker path first if in Docker
-                    if os.path.exists('/app'):
-                        try:
-                            with open('/app/menu_data.json', 'w') as f:
-                                json.dump(processed_data, f, indent=2)
-                            logger.info(f"[SIMPLE-MENU] Successfully wrote menu to /app/menu_data.json")
-                        except Exception as docker_e:
-                            logger.error(f"[SIMPLE-MENU] Failed to write to Docker path: {docker_e}")
-                    
-                    # Also write to tmp as fallback
-                    fallback_path = f"/tmp/menu_data.json"
-                    with open(fallback_path, 'w') as f:
-                        json.dump(processed_data, f, indent=2)
-                    logger.info(f"[SIMPLE-MENU] Successfully wrote menu to {fallback_path}")
-                    
-                    # Try normal write function last
-                    try:
-                        result = write_menu_file(processed_data)
-                        if result:
-                            logger.info(f"[SIMPLE-MENU] Standard write_menu_file successful")
-                    except Exception as write_e:
-                        logger.warning(f"[SIMPLE-MENU] Standard write_menu_file failed: {write_e}")
-                        
-                except Exception as fallback_e:
-                    logger.error(f"[SIMPLE-MENU] All write attempts failed: {fallback_e}")
-        except Exception as process_e:
-            logger.error(f"[SIMPLE-MENU] Error processing menu data: {process_e}")
-        
-        # Always return success to Deliverect
-        return jsonify({
-            "success": True, 
-            "message": "Menu update request processed successfully",
-            "details": f"Received {menu_type} with {item_count} potential items"
-        }), 200
-    
-    except Exception as e:
-        # Log the error but still return 200 OK to keep Deliverect happy
-        logger.error(f"[SIMPLE-MENU] Error processing menu data: {e}")
-        return jsonify({
-            "success": True,
-            "message": "Request received but error encountered during processing",
-            "error": str(e)
-        }), 200
 
 
-@menu_bp.route('/emergency_menu_update', methods=['POST'])
-def emergency_menu_update():
-    """
-    Emergency menu update endpoint that uses only direct file writing.
-    This is a last resort when other endpoints fail.
-    """
-    logger.info(f"[EMERGENCY] Processing menu update request from {request.remote_addr}")
-    
-    try:
-        # Parse the JSON data
-        data = None
-        try:
-            data = request.get_json(force=True, silent=True)
-        except Exception as json_e:
-            logger.error(f"[EMERGENCY] JSON parsing error: {json_e}")
-            try:
-                # Manual JSON parsing
-                raw_data = request.get_data()
-                if raw_data:
-                    data = json.loads(raw_data.decode('utf-8'))
-            except Exception as manual_e:
-                logger.error(f"[EMERGENCY] Manual JSON parsing failed: {manual_e}")
-                return jsonify({"error": "Could not parse JSON data"}), 400
-        
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-        
-        # Process the menu data
-        try:
-            # First pass - process through the Deliverect menu processor
-            processed_data = process_deliverect_menu(data)
-            
-            # Second pass - validate and fix any remaining issues
-            processed_data = validate_and_fix_menu_data(processed_data)
-            
-            # Calculate statistics
-            items_count = len(processed_data.get("items", []))
-            modifiers_count = len(processed_data.get("modifiers", []))
-            groups_count = len(processed_data.get("modifierGroups", []))
-            
-            if items_count == 0:
-                logger.error("[EMERGENCY] No valid menu items extracted from data")
-                return jsonify({"error": "No valid menu items could be extracted"}), 400
-            
-            logger.info(f"[EMERGENCY] Processed menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups")
-            
-            # DIRECT FILE WRITING - No dependencies on any other functions
-            # Try multiple locations in case some are not writable
-            success = False
-            paths_written = []
-            
-            # Docker path
-            if os.path.exists('/app'):
-                try:
-                    with open('/app/menu_data.json', 'w') as f:
-                        f.write(json.dumps(processed_data, indent=2))
-                    logger.info("[EMERGENCY] Wrote menu to /app/menu_data.json")
-                    paths_written.append('/app/menu_data.json')
-                    success = True
-                except Exception as e1:
-                    logger.error(f"[EMERGENCY] Failed to write to /app/menu_data.json: {e1}")
-            
-            # Current directory
-            try:
-                cwd_path = os.path.join(os.getcwd(), 'menu_data.json')
-                with open(cwd_path, 'w') as f:
-                    f.write(json.dumps(processed_data, indent=2))
-                logger.info(f"[EMERGENCY] Wrote menu to {cwd_path}")
-                paths_written.append(cwd_path)
-                success = True
-            except Exception as e2:
-                logger.error(f"[EMERGENCY] Failed to write to {cwd_path}: {e2}")
-            
-            # Tmp path
-            try:
-                tmp_path = '/tmp/menu_data.json'
-                with open(tmp_path, 'w') as f:
-                    f.write(json.dumps(processed_data, indent=2))
-                logger.info(f"[EMERGENCY] Wrote menu to {tmp_path}")
-                paths_written.append(tmp_path)
-                success = True
-            except Exception as e3:
-                logger.error(f"[EMERGENCY] Failed to write to {tmp_path}: {e3}")
-            
-            if success:
-                logger.info(f"[EMERGENCY] Successfully wrote menu to {len(paths_written)} locations")
-                return jsonify({
-                    "success": True,
-                    "message": "Menu saved successfully",
-                    "items": items_count,
-                    "paths": paths_written
-                }), 200
-            else:
-                logger.error("[EMERGENCY] All file writes failed")
-                return jsonify({"error": "Failed to write menu file"}), 500
-                
-        except Exception as proc_e:
-            logger.error(f"[EMERGENCY] Error processing menu data: {proc_e}")
-            return jsonify({"error": f"Menu processing failed: {proc_e}"}), 400
-    
-    except Exception as e:
-        logger.error(f"[EMERGENCY] Critical error: {e}")
-        return jsonify({"error": "Emergency endpoint encountered an error", "details": str(e)}), 500
 
 @menu_bp.route('/write_test', methods=['GET', 'POST'])
 def write_test():
