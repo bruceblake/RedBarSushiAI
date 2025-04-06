@@ -856,13 +856,31 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         # Filter out non-dictionary products (strings, etc.)
         valid_products = []
         invalid_count = 0
+        parsed_count = 0
+        
         for prod in products:
             if isinstance(prod, dict):
                 valid_products.append(prod)
             else:
+                # Try to parse string products as JSON if they look like JSON objects
+                if isinstance(prod, str) and prod.strip().startswith('{') and prod.strip().endswith('}'):
+                    try:
+                        import json
+                        parsed_prod = json.loads(prod)
+                        if isinstance(parsed_prod, dict):
+                            logger.info(f"[DELIVERECT] Successfully parsed string product as JSON in category {cat_id}")
+                            valid_products.append(parsed_prod)
+                            parsed_count += 1
+                            continue
+                    except Exception as e:
+                        logger.warning(f"[DELIVERECT] Failed to parse string product as JSON: {e}")
+                
                 invalid_count += 1
         
         if invalid_count > 0:
+            if parsed_count > 0:
+                logger.info(f"[DELIVERECT] Successfully parsed {parsed_count} string products as JSON in category {cat_id}")
+            
             logger.warning(f"[DELIVERECT] Filtered out {invalid_count} invalid products in category {cat_id}")
             products = valid_products
         
