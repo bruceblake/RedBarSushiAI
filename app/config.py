@@ -13,7 +13,35 @@ APP_SECRET_KEY = os.getenv("APP_SECRET_KEY", "bd0acf5c060feaa576051293a661a49a")
 # ------------------------------
 # Database Configuration
 # ------------------------------
-SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI", 'mysql+pymysql://pegasus:Redbar2024\!\!@pegasus.mysql.pythonanywhere-services.com/pegasus$CALLER_INFORMATION')
+# In Docker, the URI will be set by the entrypoint script
+# For local/PythonAnywhere, use the MySQL connection
+default_uri = 'mysql+pymysql://pegasus:Redbar2024!!@pegasus.mysql.pythonanywhere-services.com/pegasus$CALLER_INFORMATION'
+pythonanyhere_uri = os.getenv("PYTHONANYHERE_DB_URI")
+
+# First try to use a fully formed URI from the environment
+SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI")
+
+# If that's not available, check for component parts to build a PostgreSQL URI
+if not SQLALCHEMY_DATABASE_URI:
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST")
+    db_port = os.getenv("DB_PORT")
+    db_name = os.getenv("DB_NAME")
+    
+    # If all PostgreSQL components are available, build the URI
+    if db_user and db_password and db_host and db_port and db_name:
+        try:
+            # Try to convert port to integer to validate it
+            int(db_port)
+            SQLALCHEMY_DATABASE_URI = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+        except ValueError:
+            # If port is not a valid number, fall back to default
+            SQLALCHEMY_DATABASE_URI = pythonanyhere_uri or default_uri
+    else:
+        # Fall back to default if no complete configuration is found
+        SQLALCHEMY_DATABASE_URI = pythonanyhere_uri or default_uri
+
 SQLALCHEMY_TRACK_MODIFICATIONS = os.getenv("SQLALCHEMY_TRACK_MODIFICATIONS", "False").lower() == "true"
 
 # ------------------------------

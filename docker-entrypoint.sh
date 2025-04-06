@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Expand environment variables in the SQLALCHEMY_DATABASE_URI
+if [ -n "$DB_USER" ] && [ -n "$DB_PASSWORD" ] && [ -n "$DB_HOST" ] && [ -n "$DB_PORT" ] && [ -n "$DB_NAME" ]; then
+    export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+    echo "Database URI set to postgresql connection string (credentials hidden)"
+fi
+
 # Initialize database if needed
 echo "Creating database tables if they don't exist..."
 python -c "
