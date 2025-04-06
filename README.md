@@ -259,7 +259,7 @@ The system offloads long-running operations to background tasks using Celery. Tw
 
 ## 8. Real-time Audio Integration
 
-The system now implements real-time audio processing using WebSockets and OpenAI's streaming APIs:
+The system now implements real-time audio processing using WebSockets and OpenAI's Realtime API:
 
 ### a. WebSocket Endpoints
 
@@ -285,8 +285,33 @@ The system now implements real-time audio processing using WebSockets and OpenAI
   
 - **Conversation Management:**  
   The system maintains conversation history for context-aware responses.
+  
+- **Headless Operation:**  
+  Works in headless environments (like Docker on Render) without requiring X11 display server.
+  
+- **Dual Implementation:**  
+  - **RealtimeAudioProcessor:** Uses OpenAI's WebSocket API via `openai-realtime-client`
+  - **BasicAudioProcessor:** Fallback implementation using standard REST API
 
-### c. Demo Implementation
+### c. Testing WebSockets
+
+You can test the WebSocket implementation using:
+
+1. **Demo Page:**  
+   Visit the `/demo` endpoint to try the interactive WebSocket demo with real-time audio.
+
+2. **Test Script:**  
+   Use the included test script to verify WebSocket functionality:
+
+   ```bash
+   # Test all WebSocket features
+   python test_websocket.py --server http://localhost:8080 --test all
+   
+   # Test just the conversation endpoint
+   python test_websocket.py --test conversation --text "I'd like to order a California Roll"
+   ```
+
+### d. Demo Implementation
 
 A complete demo is available at the `/demo` endpoint, showcasing the real-time conversation capabilities with:
 - Browser-based audio recording

@@ -11,8 +11,16 @@ import base64
 import openai
 from openai import OpenAI
 
-# Mark as headless explicitly - don't try to import problematic packages
-REALTIME_AVAILABLE = False
+# Import OpenAI Realtime client for WebSocket functionality
+try:
+    import openai_realtime_client
+    from openai_realtime_client import WebSocketResponse, Session
+    REALTIME_AVAILABLE = True
+    logging.info("OpenAI Realtime client is available for WebSocket functionality")
+except ImportError:
+    REALTIME_AVAILABLE = False
+    logging.warning("OpenAI Realtime client not available, falling back to standard API")
+
 OPENAI_STREAMING_AVAILABLE = True
 logging.info("Using direct OpenAI API for audio streaming without pynput (headless mode)")
 
@@ -210,8 +218,279 @@ class BasicAudioProcessor:
             yield {"type": "error", "error": error_msg}
 
 
-# Create an alias for BasicAudioProcessor so code that references RealTimeAudioProcessor still works
-RealTimeAudioProcessor = BasicAudioProcessor
+# Realtime implementation using OpenAI's WebSocket API
+class RealtimeAudioProcessor:
+    """
+    An implementation for audio processing using OpenAI's WebSocket API.
+    Uses the openai-realtime-client which works in headless environments.
+    """
+    
+    def __init__(self):
+        """Initialize the realtime audio processor."""
+        self.openai_client = client
+    
+    async def process_audio_stream(self, audio_chunks_generator, content_type: str = "audio/webm"):
+        """
+        Process streaming audio data using OpenAI's realtime API.
+        
+        Args:
+            audio_chunks_generator: An async generator yielding audio chunks
+            content_type: The content type of the audio
+            
+        Yields:
+            Dict containing the transcript segments
+        """
+        try:
+            logger.info(f"Processing audio stream with content type: {content_type}")
+            
+            # Create a new session with the OpenAI realtime client
+            session = Session.create(
+                api_key=OPENAI_API_KEY,
+                session={
+                    "input_audio_format": {
+                        "type": content_type
+                    },
+                    "output_audio_format": {
+                        "type": "audio/mp3"
+                    }
+                }
+            )
+            
+            logger.info(f"Created realtime session: {session.id}")
+            
+            # Start collecting audio chunks
+            async for chunk in audio_chunks_generator:
+                if isinstance(chunk, bytes):
+                    # Convert to base64
+                    base64_audio = base64.b64encode(chunk).decode('utf-8')
+                    
+                    # Append to the audio buffer
+                    session.send_event({
+                        "type": "input_audio_buffer.append",
+                        "audio": base64_audio
+                    })
+            
+            # Signal that we're done sending audio
+            session.send_event({
+                "type": "input_audio_buffer.commit"
+            })
+            
+            # Create a response to get transcription
+            session.send_event({
+                "type": "response.create",
+                "response": {
+                    "modalities": ["text"]
+                }
+            })
+            
+            # Process events from the session
+            transcript = ""
+            for event in session.events():
+                if event.get("type") == "response.audio_transcript.delta":
+                    delta = event.get("delta", "")
+                    transcript += delta
+                    yield {
+                        "type": "transcript",
+                        "text": transcript,
+                        "final": False,
+                        "timestamp": time.time()
+                    }
+                elif event.get("type") == "response.audio_transcript.done":
+                    yield {
+                        "type": "transcript_complete",
+                        "text": transcript,
+                        "final": True,
+                        "timestamp": time.time()
+                    }
+            
+            # Close session
+            session.close()
+                
+        except Exception as e:
+            error_msg = f"Error in realtime audio processing: {str(e)}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            yield {"type": "error", "error": error_msg}
+    
+    async def generate_speech(self, text: str, voice: str = "alloy"):
+        """
+        Generate speech from text using OpenAI's realtime API.
+        
+        Args:
+            text: The text to convert to speech
+            voice: The voice to use
+            
+        Yields:
+            Audio data chunks
+        """
+        try:
+            logger.info(f"Generating speech for text: '{text[:50]}...' using voice: {voice}")
+            
+            # Create a new session
+            session = Session.create(
+                api_key=OPENAI_API_KEY,
+                session={
+                    "output_audio_format": {
+                        "type": "audio/mp3"
+                    }
+                }
+            )
+            
+            # Create a conversation item with the text
+            session.send_event({
+                "type": "conversation.item.create",
+                "item": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": text
+                        }
+                    ]
+                }
+            })
+            
+            # Create a response with TTS
+            session.send_event({
+                "type": "response.create",
+                "response": {
+                    "modalities": ["text", "audio"],
+                    "voice": voice
+                }
+            })
+            
+            # Process events from the session
+            audio_data = bytearray()
+            for event in session.events():
+                if event.get("type") == "response.audio.delta":
+                    audio_chunk = base64.b64decode(event.get("delta", ""))
+                    audio_data.extend(audio_chunk)
+                    yield bytes(audio_chunk)
+                elif event.get("type") == "response.audio.done":
+                    if not audio_data:
+                        # If no chunks were received, yield the complete audio
+                        yield bytes(audio_data)
+            
+            # Close session
+            session.close()
+                
+        except Exception as e:
+            error_msg = f"Error in realtime speech generation: {str(e)}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            yield b''
+            
+    async def process_conversation(self, transcript: str, conversation_history=None):
+        """
+        Process a conversation message using OpenAI's realtime API.
+        
+        Args:
+            transcript: The user's message transcript
+            conversation_history: Previous conversation history
+            
+        Yields:
+            Response tokens as they arrive
+        """
+        try:
+            if conversation_history is None:
+                conversation_history = []
+            
+            # Create a new session
+            session = Session.create(
+                api_key=OPENAI_API_KEY
+            )
+            
+            # Add system message if not present
+            if not any(msg.get("role") == "system" for msg in conversation_history):
+                session.send_event({
+                    "type": "conversation.item.create",
+                    "item": {
+                        "type": "message",
+                        "role": "system",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": "You are an AI assistant for Red Bar Sushi restaurant. "
+                                     "Be helpful, concise, and friendly. Provide restaurant information "
+                                     "and take orders accurately."
+                            }
+                        ]
+                    }
+                })
+            
+            # Add previous conversation history
+            for msg in conversation_history:
+                if msg.get("role") != "system":  # Skip system message as we already added it
+                    session.send_event({
+                        "type": "conversation.item.create",
+                        "item": {
+                            "type": "message",
+                            "role": msg.get("role"),
+                            "content": [
+                                {
+                                    "type": "input_text",
+                                    "text": msg.get("content")
+                                }
+                            ]
+                        }
+                    })
+            
+            # Add the user's message
+            session.send_event({
+                "type": "conversation.item.create",
+                "item": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": transcript
+                        }
+                    ]
+                }
+            })
+            
+            # Create a response
+            session.send_event({
+                "type": "response.create",
+                "response": {
+                    "modalities": ["text"]
+                }
+            })
+            
+            # Process events from the session
+            complete_text = ""
+            for event in session.events():
+                if event.get("type") == "response.text.delta":
+                    delta = event.get("delta", "")
+                    complete_text += delta
+                    yield {
+                        "type": "message",
+                        "text": delta,
+                        "complete": False,
+                        "timestamp": time.time()
+                    }
+                elif event.get("type") == "response.text.done":
+                    yield {
+                        "type": "message_complete",
+                        "text": complete_text,
+                        "complete": True,
+                        "timestamp": time.time()
+                    }
+            
+            # Close session
+            session.close()
+            
+        except Exception as e:
+            error_msg = f"Error in realtime conversation processing: {str(e)}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            yield {"type": "error", "error": error_msg}
+
+
+# Create a class alias for backward compatibility
+RealTimeAudioProcessor = RealtimeAudioProcessor if REALTIME_AVAILABLE else BasicAudioProcessor
 
 
 # Function to get the appropriate processor based on availability
@@ -220,30 +499,30 @@ def get_audio_processor():
     Get the appropriate audio processor based on what's available.
     
     Returns:
-        BasicAudioProcessor for Docker/headless environments
+        RealtimeAudioProcessor for WebSocket functionality if available,
+        otherwise BasicAudioProcessor for standard API usage
     """
     processor = None
     
-    # First try/except block
+    # First try RealtimeAudioProcessor if available
+    if REALTIME_AVAILABLE:
+        try:
+            processor = RealtimeAudioProcessor()
+            logger.info("Successfully initialized RealtimeAudioProcessor with WebSocket support")
+            return processor
+        except Exception as error:
+            logger.error(f"Error initializing RealtimeAudioProcessor: {error}")
+            logger.error(traceback.format_exc())
+    
+    # Fall back to BasicAudioProcessor
     try:
-        # Set up a simple basic processor
         processor = BasicAudioProcessor()
         logger.info("Successfully initialized BasicAudioProcessor for headless environment")
         return processor
-    except Exception as first_error:
-        logger.error(f"First attempt to initialize audio processor failed: {first_error}")
+    except Exception as error:
+        logger.error(f"Error initializing BasicAudioProcessor: {error}")
         logger.error(traceback.format_exc())
     
-    # Second block with different approach if first fails
-    try:
-        # Use maximum compatibility approach - don't import anything special
-        logger.warning("Trying fallback audio processor approach")
-        processor = BasicAudioProcessor()
-        return processor
-    except Exception as second_error:
-        logger.error(f"Second attempt to initialize audio processor failed: {second_error}")
-        logger.error(traceback.format_exc())
-        
-    # If we get here, create a minimal processor
+    # Last resort - create a minimal processor
     logger.warning("Using minimal compatibility audio processor")
     return BasicAudioProcessor()
