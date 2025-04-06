@@ -45,8 +45,7 @@ POSSIBLE_MENU_PATHS = [
     '/var/task/menu_data.json',  # Alternate container path
     
     # 3. Traditional deployment paths
-    '/home/pegasus/mysite/RedBarSushiAI/menu_data.json',  # Legacy production path
-    
+    '/app/menu_data.json',      
     # 4. App paths
     os.path.join(APP_ROOT, 'menu_data.json'),
     os.path.join(APP_ROOT_PARENT, 'menu_data.json'),
