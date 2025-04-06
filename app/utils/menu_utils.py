@@ -397,15 +397,23 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     for actual_name in exact_match_names:
         for item in menu_data.get("items", []):
             if item.get("name", "").lower() == actual_name.lower():
-                logger.info(f"[MENU-LOOKUP] Found matching menu item: {item.get('name')}")
-                return item
+                # Verify this item is available before returning it
+                if item.get("available", True) and not item.get("snoozed", False):
+                    logger.info(f"[MENU-LOOKUP] Found matching menu item: {item.get('name')}")
+                    return item
+                else:
+                    logger.warning(f"[MENU-LOOKUP] Found match '{item.get('name')}' but item is unavailable/snoozed")
     
     # Try direct item name match
     for item in menu_data.get("items", []):
         item_name_in_menu = item.get("name", "").lower()
         if item_name_in_menu == item_name_lower:
-            logger.info(f"[MENU-LOOKUP] Found direct match: '{item_name_lower}' = '{item_name_in_menu}'")
-            return item
+            # Verify this item is available before returning it
+            if item.get("available", True) and not item.get("snoozed", False):
+                logger.info(f"[MENU-LOOKUP] Found direct match: '{item_name_lower}' = '{item_name_in_menu}'")
+                return item
+            else:
+                logger.warning(f"[MENU-LOOKUP] Found direct match '{item_name_in_menu}' but item is unavailable/snoozed")
     
     # No exact matches - don't use static food categories
     # Instead, try direct partial matching for what was provided
@@ -422,17 +430,25 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     for actual_name in partial_matches:
         for item in menu_data.get("items", []):
             if item.get("name", "").lower() == actual_name.lower():
-                logger.info(f"[MENU-LOOKUP] Found matching menu item via partial variant: {item.get('name')}")
-                return item
+                # Verify this item is available before returning it
+                if item.get("available", True) and not item.get("snoozed", False):
+                    logger.info(f"[MENU-LOOKUP] Found matching menu item via partial variant: {item.get('name')}")
+                    return item
+                else:
+                    logger.warning(f"[MENU-LOOKUP] Found match via partial variant '{item.get('name')}' but item is unavailable/snoozed")
     
     # Try partial matches within menu items - last resort
     for item in menu_data.get("items", []):
         item_name_in_menu = item.get("name", "").lower()
         # Only do partial matching if both strings are reasonably long
-        if len(item_name_lower) >= 4 and len(item_name_in_menu) >= 4:
+        if len(item_name_lower) >= 3 and len(item_name_in_menu) >= 3:
             if item_name_lower in item_name_in_menu or item_name_in_menu in item_name_lower:
-                logger.info(f"[MENU-LOOKUP] Found partial item match: '{item_name_lower}' ⊂ '{item_name_in_menu}'")
-                return item
+                # Verify this item is available before returning it
+                if item.get("available", True) and not item.get("snoozed", False):
+                    logger.info(f"[MENU-LOOKUP] Found partial item match: '{item_name_lower}' ⊂ '{item_name_in_menu}'")
+                    return item
+                else:
+                    logger.warning(f"[MENU-LOOKUP] Found match '{item_name_in_menu}' but item is unavailable/snoozed")
     
     # No match found
     logger.warning(f"[MENU-LOOKUP] No match found for '{item_name}'")
