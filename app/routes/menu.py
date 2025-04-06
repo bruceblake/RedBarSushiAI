@@ -94,11 +94,40 @@ def menu_update():
             # If it's a dict, log the keys
             if isinstance(data, dict):
                 logger.info(f"[MENU-UPDATE] Data keys: {list(data.keys())}")
-            # If it's a list, log its length and first few items' types
+            # If it's a list, check for special Deliverect format and transform
             elif isinstance(data, list):
-                sample_items = data[:3] if len(data) > 3 else data
-                sample_types = [type(item).__name__ for item in sample_items]
-                logger.info(f"[MENU-UPDATE] Data is a list with {len(data)} items. Sample types: {sample_types}")
+                # Check if this is the Deliverect menu in alternative format (list with menu items data)
+                if len(data) > 0 and isinstance(data[0], dict):
+                    # Check for expected fields in the first item
+                    first_item = data[0]
+                    if ("availabilities" in first_item or "categories" in first_item or 
+                        "modifierGroups" in first_item or "products" in first_item):
+                        logger.info("[MENU-UPDATE] Detected Deliverect menu in list format")
+                        
+                        # First, check if it has "categories" directly (standard Deliverect format)
+                        if "categories" in first_item:
+                            transformed_data = first_item
+                            logger.info(f"[MENU-UPDATE] Using first item in list as main menu: {list(transformed_data.keys())}")
+                        # Otherwise, construct a menu structure that uses the list items as products
+                        else:
+                            # Create a standard format with these list items as products
+                            transformed_data = {
+                                "items": data,  # Use the entire list as direct menu items
+                                "modifiers": [],
+                                "modifierGroups": [],
+                                "name_variants": {}
+                            }
+                            logger.info("[MENU-UPDATE] Transformed list to standard menu format")
+                        
+                        data = transformed_data
+                    else:
+                        logger.info("[MENU-UPDATE] List format but not recognized as Deliverect menu format")
+                
+                # Log info about the list (after possible transformation)
+                if isinstance(data, list):
+                    sample_items = data[:3] if len(data) > 3 else data
+                    sample_types = [type(item).__name__ for item in sample_items]
+                    logger.info(f"[MENU-UPDATE] Data is a list with {len(data)} items. Sample types: {sample_types}")
             
         except Exception as e:
             logger.error(f"[MENU-UPDATE] JSON parsing error: {str(e)}")
@@ -114,8 +143,10 @@ def menu_update():
             data = create_default_menu()
         
         # Handle case where data is a list instead of a dictionary
+        # Note: we still need this code even though we have transformation above
+        # because the transformation may have been skipped if the list didn't match the expected patterns
         if isinstance(data, list):
-            logger.info(f"[MENU-UPDATE] Received list data with {len(data)} items")
+            logger.info(f"[MENU-UPDATE] Processing list data with {len(data)} items")
             
             # Check for items without names and filter/fix them
             valid_items = []
@@ -150,7 +181,18 @@ def menu_update():
                                 logger.info(f"[MENU-UPDATE] Auto-generating name for item {i}: Menu Item {i+1}")
                                 item["name"] = f"Menu Item {i+1}"
                     
-                    # Now that name is fixed, add it to valid items
+                    # Add required fields if missing
+                    if not item.get("reference_handler"):
+                        if item.get("plu"):
+                            item["reference_handler"] = item["plu"]
+                        else:
+                            item["reference_handler"] = f"REF-{i:04d}"
+                    
+                    # Convert price from cents to dollars if needed
+                    if "price" in item and isinstance(item["price"], (int, float)) and item["price"] > 100:
+                        item["price"] = item["price"] / 100
+                    
+                    # Now that item is fixed, add it to valid items
                     valid_items.append(item)
                     
             # Log any fixes
@@ -164,6 +206,17 @@ def menu_update():
                 "modifierGroups": [],
                 "name_variants": {}
             }
+            
+            # Generate name variants for these items
+            from app.utils.menu_utils import add_name_variants
+            for item in data["items"]:
+                try:
+                    add_name_variants(item["name"], data["name_variants"])
+                except Exception as e:
+                    logger.warning(f"[MENU-UPDATE] Error adding name variants for {item.get('name')}: {e}")
+                    # Ensure at least the base name is in variants
+                    if item.get("name"):
+                        data["name_variants"][item["name"].lower()] = item["name"]
         else:
             # Log receipt of dictionary data
             logger.info(f"[MENU-UPDATE] Received menu update. Keys: {list(data.keys())}")
