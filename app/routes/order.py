@@ -862,33 +862,128 @@ def register_channel_route():
     data = request.get_json() or {}
     status = data.get("status")
     
+    # Log the full request for debugging
+    log_info(f"Received registration request: {json.dumps(data)}")
+    
     # Validate required parameters
     if not status:
         return jsonify({"error": "Missing status parameter"}), 400
+    
+    # Extract additional parameters
+    channel_location_id = data.get("channelLocationId")
+    channel_link_id = data.get("channelLinkId")
+    location_id = data.get("locationId")
+    channel_link_name = data.get("channelLinkName")
     
     # Update channel status
     global channel_status
     if status == "register":
         channel_status = 0
-        log_info("Channel registered with Deliverect")
+        log_info(f"Channel registered with Deliverect: {channel_link_name} (ID: {location_id})")
+        
+        # Save location details to database if we have a location ID
+        if location_id and channel_link_name:
+            try:
+                from app.utils.deliverect import register_new_location
+                webhook_base = BASE_URL
+                success = register_new_location(
+                    location_id=location_id,
+                    location_name=channel_link_name,
+                    webhook_base=webhook_base
+                )
+                if success:
+                    log_info(f"Successfully registered location {location_id} in database")
+                else:
+                    log_info(f"Failed to register location {location_id} in database")
+            except Exception as e:
+                log_info(f"Error registering location: {e}")
+        
     elif status == "active":
         channel_status = 1
-        log_info("Channel activated with Deliverect")
+        log_info(f"Channel activated with Deliverect: {channel_link_name} (ID: {location_id})")
+        
+        # Update location status if we have a location ID
+        if location_id:
+            try:
+                from app.utils.deliverect import update_location_status
+                update_location_status(location_id, "active")
+            except Exception as e:
+                log_info(f"Error updating location status: {e}")
+                
     elif status == "inactive":
         channel_status = 2
-        log_info("Channel deactivated with Deliverect")
+        log_info(f"Channel deactivated with Deliverect: {channel_link_name} (ID: {location_id})")
+        
+        # Update location status if we have a location ID
+        if location_id:
+            try:
+                from app.utils.deliverect import update_location_status
+                update_location_status(location_id, "inactive")
+            except Exception as e:
+                log_info(f"Error updating location status: {e}")
     else:
         return jsonify({"error": f"Invalid status: {status}"}), 400
     
-    # Return webhook URLs - keeping original paths for compatibility
+    # Return webhook URLs exactly as expected by Deliverect (case-sensitive)
     response_body = {
         "statusUpdateURL": f"{BASE_URL}/order_status",
-        "menuUpdateURL": f"{BASE_URL}/menu_update",
+        "menuUpdateURL": f"{BASE_URL}/menu_update", 
         "snoozeUnsnoozeURL": f"{BASE_URL}/snoozeUnsnooze",
         "busyModeURL": f"{BASE_URL}/busy_mode",
         "updatePrepTimeURL": f"{BASE_URL}/updatePrepTime",
-        "courierUpdateURL": f"{BASE_URL}/courierUpdate"
+        "courierUpdateURL": f"{BASE_URL}/courierUpdate",
+        "paymentUpdateURL": f"{BASE_URL}/payment_update"
     }
     
     log_info(f"Registered webhooks with base URL: {BASE_URL}")
+    log_info(f"Response: {json.dumps(response_body)}")
     return jsonify(response_body), 200
+
+@order_bp.route('/webhook-test', methods=['GET'])
+def webhook_test():
+    """Endpoint to test webhook configuration"""
+    # Get current environment details
+    import os
+    import platform
+    from app.config import BASE_URL
+    
+    # Create response with diagnostics
+    response = {
+        "status": "ok",
+        "base_url": BASE_URL,
+        "configuration": {
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+            "render_env": os.environ.get('RENDER', 'false'),
+            "render_service_id": os.environ.get('RENDER_SERVICE_ID', 'not set'),
+            "disable_pythonanywhere_detection": os.environ.get('DISABLE_PYTHONANYWHERE_DETECTION', 'false')
+        },
+        "webhook_urls": {
+            "statusUpdateURL": f"{BASE_URL}/order_status",
+            "menuUpdateURL": f"{BASE_URL}/menu_update", 
+            "snoozeUnsnoozeURL": f"{BASE_URL}/snoozeUnsnooze",
+            "busyModeURL": f"{BASE_URL}/busy_mode",
+            "updatePrepTimeURL": f"{BASE_URL}/updatePrepTime",
+            "courierUpdateURL": f"{BASE_URL}/courierUpdate",
+            "paymentUpdateURL": f"{BASE_URL}/payment_update"
+        }
+    }
+    
+    # Check database connection
+    try:
+        from app.models import Location
+        from app import db
+        # Count registered locations
+        location_count = db.session.query(Location).count()
+        response["database"] = {
+            "connection": "ok",
+            "registered_locations": location_count
+        }
+    except Exception as e:
+        response["database"] = {
+            "connection": "error",
+            "error": str(e)
+        }
+    
+    log_info(f"Webhook test endpoint called - BASE_URL: {BASE_URL}")
+    return jsonify(response)
