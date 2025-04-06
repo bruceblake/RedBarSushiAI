@@ -211,12 +211,19 @@ def menu_update():
             from app.utils.menu_utils import add_name_variants
             for item in data["items"]:
                 try:
-                    add_name_variants(item["name"], data["name_variants"])
+                    # Make sure item name is a string
+                    if item.get("name") is not None:
+                        if not isinstance(item["name"], str):
+                            item["name"] = str(item["name"])
+                        add_name_variants(item["name"], data["name_variants"])
                 except Exception as e:
-                    logger.warning(f"[MENU-UPDATE] Error adding name variants for {item.get('name')}: {e}")
-                    # Ensure at least the base name is in variants
-                    if item.get("name"):
-                        data["name_variants"][item["name"].lower()] = item["name"]
+                    logger.warning(f"[MENU-UPDATE] Error adding name variants - {str(e)}")
+                    # Ensure at least the base name is in variants - safely
+                    try:
+                        if item.get("name") and isinstance(item["name"], str):
+                            data["name_variants"][item["name"].lower()] = item["name"]
+                    except Exception as inner_e:
+                        logger.error(f"[MENU-UPDATE] Even failed to add basic variant: {str(inner_e)}")
         else:
             # Log receipt of dictionary data
             logger.info(f"[MENU-UPDATE] Received menu update. Keys: {list(data.keys())}")
