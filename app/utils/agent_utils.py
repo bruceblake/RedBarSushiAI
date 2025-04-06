@@ -651,7 +651,7 @@ else:
                     
                     # Prepare messages for the API call
                     messages = [
-                        {"role": "system", "content": "You are a sushi restaurant order parser. Extract menu items from customer orders into JSON."},
+                        {"role": "system", "content": "You are a restaurant order parser. Extract menu items from customer orders into JSON."},
                         {"role": "user", "content": f"Extract menu items from this order: {order_text}\nOur menu has these categories: {', '.join(categories)}\nRespond with a JSON object containing an 'items' array of item names."}
                     ]
                     
@@ -956,6 +956,7 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
     # Parse the input
     logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{input_text}'")
     parsed_order = agent.parse_order(input_text)
+    logger.info(f"[PARSED-ORDER]: {parsed_order}")
     
     # Determine intent based on the parsed order
     if parsed_order.get("items"):
