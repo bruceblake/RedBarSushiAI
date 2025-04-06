@@ -102,6 +102,9 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         bool: True if successful, False otherwise
     """
     try:
+        # Define a production path for consistent file location
+        PRODUCTION_PATH = os.environ.get('MENU_FILE_PATH', MENU_FILE_PATH)
+        
         # Always ensure root directory path is preferred
         root_dir = os.getcwd()
         root_menu_path = os.path.join(root_dir, 'menu_data.json')
@@ -115,8 +118,13 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
             # Try to use the same directory as the default menu file
             actual_path = os.path.join(os.path.dirname(MENU_FILE_PATH), location_path)
         else:
-            # Prioritize root directory path
-            actual_path = root_menu_path
+            # Prioritize production path if exists
+            if PRODUCTION_PATH and os.path.exists(os.path.dirname(PRODUCTION_PATH)):
+                actual_path = PRODUCTION_PATH
+                logger.info(f"Using production path: {PRODUCTION_PATH}")
+            else:
+                # Fallback to root directory path
+                actual_path = root_menu_path
         
         # Safety check - ensure it's a JSON file path
         if not actual_path.lower().endswith('.json'):
