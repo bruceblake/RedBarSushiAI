@@ -43,13 +43,19 @@ def validate_and_fix_menu_data(menu_data):
             logger.warning("Menu data is not a dictionary, creating empty structure")
             menu_data = {}
         
-    # Ensure required keys exist
-    if "items" not in menu_data:
+    # Ensure required keys exist with proper types
+    if "items" not in menu_data or not isinstance(menu_data["items"], list):
+        logger.warning(f"[MENU-FIX] items is not a valid list: {type(menu_data.get('items', None))}")
         menu_data["items"] = []
-    if "modifiers" not in menu_data:
+    if "modifiers" not in menu_data or not isinstance(menu_data["modifiers"], list):
+        logger.warning(f"[MENU-FIX] modifiers is not a valid list: {type(menu_data.get('modifiers', None))}")
         menu_data["modifiers"] = []
-    if "modifierGroups" not in menu_data:
+    if "modifierGroups" not in menu_data or not isinstance(menu_data["modifierGroups"], list):
+        logger.warning(f"[MENU-FIX] modifierGroups is not a valid list: {type(menu_data.get('modifierGroups', None))}")
         menu_data["modifierGroups"] = []
+    if "name_variants" not in menu_data or not isinstance(menu_data["name_variants"], dict):
+        logger.warning(f"[MENU-FIX] name_variants is not a valid dictionary: {type(menu_data.get('name_variants', None))}")
+        menu_data["name_variants"] = {}
     
     # Build map of existing items for reference
     existing_items = {}
@@ -63,8 +69,21 @@ def validate_and_fix_menu_data(menu_data):
     
     # First pass - build map of existing items by name for reference preservation
     for item in menu_data.get('items', []):
+        # Ensure item is a dictionary
+        if not isinstance(item, dict):
+            logger.warning(f"[MENU-FIX] Skipping non-dictionary item: {type(item)}")
+            continue
+            
         if item.get('name'):
-            item_name_lower = item.get('name', ' ').lower()
+            # Ensure name is a string
+            item_name = item.get('name', ' ')
+            if not isinstance(item_name, str):
+                try:
+                    item_name = str(item_name)
+                except:
+                    item_name = ' '
+                    
+            item_name_lower = item_name.lower()
             existing_items[item_name_lower] = item
             
             # Also map by _id if present (handles different JSON formats)
@@ -75,8 +94,24 @@ def validate_and_fix_menu_data(menu_data):
     
     # Second pass - fix all issues with items
     for item in menu_data.get('items', []):
+        # Ensure item is a dictionary
+        if not isinstance(item, dict):
+            logger.warning(f"[MENU-FIX] Skipping non-dictionary item in second pass: {type(item)}")
+            continue
+            
         item_id = item.get('id')
         item_name = item.get('name', 'unknown')
+        
+        # Ensure item_name is a string
+        if not isinstance(item_name, str):
+            try:
+                item_name = str(item_name)
+                item["name"] = item_name  # Update the item with string name
+                logger.warning(f"[MENU-FIX] Converting non-string name to string: {type(item_name)}")
+            except:
+                item_name = 'unknown'
+                item["name"] = item_name
+                
         item_name_lower = item_name.lower()
         
         # Track if we've fixed anything (for logging)
@@ -173,7 +208,19 @@ def validate_and_fix_menu_data(menu_data):
     fixed_modifier_count = 0
     seen_group_ids = set()
     
-    for group in menu_data.get("modifierGroups", []):
+    # Ensure modifierGroups is a list before processing
+    modifier_groups = menu_data.get("modifierGroups", [])
+    if not isinstance(modifier_groups, list):
+        logger.warning(f"[MENU-FIX] modifierGroups is not a list: {type(modifier_groups)}. Creating empty list.")
+        menu_data["modifierGroups"] = []
+        modifier_groups = []
+    
+    for group in modifier_groups:
+        # Ensure group is a dictionary
+        if not isinstance(group, dict):
+            logger.warning(f"[MENU-FIX] Skipping non-dictionary modifier group: {type(group)}")
+            continue
+            
         group_name = group.get("name", "unknown")
         group_id = group.get("id")
         
@@ -199,9 +246,20 @@ def validate_and_fix_menu_data(menu_data):
         
         # Skip checking existing modifiers to avoid recursion
         existing_group_modifiers = {}
+        
+        # Ensure modifiers is a list
+        modifiers = group.get("modifiers", [])
+        if not isinstance(modifiers, list):
+            logger.warning(f"[MENU-FIX] modifiers in group {group_id} is not a list: {type(modifiers)}. Creating empty list.")
+            group["modifiers"] = []
+            modifiers = []
             
         # Process modifiers in this group
-        for modifier in group.get("modifiers", []):
+        for modifier in modifiers:
+            # Ensure modifier is a dictionary
+            if not isinstance(modifier, dict):
+                logger.warning(f"[MENU-FIX] Skipping non-dictionary modifier in group {group_id}: {type(modifier)}")
+                continue
             mod_id = modifier.get("id")
             mod_name = modifier.get("name", "unknown")
             mod_name_lower = mod_name.lower()

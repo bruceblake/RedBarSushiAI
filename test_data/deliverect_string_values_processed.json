@@ -1,0 +1,56 @@
+{
+  "items": [
+    {
+      "id": "p1",
+      "name": "12345",
+      "price": 9.95,
+      "reference_handler": "CAL-ROLL",
+      "description": "Crab, avocado and cucumber",
+      "imageUrl": "",
+      "snoozed": false,
+      "category": "Sushi",
+      "categoryId": "cat1",
+      "available": true
+    },
+    {
+      "id": "p4",
+      "name": "Veggie Burger",
+      "price": 12.95,
+      "reference_handler": "VEG-BURG",
+      "description": "Plant-based burger with lettuce and tomato",
+      "imageUrl": "",
+      "snoozed": false,
+      "category": "Burgers",
+      "categoryId": "cat3",
+      "available": true,
+      "modifierGroups": [
+        "mg1"
+      ]
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "m1",
+      "name": "Cheese",
+      "price": 1.0,
+      "available": true,
+      "snoozed": false,
+      "reference_handler": "CHEESE"
+    }
+  ],
+  "modifierGroups": [
+    {
+      "id": "mg1",
+      "name": "",
+      "minAllowed": 0,
+      "maxAllowed": 999,
+      "modifiers": []
+    }
+  ],
+  "name_variants": {
+    "12345": "12345",
+    "veggie burger": "Veggie Burger",
+    "veggie": "Veggie Burger",
+    "burger": "Veggie Burger"
+  }
+}

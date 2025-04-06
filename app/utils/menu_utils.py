@@ -177,7 +177,7 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
     
     # Use cache if available and not expired
     current_time = time.time()
-    if not force_refresh and _menu_cache is not None and (current_time - _last_refresh_time) < _cache_duration:
+    if not force_refresh and _menu_cache is not None and isinstance(_menu_cache, dict) and (current_time - _last_refresh_time) < _cache_duration:
         return _menu_cache
     
     # Determine file path based on location
@@ -238,6 +238,13 @@ def load_menu_data(force_refresh: bool = False, location_id: Optional[str] = Non
         with open(file_path, 'r') as f:
             try:
                 menu_data = json.load(f)
+                
+                # Validate that menu_data is a dictionary
+                if not isinstance(menu_data, dict):
+                    logger.error(f"Menu data in {file_path} is not a dictionary, it's a {type(menu_data)}")
+                    menu_data = create_default_menu()
+                    write_menu_file(menu_data, file_path)
+                    logger.info(f"Replaced non-dictionary menu data with default menu")
             except json.JSONDecodeError:
                 logger.error(f"Invalid JSON in menu file {file_path}")
                 menu_data = create_default_menu()
@@ -518,39 +525,102 @@ def validate_modifier_constraints(order_items):
     # Load menu data to get modifier group constraints
     menu_data = load_menu_data()
     
+    # Validate order_items is a list
+    if not isinstance(order_items, list):
+        logger.warning(f"[MODIFIER-CONSTRAINTS] order_items is not a list: {type(order_items)}")
+        return False, "Invalid order items format"
+    
     for item in order_items:
+        # Ensure item is a dictionary
+        if not isinstance(item, dict):
+            logger.warning(f"[MODIFIER-CONSTRAINTS] Skipping non-dictionary item: {type(item)}")
+            continue
+            
         item_name = item.get("name", "")
         # Find the menu item definition
         menu_item = next((i for i in menu_data.get("items", []) if i.get("name") == item_name), None)
         if not menu_item:
             continue
             
-        # Get modifier groups for this item
+        # Get modifier groups for this item - ensure it's a list
         mod_group_ids = menu_item.get("modifierGroups", [])
+        if not isinstance(mod_group_ids, list):
+            logger.warning(f"[MODIFIER-CONSTRAINTS] modifierGroups for '{item_name}' is not a list: {type(mod_group_ids)}")
+            mod_group_ids = []
+            
+        # Get selected modifiers - ensure it's a list
         selected_mods = item.get("modifier", [])
+        if not isinstance(selected_mods, list):
+            logger.warning(f"[MODIFIER-CONSTRAINTS] modifiers for '{item_name}' is not a list: {type(selected_mods)}")
+            selected_mods = []
         
         # Check each modifier group
         for group_id in mod_group_ids:
-            group = next((g for g in menu_data.get("modifierGroups", []) if g.get("id") == group_id), None)
+            # Find the modifier group
+            modifier_groups = menu_data.get("modifierGroups", [])
+            if not isinstance(modifier_groups, list):
+                logger.warning(f"[MODIFIER-CONSTRAINTS] modifierGroups in menu is not a list: {type(modifier_groups)}")
+                continue
+                
+            group = next((g for g in modifier_groups if isinstance(g, dict) and g.get("id") == group_id), None)
             if not group:
+                logger.warning(f"[MODIFIER-CONSTRAINTS] Modifier group '{group_id}' not found")
                 continue
                 
             min_allowed = group.get("minAllowed", 0)
             max_allowed = group.get("maxAllowed", 999)
             
+            # Get modifiers from this group - ensure it's a list
+            group_modifiers = group.get("modifiers", [])
+            if not isinstance(group_modifiers, list):
+                logger.warning(f"[MODIFIER-CONSTRAINTS] modifiers in group '{group_id}' is not a list: {type(group_modifiers)}")
+                group_modifiers = []
+            
             # Count modifiers from this group
-            group_mod_ids = [m.get("id") for m in group.get("modifiers", [])]
-            group_mod_names = [m.get("name").lower() for m in group.get("modifiers", [])]
+            group_mod_ids = []
+            group_mod_names = []
+            
+            for m in group_modifiers:
+                if isinstance(m, dict):
+                    if m.get("id"):
+                        group_mod_ids.append(m.get("id"))
+                    if m.get("name"):
+                        name = m.get("name")
+                        if isinstance(name, str):
+                            group_mod_names.append(name.lower())
+                elif isinstance(m, str):
+                    # For string-based modifier references
+                    group_mod_ids.append(m)
             
             # Match modifiers by ID or name
             selected_from_group = []
             for mod in selected_mods:
+                if not isinstance(mod, dict):
+                    logger.warning(f"[MODIFIER-CONSTRAINTS] Skipping non-dictionary modifier: {type(mod)}")
+                    continue
+                    
                 mod_id = mod.get("id")
-                mod_name = mod.get("name", "").lower()
+                mod_name = mod.get("name", "")
+                if not isinstance(mod_name, str):
+                    mod_name = str(mod_name) if mod_name is not None else ""
+                mod_name = mod_name.lower()
+                
                 if mod_id in group_mod_ids or mod_name in group_mod_names:
                     selected_from_group.append(mod)
             
-            total_qty = sum(m.get("quantity", 1) for m in selected_from_group)
+            # Calculate total quantity
+            total_qty = 0
+            for m in selected_from_group:
+                qty = m.get("quantity", 1)
+                if isinstance(qty, (int, float)):
+                    total_qty += qty
+                else:
+                    # Try to convert to int
+                    try:
+                        total_qty += int(qty)
+                    except (ValueError, TypeError):
+                        logger.warning(f"[MODIFIER-CONSTRAINTS] Invalid quantity for modifier: {qty}")
+                        total_qty += 1  # Default to 1
             
             # Validate
             if total_qty < min_allowed:

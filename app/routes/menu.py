@@ -381,6 +381,16 @@ def menu_update():
         
         # Validate and fix menu data
         try:
+            # Make sure processed_data is a dictionary before validating
+            if not isinstance(processed_data, dict):
+                logger.error(f"[MENU-UPDATE] processed_data is not a dictionary: {type(processed_data)}")
+                processed_data = {
+                    "items": [],
+                    "modifiers": [],
+                    "modifierGroups": [],
+                    "name_variants": {}
+                }
+                
             processed_data = validate_and_fix_menu_data(processed_data)
             logger.info("[MENU-UPDATE] Menu data validated and fixed")
         except ValueError as ve:
@@ -389,8 +399,16 @@ def menu_update():
             logger.error(f"[MENU-UPDATE] Critical validation error: {error_msg}")
             return jsonify({"error": error_msg}), 400
         except Exception as ve:
-            logger.warning(f"[MENU-UPDATE] Validation warning: {ve}")
-            # Continue with unvalidated data rather than failing
+            logger.error(f"[MENU-UPDATE] Validation error: {ve}")
+            logger.error(f"[MENU-UPDATE] Validation error type: {type(ve)}")
+            # Try to recover with an empty menu structure
+            processed_data = {
+                "items": [],
+                "modifiers": [],
+                "modifierGroups": [],
+                "name_variants": {}
+            }
+            logger.warning("[MENU-UPDATE] Using empty menu structure after validation failure")
         
         # Log stats about the processed menu
         logger.info(f"[MENU-UPDATE] Final menu has {len(processed_data.get('items', []))} items, " +
