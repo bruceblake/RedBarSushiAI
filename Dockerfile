@@ -23,6 +23,9 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install PostgreSQL drivers and other dependencies for Docker environment
+RUN pip install --no-cache-dir psycopg2-binary
+
 # Install Gunicorn with websocket support
 RUN pip install --no-cache-dir gunicorn flask-sock gevent-websocket
 

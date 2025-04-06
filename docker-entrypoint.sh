@@ -4,6 +4,12 @@ set -e
 # Set environment variables to indicate we're in Docker
 export DOCKER=true
 
+# Set RENDER flag if this is running on Render
+if [ -n "$RENDER_SERVICE_ID" ]; then
+    export RENDER=true
+    echo "Running on Render (Service ID: $RENDER_SERVICE_ID)"
+fi
+
 # Debug information
 echo "DEBUG: Starting Docker entrypoint script"
 echo "DEBUG: Environment variables: DB_HOST=$DB_HOST, DB_PORT=$DB_PORT, DB_NAME=$DB_NAME"
@@ -12,8 +18,22 @@ echo "DEBUG: Directory contents: $(ls -la)"
 
 # Expand environment variables in the SQLALCHEMY_DATABASE_URI
 if [ -n "$DB_USER" ] && [ -n "$DB_PASSWORD" ] && [ -n "$DB_HOST" ] && [ -n "$DB_PORT" ] && [ -n "$DB_NAME" ]; then
-    export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-    echo "Database URI set to postgresql connection string (credentials hidden)"
+    # Check if DB_HOST is "db" - this is only for local docker-compose
+    if [ "$DB_HOST" = "db" ] && [ "$RENDER" = "true" ]; then
+        # In Render, we need to use the actual database URL from the environment
+        echo "WARNING: DB_HOST is set to 'db' but we're running on Render. Looking for RENDER_DATABASE_URL..."
+        if [ -n "$RENDER_DATABASE_URL" ]; then
+            export SQLALCHEMY_DATABASE_URI="$RENDER_DATABASE_URL"
+            echo "Using RENDER_DATABASE_URL for database connection"
+        else
+            export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+            echo "WARNING: Using potentially incorrect database URL. RENDER_DATABASE_URL is not set."
+        fi
+    else
+        # Normal case - construct the URI from parts
+        export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+        echo "Database URI set to postgresql connection string (credentials hidden)"
+    fi
 else
     echo "DEBUG: Missing one or more database environment variables"
     echo "DEBUG: DB_USER set: [$(if [ -n "$DB_USER" ]; then echo "YES"; else echo "NO"; fi)]"
@@ -66,6 +86,56 @@ else
         echo "DEBUG: Files in current directory:"
         ls -la
     fi
+    
+    # Check database connection before starting server
+    echo "Testing database connection..."
+    python -c "
+import os
+import sys
+from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
+
+try:
+    db_uri = os.environ.get('SQLALCHEMY_DATABASE_URI')
+    if not db_uri:
+        print('ERROR: SQLALCHEMY_DATABASE_URI not set', file=sys.stderr)
+        sys.exit(1)
+        
+    print(f'Testing connection to: {db_uri.split('@')[1] if '@' in db_uri else 'database'} (credentials hidden)', file=sys.stderr)
+    
+    engine = create_engine(db_uri)
+    connection = engine.connect()
+    connection.close()
+    print('Database connection test successful!', file=sys.stderr)
+except SQLAlchemyError as e:
+    print(f'ERROR connecting to database: {str(e)}', file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f'Unexpected error during database test: {str(e)}', file=sys.stderr)
+    sys.exit(1)
+"
+    
+    # Check Python dependencies
+    echo "Checking for required modules..."
+    python -c "
+import sys
+required_modules = ['psycopg2', 'flask_sqlalchemy', 'gunicorn', 'gevent', 'flask', 'gunicorn']
+missing = []
+
+for module in required_modules:
+    try:
+        __import__(module)
+        print(f'✓ {module}', file=sys.stderr)
+    except ImportError:
+        missing.append(module)
+        print(f'✗ {module} - MISSING', file=sys.stderr)
+
+if missing:
+    print(f'ERROR: Missing required modules: {', '.join(missing)}', file=sys.stderr)
+    sys.exit(1)
+else:
+    print('All required modules are available', file=sys.stderr)
+"
     
     # Try both entry points (run.py and wsgi.py)
     if [ -f "wsgi.py" ]; then
