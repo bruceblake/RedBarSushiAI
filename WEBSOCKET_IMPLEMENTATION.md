@@ -24,9 +24,13 @@ The application exposes three main WebSocket endpoints:
 
 ### Components
 
-- **RealtimeAudioProcessor:** Uses OpenAI's realtime client for WebSocket API access
-- **BasicAudioProcessor:** Fallback processor that uses standard REST API calls
+- **BasicAudioProcessor:** Primary implementation using OpenAI's standard API with streaming
+- **EnhancedAudioProcessor:** Extension of BasicAudioProcessor with additional features
 - **HeadlessAudioProcessor:** Minimal implementation for environments without display servers
+
+> **Note:** The system previously used OpenAI's realtime WebSocket API via the `openai-realtime-client` package.
+> However, the package API changed and no longer exports the `Session` class that was required.
+> The current implementation uses OpenAI's standard REST API with streaming instead.
 
 ## Setup Instructions
 
@@ -138,9 +142,12 @@ For client applications to use these WebSocket endpoints:
 ### Fallback Behavior
 
 The system implements a three-tier fallback system:
-1. **First choice:** OpenAI Realtime WebSocket API (lowest latency)
-2. **Second choice:** Standard OpenAI REST API with streaming (medium latency)
-3. **Last resort:** Headless implementation with no GUI dependencies (highest compatibility)
+1. **First choice:** Standard OpenAI REST API with streaming via BasicAudioProcessor
+2. **Second choice:** Headless implementation with no GUI dependencies via HeadlessAudioProcessor
+3. **Last resort:** Minimal compatibility processor that provides dummy responses
+
+> **Note:** Originally, the first choice was OpenAI's Realtime WebSocket API, but due to API compatibility 
+> issues, the system now uses the standard REST API with streaming as the primary implementation.
 
 ## References
 
