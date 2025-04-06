@@ -153,16 +153,50 @@ else
     WORKER_COUNT=${WORKER_COUNT:-3}
     THREAD_COUNT=${THREAD_COUNT:-3}
     
+    # Add pre-start check to verify everything is working
+    log "Performing pre-start checks..."
+    
+    # Try to import key modules
+    python -c "
+import sys
+try:
+    import flask
+    import sqlalchemy
+    import psycopg2
+    import twilio
+    print('All critical imports successful')
+except ImportError as e:
+    print(f'Error importing critical module: {e}')
+    # Don't exit - still try to start the server
+"
+
+    # Try a basic app initialization 
+    python -c "
+import sys
+try:
+    from app import create_app
+    app = create_app()
+    print('App initialization successful')
+except Exception as e:
+    print(f'WARNING: App initialization failed: {e}')
+    # Don't exit - still try to start the server
+"
+    
     log "Starting web server on port $PORT with $WORKER_COUNT workers and $THREAD_COUNT threads..."
+    
+    # Start with aggressive timeouts and worker settings for stability
     exec gunicorn \
         --worker-class=gevent \
         --workers=$WORKER_COUNT \
         --threads=$THREAD_COUNT \
         --timeout=120 \
+        --graceful-timeout=30 \
         --keep-alive=5 \
-        --max-requests=1000 \
+        --max-requests=500 \
         --max-requests-jitter=50 \
-        --bind="0.0.0.0:$PORT" \
+        --capture-output \
+        --enable-stdio-inheritance \
         --log-level=info \
+        --bind="0.0.0.0:$PORT" \
         "wsgi"
 fi
