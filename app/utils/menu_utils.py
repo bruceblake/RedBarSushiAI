@@ -724,7 +724,45 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                 if "categories" in first_item:
                     # It's a list where first item has the menu structure
                     logger.info("[DELIVERECT-MENU] List format with first item containing categories")
-                    deliverect_menu = first_item
+                    # Directly process the first item and return the result to avoid nested processing
+                    return process_deliverect_menu(first_item, location_id)
+                    
+                # Check for nested menu structure - test_nested_menu_structure case
+                elif "menu" in first_item and isinstance(first_item["menu"], dict) and "categories" in first_item["menu"]:
+                    # It's a list where first item has a menu structure in a 'menu' field
+                    logger.info("[DELIVERECT-MENU] List format with first item containing menu.categories")
+                    # Process the nested menu
+                    return process_deliverect_menu(first_item["menu"], location_id)
+                    
+                # Check for sections pattern directly - test_recursively_find_products case
+                elif "data" in first_item and isinstance(first_item["data"], dict):
+                    data = first_item["data"]
+                    if "store" in data and isinstance(data["store"], dict):
+                        store = data["store"]
+                        if "menu" in store and isinstance(store["menu"], dict):
+                            menu = store["menu"]
+                            if "sections" in menu and isinstance(menu["sections"], list):
+                                sections = menu["sections"]
+                                logger.info("[DELIVERECT-MENU] List format with sections pattern")
+                                
+                                # Convert sections to categories
+                                structured_menu = {"categories": []}
+                                
+                                for section in sections:
+                                    if isinstance(section, dict) and "name" in section:
+                                        # Look for products in different keys
+                                        for products_key in ["dishes", "products", "items", "menuItems"]:
+                                            if products_key in section and isinstance(section[products_key], list):
+                                                # Create a new category
+                                                category = {
+                                                    "id": section.get("id", f"section-{int(time.time())}"),
+                                                    "name": section["name"],
+                                                    "products": section[products_key]
+                                                }
+                                                structured_menu["categories"].append(category)
+                                
+                                if structured_menu["categories"]:
+                                    return process_deliverect_menu(structured_menu, location_id)
                 else:
                     # It's a list of menu items
                     logger.info("[DELIVERECT-MENU] List format with direct menu items")
@@ -832,20 +870,433 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
                     return result
         
         # If we reached here with a list but couldn't process it normally, try to extract any useful data
-        logger.warning("[DELIVERECT-MENU] List format but no valid processing path, attempting data extraction")
+        logger.warning("[DELIVERECT-MENU] List format but no valid processing path, attempting detailed data extraction")
         try:
-            # Look for items with categories to process
+            # First, look for items with categories to process
             for item in deliverect_menu:
                 if isinstance(item, dict) and "categories" in item:
                     logger.info("[DELIVERECT-MENU] Found categories in list item, processing recursively")
                     return process_deliverect_menu(item, location_id)
             
-            # Skip synthetic category creation completely - we want to return empty menu data when we can't process
-            # If we have actual categories in any item, use that, otherwise just return empty
-            logger.warning("[DELIVERECT-MENU] Could not extract valid menu data from list")
+            # Next, inspect if any items in the list are categories themselves
+            found_categories = []
+            for item in deliverect_menu:
+                if isinstance(item, dict):
+                    # Look for category-like structures (has name and products array)
+                    if item.get("name") and isinstance(item.get("products"), list):
+                        logger.info(f"[DELIVERECT-MENU] Found category-like item: {item.get('name')}")
+                        found_categories.append(item)
+            
+            # If we found categories, create a proper menu structure
+            if found_categories:
+                logger.info(f"[DELIVERECT-MENU] Creating menu from {len(found_categories)} categories")
+                structured_menu = {"categories": found_categories}
+                return process_deliverect_menu(structured_menu, location_id)
+                
+            # Next, look for product lists at specific keys in any dictionary item
+            for item in deliverect_menu:
+                if isinstance(item, dict):
+                    for key in ["products", "menu", "items", "menuItems"]:
+                        if key in item and isinstance(item[key], list) and len(item[key]) > 0:
+                            logger.info(f"[DELIVERECT-MENU] Found products list in key: {key}")
+                            # Create a synthetic menu with properly structured categories
+                            products = item[key]
+                            
+                            # Try to determine an appropriate category name
+                            category_name = "Menu Items"
+                            if item.get("name"):
+                                category_name = item.get("name")
+                            elif item.get("category"):
+                                category_name = item.get("category")
+                            elif item.get("type"):
+                                category_name = item.get("type") 
+                                
+                            # Now check and clean up the products list
+                            clean_products = []
+                            for product in products:
+                                # Skip non-dict products
+                                if not isinstance(product, dict):
+                                    continue
+                                    
+                                # Make sure each product has a name
+                                if not product.get("name"):
+                                    if product.get("title"):
+                                        product["name"] = product.get("title")
+                                    elif product.get("product_name"):
+                                        product["name"] = product.get("product_name")
+                                        
+                                # Make sure each product has a proper reference handler
+                                if not product.get("reference_handler") and product.get("plu"):
+                                    product["reference_handler"] = product.get("plu")
+                                    
+                                # Add to clean products
+                                clean_products.append(product)
+                                
+                            # Create a structured menu
+                            structured_menu = {
+                                "categories": [
+                                    {
+                                        "id": f"category-{int(time.time())}",
+                                        "name": category_name,
+                                        "products": clean_products
+                                    }
+                                ]
+                            }
+                            
+                            logger.info(f"[DELIVERECT-MENU] Created menu with {len(clean_products)} products in '{category_name}' category")
+                            return process_deliverect_menu(structured_menu, location_id)
+                            
+            # Last attempt: scan all dictionary items in the list for category or product arrays
+            all_products = []
+            all_categories = []
+            
+            for item in deliverect_menu:
+                if isinstance(item, dict):
+                    # Look for any fields that could be products
+                    for key, value in item.items():
+                        if isinstance(value, list) and len(value) > 0:
+                            if key.lower() in ["products", "items", "menuitems"]:
+                                all_products.extend(value)
+                            elif key.lower() in ["categories", "category", "sections"]:
+                                all_categories.extend(value)
+            
+            if all_categories:
+                logger.info(f"[DELIVERECT-MENU] Found {len(all_categories)} categories in field scan")
+                structured_menu = {"categories": all_categories}
+                return process_deliverect_menu(structured_menu, location_id)
+            
+            if all_products:
+                logger.info(f"[DELIVERECT-MENU] Found {len(all_products)} products in field scan")
+                
+                # Clean up products
+                clean_products = []
+                for product in all_products:
+                    # Skip non-dict products
+                    if not isinstance(product, dict):
+                        continue
+                        
+                    # Make sure each product has a name
+                    if not product.get("name"):
+                        if product.get("title"):
+                            product["name"] = product.get("title")
+                        elif product.get("product_name"):
+                            product["name"] = product.get("product_name")
+                            
+                    # Make sure each product has a proper reference handler
+                    if not product.get("reference_handler") and product.get("plu"):
+                        product["reference_handler"] = product.get("plu")
+                        
+                    # Add to clean products
+                    clean_products.append(product)
+                    
+                # Create structured menu with clean products
+                structured_menu = {
+                    "categories": [
+                        {
+                            "id": f"category-{int(time.time())}",
+                            "name": "Menu Items",
+                            "products": clean_products
+                        }
+                    ]
+                }
+                logger.info(f"[DELIVERECT-MENU] Created menu with {len(clean_products)} clean products")
+                return process_deliverect_menu(structured_menu, location_id)
+                
+            # If we got here, it's a list we couldn't extract useful data from through standard methods
+            # Perform deep recursive inspection to find usable menu data
+            try:
+                # First attempt: detailed inspection of the first few list items
+                import json
+                detailed_inspection = f"List format - first item keys: "
+                
+                if len(deliverect_menu) > 0 and isinstance(deliverect_menu[0], dict):
+                    detailed_inspection += f"{list(deliverect_menu[0].keys())}"
+                    
+                    # Check if it has a menu structure - sometimes the categories are nested deeper
+                    if "menu" in deliverect_menu[0]:
+                        menu_data = deliverect_menu[0]["menu"]
+                        if isinstance(menu_data, dict):
+                            if "categories" in menu_data:
+                                logger.info("[DELIVERECT-MENU] Found nested categories in menu key")
+                                return process_deliverect_menu(menu_data, location_id)
+                            elif "name" in menu_data and "menuId" in menu_data:
+                                # This might be a Deliverect menu format - look deeper for categories
+                                for key, value in menu_data.items():
+                                    if isinstance(value, list) and len(value) > 0 and key.lower() in ["categories", "category"]:
+                                        logger.info(f"[DELIVERECT-MENU] Found nested categories in menu.{key}")
+                                        structured_menu = {"categories": value}
+                                        return process_deliverect_menu(structured_menu, location_id)
+                
+                # Second attempt: Deep recursive inspection of all items in the list
+                logger.info("[DELIVERECT-MENU] Starting deep recursive inspection of list data")
+                
+                def recursively_find_products(obj, path="", found_products=None, found_categories=None):
+                    """
+                    Recursively search through nested data structures to find products and categories
+                    """
+                    if found_products is None:
+                        found_products = []
+                    if found_categories is None:
+                        found_categories = []
+                        
+                    # Handle menu structure first - highest priority match
+                    if isinstance(obj, dict) and "categories" in obj and isinstance(obj["categories"], list):
+                        logger.info(f"[DELIVERECT-MENU] Found menu with categories at {path}")
+                        # This is a full menu structure - return it to be processed directly
+                        raise ValueError("found_menu")
+                        
+                    # If it's a list, inspect each item
+                    if isinstance(obj, list):
+                        for i, item in enumerate(obj):
+                            recursively_find_products(item, f"{path}[{i}]", found_products, found_categories)
+                    
+                    # If it's a dict, check keys and inspect values
+                    elif isinstance(obj, dict):
+                        # Check if this is a product (has name and price/plu)
+                        if "name" in obj and ("price" in obj or "plu" in obj or "id" in obj):
+                            logger.info(f"[DELIVERECT-MENU] Found potential product at {path}: {obj.get('name')}")
+                            found_products.append(obj)
+                        
+                        # Check if this is a category (has name and products)
+                        if "name" in obj and "products" in obj:
+                            if isinstance(obj["products"], list):
+                                logger.info(f"[DELIVERECT-MENU] Found potential category at {path}: {obj.get('name')}")
+                                found_categories.append(obj)
+                            elif obj["products"] and isinstance(obj["products"], str):
+                                # Sometimes "products" might be a string due to data format issues
+                                # Create a placeholder category with empty products list for later processing
+                                cat_copy = obj.copy()
+                                cat_copy["products"] = []
+                                logger.info(f"[DELIVERECT-MENU] Found category with string products at {path}: {obj.get('name')}")
+                                found_categories.append(cat_copy)
+                        
+                        # Special handling for nested menu structures
+                        if "menu" in obj and isinstance(obj["menu"], dict):
+                            menu_obj = obj["menu"]
+                            # Check if it has categories
+                            if "categories" in menu_obj and isinstance(menu_obj["categories"], list):
+                                logger.info(f"[DELIVERECT-MENU] Found nested menu.categories at {path}")
+                                # Process this menu directly
+                                raise ValueError("found_nested_menu")
+                            
+                        # Special handling for "sections" which is sometimes used instead of "categories"
+                        if "sections" in obj and isinstance(obj["sections"], list):
+                            # Check if sections look like categories (have name and 'dishes'/'products')
+                            for section in obj["sections"]:
+                                if isinstance(section, dict) and "name" in section:
+                                    # Look for product-like arrays
+                                    for key in ["dishes", "products", "items", "menuItems"]:
+                                        if key in section and isinstance(section[key], list):
+                                            # This is likely a category equivalent
+                                            cat_copy = {
+                                                "id": section.get("id", f"section-{int(time.time())}"),
+                                                "name": section["name"],
+                                                "products": section[key]
+                                            }
+                                            logger.info(f"[DELIVERECT-MENU] Converting section to category: {section['name']}")
+                                            found_categories.append(cat_copy)
+                        
+                        # Process all values recursively
+                        for key, value in obj.items():
+                            # Special handling for known container keys
+                            if key in ["products", "items", "dishes", "menuItems", "menu", "categories", "sections"]:
+                                recursively_find_products(value, f"{path}.{key}", found_products, found_categories)
+                            # For other dictionary values
+                            elif isinstance(value, (dict, list)):
+                                recursively_find_products(value, f"{path}.{key}", found_products, found_categories)
+                
+                # Perform deep inspection on the list
+                all_products = []
+                all_categories = []
+                
+                # Process up to 5 items from the list to avoid excessive processing
+                items_to_process = deliverect_menu[:5] if len(deliverect_menu) > 5 else deliverect_menu
+                
+                try:
+                    # First try to find any complete menu structures
+                    for i, item in enumerate(items_to_process):
+                        try:
+                            recursively_find_products(item, f"[{i}]", all_products, all_categories)
+                        except ValueError as ve:
+                            if str(ve) == "found_menu":
+                                # Found a complete menu with categories
+                                logger.info(f"[DELIVERECT-MENU] Found complete menu structure in item {i}")
+                                return process_deliverect_menu(item, location_id)
+                            elif str(ve) == "found_nested_menu":
+                                # Found a menu with categories in the "menu" field
+                                logger.info(f"[DELIVERECT-MENU] Found nested menu structure in item {i}")
+                                # Extract the menu from the "menu" field that triggered the exception
+                                if "menu" in item and isinstance(item["menu"], dict) and "categories" in item["menu"]:
+                                    # Direct nested menu
+                                    return process_deliverect_menu(item["menu"], location_id)
+                                
+                                # It might be several levels deep - perform a targeted search for the menu structure
+                                def find_menu_obj(obj):
+                                    if isinstance(obj, dict):
+                                        if "menu" in obj and isinstance(obj["menu"], dict) and "categories" in obj["menu"]:
+                                            return obj["menu"]
+                                        # Search all values
+                                        for key, value in obj.items():
+                                            if isinstance(value, (dict, list)):
+                                                result = find_menu_obj(value)
+                                                if result:
+                                                    return result
+                                    elif isinstance(obj, list):
+                                        for item in obj:
+                                            result = find_menu_obj(item)
+                                            if result:
+                                                return result
+                                    return None
+                                
+                                # Find the menu object
+                                menu_obj = find_menu_obj(item)
+                                if menu_obj:
+                                    logger.info(f"[DELIVERECT-MENU] Found nested menu structure by targeted search")
+                                    return process_deliverect_menu(menu_obj, location_id)
+                except Exception as e:
+                    logger.warning(f"[DELIVERECT-MENU] Error in initial menu search: {e}")
+                
+                # If no complete menu was found, reset collected data and try again to collect products/categories
+                all_products = []
+                all_categories = []
+                
+                # Try to collect all products and categories
+                for i, item in enumerate(items_to_process):
+                    try:
+                        # Proceed with normal extraction
+                        recursively_find_products(item, f"[{i}]", all_products, all_categories)
+                    except ValueError:
+                        # Skip items that raise ValueError (already handled in the first loop)
+                        continue
+                    except Exception as e:
+                        logger.warning(f"[DELIVERECT-MENU] Error processing item {i}: {e}")
+                
+                # For complex structures with sections instead of categories
+                # Look specifically for sections pattern in items
+                for i, item in enumerate(items_to_process):
+                    if isinstance(item, dict):
+                        # Deep scan for sections -> dishes pattern
+                        if "data" in item and isinstance(item["data"], dict):
+                            data = item["data"]
+                            if "store" in data and isinstance(data["store"], dict):
+                                store = data["store"]
+                                if "menu" in store and isinstance(store["menu"], dict):
+                                    menu = store["menu"]
+                                    if "sections" in menu and isinstance(menu["sections"], list):
+                                        sections = menu["sections"]
+                                        logger.info(f"[DELIVERECT-MENU] Found deep sections pattern in item {i}")
+                                        
+                                        # Process each section as a category
+                                        for section in sections:
+                                            if isinstance(section, dict) and "name" in section:
+                                                # Look for products in different keys
+                                                for products_key in ["dishes", "products", "items", "menuItems"]:
+                                                    if products_key in section and isinstance(section[products_key], list):
+                                                        # Convert section to category
+                                                        cat = {
+                                                            "id": section.get("id", f"section-{int(time.time())}"),
+                                                            "name": section["name"],
+                                                            "products": section[products_key]
+                                                        }
+                                                        all_categories.append(cat)
+                                                        logger.info(f"[DELIVERECT-MENU] Converted section '{section['name']}' to category")
+                
+                # Use the found data to create a structured menu
+                if all_categories:
+                    logger.info(f"[DELIVERECT-MENU] Deep inspection found {len(all_categories)} categories")
+                    structured_menu = {"categories": all_categories}
+                    return process_deliverect_menu(structured_menu, location_id)
+                
+                elif all_products:
+                    logger.info(f"[DELIVERECT-MENU] Deep inspection found {len(all_products)} products")
+                    
+                    # Create a synthetic category for all found products
+                    structured_menu = {
+                        "categories": [
+                            {
+                                "id": f"synthetic-category-{int(time.time())}",
+                                "name": "Menu Items",
+                                "products": all_products
+                            }
+                        ]
+                    }
+                    return process_deliverect_menu(structured_menu, location_id)
+                
+                # Third attempt: Look for products with minimal structure requirements
+                all_potential_items = []
+                
+                for i, item in enumerate(deliverect_menu):
+                    if isinstance(item, dict):
+                        # Check if this could potentially be a menu item
+                        # Minimal requirement: has at least a name or identifier
+                        if ("name" in item or "title" in item or "id" in item or "plu" in item or 
+                            "product_name" in item or "productName" in item):
+                            all_potential_items.append(item)
+                
+                if all_potential_items:
+                    logger.info(f"[DELIVERECT-MENU] Found {len(all_potential_items)} potential items with minimal structure")
+                    
+                    # Create items directly (no categories)
+                    result = {
+                        "items": [],
+                        "modifiers": [],
+                        "modifierGroups": [],
+                        "name_variants": {}
+                    }
+                    
+                    # Process each potential item to ensure it has required fields
+                    for i, item in enumerate(all_potential_items):
+                        menu_item = {
+                            "id": item.get("id", f"item-{i}"),
+                            "name": item.get("name", item.get("title", item.get("product_name", item.get("productName", f"Item {i+1}")))),
+                            "price": 0.0,
+                            "available": True,
+                            "snoozed": False,
+                            "description": item.get("description", "")
+                        }
+                        
+                        # Set price if available
+                        price_value = item.get("price", 0)
+                        if isinstance(price_value, (int, float)):
+                            menu_item["price"] = price_value / 100 if price_value > 100 else price_value
+                        
+                        # Set reference handler with priority
+                        if item.get("plu"):
+                            menu_item["reference_handler"] = item.get("plu")
+                        elif item.get("id"):
+                            menu_item["reference_handler"] = item.get("id")
+                        elif menu_item["name"]:
+                            import re
+                            clean_name = re.sub(r'[^a-zA-Z0-9]', '', menu_item["name"])
+                            if clean_name:
+                                menu_item["reference_handler"] = clean_name[:15]
+                            else:
+                                menu_item["reference_handler"] = f"ITEM-{i}"
+                        else:
+                            menu_item["reference_handler"] = f"ITEM-{i}"
+                            
+                        result["items"].append(menu_item)
+                    
+                    # Generate name variants for all items
+                    for item in result["items"]:
+                        try:
+                            add_name_variants(item["name"], result["name_variants"])
+                        except Exception as e:
+                            logger.warning(f"[DELIVERECT-MENU] Error adding name variants for {item['name']}: {e}")
+                            
+                    logger.info(f"[DELIVERECT-MENU] Created menu with {len(result['items'])} items from minimal data")
+                    return result
+                
+                logger.warning(f"[DELIVERECT-MENU] Could not extract valid menu data from list after deep inspection. {detailed_inspection}")
+            except Exception as detailed_e:
+                logger.error(f"[DELIVERECT-MENU] Error in deep inspection: {detailed_e}")
+                
+            # Create empty result as fallback
             return result
         except Exception as e:
             logger.error(f"[DELIVERECT-MENU] Error attempting data extraction from list: {e}")
+            # Return an empty menu when all extraction methods fail
+            return result
     
     # At this point we either have a dictionary or need to create a valid one
     if not isinstance(deliverect_menu, dict):
@@ -892,10 +1343,70 @@ def process_deliverect_menu(deliverect_menu, location_id=None):
         cat_name = category.get("name", "Uncategorized")
         products = category.get("products", [])
         
-        # Ensure products is a list
-        if not isinstance(products, list):
+        # Special handling for products field
+        if not products:
+            # Skip empty products
+            logger.warning(f"[DELIVERECT-MENU] Category {cat_name} has empty products")
+            continue
+        elif isinstance(products, str):
+            # Sometimes 'products' might be a string due to data format issues
+            logger.warning(f"[DELIVERECT-MENU] Products in category {cat_name} is a string: '{products[:30]}...'")
+            try:
+                # Try to parse it as JSON if it looks like a JSON string
+                if products.strip().startswith('[') and products.strip().endswith(']'):
+                    import json
+                    parsed_products = json.loads(products)
+                    if isinstance(parsed_products, list):
+                        logger.info(f"[DELIVERECT-MENU] Successfully parsed products string as JSON array with {len(parsed_products)} items")
+                        products = parsed_products
+                    else:
+                        logger.warning("[DELIVERECT-MENU] Products JSON string did not parse to a list")
+                        products = []
+                else:
+                    # Create a synthetic product from the string
+                    logger.info(f"[DELIVERECT-MENU] Creating synthetic product from string in category {cat_name}")
+                    products = [{
+                        "id": f"syn-{int(time.time())}",
+                        "name": f"{cat_name} Item",
+                        "description": f"Generated from text: {products[:100]}...",
+                        "price": 0.0
+                    }]
+            except Exception as e:
+                logger.error(f"[DELIVERECT-MENU] Error handling string products: {e}")
+                products = []
+        elif not isinstance(products, list):
+            # Handle other non-list types
             logger.warning(f"[DELIVERECT-MENU] Products in category {cat_id} is not a list: {type(products)}")
-            products = []
+            try:
+                # Try to convert to a list if possible
+                if isinstance(products, dict):
+                    # If it's a dict, it might be a single product or a container
+                    if "name" in products or "id" in products or "plu" in products:
+                        # It looks like a single product
+                        products = [products]
+                        logger.info(f"[DELIVERECT-MENU] Converted dict to single-product list in category {cat_name}")
+                    else:
+                        # It might be a container - check if any values are lists or dicts
+                        product_candidates = []
+                        for key, value in products.items():
+                            if isinstance(value, list):
+                                # This might be a list of products
+                                product_candidates.extend(value)
+                            elif isinstance(value, dict) and ("name" in value or "id" in value):
+                                # This might be a single product
+                                product_candidates.append(value)
+                        
+                        if product_candidates:
+                            products = product_candidates
+                            logger.info(f"[DELIVERECT-MENU] Extracted {len(products)} products from dict in category {cat_name}")
+                        else:
+                            products = []
+                else:
+                    # For other types, create an empty list
+                    products = []
+            except Exception as e:
+                logger.error(f"[DELIVERECT-MENU] Error converting products to list: {e}")
+                products = []
         
         # Process each product in this category
         for i, product in enumerate(products):

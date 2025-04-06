@@ -1,35 +1,30 @@
 {
   "items": [
     {
-      "id": "prod1",
-      "name": "Cheeseburger",
-      "price": 10.95,
-      "reference_handler": "BURG-CHEESE",
-      "description": "Juicy beef patty with melted cheese",
-      "category": "Burgers",
-      "categoryId": "cat1",
-      "available": true,
-      "snoozed": false
-    },
-    {
-      "id": "prod2",
-      "name": "Veggie Burger",
-      "price": 9.95,
-      "reference_handler": "prod2",
-      "description": "Plant-based patty with toppings",
-      "category": "Burgers",
-      "categoryId": "cat1",
-      "available": true,
-      "snoozed": false
-    },
-    {
-      "id": "auto-2",
-      "name": "Kids Burger",
-      "price": 6.95,
-      "reference_handler": "KidsBurger",
-      "description": "Smaller burger for kids",
-      "category": "Burgers",
-      "categoryId": "cat1",
+      "menuItems": [
+        {
+          "available": true,
+          "description": "Juicy beef patty with melted cheese",
+          "id": "prod1",
+          "name": "Cheeseburger",
+          "plu": "BURG-CHEESE",
+          "price": 1095
+        },
+        {
+          "available": true,
+          "description": "Plant-based patty with toppings",
+          "id": "prod2",
+          "name": "Veggie Burger",
+          "plu": "BURG-VEGGIE",
+          "price": 995
+        }
+      ],
+      "store": "12345",
+      "name": "Menu Item 1",
+      "reference_handler": "MenuItem1-0",
+      "id": "ITEM-0000",
+      "price": 7.5,
+      "description": "",
       "available": true,
       "snoozed": false
     }
@@ -37,13 +32,10 @@
   "modifiers": [],
   "modifierGroups": [],
   "name_variants": {
-    "cheeseburger": "Kids Burger",
-    "burger": "Kids Burger",
-    "hamburger": "Kids Burger",
-    "beef burger": "Kids Burger",
-    "veggie burger": "Kids Burger",
-    "veggie": "Veggie Burger",
-    "kids burger": "Kids Burger",
-    "kids": "Kids Burger"
+    "menu item 1": "Menu Item 1",
+    "item 1": "Menu Item 1",
+    "menu item": "Menu Item 1",
+    "menu": "Menu Item 1",
+    "item": "Menu Item 1"
   }
 }
