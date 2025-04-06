@@ -9,7 +9,8 @@ from typing import List, Dict, Any, Optional
 from flask import session
 
 # Import menu utilities for order validation
-from app.utils.menu_utils import find_menu_item_by_name, load_menu_data
+from app.utils.menu_utils import find_menu_item_by_name, load_menu_data, is_item_snoozed_timebased
+from app.utils.snooze_validator import is_item_available, validate_items_availability
 
 logger = logging.getLogger(__name__)
 
@@ -109,57 +110,105 @@ def validate_order_items(order_items: List[Dict[str, Any]]) -> List[Dict[str, An
         List of valid order items (invalid items are removed)
     """
     valid_items = []
+    unavailable_items = []
     
-    # Load the current menu
+    # Load the current menu with a force refresh to get latest snooze status
     menu_data = load_menu_data(force_refresh=True)
     
-    # Get all valid menu items by reference handler for quick lookup
-    valid_menu_items = {item.get("reference_handler"): item for item in menu_data.get("items", []) 
-                     if item.get("reference_handler") and 
-                        item.get("available", True) and 
-                        not item.get("snoozed", False)}
+    # Get all menu items by reference handler for quick lookup
+    all_menu_items = {item.get("reference_handler"): item for item in menu_data.get("items", []) 
+                     if item.get("reference_handler")}
+    
+    # Get only available menu items (not snoozed or unavailable)
+    available_menu_items = {}
+    for ref, item in all_menu_items.items():
+        if is_item_available(item):
+            available_menu_items[ref] = item
+    
+    logger.info(f"[ORDER-VALIDATE] Found {len(available_menu_items)}/{len(all_menu_items)} available menu items")
     
     # Process each item in the order
     for item in order_items:
+        # Get name for logging
+        item_name = item.get("name", "Unknown item")
+        
         # If it already has a reference handler, check it directly
         if "reference_handler" in item and item["reference_handler"]:
-            if item["reference_handler"] in valid_menu_items:
+            ref = item["reference_handler"]
+            
+            # First check if it exists at all
+            if ref not in all_menu_items:
+                logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' with reference '{ref}' not found in menu")
+                unavailable_items.append(item_name)
+                continue
+                
+            # Then check if it's available
+            if ref in available_menu_items:
                 # Item exists and is available
-                logger.info(f"[ORDER-VALIDATE] Item has valid reference handler: {item.get('name')}")
+                logger.info(f"[ORDER-VALIDATE] Item '{item_name}' has valid reference handler: {ref}")
+                # Ensure we have latest price info
+                item["price"] = available_menu_items[ref].get("price", item.get("price", 0.0))
                 valid_items.append(item)
             else:
-                # Item doesn't exist or isn't available
-                logger.warning(f"[ORDER-VALIDATE] Item with reference '{item.get('reference_handler')}' not found in menu or unavailable: {item.get('name')}")
+                # Item exists but is not available (snoozed or unavailable)
+                menu_item = all_menu_items[ref]
+                
+                # Give specific reasons for unavailability
+                if menu_item.get("snoozed", False):
+                    logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' is snoozed and unavailable")
+                elif is_item_snoozed_timebased(menu_item):
+                    logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' is time-snoozed and unavailable")
+                elif not menu_item.get("available", True):
+                    logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' is marked as unavailable")
+                else:
+                    logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' is unavailable for an unknown reason")
+                
+                unavailable_items.append(item_name)
         
         # Otherwise look it up by name
         elif "name" in item and item["name"]:
-            # First try to find the item with availability check - default behavior
+            # First check if it's available
             menu_item = find_menu_item_by_name(item["name"], check_availability=True)
             if menu_item and menu_item.get("reference_handler"):
-                # Found a match - fill in the reference handler
+                # Found a match that's available - fill in the reference handler
                 item["reference_handler"] = menu_item["reference_handler"]
                 item["price"] = menu_item.get("price", 0.0)
-                logger.info(f"[ORDER-VALIDATE] Found item by name: {item['name']} → {item['reference_handler']}")
+                logger.info(f"[ORDER-VALIDATE] Found available item: {item_name} → {item['reference_handler']}")
                 valid_items.append(item)
             else:
-                # Try again without availability check - find unavailable items too, but log it
+                # Try to find the item regardless of availability
                 menu_item = find_menu_item_by_name(item["name"], check_availability=False)
-                if menu_item and menu_item.get("reference_handler"):
-                    # Found a match but it's unavailable - still add the reference handler
-                    item["reference_handler"] = menu_item["reference_handler"]
-                    item["price"] = menu_item.get("price", 0.0)
-                    logger.warning(f"[ORDER-VALIDATE] Found unavailable item by name: {item['name']} → {item['reference_handler']}")
-                    # Still add it to valid items, we need the reference_handler for error reporting
-                    valid_items.append(item)
+                if menu_item:
+                    # Item exists but is unavailable
+                    if menu_item.get("reference_handler"):
+                        item["reference_handler"] = menu_item["reference_handler"]
+                        item["price"] = menu_item.get("price", 0.0)
+                    
+                    # Give specific reasons for unavailability
+                    if menu_item.get("snoozed", False):
+                        logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' is snoozed and unavailable")
+                    elif is_item_snoozed_timebased(menu_item):
+                        logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' is time-snoozed and unavailable")
+                    elif not menu_item.get("available", True):
+                        logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' is marked as unavailable")
+                    else:
+                        logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' is unavailable for an unknown reason")
                 else:
-                    # No match found at all
-                    logger.warning(f"[ORDER-VALIDATE] Item not found in menu: {item.get('name')}")
+                    # Item not found in the menu at all
+                    logger.warning(f"[ORDER-VALIDATE] Item '{item_name}' not found in menu")
+                
+                unavailable_items.append(item_name)
         else:
             logger.warning(f"[ORDER-VALIDATE] Item has no name or reference handler, skipping")
     
     # Log validation results
-    if len(valid_items) < len(order_items):
-        logger.warning(f"[ORDER-VALIDATE] Removed {len(order_items) - len(valid_items)} invalid items from order")
+    if valid_items:
+        logger.info(f"[ORDER-VALIDATE] Validated {len(valid_items)} items for order")
+    else:
+        logger.warning("[ORDER-VALIDATE] No valid items in order after validation")
+        
+    if unavailable_items:
+        logger.warning(f"[ORDER-VALIDATE] Unavailable items: {', '.join(unavailable_items)}")
     
     return valid_items
 
@@ -251,8 +300,18 @@ def prepare_order_for_deliverect(order_items: List[Dict[str, Any]]) -> List[Dict
     # Step 2: Validate modifiers exist and are available
     valid_items_with_modifiers = validate_modifiers(valid_items)
     
-    # Step 3: Ensure all items have reference handlers before returning
-    for item in valid_items_with_modifiers:
+    # Step 3: Perform comprehensive availability validation using snooze_validator
+    from app.utils.snooze_validator import validate_items_availability
+    fully_validated_items = validate_items_availability(valid_items_with_modifiers)
+    
+    # Log any items that were filtered out in the final validation
+    if len(fully_validated_items) < len(valid_items_with_modifiers):
+        removed_items = [item.get("name", "Unknown") for item in valid_items_with_modifiers 
+                        if item not in fully_validated_items]
+        logger.warning(f"[ORDER-VALIDATE-FINAL] Items removed in final availability check: {', '.join(removed_items)}")
+        
+    # Step 4: Ensure all items have reference handlers before returning
+    for item in fully_validated_items:
         if not item.get("reference_handler"):
             # Try to find it again by name as a last resort
             menu_item = find_menu_item_by_name(item.get("name", ""))
@@ -263,7 +322,7 @@ def prepare_order_for_deliverect(order_items: List[Dict[str, Any]]) -> List[Dict
             else:
                 # If we still can't find a reference handler, log it and remove the item
                 logger.warning(f"[ORDER-VALIDATE-FINAL] Item {item.get('name')} has no reference handler, removing from order")
-                valid_items_with_modifiers.remove(item)
+                fully_validated_items.remove(item)
     
-    # Return the validated order
-    return valid_items_with_modifiers
+    # Return the fully validated order
+    return fully_validated_items
