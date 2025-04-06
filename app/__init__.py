@@ -1,6 +1,7 @@
 # app/__init__.py
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_sock import Sock
 import stripe
 from twilio.rest import Client
 import logging
@@ -11,6 +12,9 @@ from datetime import datetime
 
 # Initialize SQLAlchemy
 db = SQLAlchemy()
+
+# Initialize Sock for WebSockets
+sock = Sock()
 
 # Initialize clients with proper error handling
 try:
@@ -61,6 +65,9 @@ def create_app(test_config=None):
 
     # Initialize the database
     db.init_app(app)
+    
+    # Initialize WebSockets
+    sock.init_app(app)
 
     # Register Blueprints for routes
     from app.routes.voice import voice_bp
