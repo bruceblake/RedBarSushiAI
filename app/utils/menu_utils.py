@@ -101,10 +101,9 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         bool: True if successful, False otherwise
     """
     try:
-        # Get production path from environment variable or use default
-        production_path = "menu_data.json"
-        
-        # Always ensure root directory path is preferred
+        # Define known file paths that should work
+        docker_path = '/app/menu_data.json' if os.path.exists('/app') else None
+        tmp_path = '/tmp/menu_data.json'
         root_dir = os.getcwd()
         root_menu_path = os.path.join(root_dir, 'menu_data.json')
         
@@ -116,14 +115,13 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
             location_path = f"menu_data_{location_id}.json"
             # Try to use the same directory as the default menu file
             actual_path = os.path.join(os.path.dirname(MENU_FILE_PATH), location_path)
+        elif docker_path:
+            # If in Docker, use Docker path
+            actual_path = docker_path
+            logger.info(f"Using Docker path: {docker_path}")
         else:
-            # Prioritize production path if exists
-            if production_path and os.path.exists(os.path.dirname(production_path)):
-                actual_path = production_path
-                logger.info(f"Using production path: {production_path}")
-            else:
-                # Fallback to root directory path
-                actual_path = root_menu_path
+            # Fallback to root directory path
+            actual_path = root_menu_path
         
         # Safety check - ensure it's a JSON file path
         if not actual_path.lower().endswith('.json'):
@@ -168,21 +166,26 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         
         # Try to write to the path that was requested first, then fallback to other paths
         paths_to_try = [
-            # First check if we're in Docker and prioritize Docker path
-            DOCKER_MENU_PATH if os.path.exists(DOCKER_ROOT) else None,
-            # Use the production path we defined earlier
-            production_path,
-            # Then try the root directory of the current environment
-            os.path.join(os.getcwd(), 'menu_data.json'),
-            # Then try the path that was requested
+            # First try the path that was requested
             actual_path,
-            # Then try some additional fallbacks
+            
+            # Then try Docker path if applicable
+            docker_path,
+            
+            # Then try root directory
+            root_menu_path,
+            
+            # Then try app root paths
             os.path.join(APP_ROOT, 'menu_data.json'),
             os.path.join(APP_ROOT_PARENT, 'menu_data.json'),
-            # Add absolute paths that are most likely writable
+            
+            # Then try absolute paths that are most likely writable
             '/app/menu_data.json',
-            '/tmp/menu_data.json',
-            # Finally use a temporary path with timestamp
+            
+            # Always try tmp as reliable fallback
+            tmp_path,
+            
+            # Last resort with timestamp
             f"/tmp/menu_data_{int(time.time())}.json"
         ]
         
