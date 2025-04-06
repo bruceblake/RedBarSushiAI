@@ -32,7 +32,12 @@ COPY requirements.txt requirements.prod.txt requirements.docker.txt ./
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     # Try docker requirements first, then production, then default
     if [ -f "requirements.docker.txt" ]; then \
-        pip install --no-cache-dir -r requirements.docker.txt; \
+        # Try to install with --no-deps first to avoid conflicts
+        pip install --no-cache-dir -r requirements.docker.txt || \
+        # If that fails, try with dependency resolution
+        pip install --no-cache-dir --use-deprecated=legacy-resolver -r requirements.docker.txt || \
+        # If that still fails, fallback to regular install
+        pip install --no-cache-dir -r requirements.txt; \
     elif [ -f "requirements.prod.txt" ]; then \
         pip install --no-cache-dir -r requirements.prod.txt || \
         pip install --no-cache-dir -r requirements.txt; \
@@ -50,6 +55,7 @@ RUN pip install --no-cache-dir psycopg2-binary==2.9.9 \
                              flask-sock==0.7.0 \
                              gevent-websocket==0.10.1 \
                              simple-websocket==1.1.0 \
+                             websockets==13.1 \
                              openai-realtime-client==0.1.0
 
 # Stage 3: Final runtime image
