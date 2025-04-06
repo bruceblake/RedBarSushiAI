@@ -23,9 +23,12 @@ else
   echo "Xvfb not available, running in fully headless mode"
 fi
 
-# Set environment variables for OpenAI Realtime API
-export OPENAI_REALTIME_AVAILABLE=1 
+# Set environment variables for audio processing
+export OPENAI_STREAMING=1            # Enable streaming for standard OpenAI API
 export NODE_TLS_REJECT_UNAUTHORIZED=0 # Allow self-signed certificates in dev environments
+
+# Explicitly disable Realtime API until we have a working version
+export OPENAI_REALTIME_AVAILABLE=0
 export PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
 
 # Ensure we have all required dependencies in the right order

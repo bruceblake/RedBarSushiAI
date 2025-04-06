@@ -257,29 +257,29 @@ The system offloads long-running operations to background tasks using Celery. Tw
 
 ---
 
-## 8. Real-time Audio Integration
+## 8. Audio Processing via WebSockets
 
-The system implements real-time audio processing using WebSockets and OpenAI's Realtime API:
+The system implements audio processing with WebSocket transport:
 
 ### a. WebSocket Endpoints
 
 - **/api/ws/speech-to-text:**  
-  Receives streaming audio and returns real-time transcription results.
+  Receives audio and returns transcription results.
   
 - **/api/ws/text-to-speech:**  
-  Converts text to speech in real-time, streaming audio chunks back to the client.
+  Converts text to speech, streaming audio chunks back to the client.
   
 - **/api/ws/conversation:**  
-  Full-featured endpoint for the entire conversation flow: speech-to-text, AI processing, and text-to-speech.
+  Full-featured endpoint for the entire conversation flow with speech-to-text and text-to-speech.
 
 ### b. Key Features
 
-- **Real-time Transcription:** Audio streamed in chunks with results returned immediately.
-- **Streaming AI Responses:** Responses streamed token-by-token for immediate feedback.
-- **Voice Synthesis:** AI responses converted to speech and streamed back to the client.
+- **Standard API with WebSocket Transport:** Uses OpenAI's standard API with WebSocket communication layer.
+- **Streaming AI Responses:** Text responses streamed token-by-token for immediate feedback.
+- **Voice Synthesis:** AI responses converted to speech using OpenAI's TTS.
 - **Conversation Management:** Maintains conversation history for context-aware responses.
 - **Headless Operation:** Works in headless environments without requiring X11 display server.
-- **Robust Fallbacks:** Multiple processing options based on available capabilities.
+- **Robust Fallbacks:** Multiple processing options for maximum compatibility.
 
 ### c. Testing and Documentation
 
