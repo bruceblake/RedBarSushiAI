@@ -62,36 +62,73 @@ def take_order():
         return Response(str(response), mimetype='text/xml')
 
     # Load menu and check availability - force refresh to ensure we have latest data
-    menu_data = load_menu_data(force_refresh=True)
-    
-    # Debug logging to see if menu data is loaded correctly
-    logger.info(f"Menu data loaded: {len(menu_data.get('items', [])) if menu_data else 0} items found")
-    
-    # Get available items - items with names and not snoozed
-    available_items = [
-        item for item in menu_data.get('items', [])
-        if item.get('name') and item.get("snoozed", False) == False and item.get("available", True) == True
-    ]
-    
-    logger.info(f"Available (not snoozed) items: {len(available_items)}")
-    
-    if not available_items:
-        # Try to process the menu directly - it might be in Deliverect format
-        from app.utils.menu_utils import process_deliverect_menu
-        if "categories" in menu_data:
-            logger.info("Attempting to process Deliverect format directly")
-            menu_data = process_deliverect_menu(menu_data)
-            # Try again with the processed data
+    try:
+        menu_data = load_menu_data(force_refresh=True)
+        
+        # Debug logging to see if menu data is loaded correctly
+        item_count = len(menu_data.get('items', []) or [])
+        logger.info(f"Menu data loaded: {item_count} items found")
+        
+        # Check if any items have valid names
+        valid_name_count = sum(1 for item in menu_data.get('items', []) 
+                               if item.get('name'))
+        if valid_name_count == 0 and item_count > 0:
+            logger.error(f"Menu has {item_count} items but none have names!")
+            from app.utils.menu_utils import create_default_menu
+            menu_data = create_default_menu()
+            logger.info("Using default menu instead")
+        
+        # Get available items - items with names and not snoozed
+        available_items = [
+            item for item in menu_data.get('items', [])
+            if item.get('name') and item.get("snoozed", False) == False and 
+            item.get("available", True) == True
+        ]
+        
+        logger.info(f"Available (not snoozed) items: {len(available_items)}")
+        
+        if not available_items:
+            # Try to process the menu directly - it might be in Deliverect format
+            from app.utils.menu_utils import process_deliverect_menu
+            if "categories" in menu_data:
+                logger.info("Attempting to process Deliverect format directly")
+                try:
+                    menu_data = process_deliverect_menu(menu_data)
+                    # Try again with the processed data
+                    available_items = [
+                        item for item in menu_data.get('items', [])
+                        if item.get('name') and item.get("snoozed", False) == False
+                    ]
+                    logger.info(f"After processing: {len(available_items)} available items")
+                except Exception as e:
+                    logger.error(f"Error processing Deliverect format: {e}")
+                    
+        # If still no items, use the default menu
+        if not available_items:
+            from app.utils.menu_utils import create_default_menu
+            logger.warning("No available items found - creating default menu")
+            menu_data = create_default_menu()
+            
+            # Get available items from default menu
             available_items = [
                 item for item in menu_data.get('items', [])
                 if item.get('name') and item.get("snoozed", False) == False
             ]
-            logger.info(f"After processing: {len(available_items)} available items")
-    
-    if not available_items:
+            logger.info(f"Using default menu with {len(available_items)} items")
+            
+        # Final check - if still no items, report menu unavailable  
+        if not available_items:
+            response = VoiceResponse()
+            response.say(
+                "I'm sorry, our menu is currently unavailable. Please try again later.")
+            response.hangup()
+            return Response(str(response), mimetype='text/xml')
+            
+    except Exception as e:
+        logger.error(f"Error loading menu: {e}")
         response = VoiceResponse()
         response.say(
-            "I'm sorry, our menu is currently unavailable. Please try again later.")
+            "I'm sorry, we're experiencing technical difficulties. Please try again later.")
         response.hangup()
         return Response(str(response), mimetype='text/xml')
 

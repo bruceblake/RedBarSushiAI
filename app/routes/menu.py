@@ -12,13 +12,15 @@ logger = logging.getLogger(__name__)
 
 
 @menu_bp.route('/menu_update', methods=['POST'])
+@menu_bp.route('/update_menu', methods=['POST'])  # Alternative endpoint name
 def menu_update():
     """
-    Handle menu updates from Deliverect or our internal format.
+    Handle menu updates from various formats.
     
     Accepts:
     1. Deliverect format (with "categories")
     2. Our internal format (with "items", "modifiers", "modifierGroups")
+    3. Simple list of menu items
     
     Returns:
         JSON response with success status
@@ -32,26 +34,72 @@ def menu_update():
             logger.error("[MENU-UPDATE] No data provided in request")
             return jsonify({"error": "No data provided"}), 400
         
-        # Log receipt of data
-        logger.info(f"[MENU-UPDATE] Received menu update. Keys: {list(data.keys())}")
+        # Handle case where data is a list instead of a dictionary
+        if isinstance(data, list):
+            logger.info(f"[MENU-UPDATE] Received list data with {len(data)} items")
+            # Convert list of items to our standard format
+            data = {
+                "items": data,
+                "modifiers": [],
+                "modifierGroups": [],
+                "name_variants": {}
+            }
+        else:
+            # Log receipt of dictionary data
+            logger.info(f"[MENU-UPDATE] Received menu update. Keys: {list(data.keys())}")
         
         # Process based on format
-        if "categories" in data:
-            # Deliverect format
-            logger.info(f"[MENU-UPDATE] Processing Deliverect format with {len(data.get('categories', []))} categories")
-            processed_data = process_deliverect_menu(data)
-        elif "items" in data:
-            # Our internal format
-            logger.info(f"[MENU-UPDATE] Processing internal format with {len(data.get('items', []))} items")
-            processed_data = data.copy()
-        else:
-            # Unknown format
-            logger.error(f"[MENU-UPDATE] Unsupported data format. Keys: {list(data.keys())}")
-            return jsonify({
-                "error": "Unsupported format", 
-                "keys": list(data.keys()),
-                "expected": ["categories", "items"]
-            }), 400
+        try:
+            if "categories" in data:
+                # Deliverect format
+                logger.info(f"[MENU-UPDATE] Processing Deliverect format with {len(data.get('categories', []))} categories")
+                processed_data = process_deliverect_menu(data)
+                
+                # Verify the conversion worked
+                if not processed_data.get("items"):
+                    logger.warning("[MENU-UPDATE] Processed Deliverect data has no items!")
+                    return jsonify({"error": "Failed to extract any items from Deliverect data"}), 400
+                    
+            elif "items" in data:
+                # Our internal format
+                item_count = len(data.get('items', []))
+                logger.info(f"[MENU-UPDATE] Processing internal format with {item_count} items")
+                
+                # Verify items have names
+                valid_items = [item for item in data.get('items', []) if item.get('name')]
+                if not valid_items and item_count > 0:
+                    logger.warning("[MENU-UPDATE] Menu has items but no valid names!")
+                    return jsonify({"error": "Menu items must have names"}), 400
+                    
+                processed_data = data.copy()
+            else:
+                # Unknown format
+                logger.error(f"[MENU-UPDATE] Unsupported data format. Keys: {list(data.keys())}")
+                return jsonify({
+                    "error": "Unsupported format", 
+                    "keys": list(data.keys()),
+                    "expected": ["categories", "items"]
+                }), 400
+                
+            # Ensure items have required fields
+            if "items" in processed_data:
+                for i, item in enumerate(processed_data["items"]):
+                    if isinstance(item, dict):
+                        # Ensure required fields
+                        if not item.get("id"):
+                            item["id"] = f"auto_{i+1:04d}"
+                        if not item.get("reference_handler") and item.get("name"):
+                            # Generate a simple reference code from name
+                            name = item.get("name", "item").upper()
+                            item["reference_handler"] = ''.join(c for c in name if c.isalpha())[:10]
+                        # Ensure availability flags
+                        if "snoozed" not in item:
+                            item["snoozed"] = False
+                        if "available" not in item:
+                            item["available"] = True
+        except Exception as format_error:
+            logger.error(f"[MENU-UPDATE] Error processing data format: {format_error}")
+            return jsonify({"error": f"Data processing error: {str(format_error)}"}), 400
         
         # Ensure all expected structures exist
         if "items" not in processed_data:
@@ -64,11 +112,28 @@ def menu_update():
             processed_data["name_variants"] = {}
         
         # Generate name variants if missing
-        if processed_data["items"] and not processed_data["name_variants"]:
-            logger.info("[MENU-UPDATE] Generating missing name variants")
-            for item in processed_data["items"]:
-                if "name" in item:
-                    add_name_variants(item["name"], processed_data["name_variants"])
+        try:
+            if processed_data.get("items") and not processed_data.get("name_variants", {}):
+                logger.info("[MENU-UPDATE] Generating missing name variants")
+                processed_data["name_variants"] = {}
+                
+                for item in processed_data["items"]:
+                    if isinstance(item, dict) and item.get("name"):
+                        try:
+                            add_name_variants(item["name"], processed_data["name_variants"])
+                        except Exception as e:
+                            logger.warning(f"[MENU-UPDATE] Error adding variants for {item.get('name')}: {e}")
+                            # At minimum, add the base name itself as a variant
+                            processed_data["name_variants"][item["name"].lower()] = item["name"]
+        except Exception as e:
+            logger.error(f"[MENU-UPDATE] Error generating name variants: {e}")
+            # Create a basic name variants dictionary as fallback
+            if processed_data.get("items"):
+                processed_data["name_variants"] = {
+                    item.get("name", "").lower(): item.get("name", "") 
+                    for item in processed_data["items"]
+                    if isinstance(item, dict) and item.get("name")
+                }
         
         # Validate and fix menu data
         try:
