@@ -21,17 +21,35 @@ try:
     # Initialize Twilio client
     # Check which version of twilio we're using
     import twilio
-    twilio_version = twilio.__version__.split('.')
+    import pkg_resources
     
-    if int(twilio_version[0]) >= 7:
-        # Newer versions support timeout in the constructor
-        twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, 
-                              timeout=10)  # 10 second timeout
-    else:
-        # Older versions don't support timeout in constructor
+    twilio_version = pkg_resources.get_distribution("twilio").version
+    logging.info(f"Detected Twilio version: {twilio_version}")
+    
+    # Parse version as integers
+    try:
+        # Remove any alpha/beta/etc. suffixes for version comparison
+        import re
+        version_match = re.match(r'^(\d+)\.(\d+)\.(\d+)', twilio_version)
+        if version_match:
+            major, minor, patch = map(int, version_match.groups())
+            
+            if major >= 7:
+                # Newer versions support timeout in the constructor
+                twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, timeout=10)
+            else:
+                # Older versions don't support timeout in constructor
+                twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        else:
+            # Fallback if version can't be parsed
+            twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+            
+        logging.info(f"Twilio client initialized successfully (version {twilio_version})")
+    except Exception as parse_error:
+        # If version parsing fails, create client without timeout
+        logging.warning(f"Error parsing Twilio version: {parse_error}, creating client without timeout")
         twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         
-    logging.info(f"Twilio client initialized successfully (version {twilio.__version__})")
 except Exception as e:
     logging.error(f"Error initializing Twilio client: {e}")
     # Create a dummy client that won't crash the app

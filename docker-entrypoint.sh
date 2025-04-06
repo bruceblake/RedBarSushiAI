@@ -4,6 +4,13 @@ set -e
 # Set environment variables to indicate we're in Docker
 export DOCKER=true
 
+# Set environment variables for headless operation
+export PYNPUT_HEADLESS=1
+export DISPLAY=:99
+
+# Explicitly set the Python path to avoid import issues
+export PYTHONPATH=/app:$PYTHONPATH
+
 # Set RENDER flag if this is running on Render
 if [ -n "$RENDER_SERVICE_ID" ]; then
     export RENDER=true
