@@ -153,6 +153,12 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         except (PermissionError, OSError) as e:
             logger.warning(f"Could not create backup: {e}")
         
+        # Log key information for debugging
+        logger.info(f"Writing menu data with {len(menu_data.get('items', []))} items")
+        logger.info(f"Docker environment: {IN_DOCKER}, Docker root exists: {os.path.exists(DOCKER_ROOT)}")
+        logger.info(f"Current directory: {os.getcwd()}")
+        logger.info(f"Requested path: {actual_path}")
+        
         # Try to write to the path that was requested first, then fallback to other paths
         paths_to_try = [
             # First check if we're in Docker and prioritize Docker path
@@ -164,8 +170,11 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
             # Then try some additional fallbacks
             os.path.join(APP_ROOT, 'menu_data.json'),
             os.path.join(APP_ROOT_PARENT, 'menu_data.json'),
-            # Finally use a temporary path 
-            f"/tmp/menu_data_{os.getpid()}.json"
+            # Add absolute paths that are most likely writable
+            '/app/menu_data.json',
+            '/tmp/menu_data.json',
+            # Finally use a temporary path with timestamp
+            f"/tmp/menu_data_{int(time.time())}.json"
         ]
         
         # Filter out None values
