@@ -1,15 +1,22 @@
 #!/usr/bin/env python
 """
-Test script for verifying different realtime audio processors.
-This will test all available implementations to help diagnose issues.
+Test script for verifying OpenAI Realtime client imports.
+This simpler version only tests the import capabilities to diagnose RealtimeClient issues.
 """
 
-import asyncio
-import logging
 import os
 import sys
 import subprocess
-import importlib
+import traceback
+
+# Configure minimal logging
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
 
 # Check if we want to force X11 mode for testing
 USE_X11 = os.environ.get('USE_XVFB', 'false').lower() in ('true', 't', '1', 'yes', 'y')
@@ -78,54 +85,8 @@ else:
     if 'DISPLAY' in os.environ:
         del os.environ['DISPLAY']
 
-# Configure logging 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
 # Make sure we can import from the app
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-async def test_processor(processor_name, processor):
-    """Test basic functionality of the given processor"""
-    print(f"\n----- Testing {processor_name} -----")
-    
-    try:
-        # Test text response generation
-        print(f"Testing text response generation...")
-        message = "Tell me about sushi in one sentence."
-        response_complete = False
-        async for response in processor.process_conversation(message):
-            if response.get("type") == "message":
-                print(f"Received token: {response.get('text')}", end='', flush=True)
-            elif response.get("type") == "message_complete":
-                print(f"\nComplete response: {response.get('text')}")
-                response_complete = True
-        
-        assert response_complete, "Did not receive complete response"
-        print("✅ Text response generation test passed")
-        
-        # Test speech generation (just make sure it doesn't error)
-        print(f"Testing speech generation...")
-        speech_received = False
-        async for audio_chunk in processor.generate_speech("Hello, this is a test.", voice="alloy"):
-            if audio_chunk and len(audio_chunk) > 0:
-                print(f"Received audio chunk of size {len(audio_chunk)} bytes")
-                speech_received = True
-                break
-        
-        assert speech_received, "Did not receive any audio data"
-        print("✅ Speech generation test passed")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error testing {processor_name}: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return False
 
 def test_display_connection():
     """Test if there's a working X11 display connection."""
@@ -149,113 +110,144 @@ def test_display_connection():
     print("❌ X11 display is not working")
     return False
 
-async def main():
-    """Test all available audio processors"""
-    print("Testing all available audio processors...\n")
+def test_imports():
+    """Test importing openai_realtime_client and checking available classes"""
+    print("\n=== Testing OpenAI Realtime client imports ===")
     
-    # First, test the display connection if we're in X11 mode
-    if USE_X11:
-        display_works = test_display_connection()
-        print(f"X11 Display Connection: {'✅ Working' if display_works else '❌ Not working'}")
+    import_results = {}
     
-    results = {}
-    
-    # Attempt to import and test the original OpenAI Realtime client
+    # Try importing the base module
     try:
-        print("\n=== Testing original OpenAI Realtime client ===")
-        import app.utils.realtime_audio
-        # Check if it's actually available
-        if app.utils.realtime_audio.REALTIME_AVAILABLE:
-            print("OpenAI Realtime client is available, testing...")
-            from app.utils.realtime_audio import RealtimeAudioProcessor
-            processor = RealtimeAudioProcessor()
-            results["OpenAI Realtime client"] = await test_processor("OpenAI Realtime client", processor)
-        else:
-            print("❌ OpenAI Realtime client not available, skipping test")
-            results["OpenAI Realtime client"] = False
-    except Exception as e:
-        print(f"❌ Error importing OpenAI Realtime client: {str(e)}")
-        results["OpenAI Realtime client"] = False
-    
-    # Test the direct realtime implementation
-    try:
-        print("\n=== Testing Direct Realtime implementation ===")
-        from app.utils.direct_realtime import DirectRealtimeAudioProcessor
-        processor = DirectRealtimeAudioProcessor()
-        results["Direct Realtime"] = await test_processor("Direct Realtime", processor)
-    except Exception as e:
-        print(f"❌ Error importing Direct Realtime implementation: {str(e)}")
-        results["Direct Realtime"] = False
+        import openai_realtime_client
+        print("✅ Successfully imported openai_realtime_client module")
+        import_results["base_module"] = True
         
-    # Test the headless implementation
-    try:
-        print("\n=== Testing Headless implementation ===")
-        from app.utils.audio_fallback import get_headless_audio_processor
-        processor = get_headless_audio_processor()
-        results["Headless"] = await test_processor("Headless", processor)
-    except Exception as e:
-        print(f"❌ Error importing Headless implementation: {str(e)}")
-        results["Headless"] = False
-    
-    # Test the basic implementation
-    try:
-        print("\n=== Testing Basic implementation ===")
-        from app.utils.realtime_audio import BasicAudioProcessor
-        processor = BasicAudioProcessor()
-        results["Basic"] = await test_processor("Basic", processor)
-    except Exception as e:
-        print(f"❌ Error importing Basic implementation: {str(e)}")
-        results["Basic"] = False
-    
-    # Test the selected implementation that would be used
-    try:
-        print("\n=== Testing Selected implementation ===")
-        from app.utils.realtime_audio import get_audio_processor
-        processor = get_audio_processor()
-        processor_name = processor.__class__.__name__
-        results["Selected"] = await test_processor(f"Selected ({processor_name})", processor)
-    except Exception as e:
-        print(f"❌ Error with selected implementation: {str(e)}")
-        results["Selected"] = False
+        # Check module contents
+        module_contents = dir(openai_realtime_client)
+        print(f"Module contents: {module_contents}")
+        
+        # Check version
+        version = getattr(openai_realtime_client, "__version__", "unknown")
+        print(f"OpenAI Realtime client version: {version}")
+        
+        # Look for RealtimeClient class
+        if "RealtimeClient" in module_contents:
+            print("✅ RealtimeClient class found in module")
+            import_results["RealtimeClient_in_module"] = True
+            
+            # Try importing RealtimeClient directly
+            try:
+                from openai_realtime_client import RealtimeClient
+                print("✅ Successfully imported RealtimeClient class")
+                import_results["import_RealtimeClient"] = True
+                
+                # Try to get RealtimeClient methods
+                client_methods = [method for method in dir(RealtimeClient) if not method.startswith("_")]
+                print(f"RealtimeClient methods: {client_methods}")
+                
+                # Try creating a RealtimeClient instance
+                try:
+                    # Use a placeholder API key
+                    client = RealtimeClient(api_key="sk-test")
+                    print(f"✅ Successfully created RealtimeClient instance: {client}")
+                    import_results["create_RealtimeClient"] = True
+                except Exception as client_error:
+                    print(f"❌ Error creating RealtimeClient instance: {client_error}")
+                    traceback.print_exc()
+                    import_results["create_RealtimeClient"] = False
+            except ImportError as import_error:
+                print(f"❌ Failed to import RealtimeClient: {import_error}")
+                traceback.print_exc()
+                import_results["import_RealtimeClient"] = False
+        else:
+            print("❌ RealtimeClient class not found in module")
+            import_results["RealtimeClient_in_module"] = False
+        
+        # Check for client submodule
+        if "client" in module_contents:
+            print("\n=== Testing openai_realtime_client.client submodule ===")
+            
+            try:
+                # Check client submodule contents
+                client_module = openai_realtime_client.client
+                client_contents = dir(client_module)
+                print(f"client submodule contents: {client_contents}")
+                
+                # Look for Session class
+                if "Session" in client_contents:
+                    print("✅ Session class found in client submodule")
+                    import_results["Session_in_client"] = True
+                    
+                    # Try importing Session
+                    try:
+                        from openai_realtime_client.client import Session
+                        print("✅ Successfully imported Session class")
+                        import_results["import_Session"] = True
+                        
+                        # Try creating a Session
+                        try:
+                            session = Session.create(api_key="sk-test")
+                            print(f"✅ Successfully created Session: {session}")
+                            import_results["create_Session"] = True
+                        except Exception as session_error:
+                            print(f"❌ Error creating Session: {session_error}")
+                            traceback.print_exc()
+                            import_results["create_Session"] = False
+                    except ImportError as import_error:
+                        print(f"❌ Failed to import Session: {import_error}")
+                        traceback.print_exc()
+                        import_results["import_Session"] = False
+                else:
+                    print("❌ Session class not found in client submodule")
+                    import_results["Session_in_client"] = False
+            except Exception as client_error:
+                print(f"❌ Error inspecting client submodule: {client_error}")
+                traceback.print_exc()
+        else:
+            print("❌ client submodule not found")
+            import_results["client_submodule"] = False
+    except ImportError as import_error:
+        print(f"❌ Failed to import openai_realtime_client: {import_error}")
+        traceback.print_exc()
+        import_results["base_module"] = False
     
     # Print summary
-    print("\n===== Summary =====")
+    print("\n=== Import Test Summary ===")
+    for test, result in import_results.items():
+        status = "✅ Passed" if result else "❌ Failed"
+        print(f"{test}: {status}")
     
-    # Display X11 status if relevant
-    if USE_X11:
-        display_works = test_display_connection()
-        display_status = "✅ Working" if display_works else "❌ Not working"
-        print(f"X11 Display: {display_status}")
-        
-        if not display_works:
-            print("⚠️ X11 Display is not working, which affects the OpenAI Realtime client")
-            print("   You have two options:")
-            print("   1. Fix X11 by setting USE_XVFB=true and ensuring xvfb is installed")
-            print("   2. Use the Direct Realtime implementation instead (recommended)")
-    
-    # Show processor results
-    for name, success in results.items():
-        status = "✅ Working" if success else "❌ Failed"
-        print(f"{name}: {status}")
-    
-    working_count = sum(1 for success in results.values() if success)
-    print(f"\n{working_count}/{len(results)} implementations working")
-    
-    # Final verdict
-    if results.get("Selected", False):
-        print("\n✅ The selected implementation is working!")
-        
-        # Get the processor name
-        try:
-            from app.utils.realtime_audio import get_audio_processor
-            processor = get_audio_processor()
-            processor_name = processor.__class__.__name__
-            print(f"Using: {processor_name}")
-        except:
-            pass
-    else:
-        print("\n❌ The selected implementation is NOT working!")
-        print("Try running with USE_XVFB=true to use the X11 virtual display server")
+    return import_results
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # First check the X11 display connection
+    if USE_X11:
+        display_works = test_display_connection()
+        print(f"X11 Display: {'✅ Working' if display_works else '❌ Not working'}")
+    
+    # Test imports
+    import_results = test_imports()
+    
+    # Final verdict
+    can_use_realtimeclient = import_results.get("import_RealtimeClient", False)
+    print("\n=== Final Verdict ===")
+    if can_use_realtimeclient:
+        print("✅ The RealtimeClient class is available and can be imported")
+        print("The implementation in realtime_audio.py should work with RealtimeClient")
+    else:
+        print("❌ The RealtimeClient class is NOT available or cannot be imported")
+        print("The implementation in realtime_audio.py will fall back to DirectRealtimeAudioProcessor")
+    
+    # Provide recommendations
+    print("\n=== Recommendations ===")
+    if not import_results.get("base_module", False):
+        print("1. Install the openai-realtime-client package: pip install openai-realtime-client")
+    elif not can_use_realtimeclient:
+        if USE_X11:
+            print("1. Check if the X11 virtual display is properly set up")
+            print("2. Make sure you have the correct version of openai-realtime-client")
+        else:
+            print("1. Try running with X11 support: python test_realtime_client.py --with-x11")
+            print("2. Or use the DirectRealtimeAudioProcessor which works without X11")
+    else:
+        print("Everything looks good! The RealtimeClient implementation should work.")

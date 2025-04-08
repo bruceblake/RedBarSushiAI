@@ -121,27 +121,22 @@ fi
 # Run the test script to verify the setup
 echo "Running test script to verify setup..."
 if [ -f "test_realtime_client.py" ]; then
-    # Create a wrapper script that ensures X11 environment variables are set
-    cat > /tmp/test_x11_wrapper.py << 'EOF'
-import os
-import sys
-import subprocess
-
-# Set X11 environment variables
-if os.environ.get('DISPLAY'):
-    print(f"Using DISPLAY={os.environ['DISPLAY']}")
-    os.environ['PYNPUT_HEADLESS'] = '0'
-    os.environ['NO_X11'] = '0'
-    os.environ['HEADLESS'] = '0'
-    os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '0'
-    os.environ['USE_XVFB'] = 'true'
+    # Use X11 environment variables before running test
+    if [ -n "$DISPLAY" ] && [ "$X11_SETUP_SUCCESS" = "true" ]; then
+        # Set up X11 environment variables
+        export PYNPUT_HEADLESS=0
+        export NO_X11=0
+        export HEADLESS=0
+        export OPENAI_REALTIME_NO_DISPLAY=0
+        export USE_XVFB=true
+        
+        echo "Running test with X11 environment: DISPLAY=$DISPLAY"
+    else
+        echo "Running test without X11 environment"
+    fi
     
-# Run the actual test script
-subprocess.run([sys.executable, '/app/test_realtime_client.py'])
-EOF
-
-    # Run the wrapper script
-    python /tmp/test_x11_wrapper.py || true
+    # Run the test script directly
+    python test_realtime_client.py || true
 fi
 
 # Run diagnostic script if it exists
@@ -364,11 +359,28 @@ else:
 application = app
 EOF
         
-        # Use the wrapper script
-        echo "DEBUG: Using Python wrapper script with explicit environment variables"
-        exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
-                     --log-level=debug --max-requests=500 --max-requests-jitter=50 \
-                     --worker-connections=500 --timeout=120 "/tmp/gunicorn_env_wrapper"
+        # Use environment variables directly with Gunicorn
+        echo "DEBUG: Using direct environment variables with Gunicorn"
+        
+        # Export all X11 variables explicitly for Gunicorn workers
+        export DISPLAY=${DISPLAY}
+        export PYNPUT_HEADLESS=0
+        export NO_X11=0
+        export HEADLESS=0
+        export OPENAI_REALTIME_NO_DISPLAY=0
+        export X11_SETUP_SUCCESS=true
+        
+        if [ -f "wsgi.py" ]; then
+            echo "DEBUG: Using wsgi.py entry point with memory optimizations"
+            exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
+                         --log-level=debug --max-requests=500 --max-requests-jitter=50 \
+                         --worker-connections=500 --timeout=120 "wsgi"
+        else
+            echo "DEBUG: Using run:app entry point with memory optimizations"
+            exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
+                         --log-level=debug --max-requests=500 --max-requests-jitter=50 \
+                         --worker-connections=500 --timeout=120 "run:app"
+        fi
     else
         # Standard startup if DISPLAY isn't set
         if [ -f "wsgi.py" ]; then

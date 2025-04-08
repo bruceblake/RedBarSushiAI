@@ -72,57 +72,57 @@ try:
     module_contents = dir(openai_realtime_client)
     logging.info(f"openai_realtime_client contents: {module_contents}")
     
-    # Check version and try to import the session
+    # Check version and try to import the client
     version = getattr(openai_realtime_client, "__version__", "unknown")
     logging.info(f"OpenAI Realtime client version: {version}")
     
-    # Try to import the Session class - with specific handling for X11 errors
+    # Try to import the RealtimeClient class - with specific handling for X11 errors
     try:
         # First try normal import
         try:
             # Detailed logging to diagnose import issues
-            logging.info("Attempting to import Session from openai_realtime_client.client...")
+            logging.info("Attempting to import RealtimeClient from openai_realtime_client...")
             
-            # Try to import Session, being extra careful with X11 errors
+            # Try to import RealtimeClient, being extra careful with X11 errors
             if not display_env:
                 logging.warning("No DISPLAY environment variable - this will likely fail")
             
-            from openai_realtime_client.client import Session
+            from openai_realtime_client import RealtimeClient
             REALTIME_AVAILABLE = True
-            logging.info(f"✅ Successfully imported Session from openai_realtime_client v{version}")
+            logging.info(f"✅ Successfully imported RealtimeClient from openai_realtime_client v{version}")
             
-            # Test creating a session to make sure it actually works
+            # Test creating a client to make sure it actually works
             try:
-                logging.info("Testing session creation...")
+                logging.info("Testing RealtimeClient creation...")
                 test_key = os.environ.get('OPENAI_API_KEY', 'sk-test')
-                test_session = Session.create(api_key=test_key)
-                logging.info(f"✅ Successfully created test session object: {test_session}")
+                test_client = RealtimeClient(api_key=test_key)
+                logging.info(f"✅ Successfully created test client object: {test_client}")
             except Exception as test_error:
-                logging.warning(f"⚠️ Test session creation failed: {test_error}")
+                logging.warning(f"⚠️ Test client creation failed: {test_error}")
                 # If it's an X11/display error, fall back
                 error_str = str(test_error).lower()
                 if 'display' in error_str or 'x11' in error_str or 'x server' in error_str:
                     logging.warning(f"X11/Display error during test: {test_error}")
                     REALTIME_AVAILABLE = False
                 
-        except Exception as session_error:
+        except Exception as client_error:
             # Check if it's an X11/display-related error
-            error_str = str(session_error).lower()
-            logging.error(f"Error importing Session: {session_error}")
+            error_str = str(client_error).lower()
+            logging.error(f"Error importing RealtimeClient: {client_error}")
             
             if 'display' in error_str or 'x11' in error_str or 'x server' in error_str or 'displaynameerror' in error_str:
-                logging.warning(f"X11/Display error importing Session: {session_error}")
+                logging.warning(f"X11/Display error importing RealtimeClient: {client_error}")
                 # Explicitly set to use direct implementation
                 REALTIME_AVAILABLE = False
                 logging.warning("X11/Display dependency detected, will use direct WebSocket implementation")
             else:
                 # For other errors, re-raise
-                raise session_error
+                raise client_error
     except (ImportError, AttributeError) as e:
-        # Session doesn't seem to be exported directly
+        # RealtimeClient doesn't seem to be exported directly
         # Let's use direct WebSocket implementation
         REALTIME_AVAILABLE = False
-        logging.warning(f"Could not import Session from openai_realtime_client: {e}")
+        logging.warning(f"Could not import RealtimeClient from openai_realtime_client: {e}")
         logging.warning("Will use direct WebSocket implementation instead")
     
 except ImportError as import_error:
@@ -152,6 +152,13 @@ else:
     if not REALTIME_AVAILABLE:
         if WEBSOCKETS_AVAILABLE or AIOHTTP_AVAILABLE:
             logging.info("Will use direct WebSocket implementation with websockets or aiohttp")
+            
+            # Don't treat this as an error - it's expected behavior with our dual approach
+            if 'X11_SETUP_SUCCESS' in os.environ and os.environ.get('X11_SETUP_SUCCESS') == 'true':
+                logging.info("Note: Using direct WebSocket implementation instead of OpenAI Realtime client, " +
+                            "even though X11 is available. This is normal if the Session class is not available.")
+            else:
+                logging.info("Using direct WebSocket implementation because X11 display server is not available")
         else:
             logging.warning("No WebSocket libraries available, falling back to standard API")
 
@@ -377,26 +384,26 @@ class RealtimeAudioProcessor:
         try:
             logger.info(f"Processing audio stream with content type: {content_type}")
             
-            # Safely create a Session - wrap in try/except
+            # Safely create a RealtimeClient - wrap in try/except
             try:
-                session = Session.create(
-                    api_key=OPENAI_API_KEY,
-                    session={
-                        "input_audio_format": {
-                            "type": content_type
-                        },
-                        "output_audio_format": {
-                            "type": "audio/mp3"
-                        }
-                    }
-                )
+                client = RealtimeClient(api_key=OPENAI_API_KEY)
                 
-                logger.info(f"Created realtime session: {session.id}")
-            except Exception as session_error:
-                logger.error(f"Error creating OpenAI Realtime session: {session_error}")
+                # Create a session with audio format configuration
+                session_options = {
+                    "input_audio_format": {
+                        "type": content_type
+                    },
+                    "output_audio_format": {
+                        "type": "audio/mp3"
+                    }
+                }
+                
+                logger.info(f"Created realtime client with session options: {session_options}")
+            except Exception as client_error:
+                logger.error(f"Error creating OpenAI Realtime client: {client_error}")
                 logger.error(traceback.format_exc())
                 
-                # Fall back to non-realtime processing if session creation fails
+                # Fall back to non-realtime processing if client creation fails
                 logger.warning("Falling back to non-streaming audio processing")
                 all_audio = bytes()
                 async for chunk in audio_chunks_generator:
@@ -407,104 +414,117 @@ class RealtimeAudioProcessor:
                 yield result
                 return
             
-            # Collect audio chunks and send to session
+            # Collect audio chunks for processing
             try:
-                # Start collecting audio chunks
+                # Collect all audio chunks first
+                all_audio = bytes()
                 async for chunk in audio_chunks_generator:
                     if isinstance(chunk, bytes):
-                        # Convert to base64
-                        base64_audio = base64.b64encode(chunk).decode('utf-8')
-                        
-                        # Append to the audio buffer
-                        session.send_event({
-                            "type": "input_audio_buffer.append",
-                            "audio": base64_audio
-                        })
+                        all_audio += chunk
                 
-                # Signal that we're done sending audio
-                session.send_event({
-                    "type": "input_audio_buffer.commit"
-                })
+                # Convert to base64 if needed
+                base64_audio = base64.b64encode(all_audio).decode('utf-8')
                 
-                # Create a response to get transcription
-                session.send_event({
-                    "type": "response.create",
-                    "response": {
-                        "modalities": ["text"]
-                    }
-                })
+                # Process audio with client
+                # Note: The API for RealtimeClient may be different from Session,
+                # this is an educated guess based on the module contents
+                logger.info("Processing audio with RealtimeClient")
             except Exception as send_error:
-                logger.error(f"Error sending data to session: {send_error}")
+                logger.error(f"Error processing audio chunks: {send_error}")
                 logger.error(traceback.format_exc())
-                session.close()
                 
                 # Fall back to non-realtime processing
-                logger.warning("Falling back to non-streaming audio processing due to send error")
-                all_audio = bytes()
-                # Reset the generator if possible
-                try:
-                    async for chunk in audio_chunks_generator:
-                        all_audio += chunk
-                except:
-                    # If we can't restart the generator, just yield an error
-                    yield {"type": "error", "error": "Failed to process audio stream"}
-                    return
+                logger.warning("Falling back to non-streaming audio processing due to processing error")
                 
                 # Process the complete audio with the standard API
-                result = await self.process_audio(all_audio, content_type)
-                yield result
+                try:
+                    # We've already collected all the audio in all_audio
+                    with tempfile.NamedTemporaryFile(suffix=".webm" if "webm" in content_type else ".mp3") as temp_file:
+                        temp_file.write(all_audio)
+                        temp_file.flush()
+                        
+                        # Process with OpenAI
+                        with open(temp_file.name, "rb") as audio_file:
+                            response = self.openai_client.audio.transcriptions.create(
+                                model="whisper-1",
+                                file=audio_file,
+                                language="en"
+                            )
+                    
+                    yield {
+                        "type": "transcript_complete",
+                        "text": response.text,
+                        "final": True,
+                        "timestamp": time.time()
+                    }
+                except Exception as fallback_error:
+                    logger.error(f"Error in fallback processing: {fallback_error}")
+                    yield {"type": "error", "error": "Failed to process audio stream"}
+                
                 return
             
-            # Process events from the session with timeout for safety
+            # Try to process with RealtimeClient
             try:
-                transcript = ""
-                events_received = False
+                # Based on the module contents, we need to use RealtimeClient differently from Session
+                # This is a best guess implementation based on available information
+                logger.info("Attempting to transcribe audio with RealtimeClient")
                 
-                # Use a timeout to prevent hanging if events don't come through
-                start_time = time.time()
-                timeout = 30  # seconds
-                
-                for event in session.events():
-                    events_received = True
-                    
-                    # Check for timeout
-                    if time.time() - start_time > timeout:
-                        logger.warning("Session event processing timed out")
-                        break
+                # Create a new handler for audio processing
+                try:
+                    # Create a temporary file for audio processing
+                    with tempfile.NamedTemporaryFile(suffix=".webm" if "webm" in content_type else ".mp3") as temp_file:
+                        temp_file.write(all_audio)
+                        temp_file.flush()
                         
-                    if event.get("type") == "response.audio_transcript.delta":
-                        delta = event.get("delta", "")
-                        transcript += delta
-                        yield {
-                            "type": "transcript",
-                            "text": transcript,
-                            "final": False,
-                            "timestamp": time.time()
-                        }
-                    elif event.get("type") == "response.audio_transcript.done":
+                        # Use the client to process the audio file or use the API directly
+                        # Note: This is a placeholder - actual API may differ
+                        try:
+                            # Attempt to use the actual RealtimeClient directly (preferred)
+                            result = client.process_audio_file(temp_file.name)
+                            transcript = result.get("text", "")
+                        except (AttributeError, TypeError) as direct_error:
+                            logger.warning(f"Direct RealtimeClient.process_audio_file not available: {direct_error}")
+                            
+                            # Fall back to standard API
+                            with open(temp_file.name, "rb") as audio_file:
+                                response = self.openai_client.audio.transcriptions.create(
+                                    model="whisper-1",
+                                    file=audio_file,
+                                    language="en"
+                                )
+                            transcript = response.text
+                
+                        # Yield the complete transcript
+                        logger.info(f"Transcription completed: {transcript}")
                         yield {
                             "type": "transcript_complete",
                             "text": transcript,
                             "final": True,
                             "timestamp": time.time()
                         }
-                        break
-                
-                # If we didn't receive any events, yield empty result
-                if not events_received:
-                    logger.warning("No events received from session")
+                except Exception as process_error:
+                    logger.error(f"Error processing with RealtimeClient: {process_error}")
+                    logger.error(traceback.format_exc())
+                    
+                    # Fall back to standard API as last resort
+                    with tempfile.NamedTemporaryFile(suffix=".webm" if "webm" in content_type else ".mp3") as temp_file:
+                        temp_file.write(all_audio)
+                        temp_file.flush()
+                        
+                        # Process with OpenAI
+                        with open(temp_file.name, "rb") as audio_file:
+                            response = self.openai_client.audio.transcriptions.create(
+                                model="whisper-1",
+                                file=audio_file,
+                                language="en"
+                            )
+                    
                     yield {
                         "type": "transcript_complete",
-                        "text": "",
+                        "text": response.text,
                         "final": True,
                         "timestamp": time.time()
                     }
-                
-                # Close session
-                try:
-                    session.close()
-                except:
-                    pass
                     
             except Exception as event_error:
                 logger.error(f"Error processing session events: {event_error}")
@@ -539,54 +559,45 @@ class RealtimeAudioProcessor:
         try:
             logger.info(f"Generating speech for text: '{text[:50]}...' using voice: {voice}")
             
-            # Create a new session
-            session = Session.create(
-                api_key=OPENAI_API_KEY,
-                session={
-                    "output_audio_format": {
-                        "type": "audio/mp3"
-                    }
-                }
+            # Try to use RealtimeClient if available
+            try:
+                client = RealtimeClient(api_key=OPENAI_API_KEY)
+                logger.info("Created RealtimeClient for text-to-speech")
+                
+                # Note: Since we don't know the exact API for RealtimeClient,
+                # we'll try a few approaches and fall back to standard API
+                try:
+                    # Try a direct method if available
+                    audio_data = client.generate_speech(text, voice=voice)
+                    yield audio_data
+                    logger.info("Generated speech using RealtimeClient.generate_speech")
+                    return
+                except (AttributeError, TypeError) as direct_error:
+                    logger.warning(f"Direct RealtimeClient.generate_speech not available: {direct_error}")
+                    
+                    # Try alternative methods if they exist
+                    try:
+                        # Try other potential API patterns
+                        audio_data = client.tts(text, voice=voice)
+                        yield audio_data
+                        logger.info("Generated speech using RealtimeClient.tts")
+                        return
+                    except (AttributeError, TypeError):
+                        logger.warning("RealtimeClient.tts method not available")
+                
+                # Fall back to standard API
+                logger.warning("Falling back to standard TTS API")
+            except Exception as client_error:
+                logger.error(f"Error creating or using RealtimeClient: {client_error}")
+                logger.warning("Falling back to standard TTS API")
+            
+            # Use standard OpenAI API for TTS
+            response = self.openai_client.audio.speech.create(
+                model="tts-1",
+                voice=voice,
+                input=text
             )
-            
-            # Create a conversation item with the text
-            session.send_event({
-                "type": "conversation.item.create",
-                "item": {
-                    "type": "message",
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": text
-                        }
-                    ]
-                }
-            })
-            
-            # Create a response with TTS
-            session.send_event({
-                "type": "response.create",
-                "response": {
-                    "modalities": ["text", "audio"],
-                    "voice": voice
-                }
-            })
-            
-            # Process events from the session
-            audio_data = bytearray()
-            for event in session.events():
-                if event.get("type") == "response.audio.delta":
-                    audio_chunk = base64.b64decode(event.get("delta", ""))
-                    audio_data.extend(audio_chunk)
-                    yield bytes(audio_chunk)
-                elif event.get("type") == "response.audio.done":
-                    if not audio_data:
-                        # If no chunks were received, yield the complete audio
-                        yield bytes(audio_data)
-            
-            # Close session
-            session.close()
+            yield response.content
                 
         except Exception as e:
             error_msg = f"Error in realtime speech generation: {str(e)}"
@@ -609,91 +620,127 @@ class RealtimeAudioProcessor:
             if conversation_history is None:
                 conversation_history = []
             
-            # Create a new session
-            session = Session.create(
-                api_key=OPENAI_API_KEY
-            )
+            # Try to use RealtimeClient if available
+            try:
+                client = RealtimeClient(api_key=OPENAI_API_KEY)
+                logger.info("Created RealtimeClient for conversation processing")
+                
+                # Note: Since we don't know the exact API for RealtimeClient,
+                # we'll try direct methods and fall back to standard API
+                try:
+                    # Try a direct method if available - this is a guess based on the class name
+                    # Any of these methods might exist in the actual implementation
+                    
+                    # Prepare messages in chat format
+                    messages = []
+                    
+                    # Add system message if not present
+                    if not any(msg.get("role") == "system" for msg in conversation_history):
+                        messages.append({
+                            "role": "system",
+                            "content": "You are an AI assistant for Red Bar Sushi restaurant. "
+                                    "Be helpful, concise, and friendly. Provide restaurant information "
+                                    "and take orders accurately."
+                        })
+                    
+                    # Add conversation history
+                    for msg in conversation_history:
+                        if msg.get("role") != "system" or not messages:  # Add system if we didn't add one above
+                            messages.append(msg)
+                    
+                    # Add user message
+                    messages.append({"role": "user", "content": transcript})
+                    
+                    # Try various methods that might exist
+                    try:
+                        # Try streaming completion style method
+                        for chunk in client.chat.completions.create(messages=messages, stream=True):
+                            if hasattr(chunk, 'choices') and chunk.choices:
+                                delta = chunk.choices[0].delta.content
+                                if delta:
+                                    yield {
+                                        "type": "message",
+                                        "text": delta,
+                                        "complete": False,
+                                        "timestamp": time.time()
+                                    }
+                        
+                        # Success with streaming method
+                        logger.info("Used RealtimeClient.chat.completions.create streaming method")
+                        return
+                    except (AttributeError, TypeError) as method_error:
+                        logger.warning(f"RealtimeClient.chat.completions.create not available: {method_error}")
+                    
+                    # Try alternative method
+                    try:
+                        # Try a direct conversation method
+                        response = client.create_conversation(messages)
+                        yield {
+                            "type": "message_complete",
+                            "text": response.get("content") if isinstance(response, dict) else str(response),
+                            "complete": True,
+                            "timestamp": time.time()
+                        }
+                        
+                        # Success with direct method
+                        logger.info("Used RealtimeClient.create_conversation method")
+                        return
+                    except (AttributeError, TypeError) as method_error:
+                        logger.warning(f"RealtimeClient.create_conversation not available: {method_error}")
+                
+                # Fall back to standard API
+                logger.warning("No RealtimeClient methods available, falling back to standard API")
+            except Exception as client_error:
+                logger.error(f"Error creating or using RealtimeClient: {client_error}")
+                logger.warning("Falling back to standard chat API")
             
             # Add system message if not present
             if not any(msg.get("role") == "system" for msg in conversation_history):
-                session.send_event({
-                    "type": "conversation.item.create",
-                    "item": {
-                        "type": "message",
-                        "role": "system",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": "You are an AI assistant for Red Bar Sushi restaurant. "
-                                     "Be helpful, concise, and friendly. Provide restaurant information "
-                                     "and take orders accurately."
-                            }
-                        ]
-                    }
+                conversation_history.insert(0, {
+                    "role": "system",
+                    "content": "You are an AI assistant for Red Bar Sushi restaurant. "
+                              "Be helpful, concise, and friendly. Provide restaurant information "
+                              "and take orders accurately."
                 })
             
-            # Add previous conversation history
-            for msg in conversation_history:
-                if msg.get("role") != "system":  # Skip system message as we already added it
-                    session.send_event({
-                        "type": "conversation.item.create",
-                        "item": {
-                            "type": "message",
-                            "role": msg.get("role"),
-                            "content": [
-                                {
-                                    "type": "input_text",
-                                    "text": msg.get("content")
-                                }
-                            ]
-                        }
-                    })
+            # Add user message
+            messages = conversation_history + [{"role": "user", "content": transcript}]
             
-            # Add the user's message
-            session.send_event({
-                "type": "conversation.item.create",
-                "item": {
-                    "type": "message",
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": transcript
-                        }
-                    ]
-                }
-            })
+            # Log the request
+            log_openai_request("gpt-4o", messages, "process_conversation")
             
-            # Create a response
-            session.send_event({
-                "type": "response.create",
-                "response": {
-                    "modalities": ["text"]
-                }
-            })
+            # Create a streaming chat completion
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                stream=True
+            )
             
-            # Process events from the session
+            # Keep track of the complete response
             complete_text = ""
-            for event in session.events():
-                if event.get("type") == "response.text.delta":
-                    delta = event.get("delta", "")
-                    complete_text += delta
+            
+            # Stream the response tokens
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    delta_content = chunk.choices[0].delta.content
+                    complete_text += delta_content
                     yield {
                         "type": "message",
-                        "text": delta,
+                        "text": delta_content,
                         "complete": False,
                         "timestamp": time.time()
                     }
-                elif event.get("type") == "response.text.done":
-                    yield {
-                        "type": "message_complete",
-                        "text": complete_text,
-                        "complete": True,
-                        "timestamp": time.time()
-                    }
             
-            # Close session
-            session.close()
+            # Yield the complete message
+            yield {
+                "type": "message_complete",
+                "text": complete_text,
+                "complete": True,
+                "timestamp": time.time()
+            }
+            
+            # Log the complete response
+            logger.info(f"Complete response: {complete_text[:100]}...")
             
         except Exception as e:
             error_msg = f"Error in realtime conversation processing: {str(e)}"

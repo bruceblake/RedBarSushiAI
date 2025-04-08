@@ -10,13 +10,28 @@ import os
 from app.config import *
 from datetime import datetime
 
-# Set headless mode environment variables early
-# This prevents any GUI/X11 dependencies from being needed
-os.environ['PYNPUT_HEADLESS'] = '1'
-os.environ['NO_X11'] = '1'
-os.environ['HEADLESS'] = '1'
-if 'DISPLAY' not in os.environ:
-    os.environ['DISPLAY'] = ':99'
+# Initialize X11 environment variables depending on whether virtual X server is available
+# Check if we have a virtual X server by looking for the X11_SETUP_SUCCESS environment variable
+if os.environ.get('X11_SETUP_SUCCESS') == 'true':
+    # X11 mode - use virtual X server
+    if 'DISPLAY' not in os.environ or not os.environ['DISPLAY']:
+        os.environ['DISPLAY'] = ':99'  # Default to display 99
+    
+    # Set X11 environment variables
+    os.environ['PYNPUT_HEADLESS'] = '0'
+    os.environ['NO_X11'] = '0'
+    os.environ['HEADLESS'] = '0'
+    os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '0'
+else:
+    # Headless mode - no X11 server
+    os.environ['PYNPUT_HEADLESS'] = '1'
+    os.environ['NO_X11'] = '1'
+    os.environ['HEADLESS'] = '1'
+    os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '1'
+    
+    # Unset DISPLAY to prevent X11 connection attempts
+    if 'DISPLAY' in os.environ:
+        del os.environ['DISPLAY']
 
 # Logging setup
 logging.basicConfig(level=logging.INFO,
