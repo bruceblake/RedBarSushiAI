@@ -10,6 +10,10 @@ class Order(db.Model):
     status = db.Column(db.String(20), default='NEW')
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     location_id = db.Column(db.String(36), nullable=True)
+    sms_sid = db.Column(db.String(50), nullable=True)
+    sms_status = db.Column(db.String(20), nullable=True)
+    sms_error_code = db.Column(db.Integer, nullable=True)
+    sms_error_message = db.Column(db.String(255), nullable=True)
 
     def __repr__(self):
         return f"<Order {self.id} - {self.sender} - {self.caller_name} - {self.message}>"

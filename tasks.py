@@ -124,15 +124,58 @@ def send_confirmation_sms_task(self, order_id, order_message, sender, caller_nam
             except Exception as e:
                 logging.info(f"Stripe link error: {e}")
             
-            # Send SMS to customer
+            # Send SMS to customer with improved error handling and retries
             try:
-                twilio_client.messages.create(
+                # Normalize phone number format
+                normalized_sender = sender
+                if not normalized_sender.startswith('+'):
+                    normalized_sender = f"+{normalized_sender}"
+                
+                # Log the attempt
+                logging.info(f"Sending confirmation SMS to {normalized_sender}")
+                
+                # Send the message
+                message = twilio_client.messages.create(
                     body=text_msg,
                     from_=TWILIO_PHONE_NUMBER,
-                    to=sender
+                    to=normalized_sender,
+                    status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
                 )
+                
+                # Log success with SID for tracking
+                logging.info(f"SMS confirmation sent successfully! SID: {message.sid}")
+                
+                # Store the message SID in the database for tracking
+                try:
+                    order = db.session.get(Order, order_id)
+                    if order:
+                        order.sms_sid = message.sid
+                        order.sms_status = "sent"
+                        db.session.commit()
+                except Exception as db_err:
+                    logging.error(f"Error updating order with SMS SID: {db_err}")
+                
             except Exception as e:
-                logging.info(f"SMS error: {e}")
+                logging.error(f"SMS error: {e}")
+                # Try a second approach if the first fails
+                try:
+                    logging.info("Trying alternative SMS approach...")
+                    # Remove any formatting from the phone number
+                    plain_number = ''.join(filter(lambda x: x.isdigit(), sender))
+                    if len(plain_number) == 10:  # US number without country code
+                        plain_number = f"+1{plain_number}"
+                    elif len(plain_number) > 10:  # Might already have country code
+                        plain_number = f"+{plain_number}"
+                        
+                    message = twilio_client.messages.create(
+                        body=text_msg,
+                        from_=TWILIO_PHONE_NUMBER,
+                        to=plain_number,
+                        status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
+                    )
+                    logging.info(f"Alternative SMS approach successful! SID: {message.sid}")
+                except Exception as alt_e:
+                    logging.error(f"Alternative SMS approach also failed: {alt_e}")
             
             # Send WhatsApp notification to owner
             try:
@@ -214,11 +257,21 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
             
             # Send SMS to customer
             try:
-                twilio_client.messages.create(
+                message = twilio_client.messages.create(
                     body=status_message,
                     from_=TWILIO_PHONE_NUMBER,
-                    to=order.sender
+                    to=order.sender,
+                    status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
                 )
+                
+                # Store the message SID in the database for tracking
+                try:
+                    order.sms_sid = message.sid
+                    order.sms_status = "sent"
+                    db.session.commit()
+                    logging.info(f"Updated order {order_id} with SMS SID: {message.sid}")
+                except Exception as db_err:
+                    logging.error(f"Error updating order with SMS SID: {db_err}")
             except Exception as e:
                 logging.info(f"Status SMS error: {e}")
 
