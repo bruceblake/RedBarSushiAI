@@ -44,8 +44,18 @@ def run_migration():
             # Check which columns already exist
             # PostgreSQL way to check existing columns
             from sqlalchemy import text
+            
+            # Log the table name for better debugging
+            logger.info("Checking for 'order' table in the database schema...")
+            schema_query = text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+            tables_result = connection.execute(schema_query)
+            tables = [row[0] for row in tables_result]
+            logger.info(f"Found tables: {tables}")
+            
+            # Now check for columns
             result = connection.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'order'"))
             existing_columns = [row[0] for row in result]
+            logger.info(f"Existing columns in 'order' table: {existing_columns}")
             
             # Add each column if it doesn't exist
             for column_name, column_type in columns_to_add:
