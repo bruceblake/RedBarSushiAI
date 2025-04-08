@@ -7,10 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8080 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PYNPUT_HEADLESS=1 \
-    DISPLAY=:99 \
-    NO_X11=1 \
-    HEADLESS=1 \
+    # X11/Display will be configured by docker-entrypoint.sh
+    # based on USE_XVFB environment variable
     OPENAI_REALTIME_AVAILABLE=1
 
 # Install system dependencies and build tools
