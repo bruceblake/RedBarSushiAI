@@ -2,6 +2,17 @@
 
 This document provides comprehensive information about the SMS functionality in the Red Bar Sushi AI system, including recent enhancements, configuration details, and testing procedures.
 
+## Recent Phone Number Update
+
+The system has been updated to use the correct restaurant phone number:
+- **Old number (removed)**: (703) 297-2632
+- **New number**: (833) 324-7207
+
+This update was made across all relevant files:
+- `tasks.py`: Updated `OWNER_PHONE_NUMBER` constant
+- `app/routes/order.py`: Updated all SMS message templates and response text
+- All references in status updates and customer communications
+
 ## Quick Troubleshooting Tips
 
 If SMS commands are not working:
@@ -198,6 +209,22 @@ This creates the following columns in the `order` table:
 - `sms_error_message`: VARCHAR (detailed error message)
 
 ## Troubleshooting
+
+### SMS Command Issue Fixes
+
+1. **"Help" Command Issue**
+   - Problem: The "help" command was not responding correctly or contained outdated information
+   - Fix: Enhanced the command detection logic in `app/routes/order.py` using both exact matching and keyword matching:
+     ```python
+     # First, try exact match for common commands
+     command_type = message_body.strip().lower()
+     
+     # Then use keyword matching for flexibility
+     elif command_type == "help" or any(keyword in message_body for keyword in ['help', 'command', 'info', 'option']):
+         # Process help command
+     ```
+   - Updated all phone numbers in the help text and other responses to use (833) 324-7207
+   - Added more helpful content to the response templates
 
 ### Common SMS Delivery Issues
 

@@ -942,7 +942,7 @@ def handle_sms():
                 if order_status == "READY":
                     pickup_info = "\n\n⏱️ Your order is ready for pickup now!"
                     pickup_info += "\n📍 Please pick up at Red Bar Sushi"
-                    pickup_info += "\n📞 Call (703) 297-2632 if you need assistance"
+                    pickup_info += "\n📞 Call (833) 324-7207 if you need assistance"
                 elif order_status == "PREPARING":
                     # Estimate remaining time
                     prep_time = 20 + (len(recent_order.message.split("\n- ")) * 2)  # Estimate based on line count
@@ -950,7 +950,7 @@ def handle_sms():
                     time_remaining = max(1, prep_time - time_elapsed)
                     pickup_info = f"\n\n⏱️ Estimated to be ready in: {int(time_remaining)} minutes"
                 elif order_status in ["FAILED", "REJECTED"]:
-                    pickup_info = "\n\n⚠️ Please call us at (703) 297-2632 regarding your order"
+                    pickup_info = "\n\n⚠️ Please call us at (833) 324-7207 regarding your order"
                 
                 # Create a comprehensive status message
                 status_message = f"""🍣 RED BAR SUSHI STATUS UPDATE 🍣
@@ -973,13 +973,13 @@ Your order is {friendly_status}{pickup_info}
 We couldn't find any recent orders for your number. 
 
 • If you just placed an order, please wait a moment and try again
-• If you're trying to place an order, please call us at (703) 297-2632
+• If you're trying to place an order, please call us at (833) 324-7207
 
 Reply 'menu' to see our menu options.""")
                 log_info(f"No order found for {from_number}")
         except Exception as e:
             log_info(f"Error processing SMS status request: {str(e)}")
-            resp.message("⚠️ Sorry, we encountered an error processing your request. Please call us at (703) 297-2632 for assistance.")
+            resp.message("⚠️ Sorry, we encountered an error processing your request. Please call us at (833) 324-7207 for assistance.")
     
     # Handle help command
     elif command_type == "help" or any(keyword in message_body for keyword in ['help', 'command', 'info', 'option']):
@@ -993,7 +993,7 @@ Reply 'menu' to see our menu options.""")
 • Text 'location' for our address and map
 • Text 'contact' for contact information
 
-📞 CALL US: (703) 297-2632
+📞 CALL US: (833) 324-7207
 🌐 WEBSITE: redbarsushi.com
 
 Thank you for choosing Red Bar Sushi!
@@ -1014,7 +1014,7 @@ Thank you for choosing Red Bar Sushi!
 🌐 View our full menu: 
 https://redbar-sushi.com/menu
 
-📞 Call (703) 297-2632 to order by phone
+📞 Call (833) 324-7207 to order by phone
 """
         resp.message(menu_message)
         log_info(f"Sent menu info via SMS to {from_number}")
@@ -1060,7 +1060,7 @@ https://maps.google.com/?q=Red+Bar+Sushi
     elif command_type == "contact" or any(keyword in message_body for keyword in ['contact', 'phone', 'call', 'reach']):
         resp.message("""🍣 RED BAR SUSHI CONTACT INFO 🍣
 
-📞 PHONE: (703) 297-2632
+📞 PHONE: (833) 324-7207
 📧 EMAIL: hello@redbarsushi.com
 🌐 WEBSITE: redbarsushi.com
 📱 SOCIAL: @RedBarSushi
