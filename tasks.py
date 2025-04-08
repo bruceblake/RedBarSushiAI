@@ -45,8 +45,10 @@ def memory_profiler(func):
         return result
     return wrapper
 
+# Use regular SMS number, not WhatsApp
 TWILIO_PHONE_NUMBER = config.TWILIO_NUMBER
-OWNER_WHATSAPP_NUMBER = 'whatsapp:+17032972632'
+# Owner phone number without WhatsApp prefix for regular SMS
+OWNER_PHONE_NUMBER = '+18333247207'
 
 @celery.task(name="tasks.sync_menu_references")
 @memory_profiler
@@ -177,21 +179,23 @@ def send_confirmation_sms_task(self, order_id, order_message, sender, caller_nam
                 except Exception as alt_e:
                     logging.error(f"Alternative SMS approach also failed: {alt_e}")
             
-            # Send WhatsApp notification to owner
+            # Send SMS notification to owner (not WhatsApp)
             try:
                 # Include location in owner notification
                 owner_msg = text_msg
                 if location_id and "location" not in owner_msg:
                     owner_msg = f"New order from{location_prefix}:\n{owner_msg}"
                     
-                from_whatsapp_number = 'whatsapp:+14155238886'
+                # Use regular SMS for owner notification
                 twilio_client.messages.create(
                     body=owner_msg,
-                    from_=from_whatsapp_number,
-                    to=OWNER_WHATSAPP_NUMBER
+                    from_=TWILIO_PHONE_NUMBER,
+                    to=OWNER_PHONE_NUMBER,
+                    status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
                 )
+                logging.info(f"Owner notification SMS sent to {OWNER_PHONE_NUMBER}")
             except Exception as e:
-                logging.info(f"WhatsApp error: {e}")
+                logging.info(f"Owner notification SMS error: {e}")
             
             # Update order in database (should already exist but update message)
             try:
@@ -275,16 +279,18 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
             except Exception as e:
                 logging.info(f"Status SMS error: {e}")
 
-            # Send WhatsApp notification to owner
+            # Send SMS notification to owner (not WhatsApp)
             try:
-                from_whatsapp_number = 'whatsapp:+14155238886'
+                # Use regular SMS for owner notification
                 twilio_client.messages.create(
                     body=status_message,
-                    from_=from_whatsapp_number,
-                    to=OWNER_WHATSAPP_NUMBER
+                    from_=TWILIO_PHONE_NUMBER,
+                    to=OWNER_PHONE_NUMBER,
+                    status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
                 )
+                logging.info(f"Owner status notification SMS sent to {OWNER_PHONE_NUMBER}")
             except Exception as e:
-                logging.info(f"WhatsApp error: {e}")
+                logging.info(f"Owner status notification SMS error: {e}")
                 
             # Handle failed orders for reporting
             if "FAILED" in status_message or "CANCELLED" in status_message:
