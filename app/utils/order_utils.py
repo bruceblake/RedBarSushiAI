@@ -57,10 +57,11 @@ def build_order_description(order_items: List[Dict[str, Any]]) -> str:
         modifiers = item.get("modifier", [])
         
         if not modifiers:
-            description.append(f"- {quantity} {name}")
+            # Format with quantity × item name
+            description.append(f"- {quantity}× {name}")
         else:
-            mods = ", ".join([f"{mod.get('quantity', 1)} {mod.get('name','')}" for mod in modifiers])
-            description.append(f"- {quantity} {name} with {mods}")
+            mods = ", ".join([f"{mod.get('quantity', 1)}× {mod.get('name','')}" for mod in modifiers])
+            description.append(f"- {quantity}× {name} with {mods}")
             
     return "\n".join(description)
 

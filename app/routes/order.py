@@ -891,6 +891,11 @@ def handle_sms():
     log_info(f"SMS request headers: {json.dumps(request_headers)}")
     log_info(f"SMS request form data: {json.dumps(dict(request.form))}")
     
+    # Debug logging for SMS request and command detection
+    log_info(f"SMS COMMAND DEBUG - Message: '{message_body}'")
+    log_info(f"SMS COMMAND DEBUG - Exact match 'help': {message_body == 'help'}")
+    log_info(f"SMS COMMAND DEBUG - Keyword match: {any(keyword in message_body for keyword in ['help', 'command', 'info', 'option'])}")
+    
     # Make sure we handle messages even if empty or malformed
     if not message_body:
         message_body = ""
@@ -932,7 +937,17 @@ def handle_sms():
                     try:
                         items_section = recent_order.message.split("YOUR ORDER:")[1].split("\n\n")[0] if "YOUR ORDER:" in recent_order.message else ""
                         if items_section:
-                            order_items = items_section.strip()
+                            # Ensure consistent formatting with × for quantities
+                            formatted_lines = []
+                            for line in items_section.strip().split('\n'):
+                                if line.startswith('- '):
+                                    if ' × ' not in line and ' x ' not in line:
+                                        parts = line.strip('- ').split(' ', 1)
+                                        if len(parts) == 2 and parts[0].isdigit():
+                                            quantity, name = parts
+                                            line = f"- {quantity}× {name}"
+                                formatted_lines.append(line)
+                            order_items = '\n'.join(formatted_lines)
                     except:
                         # If we can't parse properly, just use the first line as fallback
                         order_items = recent_order.message.split("\n")[0] if recent_order.message else "your order"
@@ -981,8 +996,8 @@ Reply 'menu' to see our menu options.""")
             log_info(f"Error processing SMS status request: {str(e)}")
             resp.message("⚠️ Sorry, we encountered an error processing your request. Please call us at (833) 324-7207 for assistance.")
     
-    # Handle help command
-    elif command_type == "help" or any(keyword in message_body for keyword in ['help', 'command', 'info', 'option']):
+    # Handle help command - ensure we detect both exact and keyword matches
+    elif command_type == "help" or "help" in message_body or any(keyword in message_body for keyword in ['command', 'info', 'option', '?']):
         help_message = """🍣 RED BAR SUSHI HELP 🍣
 
 📱 AVAILABLE COMMANDS:
