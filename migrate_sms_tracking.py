@@ -42,14 +42,17 @@ def run_migration():
         
         try:
             # Check which columns already exist
-            result = connection.execute("PRAGMA table_info(order)")
-            existing_columns = [row[1] for row in result]
+            # PostgreSQL way to check existing columns
+            from sqlalchemy import text
+            result = connection.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'order'"))
+            existing_columns = [row[0] for row in result]
             
             # Add each column if it doesn't exist
             for column_name, column_type in columns_to_add:
                 if column_name not in existing_columns:
                     logger.info(f"Adding column '{column_name}' to Order table")
-                    connection.execute(f"ALTER TABLE 'order' ADD COLUMN {column_name} {column_type}")
+                    sql = text(f'ALTER TABLE "order" ADD COLUMN {column_name} {column_type}')
+                    connection.execute(sql)
                 else:
                     logger.info(f"Column '{column_name}' already exists in Order table")
             
