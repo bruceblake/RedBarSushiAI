@@ -48,6 +48,31 @@ The implementation includes:
 - Graceful fallback to our custom implementation
 - Detailed logging for troubleshooting
 
+### Diagnosing RealtimeClient Issues
+
+To diagnose issues with the RealtimeClient integration, run:
+
+```bash
+python test_realtime_config.py
+```
+
+This script will:
+1. Check your environment variables for proper X11 setup
+2. Test importing the openai_realtime_client module
+3. Check for the presence of RealtimeClient and related classes
+4. Test initializing the different audio processors in our implementation
+5. Provide clear recommendations for fixing any issues found
+
+### New vs. Legacy API
+
+The OpenAI Realtime API documentation now refers to the RealtimeClient approach with a different structure than the legacy Session class. Our implementation is designed to detect which API is available and adapt accordingly:
+
+- **Modern API**: Uses the RealtimeClient class with modern methods like chat.completions.create
+- **Legacy API**: Uses the Session class with event-based communication
+- **Our Custom Implementation**: Uses direct WebSocket communication without dependencies
+
+No matter which API version you have, the system will automatically select the best approach.
+
 ## Features
 
 - **Real-time Speech-to-Text**: Stream audio directly from the browser to the server and get transcription results as you speak
