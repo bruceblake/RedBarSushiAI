@@ -51,7 +51,20 @@ def dtmf_yes_no(dtmf: str) -> str:
 def build_order_description(order_items: List[Dict[str, Any]]) -> str:
     """Build a text description of the order."""
     description = []
+    
+    # Separate available and unavailable items
+    available_items = []
+    unavailable_items = []
+    
     for item in order_items:
+        # Check if item is marked as unavailable or has a specific unavailability flag
+        if item.get("not_available") or "(not on menu)" in str(item.get("name", "")) or "(unavailable)" in str(item.get("name", "")):
+            unavailable_items.append(item)
+        else:
+            available_items.append(item)
+    
+    # Process available items first
+    for item in available_items:
         quantity = item.get("quantity", 1)
         name = item.get("name", "unknown item")
         modifiers = item.get("modifier", [])
@@ -62,14 +75,66 @@ def build_order_description(order_items: List[Dict[str, Any]]) -> str:
         else:
             mods = ", ".join([f"{mod.get('quantity', 1)}× {mod.get('name','')}" for mod in modifiers])
             description.append(f"- {quantity}× {name} with {mods}")
+    
+    # Add unavailable items with clear indication
+    if unavailable_items:
+        description.append("\nUnavailable items:")
+        for item in unavailable_items:
+            name = item.get("name", "unknown item")
+            reason = item.get("reason", "Currently unavailable")
+            description.append(f"- {name} - {reason}")
             
     return "\n".join(description)
+
+def mark_unavailable_items(order_items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Mark items that don't exist on the menu or are unavailable.
+    
+    Args:
+        order_items: List of order items to evaluate
+        
+    Returns:
+        Tuple: (available_items, unavailable_items)
+    """
+    available_items = []
+    unavailable_items = []
+    
+    for item in order_items:
+        # Skip items already marked as unavailable
+        if item.get("not_available") or "(not on menu)" in str(item.get("name", "")) or "(unavailable)" in str(item.get("name", "")):
+            unavailable_items.append(item)
+            continue
+            
+        # Check if item exists in menu
+        name = item.get("name", "")
+        menu_item = find_menu_item_by_name(name)
+        
+        if not menu_item:
+            # Item not found in menu
+            item["name"] = f"{name} (not on menu)"
+            item["not_available"] = True
+            item["reason"] = "Item not found on our menu"
+            unavailable_items.append(item)
+        elif menu_item.get("snoozed", False) or not menu_item.get("available", True):
+            # Item exists but is unavailable
+            item["name"] = f"{name} (unavailable)"
+            item["not_available"] = True
+            item["reason"] = "Temporarily unavailable"
+            unavailable_items.append(item)
+        else:
+            # Item is available
+            available_items.append(item)
+    
+    return available_items, unavailable_items
 
 def calculate_bill_amount(order_items: List[Dict[str, Any]], tax_rate: float = 0.0) -> float:
     """Calculate the total bill amount for the order."""
     subtotal = 0.0
     
-    for item in order_items:
+    # Only include available items in price calculation
+    available_items = [item for item in order_items if not item.get("not_available")]
+    
+    for item in available_items:
         price = item.get("price", 0.0)
         quantity = item.get("quantity", 1)
         item_total = price * quantity

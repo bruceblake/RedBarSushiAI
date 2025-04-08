@@ -2,6 +2,28 @@
 
 This document outlines the optimizations made to address memory issues and improve performance of the AI phone call system.
 
+## User Experience Improvements
+
+### Intelligent Name Extraction
+- Added AI-based name extraction in voice calls
+- Now intelligently detects names from phrases like "My name is John" or "This is Mary Smith"
+- Handles common speech patterns and filler words
+- Properly capitalizes names for consistent display
+
+### Enhanced Order Clarifications
+
+#### Better Handling of Unavailable Items
+- Added clear messaging when items are unavailable
+- Clearly marks items as "(not on menu)" or "(unavailable)" in order descriptions
+- Separately lists unavailable items with specific reasons
+- Calculates bill amount only using available items
+- Provides helpful guidance instead of abruptly ending the call
+
+#### Improved Order Quantity Display
+- Enhanced order descriptions to consistently use "×" symbol for quantities
+- More clearly shows multiple quantities of the same item
+- Formats quantities consistently across all parts of the system
+
 ## Memory Optimizations
 
 The application was experiencing memory issues that led to worker processes being terminated with SIGKILL (out of memory errors). The following changes have been made to address these issues:
