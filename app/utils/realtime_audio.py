@@ -30,66 +30,25 @@ try:
     module_contents = dir(openai_realtime_client)
     logging.info(f"openai_realtime_client contents: {module_contents}")
     
-    # Check version
+    # Check version and try to import the session
     version = getattr(openai_realtime_client, "__version__", "unknown")
     
-    # Session doesn't seem to be exported directly
-    # Let's avoid importing it for now and just enable streaming in the standard client
-    REALTIME_AVAILABLE = False  # Explicitly set to False
-    logging.warning(f"Using OpenAI client with streaming instead of realtime client")
+    # Try to import the Session class
+    try:
+        from openai_realtime_client.client import Session
+        REALTIME_AVAILABLE = True
+        logging.info(f"Successfully imported Session from openai_realtime_client v{version}")
+    except (ImportError, AttributeError) as e:
+        # Session doesn't seem to be exported directly
+        # Let's use streaming in the standard client 
+        REALTIME_AVAILABLE = False
+        logging.warning(f"Could not import Session from openai_realtime_client: {e}")
+        logging.warning(f"Using OpenAI client with streaming instead of realtime client")
     
 except ImportError as import_error:
     logging.warning(f"OpenAI Realtime client import error: {import_error}")
-    
-    # Try to install the package using pip directly
-    import sys
-    import subprocess
-    
-    # First try to install without dependencies
-    try:
-        logging.warning("OpenAI Realtime client not found, attempting to install...")
-        result = subprocess.run([sys.executable, "-m", "pip", "install", "--no-deps", "openai-realtime-client==0.1.0"], 
-                              capture_output=True, text=True, timeout=60)
-        
-        if result.returncode == 0:
-            logging.info("Successfully installed openai-realtime-client, trying to import again")
-            try:
-                # Try importing again
-                import openai_realtime_client
-                module_contents = dir(openai_realtime_client)
-                logging.info(f"openai_realtime_client contents after installation: {module_contents}")
-                # Still use standard client with streaming
-                REALTIME_AVAILABLE = False
-                version = getattr(openai_realtime_client, "__version__", "unknown")
-                logging.info(f"OpenAI Realtime client v{version} found but not using realtime features")
-            except ImportError as e2:
-                logging.error(f"Failed to import openai_realtime_client after installation: {e2}")
-        else:
-            logging.error(f"Failed to install openai-realtime-client:\n{result.stderr}")
-            
-            # Try with full dependencies as a fallback
-            try:
-                result = subprocess.run([sys.executable, "-m", "pip", "install", "openai-realtime-client==0.1.0", 
-                                      "python-socketio==5.8.0", "eventlet==0.33.3"], 
-                                    capture_output=True, text=True, timeout=60)
-                if result.returncode == 0:
-                    logging.info("Successfully installed openai-realtime-client with dependencies")
-                    try:
-                        import openai_realtime_client
-                        module_contents = dir(openai_realtime_client)
-                        logging.info(f"openai_realtime_client contents with dependencies: {module_contents}")
-                        # Still use standard client with streaming
-                        REALTIME_AVAILABLE = False
-                        version = getattr(openai_realtime_client, "__version__", "unknown")
-                        logging.info(f"OpenAI Realtime client v{version} found but not using realtime features")
-                    except ImportError as e3:
-                        logging.error(f"Still failed to import openai_realtime_client: {e3}")
-                else:
-                    logging.error(f"Failed to install with dependencies:\n{result.stderr}")
-            except Exception as e:
-                logging.error(f"Error during pip install with dependencies: {e}")
-    except Exception as e:
-        logging.error(f"Error trying to install openai-realtime-client: {e}")
+    # Don't attempt auto-installation in a production environment
+    REALTIME_AVAILABLE = False
 
 # Explicit dependency check and package info
 try:

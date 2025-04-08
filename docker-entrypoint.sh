@@ -236,12 +236,18 @@ else:
     print('All required modules are available', file=sys.stderr)
 "
     
-    # Try both entry points (run.py and wsgi.py)
+    # Try both entry points (run.py and wsgi.py) with memory optimizations
     if [ -f "wsgi.py" ]; then
-        echo "DEBUG: Using wsgi.py entry point"
-        exec gunicorn --worker-class=gevent --workers=3 --threads=3 --bind="0.0.0.0:$PORT" --log-level=debug "wsgi"
+        echo "DEBUG: Using wsgi.py entry point with memory optimizations"
+        exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
+                     --log-level=debug --max-requests=500 --max-requests-jitter=50 \
+                     --worker-connections=500 --max-memory-per-child=256000 \
+                     --timeout=120 "wsgi"
     else
-        echo "DEBUG: Using run:app entry point"
-        exec gunicorn --worker-class=gevent --workers=3 --threads=3 --bind="0.0.0.0:$PORT" --log-level=debug "run:app"
+        echo "DEBUG: Using run:app entry point with memory optimizations"
+        exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
+                     --log-level=debug --max-requests=500 --max-requests-jitter=50 \
+                     --worker-connections=500 --max-memory-per-child=256000 \
+                     --timeout=120 "run:app"
     fi
 fi

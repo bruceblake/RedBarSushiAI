@@ -14,13 +14,13 @@ from datetime import datetime, timezone, time as dt_time
 
 logger = logging.getLogger(__name__)
 
-# Cache variables - increased cache duration for Render
+# Cache variables - optimized for memory usage
 _menu_cache = None
 _last_refresh_time = 0
-_cache_duration = 300  # 5 minutes cache duration for menu data in production
+_cache_duration = 900  # 15 minutes cache duration for menu data in production
 # Use a shorter duration in development
-if not os.environ.get('RENDER', False):
-    _cache_duration = 30  # 30 seconds for development
+if os.environ.get('FLASK_ENV') == 'development':
+    _cache_duration = 60  # 1 minute for development
 
 # Default paths - ensure they work in production environment
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
