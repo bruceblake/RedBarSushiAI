@@ -2,7 +2,9 @@
 
 This document provides comprehensive information about the SMS functionality in the Red Bar Sushi AI system, including recent enhancements, configuration details, and testing procedures.
 
-## Recent Phone Number Update
+## Recent Updates
+
+### 1. Phone Number Update
 
 The system has been updated to use the correct restaurant phone number:
 - **Old number (removed)**: (703) 297-2632
@@ -12,6 +14,21 @@ This update was made across all relevant files:
 - `tasks.py`: Updated `OWNER_PHONE_NUMBER` constant
 - `app/routes/order.py`: Updated all SMS message templates and response text
 - All references in status updates and customer communications
+
+### 2. Help Command Fix
+
+The SMS "help" command detection was improved to ensure it works consistently:
+- Added more robust keyword matching to detect variations of the help command
+- Added detailed debug logging to trace command detection
+- Fixed pattern matching to ensure commands are properly recognized
+
+### 3. Order Quantity Display
+
+Improved the display of order quantities to use a consistent format:
+- Updated `build_order_description` in `app/utils/order_utils.py` to use "×" symbol for quantities
+- Added item quantity formatting in `tasks.py` for confirmation messages
+- Improved status updates to display quantities properly
+- Ensures multiple quantities of the same item show as "3× Item" instead of "3 Item"
 
 ## Quick Troubleshooting Tips
 

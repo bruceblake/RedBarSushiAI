@@ -120,6 +120,14 @@ def send_confirmation_sms_task(self, order_id, order_message, sender, caller_nam
             lines = base_message.split('\n')
             for line in lines:
                 if line.startswith('- '):  # This is an item line
+                    # Ensure item quantity is properly formatted with × symbol
+                    if ' × ' not in line and ' x ' not in line:
+                        # Try to parse and reformat
+                        parts = line.strip('- ').split(' ', 1)
+                        if len(parts) == 2 and parts[0].isdigit():
+                            quantity, name = parts
+                            line = f"- {quantity}× {name}"
+                    
                     order_items_text += line + "\n"
                 elif "total" in line.lower():  # This is the total line
                     total_text = line
@@ -318,7 +326,17 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
                 try:
                     items_section = order.message.split("YOUR ORDER:")[1].split("\n\n")[0] if "YOUR ORDER:" in order.message else ""
                     if items_section:
-                        order_items = items_section.strip()
+                        # Ensure consistent formatting with × for quantities
+                        formatted_lines = []
+                        for line in items_section.strip().split('\n'):
+                            if line.startswith('- '):
+                                if ' × ' not in line and ' x ' not in line:
+                                    parts = line.strip('- ').split(' ', 1)
+                                    if len(parts) == 2 and parts[0].isdigit():
+                                        quantity, name = parts
+                                        line = f"- {quantity}× {name}"
+                            formatted_lines.append(line)
+                        order_items = '\n'.join(formatted_lines)
                 except:
                     pass
             
