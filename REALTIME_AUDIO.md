@@ -6,6 +6,22 @@ This document outlines the integration of OpenAI's real-time speech-to-text and 
 
 The real-time audio feature uses WebSockets to provide a low-latency, interactive conversation experience with the AI assistant. This is a significant improvement over the previous implementation, which relied on Twilio for voice interactions.
 
+## Current Implementation Status
+
+The system supports multiple audio processor implementations to accommodate different environments:
+
+1. **DirectRealtimeAudioProcessor** - A direct WebSocket implementation that connects to OpenAI's Realtime API with no dependencies on the OpenAI Realtime client library
+2. **HeadlessAudioProcessor** - A fallback implementation for headless environments with no GUI/X11 dependencies 
+3. **BasicAudioProcessor** - A simple implementation using OpenAI's standard API for audio processing
+
+For troubleshooting issues with realtime functionality, run:
+
+```bash
+python test_realtime_client.py
+```
+
+This script will test all available implementations and tell you which ones work in your environment.
+
 ## Features
 
 - **Real-time Speech-to-Text**: Stream audio directly from the browser to the server and get transcription results as you speak

@@ -48,7 +48,7 @@ def memory_profiler(func):
 # Use regular SMS number, not WhatsApp
 TWILIO_PHONE_NUMBER = config.TWILIO_NUMBER
 # Owner phone number without WhatsApp prefix for regular SMS
-OWNER_PHONE_NUMBER = '+18333247207'
+OWNER_PHONE_NUMBER = '+17032972632'
 
 @celery.task(name="tasks.sync_menu_references")
 @memory_profiler
@@ -145,7 +145,7 @@ Thank you for ordering{location_prefix}!
             
             # Add restaurant location and phone
             text_msg += f"\n\n📍 {location_name}"
-            text_msg += "\n📞 (555) 123-4567"  # Replace with actual restaurant phone
+            text_msg += "\n📞 (703) 297-2632"  # Restaurant phone
             
             # Create payment link with better description
             try:
@@ -341,7 +341,7 @@ Your order is {friendly_status}"""
             if order_status == "READY":
                 formatted_status += "\n\n⏱️ Your order is ready for pickup now!"
                 formatted_status += f"\n📍 Please pick up at: {location_name}"
-                formatted_status += "\n📞 Call (555) 123-4567 if you need assistance"
+                formatted_status += "\n📞 Call (703) 297-2632 if you need assistance"
             elif order_status == "PREPARING":
                 # Estimate remaining time
                 prep_time = 20 + (len(order.message.split("\n- ")) * 2)  # Estimate based on line count
@@ -349,7 +349,7 @@ Your order is {friendly_status}"""
                 time_remaining = max(1, prep_time - time_elapsed)
                 formatted_status += f"\n\n⏱️ Estimated to be ready in: {int(time_remaining)} minutes"
             elif order_status in ["FAILED", "REJECTED"]:
-                formatted_status += "\n\n⚠️ Please call us at (555) 123-4567 regarding your order"
+                formatted_status += "\n\n⚠️ Please call us at (703) 297-2632 regarding your order"
             
             # Add reminder for SMS commands
             formatted_status += "\n\n📱 Reply 'status' for the latest updates"
