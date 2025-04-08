@@ -22,10 +22,28 @@ os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '1'
 if 'DISPLAY' in os.environ:
     del os.environ['DISPLAY']
 
-# Import OpenAI Realtime client for WebSocket functionality
+# Check for WebSocket library availability for Realtime API
+WEBSOCKETS_AVAILABLE = False
+AIOHTTP_AVAILABLE = False
 REALTIME_AVAILABLE = False
 
-# First inspect what's actually in the package to help with diagnosis
+# Check for websockets library availability
+try:
+    import websockets
+    WEBSOCKETS_AVAILABLE = True
+    logging.info("websockets library available for WebSocket communication")
+except ImportError:
+    logging.warning("websockets package not available")
+
+# Check for aiohttp library availability
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+    logging.info("aiohttp library available for WebSocket communication")
+except ImportError:
+    logging.warning("aiohttp package not available")
+
+# First try to use the official OpenAI Realtime client
 try:
     import openai_realtime_client
     
@@ -50,26 +68,27 @@ try:
                 logging.warning(f"X11/Display error importing Session: {session_error}")
                 # Explicitly set to use standard client
                 REALTIME_AVAILABLE = False
-                logging.warning("X11/Display dependency detected, forcing fallback to standard API")
+                logging.warning("X11/Display dependency detected, will use direct WebSocket implementation")
             else:
                 # For other errors, re-raise
                 raise session_error
     except (ImportError, AttributeError) as e:
         # Session doesn't seem to be exported directly
-        # Let's use streaming in the standard client 
+        # Let's use direct WebSocket implementation
         REALTIME_AVAILABLE = False
         logging.warning(f"Could not import Session from openai_realtime_client: {e}")
-        logging.warning(f"Using OpenAI client with streaming instead of realtime client")
+        logging.warning("Will use direct WebSocket implementation instead")
     
 except ImportError as import_error:
     logging.warning(f"OpenAI Realtime client import error: {import_error}")
     # Don't attempt auto-installation in a production environment
     REALTIME_AVAILABLE = False
+    logging.warning("Will use direct WebSocket implementation")
 
-# Explicit dependency check and package info
+# Explicit dependency check and package info for better error diagnosis
 try:
     import pkg_resources
-    required_packages = ['openai-realtime-client', 'python-socketio', 'eventlet', 'websockets']
+    required_packages = ['openai-realtime-client', 'python-socketio', 'eventlet', 'websockets', 'aiohttp']
     for package in required_packages:
         try:
             dist = pkg_resources.get_distribution(package)
@@ -78,9 +97,17 @@ try:
             logging.warning(f"Package {package} is not installed")
 except Exception as e:
     logging.error(f"Error checking package versions: {e}")
-        
-if not REALTIME_AVAILABLE:
-    logging.warning("OpenAI Realtime client not available, falling back to standard API")
+
+# Determine if we have any WebSocket capability
+WEBSOCKET_CAPABILITY = REALTIME_AVAILABLE or WEBSOCKETS_AVAILABLE or AIOHTTP_AVAILABLE
+if not WEBSOCKET_CAPABILITY:
+    logging.warning("No WebSocket capability available (neither openai_realtime_client, websockets, nor aiohttp). Falling back to standard API")
+else:
+    if not REALTIME_AVAILABLE:
+        if WEBSOCKETS_AVAILABLE or AIOHTTP_AVAILABLE:
+            logging.info("Will use direct WebSocket implementation with websockets or aiohttp")
+        else:
+            logging.warning("No WebSocket libraries available, falling back to standard API")
 
 OPENAI_STREAMING_AVAILABLE = True
 logging.info("Using direct OpenAI API for audio streaming without pynput (headless mode)")
@@ -654,25 +681,47 @@ def get_audio_processor():
     """
     Get the appropriate audio processor based on what's available.
     
+    Selection process:
+    1. DirectRealtimeAudioProcessor first (using either websockets or aiohttp)
+    2. HeadlessAudioProcessor for headless environments with no GUI dependencies 
+    3. BasicAudioProcessor as standard fallback
+    4. MinimalAudioProcessor as absolute last resort for maximum compatibility
+    
     Returns:
-        DirectRealtimeAudioProcessor first (no X11 dependency),
-        then HeadlessAudioProcessor (also no X11 dependency),
-        then BasicAudioProcessor as last resort.
+        An audio processor instance based on availability
     """
     processor = None
     
-    # First try - use the direct implementation with no X11 dependency and WebSocket support
-    try:
-        # Import the direct realtime processor
-        from app.utils.direct_realtime import DirectRealtimeAudioProcessor
-        processor = DirectRealtimeAudioProcessor()
-        logger.info("Using DirectRealtimeAudioProcessor with WebSocket-based implementation")
-        return processor
-    except Exception as direct_error:
-        logger.error(f"Error initializing DirectRealtimeAudioProcessor: {direct_error}")
-        logger.error(traceback.format_exc())
+    # First try - use the direct implementation with websockets or aiohttp and no X11 dependencies
+    if WEBSOCKETS_AVAILABLE or AIOHTTP_AVAILABLE:
+        try:
+            # Import the direct realtime processor
+            from app.utils.direct_realtime import DirectRealtimeAudioProcessor
+            processor = DirectRealtimeAudioProcessor()
+            if WEBSOCKETS_AVAILABLE and AIOHTTP_AVAILABLE:
+                logger.info("Using DirectRealtimeAudioProcessor with both websockets and aiohttp support")
+            elif WEBSOCKETS_AVAILABLE:
+                logger.info("Using DirectRealtimeAudioProcessor with websockets support")
+            else:
+                logger.info("Using DirectRealtimeAudioProcessor with aiohttp support")
+            return processor
+        except Exception as direct_error:
+            logger.error(f"Error initializing DirectRealtimeAudioProcessor: {direct_error}")
+            logger.error(traceback.format_exc())
+    else:
+        logger.warning("Neither websockets nor aiohttp available, skipping DirectRealtimeAudioProcessor")
     
-    # Second try - use the completely headless processor with no GUI dependencies
+    # Second try - use the official Realtime client if it's available
+    if REALTIME_AVAILABLE:
+        try:
+            processor = RealtimeAudioProcessor()
+            logger.info("Using RealtimeAudioProcessor with official OpenAI Realtime client")
+            return processor
+        except Exception as realtime_error:
+            logger.error(f"Error initializing RealtimeAudioProcessor: {realtime_error}")
+            logger.error(traceback.format_exc())
+    
+    # Third try - use the completely headless processor with no GUI dependencies
     try:
         # Import the headless processor
         from app.utils.audio_fallback import get_headless_audio_processor
@@ -683,7 +732,7 @@ def get_audio_processor():
         logger.error(f"Error initializing HeadlessAudioProcessor: {headless_error}")
         logger.error(traceback.format_exc())
     
-    # Third try - use BasicAudioProcessor as fallback
+    # Fourth try - use BasicAudioProcessor as fallback
     try:
         processor = BasicAudioProcessor()
         logger.info("Successfully initialized BasicAudioProcessor for audio processing")
@@ -697,29 +746,45 @@ def get_audio_processor():
     try:
         # Create a new instance of MinimalAudioProcessor that works without any dependencies
         class MinimalAudioProcessor:
+            """Minimal audio processor implementation that works with minimal dependencies"""
+            
             def __init__(self):
                 self.openai_client = client
+                logger.warning("Using MinimalAudioProcessor as last resort")
             
             async def process_audio(self, audio_data, content_type="audio/webm"):
                 # Try to use OpenAI's whisper API directly
                 try:
+                    import tempfile
                     with tempfile.NamedTemporaryFile(suffix=".webm" if "webm" in content_type else ".mp3") as temp_file:
                         temp_file.write(audio_data)
                         temp_file.flush()
                         with open(temp_file.name, "rb") as audio_file:
                             response = self.openai_client.audio.transcriptions.create(
                                 model="whisper-1", file=audio_file, language="en")
-                            return {"type": "transcript_complete", "text": response.text, "final": True}
-                except:
-                    return {"type": "transcript_complete", "text": "Audio processing unavailable", "final": True}
+                            return {"type": "transcript_complete", "text": response.text, "final": True, "timestamp": time.time()}
+                except Exception as e:
+                    logger.error(f"Error in minimal audio processing: {e}")
+                    return {"type": "transcript_complete", "text": "Audio processing unavailable", "final": True, "timestamp": time.time()}
             
             async def process_audio_stream(self, audio_chunks_generator, content_type="audio/webm"):
                 # Collect all audio and process at once
                 all_audio = bytes()
-                async for chunk in audio_chunks_generator:
-                    all_audio += chunk
-                result = await self.process_audio(all_audio, content_type)
-                yield result
+                try:
+                    async for chunk in audio_chunks_generator:
+                        all_audio += chunk
+                except Exception as e:
+                    logger.error(f"Error collecting audio chunks: {e}")
+                    yield {"type": "error", "error": "Failed to collect audio chunks", "timestamp": time.time()}
+                    return
+                
+                # Process the complete audio
+                try:
+                    result = await self.process_audio(all_audio, content_type)
+                    yield result
+                except Exception as e:
+                    logger.error(f"Error processing audio: {e}")
+                    yield {"type": "error", "error": "Failed to process audio", "timestamp": time.time()}
             
             async def generate_speech(self, text, voice="alloy"):
                 # Simple direct TTS
@@ -727,7 +792,8 @@ def get_audio_processor():
                     response = self.openai_client.audio.speech.create(
                         model="tts-1", voice=voice, input=text)
                     yield response.content
-                except:
+                except Exception as e:
+                    logger.error(f"Error generating speech: {e}")
                     yield b''
             
             async def process_conversation(self, transcript, conversation_history=None):
@@ -735,20 +801,48 @@ def get_audio_processor():
                 try:
                     if conversation_history is None:
                         conversation_history = []
+                    
+                    # Add system message if not present
+                    if not any(msg.get("role") == "system" for msg in conversation_history):
+                        conversation_history.insert(0, {
+                            "role": "system",
+                            "content": "You are an AI assistant for Red Bar Sushi restaurant. "
+                                      "Be helpful, concise, and friendly."
+                        })
+                    
+                    # Add user message
                     messages = conversation_history + [{"role": "user", "content": transcript}]
+                    
+                    # Create a streaming chat completion
                     response = self.openai_client.chat.completions.create(
                         model="gpt-4o", messages=messages, stream=True)
+                    
+                    # Stream the response tokens
                     complete_text = ""
                     for chunk in response:
                         if chunk.choices and chunk.choices[0].delta.content:
                             delta = chunk.choices[0].delta.content
                             complete_text += delta
-                            yield {"type": "message", "text": delta, "complete": False}
-                    yield {"type": "message_complete", "text": complete_text, "complete": True}
-                except:
-                    yield {"type": "message_complete", "text": f"Received: {transcript}", "complete": True}
+                            yield {
+                                "type": "message",
+                                "text": delta,
+                                "complete": False,
+                                "timestamp": time.time()
+                            }
+                    
+                    # Yield the complete message
+                    yield {
+                        "type": "message_complete",
+                        "text": complete_text,
+                        "complete": True,
+                        "timestamp": time.time()
+                    }
+                except Exception as e:
+                    logger.error(f"Error in conversation processing: {e}")
+                    yield {"type": "message_complete", "text": f"Received: {transcript}", "complete": True, "timestamp": time.time()}
         
         return MinimalAudioProcessor()
-    except:
+    except Exception as minimal_error:
+        logger.error(f"Error creating MinimalAudioProcessor: {minimal_error}")
         # If even that fails, return a completely empty object
         return type('EmptyProcessor', (), {})()  # Empty object
