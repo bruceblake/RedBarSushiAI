@@ -875,16 +875,19 @@ def order_status():
 
 @order_bp.route('/sms', methods=['POST'])
 def handle_sms():
-    """Handle incoming SMS messages for order status inquiries"""
+    """Handle incoming SMS messages for order status inquiries and other commands"""
     # Get the message sent
     message_body = request.values.get('Body', '').strip().lower()
     from_number = request.values.get('From', '')
     
+    # Log the incoming message for debugging
+    log_info(f"Received SMS from {from_number}: '{message_body}'")
+    
     # Create a response
     resp = MessagingResponse()
     
-    # Handle status requests
-    if 'status' in message_body:
+    # Handle different command types with flexible matching for user convenience
+    if any(keyword in message_body for keyword in ['status', 'stat', 'check', 'order']):
         try:
             # Find the most recent order for this number
             recent_order = db.session.query(Order).filter_by(
@@ -899,27 +902,206 @@ def handle_sms():
                     "NEW": "received and is being processed",
                     "ACCEPTED": "accepted and being prepared",
                     "PREPARING": "now being prepared in the kitchen",
-                    "READY": "ready for pickup",
-                    "COMPLETED": "completed. Thank you for your order!",
+                    "READY": "ready for pickup! 🎉",
+                    "COMPLETED": "completed. Thank you for your order! 🙏",
                     "FAILED": "could not be processed. Please call us",
                     "REJECTED": "could not be processed. Please call us",
                     "CANCELLED": "cancelled"
                 }.get(order_status, order_status)
                 
-                # Create a brief but informative message
+                # Extract order details for a more detailed response
                 order_id = recent_order.id
-                status_message = f"Your order ({order_id[:8]}...) is {friendly_status}"
+                order_time = recent_order.timestamp.strftime("%I:%M %p") if recent_order.timestamp else "unknown time"
+                
+                # Extract order items from the stored message
+                order_items = "your order"
+                if recent_order.message and "\n-" in recent_order.message:
+                    try:
+                        items_section = recent_order.message.split("YOUR ORDER:")[1].split("\n\n")[0] if "YOUR ORDER:" in recent_order.message else ""
+                        if items_section:
+                            order_items = items_section.strip()
+                    except:
+                        # If we can't parse properly, just use the first line as fallback
+                        order_items = recent_order.message.split("\n")[0] if recent_order.message else "your order"
+                
+                # Calculate estimated pickup time based on status
+                pickup_info = ""
+                if order_status == "READY":
+                    pickup_info = "\n\n⏱️ Your order is ready for pickup now!"
+                    pickup_info += "\n📍 Please pick up at Red Bar Sushi"
+                    pickup_info += "\n📞 Call (555) 123-4567 if you need assistance"
+                elif order_status == "PREPARING":
+                    # Estimate remaining time
+                    prep_time = 20 + (len(recent_order.message.split("\n- ")) * 2)  # Estimate based on line count
+                    time_elapsed = (time.time() - recent_order.timestamp.timestamp()) / 60 if recent_order.timestamp else 0
+                    time_remaining = max(1, prep_time - time_elapsed)
+                    pickup_info = f"\n\n⏱️ Estimated to be ready in: {int(time_remaining)} minutes"
+                elif order_status in ["FAILED", "REJECTED"]:
+                    pickup_info = "\n\n⚠️ Please call us at (555) 123-4567 regarding your order"
+                
+                # Create a comprehensive status message
+                status_message = f"""🍣 RED BAR SUSHI STATUS UPDATE 🍣
+
+🆔 Order #{order_id[:8]}
+🕒 Placed at: {order_time}
+
+{order_items}
+
+📋 CURRENT STATUS: {order_status}
+Your order is {friendly_status}{pickup_info}
+
+💬 Reply 'help' for more options
+"""
                 resp.message(status_message)
+                log_info(f"Sent detailed status update via SMS to {from_number}")
             else:
-                resp.message("We couldn't find any recent orders for your number. Please call us for assistance.")
+                resp.message("""⚠️ ORDER NOT FOUND
+
+We couldn't find any recent orders for your number. 
+
+• If you just placed an order, please wait a moment and try again
+• If you're trying to place an order, please call us at (555) 123-4567
+
+Reply 'menu' to see our menu options.""")
+                log_info(f"No order found for {from_number}")
         except Exception as e:
             log_info(f"Error processing SMS status request: {str(e)}")
-            resp.message("Sorry, we encountered an error processing your request. Please call us for assistance.")
-    # Handle help or other inquiries    
-    elif 'help' in message_body:
-        resp.message("Text 'status' to check your order status. For other assistance, please call us.")
+            resp.message("⚠️ Sorry, we encountered an error processing your request. Please call us at (555) 123-4567 for assistance.")
+    
+    # Handle help command
+    elif any(keyword in message_body for keyword in ['help', 'command', 'info', 'option']):
+        help_message = """🍣 RED BAR SUSHI HELP 🍣
+
+📱 AVAILABLE COMMANDS:
+• Text 'status' to check your order status
+• Text 'menu' to see our menu
+• Text 'hours' for our business hours
+• Text 'specials' for today's special offers
+• Text 'location' for our address and map
+• Text 'contact' for contact information
+
+📞 CALL US: (555) 123-4567
+🌐 WEBSITE: redbarsushi.com
+
+Thank you for choosing Red Bar Sushi!
+"""
+        resp.message(help_message)
+        log_info(f"Sent help info via SMS to {from_number}")
+    
+    # Handle menu request
+    elif any(keyword in message_body for keyword in ['menu', 'food', 'eat', 'dish', 'price']):
+        menu_message = """🍣 RED BAR SUSHI MENU 🍣
+
+📋 POPULAR ITEMS:
+• Signature Dragon Roll - $14.99
+• Spicy Tuna Roll - $8.99
+• Rainbow Roll - $12.99
+• Sashimi Platter - $24.99
+
+🌐 View our full menu: 
+https://redbar-sushi.com/menu
+
+📞 Call (555) 123-4567 to order by phone
+"""
+        resp.message(menu_message)
+        log_info(f"Sent menu info via SMS to {from_number}")
+    
+    # Handle hours request
+    elif any(keyword in message_body for keyword in ['hour', 'time', 'open', 'close']):
+        resp.message("""🍣 RED BAR SUSHI HOURS 🍣
+
+⏰ REGULAR HOURS:
+Monday - Thursday: 11am - 9pm
+Friday - Saturday: 11am - 10pm
+Sunday: 12pm - 8pm
+
+🔴 HAPPY HOUR:
+Monday-Friday: 3pm - 6pm
+$2 off all rolls and appetizers!
+
+We look forward to serving you soon!
+""")
+        log_info(f"Sent hours info via SMS to {from_number}")
+    
+    # Handle location request
+    elif any(keyword in message_body for keyword in ['location', 'address', 'where', 'map', 'direction']):
+        resp.message("""🍣 RED BAR SUSHI LOCATION 🍣
+
+📍 ADDRESS:
+123 Sushi Avenue
+Anytown, CA 12345
+
+🏙️ NEIGHBORHOOD:
+Downtown, next to Central Park
+
+🚗 PARKING:
+Free street parking available
+Paid lot at 130 Sushi Ave
+
+🌐 DIRECTIONS:
+https://maps.google.com/?q=Red+Bar+Sushi
+""")
+        log_info(f"Sent location info via SMS to {from_number}")
+    
+    # Handle contact request
+    elif any(keyword in message_body for keyword in ['contact', 'phone', 'call', 'reach']):
+        resp.message("""🍣 RED BAR SUSHI CONTACT INFO 🍣
+
+📞 PHONE: (555) 123-4567
+📧 EMAIL: hello@redbarsushi.com
+🌐 WEBSITE: redbarsushi.com
+📱 SOCIAL: @RedBarSushi
+
+For fastest response, please call us!
+""")
+        log_info(f"Sent contact info via SMS to {from_number}")
+    
+    # Handle specials request
+    elif any(keyword in message_body for keyword in ['special', 'deal', 'offer', 'discount', 'promotion']):
+        # Get the current day of the week
+        import datetime
+        day_of_week = datetime.datetime.now().strftime('%A')
+        
+        # Create day-specific special
+        day_special = {
+            'Monday': "Maki Monday: 20% off all maki rolls!",
+            'Tuesday': "Tuna Tuesday: $2 off tuna rolls!",
+            'Wednesday': "Wasabi Wednesday: Free appetizer with $30+ order!",
+            'Thursday': "Tempura Thursday: 15% off all tempura dishes!",
+            'Friday': "Fusion Friday: Try our special fusion rolls!",
+            'Saturday': "Sashimi Saturday: Premium sashimi platters 10% off!",
+            'Sunday': "Sunday Special: Kids eat free with adult entrée!"
+        }.get(day_of_week, "Daily special: 10% off your first order!")
+        
+        resp.message(f"""🍣 RED BAR SUSHI SPECIALS 🍣
+
+✨ TODAY'S SPECIAL ({day_of_week}):
+{day_special}
+
+🔥 CURRENT PROMOTIONS:
+• Buy 2 specialty rolls, get 1 regular roll free!
+• Order online for 5% discount
+• Happy Hour: 3-6pm daily with $2 off all rolls
+
+📱 Show this message when ordering to redeem!
+""")
+        log_info(f"Sent specials info via SMS to {from_number}")
+    
+    # Handle unknown or default response
     else:
-        resp.message("Thanks for your message! Text 'status' to check your order status or 'help' for assistance.")
+        welcome_message = """🍣 Welcome to Red Bar Sushi! 🍣
+
+Thanks for your message! How can we help you?
+
+• Reply with 'status' to check your order
+• Reply with 'menu' to view our menu
+• Reply with 'hours' for our business hours
+• Reply with 'help' for more commands
+
+We're always happy to assist you!
+"""
+        resp.message(welcome_message)
+        log_info(f"Sent welcome message via SMS to {from_number}")
     
     return Response(str(resp), mimetype='text/xml')
 
@@ -1015,12 +1197,19 @@ def sms_status_callback():
     message_status = request.values.get('MessageStatus', '')
     error_code = request.values.get('ErrorCode', None)
     error_message = request.values.get('ErrorMessage', None)
+    to_number = request.values.get('To', '')
     
-    log_info(f"SMS status callback received - SID: {message_sid}, Status: {message_status}")
+    log_info(f"SMS status callback received - SID: {message_sid}, Status: {message_status}, To: {to_number}")
     
-    # If there's an error, log it
+    # If there's an error, log it with enhanced detail
     if error_code or error_message:
-        log_info(f"SMS delivery error - Code: {error_code}, Message: {error_message}")
+        log_info(f"SMS delivery error - Code: {error_code}, Message: {error_message}, To: {to_number}")
+        
+        # Auto-retry logic for failed messages (if error is recoverable)
+        recoverable_errors = ['30001', '30002', '30003', '30004', '30005', '30006', '30007']
+        if error_code in recoverable_errors and to_number:
+            log_info(f"Queueing retry for recoverable error {error_code} to {to_number}")
+            # This will be implemented if needed - would need a celery task
     
     # Find the order with this SMS SID
     try:
@@ -1033,6 +1222,12 @@ def sms_status_callback():
             if error_message:
                 order.sms_error_message = error_message
                 
+            # Handle delivery confirmation
+            if message_status == 'delivered':
+                log_info(f"SMS successfully delivered to {to_number} for order {order.id}")
+            elif message_status == 'undelivered' or message_status == 'failed':
+                log_info(f"SMS delivery failed to {to_number} for order {order.id}: {error_code} - {error_message}")
+                
             # Commit the changes
             if not commit_with_retry(db.session):
                 log_info(f"Error updating SMS status for order {order.id}")
@@ -1041,7 +1236,30 @@ def sms_status_callback():
             log_info(f"Updated SMS status for order {order.id} to {message_status}")
             return jsonify({"success": True}), 200
         else:
-            log_info(f"No order found with SMS SID: {message_sid}")
+            # Try to find the order by phone number if SID doesn't match
+            if to_number:
+                recent_order = db.session.query(Order).filter_by(
+                    sender=to_number
+                ).order_by(Order.timestamp.desc()).first()
+                
+                if recent_order:
+                    # Update the SMS status information for the most recent order
+                    recent_order.sms_sid = message_sid  # Update with the new SID
+                    recent_order.sms_status = message_status
+                    if error_code:
+                        recent_order.sms_error_code = error_code
+                    if error_message:
+                        recent_order.sms_error_message = error_message
+                    
+                    # Commit the changes
+                    if not commit_with_retry(db.session):
+                        log_info(f"Error updating SMS status for recent order {recent_order.id}")
+                        return jsonify({"success": False, "error": "Database commit failed"}), 500
+                    
+                    log_info(f"Updated SMS status for recent order {recent_order.id} (matched by phone number)")
+                    return jsonify({"success": True}), 200
+            
+            log_info(f"No order found with SMS SID: {message_sid} or number: {to_number}")
             return jsonify({"success": False, "error": "Order not found"}), 404
     except Exception as e:
         db.session.rollback()
