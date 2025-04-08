@@ -26,18 +26,35 @@ The system was experiencing errors related to X11 display connections. These cha
 
 ## OpenAI Realtime Audio Implementation
 
-The system was experiencing issues with the OpenAI Realtime client not being properly initialized. The following changes improve the handling of this service:
+The system was experiencing issues with the OpenAI Realtime client not being properly initialized due to X11 dependencies. The following changes provide a complete solution:
 
-1. **Fully Headless Audio Processor**: Prioritized the fully headless implementation that has no X11 dependencies.
+1. **Direct WebSocket Implementation**: Added a completely custom implementation that uses WebSockets to connect directly to the OpenAI Realtime API without any X11 dependency.
 
-2. **Improved Error Detection**: Added specific error detection for display-related errors during initialization.
+2. **Prioritized Implementation Order**:
+   - DirectRealtimeAudioProcessor (primary) - uses custom WebSocket implementation
+   - HeadlessAudioProcessor (secondary) - simplified implementation with no X11 dependency
+   - BasicAudioProcessor (tertiary) - standard API with streaming
+   - MinimalAudioProcessor (last resort) - minimal implementation for emergencies
 
-3. **Fallback Mechanism**: Enhanced fallback mechanism with multiple layers:
-   - HeadlessAudioProcessor (primary)
-   - BasicAudioProcessor (secondary)
-   - MinimalAudioProcessor (last resort)
+3. **Improved Error Detection**: Added specific handling for X11/display-related errors to gracefully switch to alternative implementations.
 
-4. **Removed Auto-Installation**: Removed runtime dependency installation attempts which can cause stability issues in production.
+4. **Testing Script**: Added test_realtime_client.py that helps diagnose issues with each implementation.
+
+5. **Removed Auto-Installation**: Removed runtime dependency installation attempts which can cause stability issues in production.
+
+## Enhanced Speech Recognition for Menu Items
+
+The system now includes specialized speech recognition improvements for restaurant menu items, making it more reliable for taking food orders:
+
+1. **Menu-Aware Whisper Prompting**: The system now uses menu item names as Whisper prompts, which dramatically improves recognition of menu items in customer speech.
+
+2. **Post-Processing with GPT-4o**: Customer transcripts are post-processed with GPT to correct menu item names and improve recognition quality.
+
+3. **Automatic Menu Parsing**: The system dynamically extracts menu items from your menu data file to use in the speech recognition chain.
+
+4. **Twilio Audio Format Support**: Added specific support for Twilio's mulaw audio format at 8kHz sampling rate.
+
+5. **Restaurant-Optimized Voice Prompts**: Added specialized system prompts for the restaurant context to improve the natural flow of phone conversations.
 
 ## Usage Instructions
 

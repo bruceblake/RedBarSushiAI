@@ -655,13 +655,24 @@ def get_audio_processor():
     Get the appropriate audio processor based on what's available.
     
     Returns:
-        HeadlessAudioProcessor first (most reliable in containers),
-        then EnhancedAudioProcessor or BasicAudioProcessor for standard API usage.
+        DirectRealtimeAudioProcessor first (no X11 dependency),
+        then HeadlessAudioProcessor (also no X11 dependency),
+        then BasicAudioProcessor as last resort.
     """
     processor = None
     
-    # First try - use the completely headless processor with no GUI dependencies
-    # This is now our preferred approach because it has no X11 dependency
+    # First try - use the direct implementation with no X11 dependency and WebSocket support
+    try:
+        # Import the direct realtime processor
+        from app.utils.direct_realtime import DirectRealtimeAudioProcessor
+        processor = DirectRealtimeAudioProcessor()
+        logger.info("Using DirectRealtimeAudioProcessor with WebSocket-based implementation")
+        return processor
+    except Exception as direct_error:
+        logger.error(f"Error initializing DirectRealtimeAudioProcessor: {direct_error}")
+        logger.error(traceback.format_exc())
+    
+    # Second try - use the completely headless processor with no GUI dependencies
     try:
         # Import the headless processor
         from app.utils.audio_fallback import get_headless_audio_processor
@@ -672,7 +683,7 @@ def get_audio_processor():
         logger.error(f"Error initializing HeadlessAudioProcessor: {headless_error}")
         logger.error(traceback.format_exc())
     
-    # Second try - use BasicAudioProcessor as fallback
+    # Third try - use BasicAudioProcessor as fallback
     try:
         processor = BasicAudioProcessor()
         logger.info("Successfully initialized BasicAudioProcessor for audio processing")
