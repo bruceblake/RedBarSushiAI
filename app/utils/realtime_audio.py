@@ -45,7 +45,21 @@ except ImportError:
 
 # Check for DISPLAY environment variable (required for OpenAI Realtime client)
 display_env = os.environ.get('DISPLAY')
-if display_env:
+
+# If Xvfb is being used (from docker-entrypoint.sh), restore the settings
+if 'X11_SETUP_SUCCESS' in os.environ and os.environ.get('X11_SETUP_SUCCESS') == 'true':
+    # Force reset environment variables for X11
+    if not display_env:
+        os.environ['DISPLAY'] = ':99'  # Default display used in docker-entrypoint.sh
+        display_env = ':99'
+    
+    os.environ['PYNPUT_HEADLESS'] = '0'
+    os.environ['NO_X11'] = '0'
+    os.environ['HEADLESS'] = '0'
+    os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '0'
+    
+    logging.info(f"X11 setup detected as successful, forcing DISPLAY={display_env}")
+elif display_env:
     logging.info(f"DISPLAY environment variable is set to: {display_env}")
 else:
     logging.warning("DISPLAY environment variable is not set - X11 apps will not work")
