@@ -93,10 +93,12 @@ def send_confirmation_sms_task(self, order_id, order_message, sender, caller_nam
     try:
         app = create_app()
         with app.app_context():
-            text_msg = order_message
+            # Create a nicely formatted message
+            base_message = order_message.strip()
             
             # Add location to the message if provided
             location_prefix = ""
+            location_name = "Red Bar Sushi"  # Default name
             if location_id:
                 # Get location name from database if available
                 try:
@@ -110,21 +112,57 @@ def send_confirmation_sms_task(self, order_id, order_message, sender, caller_nam
                 except Exception as e:
                     logging.info(f"Error getting location name: {e}")
                     location_prefix = f" at our {location_id} location"
+                    
+            # Extract order items and total
+            order_items_text = ""
+            total_text = ""
             
-            # Add location prefix to the message
-            if location_prefix and "location" not in text_msg:
-                text_msg = text_msg.replace("Your order is", f"Your order{location_prefix} is")
-                text_msg = text_msg.replace("You ordered:", f"You ordered from{location_prefix}:")
+            lines = base_message.split('\n')
+            for line in lines:
+                if line.startswith('- '):  # This is an item line
+                    order_items_text += line + "\n"
+                elif "total" in line.lower():  # This is the total line
+                    total_text = line
+                    
+            # Create a more attractive, structured message with emojis and improved formatting
+            text_msg = f"""🍣 RED BAR SUSHI ORDER CONFIRMATION 🍣
+
+Thank you for ordering{location_prefix}!
+
+📋 YOUR ORDER:
+{order_items_text}
+{total_text}
+
+🆔 Order ID: {order_id[:8]}
+"""
+
+            # Add estimated pickup time with emoji
+            prep_time = 20 + (len(order_items) * 2)  # Base time + time per item
+            current_time = time.strftime("%I:%M %p")  # Get current time in 12hr format
+            pickup_time = f"⏱️ Estimated pickup time: {prep_time} minutes (around {time.strftime('%I:%M %p', time.localtime(time.time() + prep_time*60))})"
+            text_msg += f"\n{pickup_time}"
+            text_msg += f"\n🕒 Order placed at: {current_time}"
             
-            # Create payment link
+            # Add restaurant location and phone
+            text_msg += f"\n\n📍 {location_name}"
+            text_msg += "\n📞 (555) 123-4567"  # Replace with actual restaurant phone
+            
+            # Create payment link with better description
             try:
                 product_id = config.STRIPE_PRODUCT_ID
                 stripe_amnt = int(bill_amount)
                 price = stripe.Price.create(currency="usd", unit_amount=stripe_amnt, product=product_id)
                 payment_link = stripe.PaymentLink.create(line_items=[{'price': price.id, 'quantity': 1}])
-                text_msg += f"\nYou can pay here: {payment_link.url}"
+                text_msg += f"\n\n💳 PAY NOW: {payment_link.url}"
+                text_msg += "\nSecurely pay online with credit card"
             except Exception as e:
                 logging.info(f"Stripe link error: {e}")
+                text_msg += "\n\n💵 Please pay when you pick up your order."
+                
+            # Add instructions for status checks with better formatting
+            text_msg += "\n\n📱 SMS COMMANDS:"
+            text_msg += "\n• Reply 'status' to check your order status"
+            text_msg += "\n• Reply 'help' for more options"
             
             # Send SMS to customer with improved error handling and retries
             try:
@@ -240,29 +278,87 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
                 logging.info(f"Order {order_id} not found for status update.")
                 return f"Order {order_id} not found."
             
+            # Extract original status from the message (if available)
+            order_status = None
+            for status in ["NEW", "ACCEPTED", "PREPARING", "READY", "COMPLETED", "FAILED", "REJECTED", "CANCELLED"]:
+                if status in status_message:
+                    order_status = status
+                    break
+            
             # Set location_id from order if not provided
             if not location_id and order.location_id:
                 location_id = order.location_id
             
-            # Add location to the message if not already included
-            if location_id and "location" not in status_message:
+            # Get location name
+            location_name = "Red Bar Sushi"
+            if location_id:
                 try:
                     from app.models import Location
                     location = db.session.query(Location).filter_by(id=location_id).first()
                     if location:
                         location_name = location.name
-                        status_message = status_message.replace(f"Your order ({order_id})", 
-                                                             f"Your order ({order_id}) at our {location_name}")
-                    else:
-                        status_message = status_message.replace(f"Your order ({order_id})", 
-                                                             f"Your order ({order_id}) at our {location_id} location")
                 except Exception as e:
                     logging.info(f"Error getting location name: {e}")
+            
+            # Create a beautifully formatted status update message
+            friendly_status = {
+                "NEW": "received and is being processed",
+                "ACCEPTED": "accepted and being prepared",
+                "PREPARING": "now being prepared in the kitchen",
+                "READY": "ready for pickup! 🎉",
+                "COMPLETED": "completed. Thank you for your order! 🙏",
+                "FAILED": "could not be processed. Please call us",
+                "REJECTED": "could not be processed. Please call us",
+                "CANCELLED": "cancelled"
+            }.get(order_status, "updated")
+            
+            # Extract order items from the stored message
+            order_items = "your order"
+            if order.message and "\n-" in order.message:
+                try:
+                    items_section = order.message.split("YOUR ORDER:")[1].split("\n\n")[0] if "YOUR ORDER:" in order.message else ""
+                    if items_section:
+                        order_items = items_section.strip()
+                except:
+                    pass
+            
+            # Format order time
+            order_time = order.timestamp.strftime("%I:%M %p") if order.timestamp else "recently"
+            
+            # Create a nicely formatted status message
+            formatted_status = f"""🍣 RED BAR SUSHI STATUS UPDATE 🍣
+
+🆔 Order #{order_id[:8]}
+📍 {location_name}
+🕒 Placed at: {order_time}
+
+{order_items}
+
+📋 STATUS: {order_status if order_status else "UPDATED"}
+Your order is {friendly_status}"""
+
+            # Add special instructions based on status
+            if order_status == "READY":
+                formatted_status += "\n\n⏱️ Your order is ready for pickup now!"
+                formatted_status += f"\n📍 Please pick up at: {location_name}"
+                formatted_status += "\n📞 Call (555) 123-4567 if you need assistance"
+            elif order_status == "PREPARING":
+                # Estimate remaining time
+                prep_time = 20 + (len(order.message.split("\n- ")) * 2)  # Estimate based on line count
+                time_elapsed = (time.time() - order.timestamp.timestamp()) / 60 if order.timestamp else 0
+                time_remaining = max(1, prep_time - time_elapsed)
+                formatted_status += f"\n\n⏱️ Estimated to be ready in: {int(time_remaining)} minutes"
+            elif order_status in ["FAILED", "REJECTED"]:
+                formatted_status += "\n\n⚠️ Please call us at (555) 123-4567 regarding your order"
+            
+            # Add reminder for SMS commands
+            formatted_status += "\n\n📱 Reply 'status' for the latest updates"
+            formatted_status += "\n📱 Reply 'help' for more options"
             
             # Send SMS to customer
             try:
                 message = twilio_client.messages.create(
-                    body=status_message,
+                    body=formatted_status,
                     from_=TWILIO_PHONE_NUMBER,
                     to=order.sender,
                     status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
@@ -272,18 +368,45 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
                 try:
                     order.sms_sid = message.sid
                     order.sms_status = "sent"
+                    # Also update the order status if we know it
+                    if order_status:
+                        order.status = order_status
                     db.session.commit()
-                    logging.info(f"Updated order {order_id} with SMS SID: {message.sid}")
+                    logging.info(f"Updated order {order_id} with SMS SID: {message.sid} and status: {order_status if order_status else 'unchanged'}")
                 except Exception as db_err:
                     logging.error(f"Error updating order with SMS SID: {db_err}")
             except Exception as e:
                 logging.info(f"Status SMS error: {e}")
+                # Try alternative formatting for the phone number
+                try:
+                    logging.info("Trying alternative SMS approach for status update...")
+                    # Remove any formatting from the phone number
+                    plain_number = ''.join(filter(lambda x: x.isdigit(), order.sender))
+                    if len(plain_number) == 10:  # US number without country code
+                        plain_number = f"+1{plain_number}"
+                    elif len(plain_number) > 10:  # Might already have country code
+                        plain_number = f"+{plain_number}"
+                        
+                    message = twilio_client.messages.create(
+                        body=formatted_status,
+                        from_=TWILIO_PHONE_NUMBER,
+                        to=plain_number,
+                        status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
+                    )
+                    logging.info(f"Alternative SMS approach for status update successful! SID: {message.sid}")
+                except Exception as alt_e:
+                    logging.error(f"Alternative SMS approach for status update also failed: {alt_e}")
 
             # Send SMS notification to owner (not WhatsApp)
             try:
+                # Add customer info for owner message
+                owner_formatted_status = formatted_status + f"\n\nCustomer: {order.sender}"
+                if order.caller_name:
+                    owner_formatted_status += f" ({order.caller_name})"
+                
                 # Use regular SMS for owner notification
                 twilio_client.messages.create(
-                    body=status_message,
+                    body=owner_formatted_status,
                     from_=TWILIO_PHONE_NUMBER,
                     to=OWNER_PHONE_NUMBER,
                     status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
@@ -293,10 +416,10 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
                 logging.info(f"Owner status notification SMS error: {e}")
                 
             # Handle failed orders for reporting
-            if "FAILED" in status_message or "CANCELLED" in status_message:
+            if order_status in ["FAILED", "CANCELLED", "REJECTED"]:
                 try:
                     # Update order status in database
-                    order.status = "FAILED" if "FAILED" in status_message else "CANCELLED"
+                    order.status = order_status
                     db.session.commit()
                     
                     # Additional logic for reporting failed orders could go here

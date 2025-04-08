@@ -1,84 +1,169 @@
-# SMS Notification Fix Implementation
+# SMS Functionality Documentation
 
-This document outlines the changes made to improve SMS notification reliability in the Red Bar Sushi AI system.
+This document provides comprehensive information about the SMS functionality in the Red Bar Sushi AI system, including recent enhancements, configuration details, and testing procedures.
 
-## Problems Fixed
+## Recent Enhancements
 
-1. **Missing SMS Notifications**: The system wasn't reliably sending SMS messages to customers despite claiming to do so
-2. **Lack of SMS Delivery Tracking**: No way to know if SMS messages were actually delivered
-3. **Phone Number Formatting Issues**: Inconsistent phone number formatting causing delivery failures
-4. **No Error Handling**: Failed SMS sends weren't being properly logged or retried
+### 1. Improved SMS Message Formatting
+- Added emojis and clear structure to all SMS messages
+- Enhanced order confirmation messages with pickup time estimates and payment links
+- Created visually distinguishable sections in SMS messages
+- Added helpful information like restaurant location and contact details
+- Implemented detailed status update messages with relevant action items
 
-## Implementation Details
+### 2. Enhanced SMS Command Handling
+- Expanded command recognition with natural language understanding
+- Added new commands for restaurant information, specials, and help
+- Implemented flexible keyword matching for each command type
+- Added dynamic content (e.g., day-specific specials based on current day)
+- Created comprehensive response templates for each command type
 
-### 1. Enhanced SMS Status Tracking
+### 3. Robust SMS Status Tracking
+- Added SMS tracking fields to the Order model:
+  - `sms_sid`: Stores the Twilio message SID for tracking
+  - `sms_status`: Current status of the message (sent, delivered, failed, etc.)
+  - `sms_error_code`: Error code if delivery failed
+  - `sms_error_message`: Detailed error message if delivery failed
+- Implemented a status callback endpoint that records message delivery status
+- Added fallback mechanisms to find orders when SID matching fails
 
-Added SMS tracking fields to the Order model:
-- `sms_sid`: Stores the Twilio message SID for tracking
-- `sms_status`: Tracks the current status of the SMS (sent, delivered, failed, etc.)
-- `sms_error_code`: Stores the error code if SMS delivery failed
-- `sms_error_message`: Stores the error message if SMS delivery failed
-
-This required database changes, implemented in `migrate_sms_tracking.py`.
-
-### 2. SMS Status Callback Endpoint
-
-Added a new endpoint at `/sms_status_callback` that:
-- Receives callbacks from Twilio about SMS delivery status
-- Updates the order record with the current status
-- Logs success/failure information for troubleshooting
-
-```python
-@order_bp.route('/sms_status_callback', methods=['POST'])
-def sms_status_callback():
-    # Extract data from the callback
-    message_sid = request.values.get('MessageSid', '')
-    message_status = request.values.get('MessageStatus', '')
-    error_code = request.values.get('ErrorCode', None)
-    error_message = request.values.get('ErrorMessage', None)
-    
-    # Find the order with this SMS SID and update its status
-    order = db.session.query(Order).filter_by(sms_sid=message_sid).first()
-    if order:
-        order.sms_status = message_status
-        if error_code:
-            order.sms_error_code = error_code
-        if error_message:
-            order.sms_error_message = error_message
-    # ...
-```
-
-### 3. Improved Phone Number Normalization
-
-Enhanced phone number handling with:
+### 4. Improved Phone Number Handling
 - Multiple formatting approaches for greater reliability
 - E.164 standard compliance (e.g., "+12345678901")
 - Better error handling and logging
 - Fallback mechanisms for non-standard inputs
 
-### 4. SMS Testing Tool
+### 5. Comprehensive Testing Tools
+- Created enhanced diagnostic tools in `test_sms.py`
+- Added local testing capability without sending actual messages
+- Implemented order status flow simulation for testing
+- Added webhook configuration verification
 
-Created a diagnostic tool (`test_sms.py`) to:
-- Verify Twilio configuration
-- Test SMS sending to a specific number
-- Debug delivery issues with detailed error reporting
-- Track message delivery status through the callback system
+## SMS Commands
 
-## Usage
+The system now supports the following SMS commands:
 
-### Running SMS Test
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| status | stat, check, order | Check the status of your most recent order |
+| help | command, info, option | View available SMS commands |
+| menu | food, eat, dish, price | See popular menu items |
+| hours | time, open, close | View restaurant hours |
+| location | address, where, map, direction | Get address and directions |
+| contact | phone, call, reach | Get contact information |
+| specials | deal, offer, discount, promotion | View today's specials |
 
-To test that SMS notifications are properly working:
+## SMS Message Types
 
-```bash
-# Run a test with a specific phone number
-python test_sms.py +1234567890
+### Order Confirmation
+- Sent after a successful order is placed
+- Includes order items, total amount, and estimated pickup time
+- Provides payment link (via Stripe)
+- Includes restaurant location and contact information
+- Reminds customer how to check order status
 
-# Only verify configuration without sending
-python test_sms.py --check-config +1234567890
+Example:
+```
+🍣 RED BAR SUSHI ORDER CONFIRMATION 🍣
+
+Thank you for ordering!
+
+📋 YOUR ORDER:
+- 1x Spicy Tuna Roll ($8.99)
+- 1x California Roll ($6.99)
+Your total is $15.98
+
+🆔 Order ID: test-12345
+
+⏱️ Estimated pickup time: 25 minutes (around 6:30 PM)
+🕒 Order placed at: 6:05 PM
+
+📍 Red Bar Sushi
+📞 (555) 123-4567
+
+💳 PAY NOW: https://example.com/pay
+Securely pay online with credit card
+
+📱 SMS COMMANDS:
+• Reply 'status' to check your order status
+• Reply 'help' for more options
 ```
 
-### Migrating the Database
+### Status Update
+- Sent when order status changes or when customer requests status
+- Shows current order status with user-friendly explanation
+- Provides relevant info based on status (e.g., pickup instructions when ready)
+- Includes original order summary for reference
+
+Example:
+```
+🍣 RED BAR SUSHI STATUS UPDATE 🍣
+
+🆔 Order #test-1234
+📍 Red Bar Sushi
+🕒 Placed at: 6:05 PM
+
+- 1x Spicy Tuna Roll ($8.99)
+- 1x California Roll ($6.99)
+Your total is $15.98
+
+📋 CURRENT STATUS: PREPARING
+Your order is now being prepared in the kitchen
+
+⏱️ Estimated to be ready in: 10 minutes
+
+📱 Reply 'status' for the latest updates
+📱 Reply 'help' for more options
+```
+
+## Configuration
+
+### Twilio Setup
+To configure SMS functionality, the following environment variables are required:
+- `TWILIO_ACCOUNT_SID`: Your Twilio account SID
+- `TWILIO_AUTH_TOKEN`: Your Twilio authentication token
+- `TWILIO_NUMBER`: Your Twilio phone number for sending SMS
+- `BASE_URL`: Your application's base URL for callbacks
+
+### Webhook Configuration
+The system uses the following webhook endpoints:
+- `/sms`: Handles incoming SMS messages
+- `/sms_status_callback`: Receives delivery status updates
+
+Configure your Twilio phone number to use these webhooks:
+1. In the Twilio console, go to Phone Numbers > Manage > Active Numbers
+2. Select your phone number
+3. Under Messaging, set:
+   - A MESSAGE COMES IN: `https://your-base-url.com/sms`
+   - PRIMARY HANDLER FAILS: `https://your-base-url.com/webhook-test`
+
+## Testing Tools
+
+The enhanced `test_sms.py` script provides multiple testing functions:
+
+```bash
+# Send a test SMS
+python test_sms.py send +1XXXXXXXXXX [basic|order|status|all_commands]
+
+# Test SMS commands locally (no actual SMS sent)
+python test_sms.py test status
+python test_sms.py test menu
+python test_sms.py test help
+
+# Simulate an order going through all status changes
+python test_sms.py flow +1XXXXXXXXXX
+
+# Check Twilio configuration
+python test_sms.py check
+
+# Test webhook configuration
+python test_sms.py webhook
+
+# Display help information
+python test_sms.py help
+```
+
+## Database Migration
 
 To add SMS tracking columns to your database:
 
@@ -86,20 +171,62 @@ To add SMS tracking columns to your database:
 python migrate_sms_tracking.py
 ```
 
-### Monitoring SMS Status
+This creates the following columns in the `order` table:
+- `sms_sid`: VARCHAR (stores Twilio message ID)
+- `sms_status`: VARCHAR (message delivery status)
+- `sms_error_code`: VARCHAR (error code if delivery failed)
+- `sms_error_message`: VARCHAR (detailed error message)
 
-The system now tracks the following Twilio message statuses:
-- `queued`: Message is waiting to be sent
-- `sent`: Message has been sent to the carrier
-- `delivered`: Message was successfully delivered to the recipient
-- `undelivered`: Message could not be delivered to the recipient
-- `failed`: Message could not be sent or delivered
+## Troubleshooting
 
-Check the order's `sms_status` field to determine the current status, or use the Twilio dashboard to track messages by SID.
+### Common SMS Delivery Issues
 
-## Additional Information
+1. **Message Status Shows "Undelivered"**
+   - Check the `sms_error_code` and `sms_error_message` in the database
+   - Verify the recipient's phone number is valid and can receive SMS
+   - Ensure your Twilio account has sufficient credits
 
-- All SMS sends now include a status callback URL
-- Twilio will issue a callback to the server when message status changes
-- The system logs detailed error information for troubleshooting
-- Status information can be viewed in the database or through application logs
+2. **No Status Callback Received**
+   - Verify your `BASE_URL` is publicly accessible
+   - Check that your webhook endpoint is correctly configured in Twilio
+   - Ensure your server is accepting POST requests to the callback URL
+
+3. **Message Shows "Queued" For Too Long**
+   - Check your Twilio account status (possible suspension)
+   - Verify the recipient's phone format is correct (E.164 format)
+   - Ensure the destination country is supported by your Twilio account
+
+### Debugging Tools
+
+- Use `python test_sms.py webhook` to verify webhook configuration
+- Check application logs for delivery status updates
+- Query the database directly to see SMS status:
+  ```sql
+  SELECT id, sms_sid, sms_status, sms_error_code, sms_error_message 
+  FROM "order" 
+  WHERE sender = '+1XXXXXXXXXX' 
+  ORDER BY timestamp DESC 
+  LIMIT 5;
+  ```
+
+## Status Codes and Meanings
+
+The system tracks the following Twilio message statuses:
+
+| Status | Description |
+|--------|-------------|
+| queued | Message is waiting to be sent |
+| sending | Message is in the process of being sent |
+| sent | Message has been sent to the carrier |
+| delivered | Message was successfully delivered to the recipient |
+| undelivered | Message could not be delivered to the recipient |
+| failed | Message could not be sent or delivered |
+
+Common error codes:
+- `30001`: Queue overflow
+- `30002`: Account suspended
+- `30003`: Unreachable destination handset
+- `30004`: Message blocked
+- `30005`: Unknown destination handset
+- `30006`: Landline or unreachable carrier
+- `30007`: Carrier violation
