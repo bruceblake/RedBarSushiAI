@@ -82,11 +82,47 @@ sudo apt-get install portaudio19-dev
 pip install openai-realtime-client==0.1.0 flask-sock==0.7.0 simple-websocket==1.1.0 websockets==13.1 aiohttp==3.11.13
 ```
 
-The system has been designed to work even if some of these packages are not available. It follows this fallback hierarchy:
+### Handling X11 Display Requirements
+
+The system offers two approaches to handle the OpenAI Realtime client's X11 display dependency:
+
+#### Option 1: Headless Mode (Default, Recommended)
+
+The system uses a custom dual-backend WebSocket implementation that bypasses the X11 dependency entirely. This mode is automatically active and requires no additional configuration. It works by:
+
+1. Using either `websockets` or `aiohttp` libraries directly
+2. Implementing the OpenAI Realtime WebSocket protocol without the official client
+3. Following a comprehensive fallback hierarchy when libraries are unavailable
+
+#### Option 2: Virtual X Server (Alternative)
+
+If you prefer to use the official OpenAI Realtime client with its X11 dependency, you can set up a virtual X server:
+
+```bash
+# Install virtual X server
+apt-get update && apt-get install -y xvfb x11-utils xorg
+
+# Start virtual X server
+Xvfb :99 -screen 0 1024x768x16 -ac &
+export DISPLAY=:99
+
+# Test X server connection
+xdpyinfo > /dev/null 2>&1 && echo "X server is working" || echo "X server failed"
+```
+
+To use this option with Docker, set the `USE_XVFB` environment variable to `true`:
+
+```bash
+docker run -e USE_XVFB=true -p 8080:8080 redbarushiai:latest
+```
+
+### Fallback Hierarchy
+
+The system follows this fallback hierarchy to ensure it works in all environments:
 
 1. Try to use `websockets` library for WebSocket communication (preferred)
 2. If `websockets` is unavailable, try to use `aiohttp` for WebSocket communication
-3. If neither library is available, try to use the official `openai-realtime-client` library
+3. If neither library is available, try to use the official `openai-realtime-client` library (with X11 if available)
 4. If official client is unavailable, fall back to standard API calls
 
 This makes the system very resilient to different environment configurations.

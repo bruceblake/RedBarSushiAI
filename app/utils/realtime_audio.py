@@ -43,6 +43,13 @@ try:
 except ImportError:
     logging.warning("aiohttp package not available")
 
+# Check for DISPLAY environment variable (required for OpenAI Realtime client)
+display_env = os.environ.get('DISPLAY')
+if display_env:
+    logging.info(f"DISPLAY environment variable is set to: {display_env}")
+else:
+    logging.warning("DISPLAY environment variable is not set - X11 apps will not work")
+
 # First try to use the official OpenAI Realtime client
 try:
     import openai_realtime_client
@@ -53,20 +60,45 @@ try:
     
     # Check version and try to import the session
     version = getattr(openai_realtime_client, "__version__", "unknown")
+    logging.info(f"OpenAI Realtime client version: {version}")
     
     # Try to import the Session class - with specific handling for X11 errors
     try:
         # First try normal import
         try:
+            # Detailed logging to diagnose import issues
+            logging.info("Attempting to import Session from openai_realtime_client.client...")
+            
+            # Try to import Session, being extra careful with X11 errors
+            if not display_env:
+                logging.warning("No DISPLAY environment variable - this will likely fail")
+            
             from openai_realtime_client.client import Session
             REALTIME_AVAILABLE = True
-            logging.info(f"Successfully imported Session from openai_realtime_client v{version}")
+            logging.info(f"✅ Successfully imported Session from openai_realtime_client v{version}")
+            
+            # Test creating a session to make sure it actually works
+            try:
+                logging.info("Testing session creation...")
+                test_key = os.environ.get('OPENAI_API_KEY', 'sk-test')
+                test_session = Session.create(api_key=test_key)
+                logging.info(f"✅ Successfully created test session object: {test_session}")
+            except Exception as test_error:
+                logging.warning(f"⚠️ Test session creation failed: {test_error}")
+                # If it's an X11/display error, fall back
+                error_str = str(test_error).lower()
+                if 'display' in error_str or 'x11' in error_str or 'x server' in error_str:
+                    logging.warning(f"X11/Display error during test: {test_error}")
+                    REALTIME_AVAILABLE = False
+                
         except Exception as session_error:
             # Check if it's an X11/display-related error
             error_str = str(session_error).lower()
-            if 'display' in error_str or 'x11' in error_str or 'x server' in error_str:
+            logging.error(f"Error importing Session: {session_error}")
+            
+            if 'display' in error_str or 'x11' in error_str or 'x server' in error_str or 'displaynameerror' in error_str:
                 logging.warning(f"X11/Display error importing Session: {session_error}")
-                # Explicitly set to use standard client
+                # Explicitly set to use direct implementation
                 REALTIME_AVAILABLE = False
                 logging.warning("X11/Display dependency detected, will use direct WebSocket implementation")
             else:
