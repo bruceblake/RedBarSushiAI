@@ -1007,6 +1007,47 @@ def register_channel_route():
     log_info(f"Response: {json.dumps(response_body)}")
     return jsonify(response_body), 200
 
+@order_bp.route('/sms_status_callback', methods=['POST'])
+def sms_status_callback():
+    """Handle SMS delivery status callbacks from Twilio"""
+    # Extract data from the callback
+    message_sid = request.values.get('MessageSid', '')
+    message_status = request.values.get('MessageStatus', '')
+    error_code = request.values.get('ErrorCode', None)
+    error_message = request.values.get('ErrorMessage', None)
+    
+    log_info(f"SMS status callback received - SID: {message_sid}, Status: {message_status}")
+    
+    # If there's an error, log it
+    if error_code or error_message:
+        log_info(f"SMS delivery error - Code: {error_code}, Message: {error_message}")
+    
+    # Find the order with this SMS SID
+    try:
+        order = db.session.query(Order).filter_by(sms_sid=message_sid).first()
+        if order:
+            # Update the SMS status information
+            order.sms_status = message_status
+            if error_code:
+                order.sms_error_code = error_code
+            if error_message:
+                order.sms_error_message = error_message
+                
+            # Commit the changes
+            if not commit_with_retry(db.session):
+                log_info(f"Error updating SMS status for order {order.id}")
+                return jsonify({"success": False, "error": "Database commit failed"}), 500
+                
+            log_info(f"Updated SMS status for order {order.id} to {message_status}")
+            return jsonify({"success": True}), 200
+        else:
+            log_info(f"No order found with SMS SID: {message_sid}")
+            return jsonify({"success": False, "error": "Order not found"}), 404
+    except Exception as e:
+        db.session.rollback()
+        log_info(f"Error processing SMS status callback: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @order_bp.route('/webhook-test', methods=['GET'])
 def webhook_test():
     """Endpoint to test webhook configuration"""
@@ -1033,7 +1074,8 @@ def webhook_test():
             "busyModeURL": f"{BASE_URL}/busy_mode",
             "updatePrepTimeURL": f"{BASE_URL}/updatePrepTime",
             "courierUpdateURL": f"{BASE_URL}/courierUpdate",
-            "paymentUpdateURL": f"{BASE_URL}/payment_update"
+            "paymentUpdateURL": f"{BASE_URL}/payment_update",
+            "smsCallbackURL": f"{BASE_URL}/sms_status_callback"
         }
     }
     
