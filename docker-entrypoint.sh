@@ -61,6 +61,9 @@ if [ -n "$XVFB_PID" ] && [ "$X11_SETUP_SUCCESS" = "true" ]; then
     export HEADLESS=0
     export OPENAI_REALTIME_NO_DISPLAY=0
     
+    # Export this so other processes can detect if X11 was successfully set up
+    export X11_SETUP_SUCCESS=true
+    
     # Create .Xauthority file if it doesn't exist (sometimes needed)
     touch ~/.Xauthority 2>/dev/null || true
     
@@ -118,7 +121,27 @@ fi
 # Run the test script to verify the setup
 echo "Running test script to verify setup..."
 if [ -f "test_realtime_client.py" ]; then
-    python test_realtime_client.py || true
+    # Create a wrapper script that ensures X11 environment variables are set
+    cat > /tmp/test_x11_wrapper.py << 'EOF'
+import os
+import sys
+import subprocess
+
+# Set X11 environment variables
+if os.environ.get('DISPLAY'):
+    print(f"Using DISPLAY={os.environ['DISPLAY']}")
+    os.environ['PYNPUT_HEADLESS'] = '0'
+    os.environ['NO_X11'] = '0'
+    os.environ['HEADLESS'] = '0'
+    os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '0'
+    os.environ['USE_XVFB'] = 'true'
+    
+# Run the actual test script
+subprocess.run([sys.executable, '/app/test_realtime_client.py'])
+EOF
+
+    # Run the wrapper script
+    python /tmp/test_x11_wrapper.py || true
 fi
 
 # Run diagnostic script if it exists
@@ -313,18 +336,51 @@ else:
     print('All required modules are available', file=sys.stderr)
 "
     
-    # Try both entry points (run.py and wsgi.py) with memory optimizations
-    if [ -f "wsgi.py" ]; then
-        echo "DEBUG: Using wsgi.py entry point with memory optimizations"
-        # Removed the unsupported max-memory-per-child argument
+    # Make sure the DISPLAY environment variable is in the worker's environment
+    if [ -n "$DISPLAY" ]; then
+        echo "Ensuring DISPLAY=$DISPLAY is passed to the workers"
+        
+        # Create a wrapper script to set environment variables for gunicorn workers
+        cat > /tmp/gunicorn_env_wrapper.py << 'EOF'
+import os
+import sys
+
+# Ensure all environment variables are passed to workers
+os.environ['DISPLAY'] = os.environ.get('DISPLAY', ':99')
+os.environ['PYNPUT_HEADLESS'] = '0'
+os.environ['NO_X11'] = '0' 
+os.environ['HEADLESS'] = '0'
+os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '0'
+os.environ['X11_SETUP_SUCCESS'] = 'true'  # Indicate X11 is working
+
+# Import the actual app
+sys.path.insert(0, '/app')
+if os.path.exists('/app/wsgi.py'):
+    from wsgi import app
+else:
+    from run import app
+
+# Export the app for gunicorn
+application = app
+EOF
+        
+        # Use the wrapper script
+        echo "DEBUG: Using Python wrapper script with explicit environment variables"
         exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
                      --log-level=debug --max-requests=500 --max-requests-jitter=50 \
-                     --worker-connections=500 --timeout=120 "wsgi"
+                     --worker-connections=500 --timeout=120 "/tmp/gunicorn_env_wrapper"
     else
-        echo "DEBUG: Using run:app entry point with memory optimizations"
-        # Removed the unsupported max-memory-per-child argument
-        exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
-                     --log-level=debug --max-requests=500 --max-requests-jitter=50 \
-                     --worker-connections=500 --timeout=120 "run:app"
+        # Standard startup if DISPLAY isn't set
+        if [ -f "wsgi.py" ]; then
+            echo "DEBUG: Using wsgi.py entry point with memory optimizations"
+            exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
+                         --log-level=debug --max-requests=500 --max-requests-jitter=50 \
+                         --worker-connections=500 --timeout=120 "wsgi"
+        else
+            echo "DEBUG: Using run:app entry point with memory optimizations"
+            exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
+                         --log-level=debug --max-requests=500 --max-requests-jitter=50 \
+                         --worker-connections=500 --timeout=120 "run:app"
+        fi
     fi
 fi
