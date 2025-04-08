@@ -50,19 +50,31 @@ The system was experiencing errors related to X11 display connections. These cha
 
 The system was experiencing issues with the OpenAI Realtime client not being properly initialized due to X11 dependencies. The following changes provide a complete solution:
 
-1. **Direct WebSocket Implementation**: Added a completely custom implementation that uses WebSockets to connect directly to the OpenAI Realtime API without any X11 dependency.
+1. **Multi-Backend WebSocket Implementation**: Added a fully custom implementation that can use either `websockets` or `aiohttp` libraries to connect to the OpenAI Realtime API without X11 dependencies:
+   - Automatically detects and uses available WebSocket libraries (websockets, aiohttp)
+   - Seamlessly falls back to alternative libraries if one fails
+   - Provides consistent interface regardless of the underlying implementation
 
 2. **Prioritized Implementation Order**:
-   - DirectRealtimeAudioProcessor (primary) - uses custom WebSocket implementation
+   - DirectRealtimeAudioProcessor (primary) - uses custom dual-backend WebSocket implementation
    - HeadlessAudioProcessor (secondary) - simplified implementation with no X11 dependency
    - BasicAudioProcessor (tertiary) - standard API with streaming
    - MinimalAudioProcessor (last resort) - minimal implementation for emergencies
 
-3. **Improved Error Detection**: Added specific handling for X11/display-related errors to gracefully switch to alternative implementations.
+3. **Improved Error Detection and Recovery**:
+   - Enhanced X11/display error detection to gracefully switch implementations
+   - Added proper session cleanup in case of errors
+   - Implemented timeout handling to prevent hanging connections
+   - Better error logging and diagnostic information
 
-4. **Testing Script**: Added test_realtime_client.py that helps diagnose issues with each implementation.
+4. **Robust Fallback Hierarchy**:
+   - System attempts to use websockets library first
+   - Falls back to aiohttp if websockets is unavailable
+   - Falls back to official OpenAI Realtime client if available
+   - Falls back to headless implementation if all else fails
+   - Includes emergency minimal implementation that works with almost no dependencies
 
-5. **Removed Auto-Installation**: Removed runtime dependency installation attempts which can cause stability issues in production.
+5. **Testing Script and Debugging**: Added test_realtime_client.py that helps diagnose issues with each implementation and improved logging.
 
 ## Enhanced Speech Recognition for Menu Items
 
@@ -92,4 +104,12 @@ The system now prioritizes:
 You may notice in the logs:
 - Fewer "Worker was sent SIGKILL" errors
 - More stable memory usage patterns
-- Either "Successfully imported Session from openai_realtime_client" indicating realtime mode is working, or "Using OpenAI client with streaming instead of realtime client" indicating fallback mode
+- Elimination of "OpenAI Realtime client not available" errors
+- One of these messages indicating the active implementation:
+  - "Using DirectRealtimeAudioProcessor with both websockets and aiohttp support" (best case)
+  - "Using DirectRealtimeAudioProcessor with websockets support" (good case)
+  - "Using DirectRealtimeAudioProcessor with aiohttp support" (good case)
+  - "Using RealtimeAudioProcessor with official OpenAI Realtime client" (if official client works)
+  - "Using fully headless audio processor with no X11 dependencies" (fallback mode)
+  - "Successfully initialized BasicAudioProcessor for audio processing" (basic fallback)
+  - "Using minimal compatibility audio processor" (emergency mode)

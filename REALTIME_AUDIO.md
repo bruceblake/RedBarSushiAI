@@ -10,9 +10,15 @@ The real-time audio feature uses WebSockets to provide a low-latency, interactiv
 
 The system supports multiple audio processor implementations to accommodate different environments:
 
-1. **DirectRealtimeAudioProcessor** - A direct WebSocket implementation that connects to OpenAI's Realtime API with no dependencies on the OpenAI Realtime client library
-2. **HeadlessAudioProcessor** - A fallback implementation for headless environments with no GUI/X11 dependencies 
-3. **BasicAudioProcessor** - A simple implementation using OpenAI's standard API for audio processing
+1. **DirectRealtimeAudioProcessor** - A direct WebSocket implementation with dual backend support:
+   - Uses either `websockets` or `aiohttp` libraries for WebSocket communication
+   - Automatically detects and uses the best available library
+   - Connects directly to OpenAI's Realtime API with no dependencies on the OpenAI Realtime client
+   - Provides full WebSocket functionality without X11/display dependencies
+2. **RealtimeAudioProcessor** - Uses the official OpenAI Realtime client library when available
+3. **HeadlessAudioProcessor** - A fallback implementation for headless environments with no GUI/X11 dependencies 
+4. **BasicAudioProcessor** - A simple implementation using OpenAI's standard API for audio processing
+5. **MinimalAudioProcessor** - An emergency fallback with minimal dependencies for maximum compatibility
 
 For troubleshooting issues with realtime functionality, run:
 
@@ -43,22 +49,47 @@ A demo implementation is available at `/demo` which showcases the real-time conv
 
 ## Implementation Details
 
-- Uses Flask-Sock for WebSocket support
-- Implements OpenAI's real-time API via the `openai-realtime-client` package
+### Server-Side Architecture
+
+- Uses Flask-Sock for WebSocket endpoint management
+- Implements a robust audio processor selection system with multiple fallback levels
+- Provides a custom dual-backend WebSocket implementation that can use either:
+  - `websockets` library (primary choice)
+  - `aiohttp` library (secondary choice)
+  - Official `openai-realtime-client` package (tertiary choice)
+  - Standard OpenAI API (final fallback)
+- Automatic error detection and recovery with graceful degradation
+- Headless operation support for server environments without X11/display
+- Enhanced logging for troubleshooting WebSocket connection issues
+
+### Client-Side Integration
+
 - Supports standard WebAudio API for client-side audio capture
 - Handles streaming binary audio data between client and server
+- Provides unified WebSocket event handling regardless of backend implementation
+- Includes demo implementation for testing and integration reference
+- Support for both browser-based and Twilio phone call audio formats
 
 ## Installation
 
 To use the real-time audio features, install the required dependencies:
 
 ```bash
-# Install system dependencies
+# Install system dependencies (if using microphone directly - not needed for Twilio integration)
 sudo apt-get install portaudio19-dev
 
 # Install Python packages
-pip install openai-realtime-client==0.1.0 flask-sock==0.7.0 simple-websocket==1.1.0
+pip install openai-realtime-client==0.1.0 flask-sock==0.7.0 simple-websocket==1.1.0 websockets==13.1 aiohttp==3.11.13
 ```
+
+The system has been designed to work even if some of these packages are not available. It follows this fallback hierarchy:
+
+1. Try to use `websockets` library for WebSocket communication (preferred)
+2. If `websockets` is unavailable, try to use `aiohttp` for WebSocket communication
+3. If neither library is available, try to use the official `openai-realtime-client` library
+4. If official client is unavailable, fall back to standard API calls
+
+This makes the system very resilient to different environment configurations.
 
 ## Client Integration
 

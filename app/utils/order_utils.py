@@ -5,7 +5,7 @@ Ensures orders sent to Deliverect contain only valid menu items with proper refe
 """
 import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from flask import session
 
 # Import menu utilities for order validation

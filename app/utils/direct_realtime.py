@@ -8,8 +8,31 @@ from typing import Dict, Any, Optional, List, Generator, AsyncGenerator
 import base64
 import os
 import uuid
-import websockets
 import tempfile
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Import websockets or aiohttp for direct WebSocket communication
+try:
+    import websockets
+    WEBSOCKETS_AVAILABLE = True
+    logger.info("Using websockets library for WebSocket communication")
+except ImportError:
+    WEBSOCKETS_AVAILABLE = False
+    logger.warning("websockets package not available, falling back to aiohttp")
+
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+    logger.info("aiohttp library available for WebSocket communication")
+except ImportError:
+    AIOHTTP_AVAILABLE = False
+    if not WEBSOCKETS_AVAILABLE:
+        logger.error("Neither websockets nor aiohttp is available - WebSocket functionality will be limited")
+    else:
+        logger.info("aiohttp not available, will use websockets instead")
 
 # Import OpenAI for standard API
 import openai
@@ -18,14 +41,11 @@ from openai import OpenAI
 # Get the OpenAI API key from agent_utils to keep it consistent
 from app.utils.agent_utils import OPENAI_API_KEY, log_openai_request, log_openai_response
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
 # Create standard OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 class RealtimeSession:
-    """Direct implementation of OpenAI's Realtime API using WebSockets"""
+    """Direct implementation of OpenAI's Realtime API using WebSockets with multiple backend support"""
     
     # OpenAI Realtime API endpoint
     WEBSOCKET_URL = "wss://api.openai.com/v1/realtime"
@@ -37,6 +57,8 @@ class RealtimeSession:
         self.websocket = None
         self.events_queue = asyncio.Queue()
         self._listening_task = None
+        self._aiohttp_session = None
+        self._aiohttp_ws = None
         
         # Queue for tracking response events by type
         self.audio_delta_queue = asyncio.Queue()
@@ -45,6 +67,9 @@ class RealtimeSession:
         
         # Set up VAD (Voice Activity Detection) behavior
         self.vad_enabled = True
+        
+        # Track which backend we're using
+        self.backend = None
     
     @classmethod
     def create(cls, api_key: str, session: Dict[str, Any] = None):
@@ -88,7 +113,7 @@ class RealtimeSession:
         self.session_id = str(uuid.uuid4())
         logger.info(f"Creating new realtime session with ID: {self.session_id}")
         
-        # Connect to the WebSocket
+        # Connect to the WebSocket using appropriate backend
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -96,11 +121,43 @@ class RealtimeSession:
         
         try:
             logger.info(f"Connecting to OpenAI Realtime WebSocket API")
-            self.websocket = await websockets.connect(
-                self.WEBSOCKET_URL,
-                extra_headers=headers
-            )
-            logger.info(f"WebSocket connection established")
+            
+            # Try the available backends in order of preference
+            if WEBSOCKETS_AVAILABLE:
+                try:
+                    logger.info("Connecting using websockets library")
+                    self.websocket = await websockets.connect(
+                        self.WEBSOCKET_URL,
+                        extra_headers=headers
+                    )
+                    self.backend = "websockets"
+                    logger.info("WebSocket connection established using websockets library")
+                except Exception as ws_error:
+                    logger.error(f"Error connecting with websockets: {ws_error}")
+                    if not AIOHTTP_AVAILABLE:
+                        raise
+            
+            # If websockets failed or isn't available, try aiohttp
+            if not self.websocket and AIOHTTP_AVAILABLE:
+                try:
+                    logger.info("Connecting using aiohttp library")
+                    self._aiohttp_session = aiohttp.ClientSession()
+                    self._aiohttp_ws = await self._aiohttp_session.ws_connect(
+                        self.WEBSOCKET_URL,
+                        headers=headers
+                    )
+                    self.backend = "aiohttp"
+                    logger.info("WebSocket connection established using aiohttp library")
+                except Exception as aio_error:
+                    logger.error(f"Error connecting with aiohttp: {aio_error}")
+                    # Clean up if session was created
+                    if self._aiohttp_session:
+                        await self._aiohttp_session.close()
+                        self._aiohttp_session = None
+                    raise
+            
+            if not self.websocket and not self._aiohttp_ws:
+                raise RuntimeError("Failed to connect using any available WebSocket backend")
             
             # Initialize session with the provided configuration
             logger.debug(f"Sending session.update event with config: {session_config}")
@@ -144,26 +201,45 @@ class RealtimeSession:
     
     async def send_event(self, event: Dict[str, Any]):
         """Send an event to the OpenAI Realtime API"""
-        if not self.websocket:
+        if not self.websocket and not self._aiohttp_ws:
             raise RuntimeError("Not connected to OpenAI Realtime API")
             
         try:
-            await self.websocket.send(json.dumps(event))
+            event_json = json.dumps(event)
+            if self.backend == "websockets":
+                await self.websocket.send(event_json)
+            elif self.backend == "aiohttp":
+                await self._aiohttp_ws.send_str(event_json)
+            else:
+                raise RuntimeError(f"Unknown WebSocket backend: {self.backend}")
         except Exception as e:
             logger.error(f"Error sending event: {e}")
             raise
     
     async def _listen_for_events(self):
         """Listen for events from the OpenAI Realtime API"""
-        if not self.websocket:
+        if not self.websocket and not self._aiohttp_ws:
             raise RuntimeError("Not connected to OpenAI Realtime API")
             
         try:
-            while True:
-                message = await self.websocket.recv()
-                event = json.loads(message)
-                await self.events_queue.put(event)
-                logger.debug(f"Received event: {event.get('type')}")
+            if self.backend == "websockets":
+                while True:
+                    message = await self.websocket.recv()
+                    event = json.loads(message)
+                    await self.events_queue.put(event)
+                    logger.debug(f"Received event: {event.get('type')}")
+            elif self.backend == "aiohttp":
+                async for msg in self._aiohttp_ws:
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        event = json.loads(msg.data)
+                        await self.events_queue.put(event)
+                        logger.debug(f"Received event: {event.get('type')}")
+                    elif msg.type == aiohttp.WSMsgType.CLOSED:
+                        logger.info("WebSocket connection closed (aiohttp)")
+                        break
+                    elif msg.type == aiohttp.WSMsgType.ERROR:
+                        logger.error(f"WebSocket connection error (aiohttp): {msg.data}")
+                        break
         except websockets.exceptions.ConnectionClosed:
             logger.info("WebSocket connection closed")
         except Exception as e:
@@ -171,14 +247,20 @@ class RealtimeSession:
     
     async def close(self):
         """Close the WebSocket connection"""
-        if self.websocket:
+        if self.backend == "websockets" and self.websocket:
             await self.websocket.close()
-            if self._listening_task:
-                self._listening_task.cancel()
-                try:
-                    await self._listening_task
-                except asyncio.CancelledError:
-                    pass
+        elif self.backend == "aiohttp":
+            if self._aiohttp_ws:
+                await self._aiohttp_ws.close()
+            if self._aiohttp_session:
+                await self._aiohttp_session.close()
+                
+        if self._listening_task:
+            self._listening_task.cancel()
+            try:
+                await self._listening_task
+            except asyncio.CancelledError:
+                pass
                 
     async def get_next_event(self, timeout=None):
         """Get the next event from the queue"""
