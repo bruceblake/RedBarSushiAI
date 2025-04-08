@@ -5,97 +5,93 @@ set -e
 export DOCKER=true
 
 # Always use a virtual X server (Xvfb) for OpenAI Realtime client
-# Only fall back to headless mode if Xvfb fails
 export USE_XVFB=true
 
-if [ "$USE_XVFB" = "true" ]; then
-  echo "Setting up virtual X display with Xvfb"
-  
-  # Install Xvfb if not already installed
-  if ! command -v Xvfb &> /dev/null; then
+echo "===== Setting up virtual X display for OpenAI Realtime client ====="
+
+# Make sure X11 packages are installed
+if ! command -v Xvfb &> /dev/null; then
     echo "Installing Xvfb and X11 dependencies..."
-    apt-get update && apt-get install -y xvfb x11-utils xorg libxrender1 libxtst6 libxi6 dbus-x11
+    apt-get update -y && apt-get install -y xvfb x11-utils xorg libxrender1 libxtst6 libxi6 dbus-x11
     if [ $? -ne 0 ]; then
-      echo "⚠️ Failed to install X11 dependencies. Will try to continue anyway."
+        echo "⚠️ Failed to install X11 dependencies. Will try with existing packages."
     fi
-  fi
-  
-  # Kill any existing Xvfb processes to avoid conflicts
-  pkill Xvfb || true
-  
-  # Start Xvfb with more options for better compatibility
-  Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
-  export DISPLAY=:99
-  
-  # Wait for Xvfb to start
-  sleep 3
-  
-  echo "Testing X server connection..."
-  if ! command -v xdpyinfo &> /dev/null; then
-    echo "xdpyinfo not found, installing x11-utils..."
-    apt-get update && apt-get install -y x11-utils
-    if [ $? -ne 0 ]; then
-      echo "⚠️ Failed to install x11-utils. Will try to continue anyway."
+fi
+
+# Try various methods to start Xvfb and ensure it's running properly
+echo "Starting virtual X server..."
+
+# Kill any existing Xvfb processes to avoid conflicts
+pkill Xvfb 2>/dev/null || true
+    
+# Try multiple displays (:99, :1, :0) in case some are already in use
+for display_num in 99 1 0; do
+    echo "Trying display :${display_num}..."
+    Xvfb :${display_num} -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
+    XVFB_PID=$!
+    export DISPLAY=:${display_num}
+    sleep 3  # Give it time to start
+        
+    # Install xdpyinfo if not present
+    if ! command -v xdpyinfo &> /dev/null; then
+        apt-get update -y && apt-get install -y x11-utils
     fi
-  fi
-  
-  # Test the X server connection
-  xdpyinfo > /dev/null 2>&1
-  if [ $? -eq 0 ]; then
-    echo "✅ X server is running and accessible at DISPLAY=:99"
-    # Make sure OpenAI Realtime client uses this display
+        
+    # Test with xdpyinfo
+    if xdpyinfo >/dev/null 2>&1; then
+        echo "✅ Successfully started Xvfb on display :${display_num}"
+        export X11_SETUP_SUCCESS=true
+        break
+    else
+        echo "❌ Failed to connect to display :${display_num}"
+        kill $XVFB_PID 2>/dev/null || true
+        unset XVFB_PID
+    fi
+done
+
+# Register a trap to kill Xvfb on exit
+trap 'if [ -n "$XVFB_PID" ]; then echo "Cleaning up Xvfb process..."; kill $XVFB_PID 2>/dev/null || true; fi' EXIT INT TERM
+
+# Set appropriate environment variables based on whether Xvfb was successfully started
+if [ -n "$XVFB_PID" ] && [ "$X11_SETUP_SUCCESS" = "true" ]; then
+    # X11 mode with virtual display
+    echo "✅ Virtual X display is working"
+    export PYNPUT_HEADLESS=0
+    export NO_X11=0
+    export HEADLESS=0
     export OPENAI_REALTIME_NO_DISPLAY=0
-    export DISPLAY=:99
-    echo "DISPLAY environment variable set to: $DISPLAY"
     
     # Create .Xauthority file if it doesn't exist (sometimes needed)
     touch ~/.Xauthority 2>/dev/null || true
     
-    # Test X server again with a simple X11 app if available
+    # Run a final test with xlogo if available
     if command -v xlogo &> /dev/null; then
-      echo "Running additional X server test with xlogo..."
-      xlogo -display :99 2>/dev/null &
-      XLOGO_PID=$!
-      sleep 1
-      kill $XLOGO_PID 2>/dev/null || true
+        echo "Running additional X server test with xlogo..."
+        xlogo -display $DISPLAY 2>/dev/null &
+        XLOGO_PID=$!
+        sleep 1
+        kill $XLOGO_PID 2>/dev/null || true
     fi
-  else
-    echo "❌ X server connection failed. Trying one more approach before falling back..."
     
-    # Try a different display number
-    pkill Xvfb || true
-    Xvfb :1 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
-    export DISPLAY=:1
-    sleep 2
-    
-    # Test again
-    xdpyinfo > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-      echo "✅ X server is running on second attempt at DISPLAY=:1"
-      export OPENAI_REALTIME_NO_DISPLAY=0
-    else
-      echo "❌ X server connection failed on second attempt. Falling back to headless mode."
-      export PYNPUT_HEADLESS=1
-      export NO_X11=1
-      export HEADLESS=1
-      export OPENAI_REALTIME_NO_DISPLAY=1
-      unset DISPLAY
-    fi
-  fi
+    echo "🖥️ Using OpenAI Realtime client with virtual X display: $DISPLAY"
+    export OPENAI_REALTIME_AVAILABLE=1
 else
-  # Set environment variables for completely headless operation
-  export PYNPUT_HEADLESS=1
-  export NO_X11=1
-  export HEADLESS=1
-  export OPENAI_REALTIME_NO_DISPLAY=1
-  
-  # Remove DISPLAY variable if it exists to prevent X11 connection attempts
-  if [ -n "$DISPLAY" ]; then
-    echo "Unsetting DISPLAY variable to prevent X11 connection attempts"
-    unset DISPLAY
-  fi
-  
-  echo "Running in fully headless mode without X11 requirements (using dual-backend WebSocket implementation)"
+    # Headless mode - using direct WebSocket implementation
+    echo "❌ Could not set up working X display. Using headless mode instead."
+    export PYNPUT_HEADLESS=1
+    export NO_X11=1
+    export HEADLESS=1
+    export OPENAI_REALTIME_NO_DISPLAY=1
+    
+    # Remove DISPLAY to prevent X11 connection attempts
+    if [ -n "$DISPLAY" ]; then
+        echo "Unsetting DISPLAY variable to prevent X11 connection attempts"
+        unset DISPLAY
+    fi
+    
+    echo "💻 Running in headless mode (using dual-backend WebSocket implementation)"
+    # Still mark realtime as available since we're using our custom implementation
+    export OPENAI_REALTIME_AVAILABLE=1
 fi
 
 export PYTHONPATH=/app:$PYTHONPATH
@@ -103,24 +99,12 @@ export PYTHONPATH=/app:$PYTHONPATH
 # Set environment variables for audio processing
 export OPENAI_STREAMING=1            # Enable streaming for standard OpenAI API
 export NODE_TLS_REJECT_UNAUTHORIZED=0 # Allow self-signed certificates in dev environments
-
-# Configure Realtime API availability based on environment
-if [ "$USE_XVFB" = "true" ] && [ -n "$DISPLAY" ]; then
-  # If using Xvfb and it's working, enable the Realtime API
-  echo "Enabling OpenAI Realtime client with virtual X display"
-  export OPENAI_REALTIME_AVAILABLE=1
-else
-  # Default to using our custom WebSocket implementation instead
-  echo "Using custom WebSocket implementation for OpenAI Realtime API"
-  # This doesn't disable the API, just indicates we're using our custom implementation
-  export OPENAI_REALTIME_AVAILABLE=1
-fi
-
 export PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
 
-# Ensure we have all required dependencies in the right order
+# Install required packages
 echo "Installing or upgrading required dependencies..."
 pip install --no-cache-dir websockets==13.1 
+pip install --no-cache-dir aiohttp==3.11.13
 pip install --no-cache-dir python-socketio==5.8.0 eventlet==0.33.3 gevent==23.9.1 gevent-websocket==0.10.1
 pip install --no-cache-dir --upgrade openai-realtime-client==0.1.0
 
@@ -131,7 +115,13 @@ else
     echo "⚠️ Could not find OpenAI Realtime client, using fallback methods"
 fi
 
-# Run diagnostic script
+# Run the test script to verify the setup
+echo "Running test script to verify setup..."
+if [ -f "test_realtime_client.py" ]; then
+    python test_realtime_client.py || true
+fi
+
+# Run diagnostic script if it exists
 if [ -f "diagnose.py" ]; then
     echo "Running diagnostic tests..."
     python diagnose.py
