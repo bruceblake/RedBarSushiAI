@@ -13,12 +13,15 @@ import json
 import asyncio
 from typing import Dict, Any, AsyncGenerator, List
 
-# Force headless mode
+# Force headless mode without X11 dependency
 os.environ['PYNPUT_HEADLESS'] = '1'
 os.environ['NO_X11'] = '1'
 os.environ['HEADLESS'] = '1'
-if 'DISPLAY' not in os.environ:
-    os.environ['DISPLAY'] = ':99'
+os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '1'
+
+# Explicitly remove DISPLAY to avoid X11 connection attempts
+if 'DISPLAY' in os.environ:
+    del os.environ['DISPLAY']
 
 # Import OpenAI
 import openai

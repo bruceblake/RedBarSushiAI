@@ -4,24 +4,21 @@ set -e
 # Set environment variables to indicate we're in Docker
 export DOCKER=true
 
-# Set environment variables for headless operation
+# Set environment variables for completely headless operation
 export PYNPUT_HEADLESS=1
-export DISPLAY=:99
 export NO_X11=1
 export HEADLESS=1
+export OPENAI_REALTIME_NO_DISPLAY=1
 export PYTHONPATH=/app:$PYTHONPATH
 
-# Create a virtual X server if needed but don't fail if it can't be created
-echo "Setting up virtual display for headless operation..."
-if command -v Xvfb >/dev/null 2>&1; then
-  Xvfb :99 -screen 0 1024x768x16 -ac &
-  echo "Started Xvfb virtual display"
-elif command -v xvfb-run >/dev/null 2>&1; then
-  # Alternative approach using xvfb-run
-  echo "Using xvfb-run for headless operation"
-else
-  echo "Xvfb not available, running in fully headless mode"
+# Remove DISPLAY variable if it exists to prevent X11 connection attempts
+if [ -n "$DISPLAY" ]; then
+  echo "Unsetting DISPLAY variable to prevent X11 connection attempts"
+  unset DISPLAY
 fi
+
+# Explicitly run in completely headless mode, no Xvfb
+echo "Running in fully headless mode without X11 requirements"
 
 # Set environment variables for audio processing
 export OPENAI_STREAMING=1            # Enable streaming for standard OpenAI API
@@ -239,15 +236,15 @@ else:
     # Try both entry points (run.py and wsgi.py) with memory optimizations
     if [ -f "wsgi.py" ]; then
         echo "DEBUG: Using wsgi.py entry point with memory optimizations"
+        # Removed the unsupported max-memory-per-child argument
         exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
                      --log-level=debug --max-requests=500 --max-requests-jitter=50 \
-                     --worker-connections=500 --max-memory-per-child=256000 \
-                     --timeout=120 "wsgi"
+                     --worker-connections=500 --timeout=120 "wsgi"
     else
         echo "DEBUG: Using run:app entry point with memory optimizations"
+        # Removed the unsupported max-memory-per-child argument
         exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
                      --log-level=debug --max-requests=500 --max-requests-jitter=50 \
-                     --worker-connections=500 --max-memory-per-child=256000 \
-                     --timeout=120 "run:app"
+                     --worker-connections=500 --timeout=120 "run:app"
     fi
 fi
