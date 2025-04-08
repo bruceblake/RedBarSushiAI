@@ -104,4 +104,4 @@ EXPOSE 8080
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
 # Default command - using single worker with memory optimizations for stability
-CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "--timeout", "120", "--worker-class", "gevent", "--worker-connections", "500", "--max-requests", "500", "--max-requests-jitter", "50", "--log-level", "debug", "--max-memory-per-child", "256000"]
+CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "--timeout", "120", "--worker-class", "gevent", "--worker-connections", "500", "--max-requests", "500", "--max-requests-jitter", "50", "--log-level", "debug"]
