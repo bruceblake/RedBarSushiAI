@@ -2,6 +2,26 @@
 
 This document provides comprehensive information about the SMS functionality in the Red Bar Sushi AI system, including recent enhancements, configuration details, and testing procedures.
 
+## Quick Troubleshooting Tips
+
+If SMS commands are not working:
+
+1. Run the `test_sms_command.py` script to verify local command handling:
+   ```bash
+   python test_sms_command.py
+   ```
+
+2. Make sure your Twilio webhook URL is properly configured:
+   * In Twilio console, go to Phone Numbers → Manage → Active Numbers
+   * Select your Twilio phone number
+   * Under Messaging, set the webhook URL to: `https://your-domain.com/sms`
+
+3. Verify your environment variables are set properly:
+   * `TWILIO_ACCOUNT_SID`: Your Twilio account SID
+   * `TWILIO_AUTH_TOKEN`: Your Twilio authentication token  
+   * `TWILIO_NUMBER`: Your Twilio phone number
+   * `BASE_URL`: Your application's base URL
+
 ## Recent Enhancements
 
 ### 1. Improved SMS Message Formatting

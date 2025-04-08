@@ -886,8 +886,21 @@ def handle_sms():
     # Create a response
     resp = MessagingResponse()
     
+    # Log request headers to help with debugging
+    request_headers = {key: request.headers.get(key) for key in request.headers.keys()}
+    log_info(f"SMS request headers: {json.dumps(request_headers)}")
+    log_info(f"SMS request form data: {json.dumps(dict(request.form))}")
+    
+    # Make sure we handle messages even if empty or malformed
+    if not message_body:
+        message_body = ""
+        log_info("Received empty message body, treating as default welcome")
+    
     # Handle different command types with flexible matching for user convenience
-    if any(keyword in message_body for keyword in ['status', 'stat', 'check', 'order']):
+    # First, try exact match for common commands (for better reliability)
+    command_type = message_body.strip().lower()
+    
+    if command_type == "status" or command_type == "order" or command_type == "check" or command_type == "stat" or any(keyword in message_body for keyword in ['status', 'stat', 'check', 'order']):
         try:
             # Find the most recent order for this number
             recent_order = db.session.query(Order).filter_by(
@@ -929,7 +942,7 @@ def handle_sms():
                 if order_status == "READY":
                     pickup_info = "\n\n⏱️ Your order is ready for pickup now!"
                     pickup_info += "\n📍 Please pick up at Red Bar Sushi"
-                    pickup_info += "\n📞 Call (555) 123-4567 if you need assistance"
+                    pickup_info += "\n📞 Call (703) 297-2632 if you need assistance"
                 elif order_status == "PREPARING":
                     # Estimate remaining time
                     prep_time = 20 + (len(recent_order.message.split("\n- ")) * 2)  # Estimate based on line count
@@ -937,7 +950,7 @@ def handle_sms():
                     time_remaining = max(1, prep_time - time_elapsed)
                     pickup_info = f"\n\n⏱️ Estimated to be ready in: {int(time_remaining)} minutes"
                 elif order_status in ["FAILED", "REJECTED"]:
-                    pickup_info = "\n\n⚠️ Please call us at (555) 123-4567 regarding your order"
+                    pickup_info = "\n\n⚠️ Please call us at (703) 297-2632 regarding your order"
                 
                 # Create a comprehensive status message
                 status_message = f"""🍣 RED BAR SUSHI STATUS UPDATE 🍣
@@ -960,16 +973,16 @@ Your order is {friendly_status}{pickup_info}
 We couldn't find any recent orders for your number. 
 
 • If you just placed an order, please wait a moment and try again
-• If you're trying to place an order, please call us at (555) 123-4567
+• If you're trying to place an order, please call us at (703) 297-2632
 
 Reply 'menu' to see our menu options.""")
                 log_info(f"No order found for {from_number}")
         except Exception as e:
             log_info(f"Error processing SMS status request: {str(e)}")
-            resp.message("⚠️ Sorry, we encountered an error processing your request. Please call us at (555) 123-4567 for assistance.")
+            resp.message("⚠️ Sorry, we encountered an error processing your request. Please call us at (703) 297-2632 for assistance.")
     
     # Handle help command
-    elif any(keyword in message_body for keyword in ['help', 'command', 'info', 'option']):
+    elif command_type == "help" or any(keyword in message_body for keyword in ['help', 'command', 'info', 'option']):
         help_message = """🍣 RED BAR SUSHI HELP 🍣
 
 📱 AVAILABLE COMMANDS:
@@ -980,7 +993,7 @@ Reply 'menu' to see our menu options.""")
 • Text 'location' for our address and map
 • Text 'contact' for contact information
 
-📞 CALL US: (555) 123-4567
+📞 CALL US: (703) 297-2632
 🌐 WEBSITE: redbarsushi.com
 
 Thank you for choosing Red Bar Sushi!
@@ -989,7 +1002,7 @@ Thank you for choosing Red Bar Sushi!
         log_info(f"Sent help info via SMS to {from_number}")
     
     # Handle menu request
-    elif any(keyword in message_body for keyword in ['menu', 'food', 'eat', 'dish', 'price']):
+    elif command_type == "menu" or any(keyword in message_body for keyword in ['menu', 'food', 'eat', 'dish', 'price']):
         menu_message = """🍣 RED BAR SUSHI MENU 🍣
 
 📋 POPULAR ITEMS:
@@ -1001,13 +1014,13 @@ Thank you for choosing Red Bar Sushi!
 🌐 View our full menu: 
 https://redbar-sushi.com/menu
 
-📞 Call (555) 123-4567 to order by phone
+📞 Call (703) 297-2632 to order by phone
 """
         resp.message(menu_message)
         log_info(f"Sent menu info via SMS to {from_number}")
     
     # Handle hours request
-    elif any(keyword in message_body for keyword in ['hour', 'time', 'open', 'close']):
+    elif command_type == "hours" or any(keyword in message_body for keyword in ['hour', 'time', 'open', 'close']):
         resp.message("""🍣 RED BAR SUSHI HOURS 🍣
 
 ⏰ REGULAR HOURS:
@@ -1024,7 +1037,7 @@ We look forward to serving you soon!
         log_info(f"Sent hours info via SMS to {from_number}")
     
     # Handle location request
-    elif any(keyword in message_body for keyword in ['location', 'address', 'where', 'map', 'direction']):
+    elif command_type == "location" or any(keyword in message_body for keyword in ['location', 'address', 'where', 'map', 'direction']):
         resp.message("""🍣 RED BAR SUSHI LOCATION 🍣
 
 📍 ADDRESS:
@@ -1044,10 +1057,10 @@ https://maps.google.com/?q=Red+Bar+Sushi
         log_info(f"Sent location info via SMS to {from_number}")
     
     # Handle contact request
-    elif any(keyword in message_body for keyword in ['contact', 'phone', 'call', 'reach']):
+    elif command_type == "contact" or any(keyword in message_body for keyword in ['contact', 'phone', 'call', 'reach']):
         resp.message("""🍣 RED BAR SUSHI CONTACT INFO 🍣
 
-📞 PHONE: (555) 123-4567
+📞 PHONE: (703) 297-2632
 📧 EMAIL: hello@redbarsushi.com
 🌐 WEBSITE: redbarsushi.com
 📱 SOCIAL: @RedBarSushi
@@ -1057,7 +1070,7 @@ For fastest response, please call us!
         log_info(f"Sent contact info via SMS to {from_number}")
     
     # Handle specials request
-    elif any(keyword in message_body for keyword in ['special', 'deal', 'offer', 'discount', 'promotion']):
+    elif command_type == "specials" or any(keyword in message_body for keyword in ['special', 'deal', 'offer', 'discount', 'promotion']):
         # Get the current day of the week
         import datetime
         day_of_week = datetime.datetime.now().strftime('%A')
