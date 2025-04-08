@@ -12,6 +12,10 @@ import openai
 from openai import OpenAI
 import os
 
+# Setup basic logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Explicitly disable any GUI/display dependencies and remove X11 requirement
 os.environ['PYNPUT_HEADLESS'] = '1'
 os.environ['NO_X11'] = '1'
@@ -628,9 +632,6 @@ class RealtimeAudioProcessor:
                 # Note: Since we don't know the exact API for RealtimeClient,
                 # we'll try direct methods and fall back to standard API
                 try:
-                    # Try a direct method if available - this is a guess based on the class name
-                    # Any of these methods might exist in the actual implementation
-                    
                     # Prepare messages in chat format
                     messages = []
                     
@@ -687,9 +688,12 @@ class RealtimeAudioProcessor:
                         return
                     except (AttributeError, TypeError) as method_error:
                         logger.warning(f"RealtimeClient.create_conversation not available: {method_error}")
-                
-                # Fall back to standard API
-                logger.warning("No RealtimeClient methods available, falling back to standard API")
+                    
+                    # Fall back to standard API if we got here
+                    logger.warning("No RealtimeClient methods available, falling back to standard API")
+                except Exception as api_error:
+                    logger.error(f"Error using RealtimeClient API: {api_error}")
+                    logger.warning("Falling back to standard API due to RealtimeClient API error")
             except Exception as client_error:
                 logger.error(f"Error creating or using RealtimeClient: {client_error}")
                 logger.warning("Falling back to standard chat API")
