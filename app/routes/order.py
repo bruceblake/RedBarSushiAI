@@ -167,21 +167,35 @@ def take_order():
                 "I'm sorry, I couldn't understand that request. Please repeat your order.")
         return Response(str(response), mimetype='text/xml')
 
-    # Process menu items found by the agent
-    order_items = []
-    for item in analysis['menu_items']:
-        # Check item availability
-        if item.get("reference_handler") and any(
-            menu_item.get("reference_handler") == item.get("reference_handler") and
-            menu_item.get("snoozed", False)
-            for menu_item in menu_data.get("items", [])
-        ):
-            response.say(
-                f"Sorry, {item.get('name')} is not available right now. Goodbye!")
-            response.hangup()
-            return Response(str(response), mimetype='text/xml')
+    # Get the menu items from the analysis
+    order_items = analysis.get('menu_items', [])
+    
+    # Process and mark any unavailable items
+    from app.utils.order_utils import mark_unavailable_items
+    available_items, unavailable_items = mark_unavailable_items(order_items)
+    
+    # Handle case where all items are unavailable
+    if not available_items and unavailable_items:
+        unavailable_names = [item.get("name").split(" (")[0] for item in unavailable_items]
+        unavailable_text = ", ".join(unavailable_names)
         
-        order_items.append(item)
+        response.say(
+            f"I'm sorry, the item(s) you requested ({unavailable_text}) are currently unavailable. Would you like to order something else?")
+        # Gather a new response instead of hanging up
+        with response.gather(
+            input='speech',
+            action='/take_order',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto"
+        ) as g:
+            g.say("Please tell me what else you would like to order.")
+        return Response(str(response), mimetype='text/xml')
+    
+    # Include both available and unavailable items in the order
+    # (unavailable items will be shown separately in the order description)
+    order_items = available_items + unavailable_items
 
     # Calculate total and prepare confirmation
     calculate_bill_amount(order_items)

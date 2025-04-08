@@ -62,12 +62,17 @@ def receive_call():
 
 @voice_bp.route('/take_name', methods=['POST'])
 def take_name():
-    caller_name = request.form.get('SpeechResult', '').strip()
+    full_speech = request.form.get('SpeechResult', '').strip()
+    
+    # Use AI to intelligently extract the name
+    caller_name = extract_name_from_speech(full_speech)
+    
     if caller_name:
         session['caller_name'] = caller_name
         menu_prompt = f"Thanks, {session['caller_name']}! Press or say 1 to order, 2 for menu questions, 3 for a real person."
     else:
         menu_prompt = "I didn't catch your name. Please say it clearly."
+    
     response = VoiceResponse()
     with response.gather(
         input='speech dtmf',
@@ -80,6 +85,66 @@ def take_name():
     ) as g:
         g.say(menu_prompt)
     return Response(str(response), mimetype="text/xml")
+
+
+def extract_name_from_speech(speech_text):
+    """
+    Intelligently extract a name from speech text.
+    
+    Args:
+        speech_text: The raw speech text from the user
+        
+    Returns:
+        str: The extracted name, or empty string if no name found
+    """
+    if not speech_text:
+        return ""
+        
+    # Common name introduction patterns
+    name_patterns = [
+        # "My name is John"
+        r"(?:my|this is|it'?s|the|i'm|i am|is|they call me|call me|you can call me)\s+(?:name\s+is\s+)?([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
+        # Just the name alone "John Smith"
+        r"^([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})$",
+    ]
+    
+    # Normalize the text
+    text = speech_text.lower().strip().replace(".", "").replace("?", "").replace("!", "")
+    
+    # Try each pattern
+    for pattern in name_patterns:
+        import re
+        matches = re.search(pattern, text, re.IGNORECASE)
+        if matches:
+            name = matches.group(1).strip()
+            # Capitalize each part of the name
+            return " ".join(part.capitalize() for part in name.split())
+    
+    # If no pattern matches, just return the first 2-3 words if they look like a name
+    words = text.split()
+    if len(words) <= 3:
+        return " ".join(word.capitalize() for word in words)
+    else:
+        # Take the first two words if they seem like a name (not common speech fillers)
+        common_fillers = ["um", "uh", "so", "well", "like", "yes", "no", "yeah", "hi", "hello", "hey"]
+        potential_name = []
+        
+        for word in words[:3]:  # Look at first 3 words at most
+            if word not in common_fillers and len(word) > 1:
+                potential_name.append(word.capitalize())
+            if len(potential_name) >= 2:  # Stop at first and last name
+                break
+                
+        if potential_name:
+            return " ".join(potential_name)
+    
+    # If everything else fails, return the raw text (limited to first few words)
+    words = speech_text.split()
+    if words:
+        return " ".join(words[:2]).capitalize()
+        
+    # No name found
+    return ""
 
 
 @voice_bp.route('/main_menu', methods=['POST'])
