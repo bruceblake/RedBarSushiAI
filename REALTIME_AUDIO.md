@@ -15,7 +15,7 @@ The system supports multiple audio processor implementations to accommodate diff
    - Automatically detects and uses the best available library
    - Connects directly to OpenAI's Realtime API with no dependencies on the OpenAI Realtime client
    - Provides full WebSocket functionality without X11/display dependencies
-2. **RealtimeAudioProcessor** - Uses the official OpenAI Realtime client library when available
+2. **RealtimeAudioProcessor** - Uses the official OpenAI Realtime client library (via RealtimeClient class) when available
 3. **HeadlessAudioProcessor** - A fallback implementation for headless environments with no GUI/X11 dependencies 
 4. **BasicAudioProcessor** - A simple implementation using OpenAI's standard API for audio processing
 5. **MinimalAudioProcessor** - An emergency fallback with minimal dependencies for maximum compatibility
@@ -27,6 +27,26 @@ python test_realtime_client.py
 ```
 
 This script will test all available implementations and tell you which ones work in your environment.
+
+## April 2025 Update: API Changes
+
+In April 2025, the OpenAI Realtime client API underwent changes:
+
+1. `openai_realtime_client.client.Session` class is no longer available
+2. `openai_realtime_client.RealtimeClient` class is now the main entry point
+
+The RedBarSushiAI platform has been updated to handle these changes:
+
+- The realtime_audio.py module now attempts to use the RealtimeClient class first
+- If RealtimeClient is found, it tries various methods that might exist in the current API
+- If any problems occur with the new API, it transparently falls back to our custom implementation
+- The system stays backwards compatible with older versions of the API
+
+The implementation includes:
+- Dynamic API detection and adaptation
+- Client method discovery and testing
+- Graceful fallback to our custom implementation
+- Detailed logging for troubleshooting
 
 ## Features
 
@@ -56,7 +76,7 @@ A demo implementation is available at `/demo` which showcases the real-time conv
 - Provides a custom dual-backend WebSocket implementation that can use either:
   - `websockets` library (primary choice)
   - `aiohttp` library (secondary choice)
-  - Official `openai-realtime-client` package (tertiary choice)
+  - Official `openai-realtime-client` package's RealtimeClient class (tertiary choice)
   - Standard OpenAI API (final fallback)
 - Automatic error detection and recovery with graceful degradation
 - Headless operation support for server environments without X11/display
@@ -79,7 +99,7 @@ To use the real-time audio features, install the required dependencies:
 sudo apt-get install portaudio19-dev
 
 # Install Python packages
-pip install openai-realtime-client==0.1.0 flask-sock==0.7.0 simple-websocket==1.1.0 websockets==13.1 aiohttp==3.11.13
+pip install openai-realtime-client flask-sock==0.7.0 simple-websocket==1.1.0 websockets==13.1 aiohttp==3.11.13
 ```
 
 ### Handling X11 Display Requirements
@@ -122,10 +142,11 @@ The system follows this fallback hierarchy to ensure it works in all environment
 
 1. Try to use `websockets` library for WebSocket communication (preferred)
 2. If `websockets` is unavailable, try to use `aiohttp` for WebSocket communication
-3. If neither library is available, try to use the official `openai-realtime-client` library (with X11 if available)
-4. If official client is unavailable, fall back to standard API calls
+3. If neither library is available, try to use the official `openai-realtime-client` RealtimeClient class (with X11 if available)
+4. If RealtimeClient has API incompatibilities, try various methods to adapt to available functionality
+5. If official client is unavailable or incompatible, fall back to standard OpenAI API calls
 
-This makes the system very resilient to different environment configurations.
+This makes the system very resilient to different environment configurations and API changes.
 
 ## Client Integration
 
