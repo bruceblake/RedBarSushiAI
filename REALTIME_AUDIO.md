@@ -28,7 +28,35 @@ python test_realtime_client.py
 
 This script will test all available implementations and tell you which ones work in your environment.
 
-## April 2025 Update: API Changes
+## April 2025 Updates
+
+### Voice Call Silence Handling
+
+We've improved how the system handles silence during phone calls. Instead of hanging up or moving on too quickly when a customer is silent, the system now:
+
+- Tracks silence retries in different parts of the conversation flow
+- Provides increasingly helpful prompts when silence continues
+- Offers fallback options (like pressing keys) after multiple silent attempts
+- Returns to the main menu as a final fallback rather than hanging up
+
+These changes have been implemented in:
+- Initial order taking (`/take_order`)
+- Order modifications (`/new_modify_order`)
+- Order confirmations (multiple confirmation points)
+- Menu questions (`/handle_menu_questions`)
+
+New dedicated routes for handling situations when users have trouble:
+
+- `/understanding_fallback`: When the system repeatedly fails to understand an order
+- `/modification_silence_fallback`: When the system can't hear order modifications
+
+The system now uses a progressive assistance approach:
+1. First retry: Simple, friendly reminder with slightly longer timeouts
+2. Second retry: More detailed guidance with examples of what to say
+3. Third retry: DTMF (touch-tone) options as an alternative to speech
+4. Final fallback: Return to main menu rather than hanging up
+
+### API Changes
 
 In April 2025, the OpenAI Realtime client API underwent changes:
 
