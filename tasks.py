@@ -452,9 +452,11 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
             elif order.status_code in [110, 120]:
                 formatted_status += "\n\n⚠️ Please call us at (833) 324-7207 regarding your order"
             
-            # Add reminder for SMS commands
-            formatted_status += "\n\n📱 Reply 'status' for the latest updates"
-            formatted_status += "\n📱 Reply 'help' for more options"
+            # Add reminder for SMS commands with better formatting
+            formatted_status += "\n\n📱 SMS COMMANDS:"
+            formatted_status += "\n• Reply 'status' for the latest updates"
+            formatted_status += "\n• Reply 'help' for more options"
+            formatted_status += "\n• Reply 'contact' to get restaurant phone number"
             
             # Send SMS to customer
             try:

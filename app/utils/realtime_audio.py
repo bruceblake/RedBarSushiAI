@@ -52,17 +52,36 @@ display_env = os.environ.get('DISPLAY')
 
 # If Xvfb is being used (from docker-entrypoint.sh), restore the settings
 if 'X11_SETUP_SUCCESS' in os.environ and os.environ.get('X11_SETUP_SUCCESS') == 'true':
-    # Force reset environment variables for X11
-    if not display_env:
-        os.environ['DISPLAY'] = ':99'  # Default display used in docker-entrypoint.sh
-        display_env = ':99'
+    # Get the display from the environment or use a default
+    display_value = os.environ.get('X11_DISPLAY', ':1')  # Default to :1 instead of :99
+    os.environ['DISPLAY'] = display_value
+    display_env = display_value
     
-    os.environ['PYNPUT_HEADLESS'] = '0'
-    os.environ['NO_X11'] = '0'
-    os.environ['HEADLESS'] = '0'
-    os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '0'
-    
-    logging.info(f"X11 setup detected as successful, forcing DISPLAY={display_env}")
+    # Try to verify that the display is actually working
+    import subprocess
+    try:
+        # Try a quick check if the X server is actually available
+        subprocess.run(["xdpyinfo", "-display", display_value], 
+                      stdout=subprocess.PIPE, 
+                      stderr=subprocess.PIPE, 
+                      timeout=2)
+        
+        # If we get here, X11 is available
+        os.environ['PYNPUT_HEADLESS'] = '0'
+        os.environ['NO_X11'] = '0'
+        os.environ['HEADLESS'] = '0'
+        os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '0'
+        
+        logging.info(f"X11 setup confirmed working with DISPLAY={display_env}")
+    except (subprocess.SubprocessError, FileNotFoundError):
+        # X11 doesn't actually work, force headless mode
+        logging.warning(f"X11 setup claims success but display {display_env} is not responding, forcing headless mode")
+        if 'DISPLAY' in os.environ:
+            del os.environ['DISPLAY']
+        os.environ['PYNPUT_HEADLESS'] = '1'
+        os.environ['NO_X11'] = '1'
+        os.environ['HEADLESS'] = '1'
+        os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '1'
 elif display_env:
     logging.info(f"DISPLAY environment variable is set to: {display_env}")
 else:

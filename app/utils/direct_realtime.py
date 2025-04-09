@@ -344,10 +344,11 @@ class DirectRealtimeAudioProcessor:
                     # Configure properly for Twilio voice calls
                     "turn_detection": {
                         "mode": "dynamic_threshold",  # Better for phone calls
-                        "timeout": 1.5,              # Slightly longer for phone pauses
+                        "timeout": 2.5,              # Longer timeout for phone pauses (was 1.5)
                         "interrupt_assistant": True,  # Allow user interruptions
-                        "create_response": True,
-                        "speech_started_delay": 0.3   # Helps with phone audio
+                        "create_response": True,      # Automatically create responses
+                        "speech_started_delay": 0.3,  # Helps with phone audio
+                        "silence_patience": 5.0       # Wait longer for customers to speak (new)
                     }
                 })
                 
