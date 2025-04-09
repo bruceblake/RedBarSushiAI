@@ -308,17 +308,23 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
                 except Exception as e:
                     logging.info(f"Error getting location name: {e}")
             
-            # Create a beautifully formatted status update message
-            friendly_status = {
-                "NEW": "received and is being processed",
-                "ACCEPTED": "accepted and being prepared",
-                "PREPARING": "now being prepared in the kitchen",
-                "READY": "ready for pickup! 🎉",
-                "COMPLETED": "completed. Thank you for your order! 🙏",
-                "FAILED": "could not be processed. Please call us",
-                "REJECTED": "could not be processed. Please call us",
-                "CANCELLED": "cancelled"
-            }.get(order_status, "updated")
+            # Use enhanced status display from the Order model if available
+            friendly_status = None
+            if order.status_code:
+                friendly_status = order.get_status_display()
+            
+            # Fallback to legacy status mapping if no enhanced status is available
+            if not friendly_status:
+                friendly_status = {
+                    "NEW": "received and is being processed",
+                    "ACCEPTED": "accepted and being prepared",
+                    "PREPARING": "now being prepared in the kitchen",
+                    "READY": "ready for pickup! 🎉",
+                    "COMPLETED": "completed. Thank you for your order! 🙏",
+                    "FAILED": "could not be processed. Please call us",
+                    "REJECTED": "could not be processed. Please call us",
+                    "CANCELLED": "cancelled"
+                }.get(order_status, "updated")
             
             # Extract order items from the stored message
             order_items = "your order"
@@ -343,7 +349,26 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
             # Format order time
             order_time = order.timestamp.strftime("%I:%M %p") if order.timestamp else "recently"
             
-            # Create a nicely formatted status message
+            # Create the status header with an emoji reflecting the status type
+            status_emoji = "📋"
+            if order.status_code:
+                # POS preparation status
+                if 10 <= order.status_code <= 69:
+                    status_emoji = "👨‍🍳"
+                # Ready for pickup
+                elif 70 <= order.status_code <= 75:
+                    status_emoji = "✅"
+                # Delivery status
+                elif 76 <= order.status_code <= 89:
+                    status_emoji = "🚚"
+                # Completed 
+                elif 90 <= order.status_code <= 99:
+                    status_emoji = "🎉"
+                # Failed/canceled
+                elif order.status_code >= 100:
+                    status_emoji = "⚠️"
+            
+            # Start building the formatted status message
             formatted_status = f"""🍣 RED BAR SUSHI STATUS UPDATE 🍣
 
 🆔 Order #{order_id[:8]}
@@ -352,21 +377,56 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
 
 {order_items}
 
-📋 STATUS: {order_status if order_status else "UPDATED"}
-Your order is {friendly_status}"""
+{status_emoji} STATUS: {friendly_status}"""
 
-            # Add special instructions based on status
-            if order_status == "READY":
+            # Add delivery-specific information if applicable
+            if order.status_code in [76, 81, 83, 85, 87, 89]:
+                formatted_status += "\n\n🚚 DELIVERY INFORMATION:"
+                
+                # Add courier information if available
+                if order.courier_name:
+                    formatted_status += f"\n👤 Courier: {order.courier_name}"
+                    if order.courier_phone:
+                        formatted_status += f" ({order.courier_phone})"
+                
+                # Add estimated delivery time if available
+                if order.estimated_delivery_time:
+                    eta_time = order.estimated_delivery_time.strftime("%I:%M %p")
+                    formatted_status += f"\n⏱️ Estimated delivery: {eta_time}"
+                
+                # Add specific delivery status information
+                if order.status_code == 83:
+                    formatted_status += "\nYour courier is on the way to the restaurant"
+                elif order.status_code == 85:
+                    formatted_status += "\nYour courier has arrived at the restaurant"
+                elif order.status_code == 87:
+                    formatted_status += "\nYour order is on the way to you!"
+                elif order.status_code == 89:
+                    formatted_status += "\nYour courier has arrived at your location"
+            
+            # Add special instructions based on pickup vs delivery and status
+            is_delivery = order.status_code in [76, 81, 83, 85, 87, 89]
+            
+            # Ready for pickup (code 70)
+            if order.status_code == 70:
                 formatted_status += "\n\n⏱️ Your order is ready for pickup now!"
                 formatted_status += f"\n📍 Please pick up at: {location_name}"
                 formatted_status += "\n📞 Call (833) 324-7207 if you need assistance"
-            elif order_status == "PREPARING":
+            
+            # Preparing (code 50)
+            elif order.status_code == 50:
                 # Estimate remaining time
                 prep_time = 20 + (len(order.message.split("\n- ")) * 2)  # Estimate based on line count
                 time_elapsed = (time.time() - order.timestamp.timestamp()) / 60 if order.timestamp else 0
                 time_remaining = max(1, prep_time - time_elapsed)
-                formatted_status += f"\n\n⏱️ Estimated to be ready in: {int(time_remaining)} minutes"
-            elif order_status in ["FAILED", "REJECTED"]:
+                
+                if is_delivery:
+                    formatted_status += f"\n\n⏱️ Your order is being prepared, then will be picked up for delivery"
+                else:
+                    formatted_status += f"\n\n⏱️ Estimated to be ready for pickup in: {int(time_remaining)} minutes"
+            
+            # Failed/rejected orders (codes 110, 120)
+            elif order.status_code in [110, 120]:
                 formatted_status += "\n\n⚠️ Please call us at (833) 324-7207 regarding your order"
             
             # Add reminder for SMS commands
@@ -434,10 +494,10 @@ Your order is {friendly_status}"""
                 logging.info(f"Owner status notification SMS error: {e}")
                 
             # Handle failed orders for reporting
-            if order_status in ["FAILED", "CANCELLED", "REJECTED"]:
+            if order.status_code in [110, 115, 120] or order_status in ["FAILED", "CANCELLED", "REJECTED"]:
                 try:
                     # Update order status in database
-                    order.status = order_status
+                    order.status = order_status or "FAILED"
                     db.session.commit()
                     
                     # Additional logic for reporting failed orders could go here
