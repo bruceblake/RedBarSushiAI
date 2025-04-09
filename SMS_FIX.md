@@ -4,7 +4,15 @@ This document provides comprehensive information about the SMS functionality in 
 
 ## Recent Updates
 
-### 1. Phone Number Update
+### 1. Fixed SMS Status Notifications Not Being Delivered
+
+The system was having issues delivering SMS status notifications due to Redis/Celery configuration:
+- Modified `app/routes/order.py` to call SMS tasks directly instead of using `.delay()`
+- Added comprehensive error handling and fallback mechanism to ensure notifications are always sent
+- Implemented direct Twilio SMS sending as fallback if task execution fails
+- Fixed all SMS sending functions in both order confirmation and status updates
+
+### 2. Phone Number Update
 
 The system has been updated to use the correct restaurant phone number:
 - **Old number (removed)**: (703) 297-2632
@@ -15,14 +23,14 @@ This update was made across all relevant files:
 - `app/routes/order.py`: Updated all SMS message templates and response text
 - All references in status updates and customer communications
 
-### 2. Help Command Fix
+### 3. Help Command Fix
 
 The SMS "help" command detection was improved to ensure it works consistently:
 - Added more robust keyword matching to detect variations of the help command
 - Added detailed debug logging to trace command detection
 - Fixed pattern matching to ensure commands are properly recognized
 
-### 3. Order Quantity Display
+### 4. Order Quantity Display
 
 Improved the display of order quantities to use a consistent format:
 - Updated `build_order_description` in `app/utils/order_utils.py` to use "×" symbol for quantities
@@ -258,7 +266,38 @@ This enables fully automated database schema maintenance with each deployment.
 
 ### SMS Command Issue Fixes
 
-1. **"Help" Command Issue**
+1. **Status Updates Not Being Delivered**
+   - Problem: Customer status updates were not being delivered due to Redis/Celery configuration
+   - Fix: Modified status update handling in `app/routes/order.py`:
+     ```python
+     # Modified to call the task directly instead of using .delay()
+     try:
+         logging.info(f"Attempting to send status update task for order {order_id}")
+         # Call the task directly for now until Redis/Celery is properly setup
+         send_order_status_update_task(
+             order_id, 
+             status_message,
+             location_id=order_record.location_id
+         )
+         logging.info(f"Status update task executed successfully for order {order_id}")
+     except Exception as task_error:
+         logging.error(f"Error sending status update task: {task_error}")
+         # Fall back to direct SMS sending if task execution fails
+         try:
+             # Send SMS directly via Twilio
+             twilio_client.messages.create(
+                 body=status_message,
+                 from_=TWILIO_PHONE_NUMBER,
+                 to=order.sender
+             )
+             logging.info(f"Sent status update directly via SMS to {order.sender}")
+         except Exception as sms_error:
+             logging.error(f"Error sending direct SMS: {sms_error}")
+     ```
+   - Applied the same fix to order confirmation and courier update functions
+   - Added comprehensive error handling and fallback mechanisms
+
+2. **"Help" Command Issue**
    - Problem: The "help" command was not responding correctly or contained outdated information
    - Fix: Enhanced the command detection logic in `app/routes/order.py` using both exact matching and keyword matching:
      ```python
