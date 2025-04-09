@@ -33,8 +33,9 @@ except ImportError:
     from app.utils.agent_utils_simple import analyze_user_input, get_order_modifications
     logger = logging.getLogger(__name__)
     logger.warning("Using simplified agent utilities in order routes (OpenAI not available)")
-from app import db
+from app import db, twilio_client
 from app.models import Order
+from app.config import TWILIO_NUMBER as TWILIO_PHONE_NUMBER
 
 order_bp = Blueprint('order', __name__)
 logger = logging.getLogger(__name__)
@@ -352,16 +353,35 @@ def confirm_order_from_initial():
         except Exception as e:
             log_info(f"Error sending order to Deliverect: {str(e)}")
 
-        # Send SMS confirmation (offload to Celery)
+        # Send SMS confirmation
         import tasks
-        tasks.send_confirmation_sms_task.delay(
-            order_id, 
-            session.get('order_message', ''), 
-            sender, 
-            caller_name, 
-            session.get('bill_amount', 0), 
-            order_items
-        )
+        try:
+            log_info(f"Attempting to send SMS confirmation task directly for order {order_id}")
+            # Call task directly for now until Redis/Celery is properly setup
+            tasks.send_confirmation_sms_task(
+                order_id, 
+                session.get('order_message', ''), 
+                sender, 
+                caller_name, 
+                session.get('bill_amount', 0), 
+                order_items
+            )
+            log_info(f"SMS confirmation task executed successfully for order {order_id}")
+        except Exception as task_error:
+            log_info(f"Error sending SMS confirmation: {task_error}")
+            # Fall back to direct SMS sending
+            try:
+                # Send a simpler message directly
+                order_msg = session.get('order_message', '')
+                simple_msg = f"Thank you for your order! Your order ID is {order_id[:8]}. A confirmation will be sent shortly."
+                twilio_client.messages.create(
+                    body=simple_msg,
+                    from_=TWILIO_PHONE_NUMBER,
+                    to=sender
+                )
+                log_info(f"Sent simple order confirmation directly via SMS to {sender}")
+            except Exception as sms_error:
+                log_info(f"Error sending direct SMS confirmation: {sms_error}")
         
         # Calculate prep time and respond
         time_taken = DEFAULT_PREP_TIME_BASE + (PREP_TIME_PER_ITEM * len(order_items))
@@ -752,14 +772,33 @@ def confirm_order_after_modification():
             
         # Always send SMS confirmation regardless of Deliverect status
         import tasks
-        tasks.send_confirmation_sms_task.delay(
-            order_id, 
-            session.get('order_message', ''), 
-            sender, 
-            caller_name, 
-            session.get('bill_amount', 0), 
-            order_items
-        )
+        try:
+            log_info(f"Attempting to send SMS confirmation task directly for order {order_id}")
+            # Call task directly for now until Redis/Celery is properly setup
+            tasks.send_confirmation_sms_task(
+                order_id, 
+                session.get('order_message', ''), 
+                sender, 
+                caller_name, 
+                session.get('bill_amount', 0), 
+                order_items
+            )
+            log_info(f"SMS confirmation task executed successfully for order {order_id}")
+        except Exception as task_error:
+            log_info(f"Error sending SMS confirmation: {task_error}")
+            # Fall back to direct SMS sending
+            try:
+                # Send a simpler message directly
+                order_msg = session.get('order_message', '')
+                simple_msg = f"Thank you for your order! Your order ID is {order_id[:8]}. A confirmation will be sent shortly."
+                twilio_client.messages.create(
+                    body=simple_msg,
+                    from_=TWILIO_PHONE_NUMBER,
+                    to=sender
+                )
+                log_info(f"Sent simple order confirmation directly via SMS to {sender}")
+            except Exception as sms_error:
+                log_info(f"Error sending direct SMS confirmation: {sms_error}")
         
         # Calculate prep time
         time_taken = DEFAULT_PREP_TIME_BASE + (PREP_TIME_PER_ITEM * len(order_items))
@@ -1107,11 +1146,34 @@ def order_status():
             
             # Send status update to customer with enhanced information
             from tasks import send_order_status_update_task
-            send_order_status_update_task.delay(
-                order_id, 
-                status_message,
-                location_id=order_record.location_id
-            )
+            try:
+                logging.info(f"Attempting to send status update task for order {order_id}")
+                # Call the task directly for now until Redis/Celery is properly setup
+                send_order_status_update_task(
+                    order_id, 
+                    status_message,
+                    location_id=order_record.location_id
+                )
+                logging.info(f"Status update task executed successfully for order {order_id}")
+            except Exception as task_error:
+                logging.error(f"Error sending status update task: {task_error}")
+                # Fall back to direct SMS sending if task execution fails
+                try:
+                    # Import necessary components
+                    from app.models import Order
+                    
+                    # Get the order detail
+                    order = db.session.get(Order, order_id)
+                    if order and order.sender:
+                        # Send SMS directly
+                        twilio_client.messages.create(
+                            body=status_message,
+                            from_=TWILIO_PHONE_NUMBER,
+                            to=order.sender
+                        )
+                        logging.info(f"Sent status update directly via SMS to {order.sender}")
+                except Exception as sms_error:
+                    logging.error(f"Error sending direct SMS: {sms_error}")
             
             log_info(f"Notification sent for order {order_id}: {status_message}")
         else:
@@ -1808,11 +1870,29 @@ def courier_update():
                 
         # Send customer notification
         from tasks import send_order_status_update_task
-        send_order_status_update_task.delay(
-            order_id, 
-            status_message,
-            location_id=order_record.location_id
-        )
+        try:
+            logging.info(f"Attempting to send courier status update task for order {order_id}")
+            # Call task directly for now until Redis/Celery is properly setup
+            send_order_status_update_task(
+                order_id, 
+                status_message,
+                location_id=order_record.location_id
+            )
+            logging.info(f"Courier status update task executed successfully for order {order_id}")
+        except Exception as task_error:
+            logging.error(f"Error sending courier status update task: {task_error}")
+            # Fall back to direct SMS sending
+            try:
+                if order_record.sender:
+                    # Send SMS directly
+                    twilio_client.messages.create(
+                        body=status_message,
+                        from_=TWILIO_PHONE_NUMBER,
+                        to=order_record.sender
+                    )
+                    logging.info(f"Sent courier update directly via SMS to {order_record.sender}")
+            except Exception as sms_error:
+                logging.error(f"Error sending direct courier SMS: {sms_error}")
         
         log_info(f"Courier update processed for order {order_id}: {status}")
         return jsonify({"success": True}), 200
