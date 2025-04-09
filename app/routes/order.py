@@ -5,7 +5,9 @@ import time
 import threading
 import logging
 import re
+import traceback
 from collections import defaultdict
+from datetime import datetime
 from flask import Blueprint, request, session, Response, jsonify
 from twilio.twiml.voice_response import VoiceResponse
 from app.config import DELIVERECT_API_URL, BASE_URL
@@ -837,53 +839,151 @@ def handle_newly_snoozed_in_checkout():
 
 @order_bp.route('/order_status', methods=['POST'])
 def order_status():
-    """Handle order status updates from Deliverect"""
+    """
+    Handle order status updates from Deliverect.
+    
+    Processes POS statuses, delivery statuses, and system statuses with detailed tracking
+    and sends appropriate customer notifications via SMS.
+    
+    Status codes mapping:
+    - 1-9: System statuses (parsed, received, etc.)
+    - 10-69: Kitchen preparation statuses
+    - 70-75: Pickup ready
+    - 76-89: Delivery tracking statuses
+    - 90-99: Completion statuses
+    - 100+: Cancellation and error statuses
+    """
     # Get request data
     data = request.get_json() or {}
     status = data.get("status")
     order_id = data.get("channelOrderId")
-    code = data.get("code")
+    status_code = data.get("code")
+    
+    # Additional parameters for enhanced tracking
+    courier_info = data.get("courier", {})
+    courier_name = courier_info.get("name", "")
+    courier_phone = courier_info.get("phoneNumber", "")
+    eta = data.get("eta")  # Expected time of arrival
+    
+    # Log the complete request for detailed debugging
+    log_info(f"Received status update: order={order_id}, status={status}, code={status_code}")
+    log_info(f"Full Deliverect payload: {json.dumps(data)}")
     
     # Validate required parameters
     if not order_id:
         return jsonify({"error": "Missing channelOrderId parameter"}), 400
-    if not status:
-        return jsonify({"error": "Missing status parameter"}), 400
+    if not status and not status_code:
+        return jsonify({"error": "Missing status or code parameter"}), 400
     
-    # Log failed orders
-    if status == "FAILED" or code == 120:
-        log_info(f"Order {order_id} failed with code={code} or status={status}.")
+    # Log failed orders with enhanced details
+    if status == "FAILED" or status_code == 120:
+        error_reason = data.get("errorReason", "Unknown error")
+        log_info(f"Order {order_id} failed with code={status_code}, status={status}, reason: {error_reason}")
     
-    # Update order in database
+    # Update order in database with comprehensive status information
     try:
         order_record = db.session.query(Order).filter_by(id=order_id).first()
         if not order_record:
             return jsonify({"error": "Order not found"}), 404
         
+        # Store original status for change detection
+        previous_status = order_record.status
+        previous_code = order_record.status_code
+        
+        # Update status fields
         order_record.status = status
+        order_record.status_code = status_code
+        order_record.status_updated_at = datetime.now()
+        
+        # Handle delivery specific information
+        if status_code in [76, 81, 83, 85, 87, 89]:
+            # This is a delivery status
+            order_record.delivery_status = status
+            order_record.delivery_status_code = status_code
+            
+            # Store courier information if provided
+            if courier_name:
+                order_record.courier_name = courier_name
+            if courier_phone:
+                order_record.courier_phone = courier_phone
+            
+            # Parse and store ETA if provided
+            if eta:
+                try:
+                    # Assuming eta is in milliseconds since epoch
+                    eta_datetime = datetime.fromtimestamp(int(eta) / 1000)
+                    order_record.estimated_delivery_time = eta_datetime
+                except (ValueError, TypeError) as e:
+                    log_info(f"Error parsing ETA: {e}, value: {eta}")
+        
+        # Save changes to database
         if not commit_with_retry(db.session):
             return jsonify({"error": "Database error"}), 500
         
-        # Create a more user-friendly status message
-        friendly_status = {
-            "NEW": "received and is being processed",
-            "ACCEPTED": "accepted and being prepared",
-            "PREPARING": "now being prepared in the kitchen",
-            "READY": "ready for pickup",
-            "COMPLETED": "completed. Thank you for your order!",
-            "FAILED": "could not be processed. Please call us",
-            "REJECTED": "could not be processed. Please call us",
-            "CANCELLED": "cancelled"
-        }.get(status, f"updated to: {status}")
+        # Determine if this is a status change that should trigger customer notification
+        should_notify = False
         
-        # Send status update to customer with user-friendly message
-        status_message = f"Your order ({order_id}) is {friendly_status}"
-        from tasks import send_order_status_update_task
-        send_order_status_update_task.delay(order_id, status_message)
+        # Status changes that should always trigger notifications
+        major_status_changes = [
+            20,   # Accepted - Order confirmed
+            50,   # Preparing - In preparation
+            70,   # Pickup Ready - Ready for collection
+            76,   # Delivery Created - Looking for courier
+            83,   # En Route to Pickup - Courier approaching
+            87,   # En Route To Dropoff - Courier heading to customer
+            89,   # Arrived At Drop Off - Courier at customer location
+            90,   # Finalized/Delivered - Order completed
+            110,  # Canceled - Order canceled
+            120   # Failed - Order failed
+        ]
+        
+        # Notify on first status update, status code changes, or major status changes
+        if previous_status != status or previous_code != status_code or status_code in major_status_changes:
+            should_notify = True
+        
+        # Special handling for delivery events - always notify
+        if status_code in [76, 81, 83, 85, 87, 89]:
+            should_notify = True
+            
+        # Don't notify for system-only statuses unless configured
+        if status_code in [1, 2, 3, 4, 5, 6, 7]:
+            should_notify = False  # System internal statuses, no customer notification needed
+            
+        # Create a detailed status message with courier info if applicable
+        if should_notify:
+            # Generate a user-friendly status description
+            friendly_status = order_record.get_status_display()
+            
+            # Create the status message
+            status_message = f"Your order ({order_id}) status: {friendly_status}"
+            
+            # Add courier information for delivery statuses
+            if status_code in [83, 85, 87, 89] and courier_name:
+                status_message += f"\nCourier: {courier_name}"
+                if courier_phone:
+                    status_message += f" ({courier_phone})"
+                    
+            # Add ETA information if available
+            if order_record.estimated_delivery_time:
+                eta_time = order_record.estimated_delivery_time.strftime("%I:%M %p")
+                status_message += f"\nEstimated delivery/pickup time: {eta_time}"
+            
+            # Send status update to customer with enhanced information
+            from tasks import send_order_status_update_task
+            send_order_status_update_task.delay(
+                order_id, 
+                status_message,
+                location_id=order_record.location_id
+            )
+            
+            log_info(f"Notification sent for order {order_id}: {status_message}")
+        else:
+            log_info(f"No notification sent for order {order_id} - internal status update only")
         
         return jsonify({"success": True}), 200
     except Exception as e:
         log_info(f"Error processing order status update: {str(e)}")
+        log_info(traceback.format_exc())
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -927,19 +1027,24 @@ def handle_sms():
             ).order_by(Order.timestamp.desc()).first()
             
             if recent_order:
-                # Get status and create friendly message
+                # Get status and create friendly message using enhanced Order model methods
                 order_status = recent_order.status or "NEW"
                 
-                friendly_status = {
-                    "NEW": "received and is being processed",
-                    "ACCEPTED": "accepted and being prepared",
-                    "PREPARING": "now being prepared in the kitchen",
-                    "READY": "ready for pickup! 🎉",
-                    "COMPLETED": "completed. Thank you for your order! 🙏",
-                    "FAILED": "could not be processed. Please call us",
-                    "REJECTED": "could not be processed. Please call us",
-                    "CANCELLED": "cancelled"
-                }.get(order_status, order_status)
+                # Use the enhanced get_status_display method if status_code is available
+                if recent_order.status_code:
+                    friendly_status = recent_order.get_status_display()
+                else:
+                    # Fallback to legacy status descriptions
+                    friendly_status = {
+                        "NEW": "received and is being processed",
+                        "ACCEPTED": "accepted and being prepared",
+                        "PREPARING": "now being prepared in the kitchen",
+                        "READY": "ready for pickup! 🎉",
+                        "COMPLETED": "completed. Thank you for your order! 🙏",
+                        "FAILED": "could not be processed. Please call us",
+                        "REJECTED": "could not be processed. Please call us",
+                        "CANCELLED": "cancelled"
+                    }.get(order_status, order_status)
                 
                 # Extract order details for a more detailed response
                 order_id = recent_order.id
@@ -966,36 +1071,95 @@ def handle_sms():
                         # If we can't parse properly, just use the first line as fallback
                         order_items = recent_order.message.split("\n")[0] if recent_order.message else "your order"
                 
-                # Calculate estimated pickup time based on status
-                pickup_info = ""
-                if order_status == "READY":
-                    pickup_info = "\n\n⏱️ Your order is ready for pickup now!"
-                    pickup_info += "\n📍 Please pick up at Red Bar Sushi"
-                    pickup_info += "\n📞 Call (833) 324-7207 if you need assistance"
-                elif order_status == "PREPARING":
-                    # Estimate remaining time
-                    prep_time = 20 + (len(recent_order.message.split("\n- ")) * 2)  # Estimate based on line count
-                    time_elapsed = (time.time() - recent_order.timestamp.timestamp()) / 60 if recent_order.timestamp else 0
-                    time_remaining = max(1, prep_time - time_elapsed)
-                    pickup_info = f"\n\n⏱️ Estimated to be ready in: {int(time_remaining)} minutes"
-                elif order_status in ["FAILED", "REJECTED"]:
-                    pickup_info = "\n\n⚠️ Please call us at (833) 324-7207 regarding your order"
+                # Create status emoji based on status code
+                status_emoji = "📋"
+                if recent_order.status_code:
+                    # POS preparation status
+                    if 10 <= recent_order.status_code <= 69:
+                        status_emoji = "👨‍🍳"
+                    # Ready for pickup
+                    elif 70 <= recent_order.status_code <= 75:
+                        status_emoji = "✅"
+                    # Delivery status
+                    elif 76 <= recent_order.status_code <= 89:
+                        status_emoji = "🚚"
+                    # Completed 
+                    elif 90 <= recent_order.status_code <= 99:
+                        status_emoji = "🎉"
+                    # Failed/canceled
+                    elif recent_order.status_code >= 100:
+                        status_emoji = "⚠️"
                 
-                # Create a comprehensive status message
+                # Get location information
+                location_name = "Red Bar Sushi"
+                if recent_order.location_id:
+                    try:
+                        from app.models import Location
+                        location = db.session.query(Location).filter_by(id=recent_order.location_id).first()
+                        if location:
+                            location_name = location.name
+                    except Exception as e:
+                        log_info(f"Error getting location name: {e}")
+                
+                # Determine if this is a delivery order
+                is_delivery = recent_order.status_code in [76, 81, 83, 85, 87, 89]
+                
+                # Start building the message
                 status_message = f"""🍣 RED BAR SUSHI STATUS UPDATE 🍣
 
 🆔 Order #{order_id[:8]}
+📍 {location_name}
 🕒 Placed at: {order_time}
 
 {order_items}
 
-📋 CURRENT STATUS: {order_status}
-Your order is {friendly_status}{pickup_info}
-
-💬 Reply 'help' for more options
-"""
+{status_emoji} CURRENT STATUS: {friendly_status}"""
+                
+                # Add delivery-specific information
+                if is_delivery:
+                    status_message += "\n\n🚚 DELIVERY INFORMATION:"
+                    
+                    # Add courier information if available
+                    if recent_order.courier_name:
+                        status_message += f"\n👤 Courier: {recent_order.courier_name}"
+                        if recent_order.courier_phone:
+                            status_message += f" ({recent_order.courier_phone})"
+                    
+                    # Add estimated delivery time if available
+                    if recent_order.estimated_delivery_time:
+                        eta_time = recent_order.estimated_delivery_time.strftime("%I:%M %p")
+                        status_message += f"\n⏱️ Estimated delivery: {eta_time}"
+                    
+                    # Add delivery status-specific information
+                    if recent_order.status_code == 83:
+                        status_message += "\nYour courier is on the way to the restaurant"
+                    elif recent_order.status_code == 85:
+                        status_message += "\nYour courier has arrived at the restaurant"
+                    elif recent_order.status_code == 87:
+                        status_message += "\nYour order is on the way to you!"
+                    elif recent_order.status_code == 89:
+                        status_message += "\nYour courier has arrived at your location"
+                
+                # Add status-specific instructions
+                if recent_order.status_code == 70:  # Ready for pickup
+                    status_message += "\n\n⏱️ Your order is ready for pickup now!"
+                    status_message += f"\n📍 Please pick up at: {location_name}"
+                    status_message += "\n📞 Call (833) 324-7207 if you need assistance"
+                elif recent_order.status_code == 50:  # Preparing
+                    # Estimate remaining time for pickup orders
+                    if not is_delivery:
+                        prep_time = 20 + (len(recent_order.message.split("\n- ")) * 2)  # Estimate based on line count
+                        time_elapsed = (time.time() - recent_order.timestamp.timestamp()) / 60 if recent_order.timestamp else 0
+                        time_remaining = max(1, prep_time - time_elapsed)
+                        status_message += f"\n\n⏱️ Estimated to be ready in: {int(time_remaining)} minutes"
+                elif recent_order.status_code in [110, 120]:  # Failed/error states
+                    status_message += "\n\n⚠️ Please call us at (833) 324-7207 regarding your order"
+                
+                # Add footer with help option
+                status_message += "\n\n💬 Reply 'help' for more options"
+                
                 resp.message(status_message)
-                log_info(f"Sent detailed status update via SMS to {from_number}")
+                log_info(f"Sent enhanced status update via SMS to {from_number}")
             else:
                 resp.message("""⚠️ ORDER NOT FOUND
 
@@ -1308,6 +1472,130 @@ def sms_status_callback():
         log_info(f"Error processing SMS status callback: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+@order_bp.route('/courierUpdate', methods=['POST'])
+def courier_update():
+    """
+    Handle courier updates for deliveries from Deliverect.
+    
+    This endpoint processes delivery status updates including:
+    - Courier assignment
+    - En route updates
+    - Arrival notifications
+    - Delivery completion or cancellation
+    """
+    # Get request data
+    data = request.get_json() or {}
+    log_info(f"Received courier update: {json.dumps(data)}")
+    
+    # Extract key information
+    order_id = data.get("channelOrderId")
+    status = data.get("status")
+    courier = data.get("courier", {})
+    eta = data.get("eta")  # Usually milliseconds since epoch
+    
+    # Validate required parameters
+    if not order_id:
+        return jsonify({"error": "Missing channelOrderId parameter"}), 400
+    
+    # Map courier status to Deliverect status codes
+    status_code_mapping = {
+        "DELIVERY_CREATED": 76,               # Delivery partner doesn't have courier yet
+        "DELIVERY_CONFIRMED": 81,             # Courier accepted the delivery job
+        "EN_ROUTE_TO_PICKUP": 83,             # Courier approaching restaurant
+        "ARRIVED_AT_PICKUP": 85,              # Courier at restaurant
+        "EN_ROUTE_TO_DROPOFF": 87,            # Courier heading to customer
+        "ARRIVED_AT_DROPOFF": 89,             # Courier at customer location
+        "DELIVERED": 90,                      # Delivery completed successfully
+        "DELIVERY_CANCELLED": 115             # Delivery canceled
+    }
+    
+    # Get the status code from the mapping
+    status_code = status_code_mapping.get(status)
+    if not status_code:
+        log_info(f"Unknown courier status: {status}, using original status")
+    
+    # Update order in database
+    try:
+        order_record = db.session.query(Order).filter_by(id=order_id).first()
+        if not order_record:
+            return jsonify({"error": "Order not found"}), 404
+        
+        # Update delivery status information
+        order_record.delivery_status = status
+        if status_code:
+            order_record.delivery_status_code = status_code
+            order_record.status_code = status_code  # Update main status code too
+            
+        # Update status based on delivery status
+        if status == "DELIVERED":
+            order_record.status = "COMPLETED"
+        elif status == "DELIVERY_CANCELLED":
+            order_record.status = "CANCELLED"
+        else:
+            order_record.status = status
+            
+        # Store courier details
+        if courier:
+            courier_name = courier.get("name")
+            courier_phone = courier.get("phoneNumber")
+            if courier_name:
+                order_record.courier_name = courier_name
+            if courier_phone:
+                order_record.courier_phone = courier_phone
+                
+        # Process ETA
+        if eta:
+            try:
+                # Convert milliseconds to datetime
+                eta_datetime = datetime.fromtimestamp(int(eta) / 1000)
+                order_record.estimated_delivery_time = eta_datetime
+                log_info(f"Updated ETA for order {order_id}: {eta_datetime}")
+            except (ValueError, TypeError) as e:
+                log_info(f"Error parsing ETA: {e}, value: {eta}")
+                
+        # Save changes
+        order_record.status_updated_at = datetime.now()
+        if not commit_with_retry(db.session):
+            return jsonify({"error": "Database error"}), 500
+            
+        # Send notification for delivery status changes
+        # Prepare a user-friendly message
+        friendly_status = order_record.get_status_display()
+        status_message = f"Your order ({order_id}) delivery status: {friendly_status}"
+        
+        # Add courier information for actionable statuses
+        if status in ["EN_ROUTE_TO_PICKUP", "ARRIVED_AT_PICKUP", "EN_ROUTE_TO_DROPOFF", "ARRIVED_AT_DROPOFF"]:
+            if courier.get("name"):
+                status_message += f"\nCourier: {courier.get('name')}"
+                if courier.get("phoneNumber"):
+                    status_message += f" ({courier.get('phoneNumber')})"
+                    
+        # Include estimated time if available
+        if eta:
+            try:
+                eta_time = datetime.fromtimestamp(int(eta) / 1000).strftime("%I:%M %p")
+                if status == "EN_ROUTE_TO_DROPOFF":
+                    status_message += f"\nEstimated delivery time: {eta_time}"
+                else:
+                    status_message += f"\nEstimated time: {eta_time}"
+            except (ValueError, TypeError):
+                pass
+                
+        # Send customer notification
+        from tasks import send_order_status_update_task
+        send_order_status_update_task.delay(
+            order_id, 
+            status_message,
+            location_id=order_record.location_id
+        )
+        
+        log_info(f"Courier update processed for order {order_id}: {status}")
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        log_info(f"Error processing courier update: {str(e)}")
+        log_info(traceback.format_exc())
+        return jsonify({"error": "Internal server error"}), 500
+        
 @order_bp.route('/webhook-test', methods=['GET'])
 def webhook_test():
     """Endpoint to test webhook configuration"""
