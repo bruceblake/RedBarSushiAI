@@ -69,7 +69,7 @@ def take_order():
     if BUSY_MODE_ACTIVE:
         response = VoiceResponse()
         response.say(
-            "We're currently busy and not accepting new orders right now. Goodbye!")
+            "We're currently busy and not accepting new orders right now. Please call back later.")
         response.hangup()
         return Response(str(response), mimetype='text/xml')
 
@@ -147,6 +147,22 @@ def take_order():
     # Get the user's speech
     user_resp = request.form.get('SpeechResult', '').strip()
     
+    # Check if the user was silent or speech wasn't captured
+    if not user_resp:
+        response = VoiceResponse()
+        with response.gather(
+            input='speech',
+            action='/take_order',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            timeout=7  # Give more time for the user to think and speak
+        ) as g:
+            g.say(
+                "I'm waiting for your order. Please tell me what sushi items you'd like to order. For example, you can say 'I'd like two California rolls and one spicy tuna roll'.")
+        return Response(str(response), mimetype='text/xml')
+    
     # Use the agent to analyze the order
     analysis = analyze_user_input(user_resp)
     intent = analysis.get('intent', 'other')
@@ -163,10 +179,10 @@ def take_order():
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
-            timeout=3
+            timeout=6  # More time for the retry
         ) as g:
             g.say(
-                "I'm sorry, I couldn't understand that request. Please repeat your order.")
+                "I'm sorry, I couldn't understand your order. Please tell me again what items you'd like to order from our menu.")
         return Response(str(response), mimetype='text/xml')
 
     # Get the menu items from the analysis
@@ -388,6 +404,23 @@ def new_modify_order():
     """Handle order modifications"""
     # Get user's modification request
     user_resp = request.form.get('SpeechResult', '').strip()
+    
+    # Check if the user was silent or speech wasn't captured
+    if not user_resp:
+        response = VoiceResponse()
+        with response.gather(
+            input='speech',
+            action='/new_modify_order',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            timeout=7  # Give more time for the user to think and speak
+        ) as g:
+            g.say(
+                "I'm waiting to hear your modifications. For example, you can say 'add one spicy tuna roll' or 'remove the California roll'.")
+        return Response(str(response), mimetype='text/xml')
+        
     log_info(f"User requested order modification: {user_resp}")
     current_order_items = json.loads(session.get('order_items_json', '[]'))
     
@@ -405,10 +438,11 @@ def new_modify_order():
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto"
+            speech_timeout="auto",
+            timeout=6  # More time for the retry
         ) as g:
             g.say(
-                "I didn't understand your modifications. Please clearly state what you'd like to add or remove.")
+                "I didn't understand your modifications. Please clearly state what you'd like to add or remove from your order.")
         return Response(str(response), mimetype='text/xml')
     
     # Apply modifications
