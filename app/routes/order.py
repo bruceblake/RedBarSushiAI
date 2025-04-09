@@ -157,21 +157,27 @@ def take_order():
         response = VoiceResponse()
         
         # Change the message based on how many retries
-        if order_silence_retry >= 2:
-            # After multiple tries, give more detailed guidance
+        if order_silence_retry >= 3:
+            # After too many attempts, go to fallback automatically
+            logger.info("Too many silence retries in order taking, sending to fallback")
+            response.redirect('/main_menu_fallback')
+            return Response(str(response), mimetype='text/xml')
+        elif order_silence_retry >= 1:
+            # After first or second retry, provide more guidance and DTMF options
             with response.gather(
                 input='speech dtmf',
                 action='/take_order',
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
-                speech_timeout="auto",
-                timeout=10  # Give even more time for the third try
+                speech_timeout=15,  # Much longer timeout
+                timeout=15,  # Give even more time
+                hints="california roll, spicy tuna roll, dragon roll, menu" # Help Twilio recognize common items
             ) as g:
                 g.say(
                     "I'm having trouble hearing you. Speak clearly and tell me what sushi items you'd like to order. For example, say 'two California rolls and one spicy tuna roll'. Or press any key to return to the main menu.")
-            
-            # Add a fallback to main menu after gathering
+                
+            # If we still don't get anything after the gather, go to fallback
             response.redirect('/main_menu_fallback')
         else:
             # Normal or first retry prompt
@@ -181,11 +187,15 @@ def take_order():
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
-                speech_timeout="auto",
-                timeout=8  # Give more time for the user to think and speak
+                speech_timeout=10,  # Fixed timeout instead of "auto"
+                timeout=12,  # Give more time for the user to think and speak
+                hints="california roll, spicy tuna roll, dragon roll, menu" # Help Twilio recognize common items
             ) as g:
                 g.say(
                     "I'm waiting for your order. Please tell me what sushi items you'd like to order. For example, you can say 'I'd like two California rolls and one spicy tuna roll'.")
+                
+            # Make sure we have a fallback if gather doesn't catch anything
+            response.redirect('/take_order')
         return Response(str(response), mimetype='text/xml')
     
     # Use the agent to analyze the order
@@ -950,30 +960,51 @@ def understanding_fallback():
     user_resp = (request.form.get('SpeechResult', '') or "").lower()
     dtmf_input = request.form.get('Digits', '')
     
+    # Count the number of understanding fallbacks to prevent loops
+    understanding_attempt = session.get('understanding_attempt', 0)
+    session['understanding_attempt'] = understanding_attempt + 1
+    
     # Create response
     response = VoiceResponse()
+    
+    # After too many fallbacks, force back to main menu
+    if understanding_attempt >= 2:
+        logger.info("Too many understanding fallbacks - forcing back to main menu")
+        session['understanding_attempt'] = 0
+        session['order_silence_retry'] = 0
+        session['understand_retry'] = 0
+        
+        # Force back to main menu
+        response.say("Let me help you with something else instead.")
+        response.redirect('/main_menu_fallback')
+        return Response(str(response), mimetype='text/xml')
     
     # If they pressed 1, give them popular menu suggestions
     if dtmf_input == '1' or "menu" in user_resp or "popular" in user_resp:
         # Reset understanding retry counter
         session['understand_retry'] = 0
         with response.gather(
-            input='speech',
+            input='speech dtmf',
             action='/take_order',
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto",
-            timeout=8  # Give more time
+            speech_timeout=12,
+            timeout=15,  # Give more time
+            hints="california roll, spicy tuna roll, dragon roll, rainbow roll"
         ) as g:
             g.say(
                 "Our most popular items are California Roll, Spicy Tuna Roll, Dragon Roll, and Rainbow Roll. " +
-                "Please tell me what you would like to order.")
+                "Please tell me what you would like to order. Or press any key to return to the main menu.")
+            
+        # Add fallback
+        response.redirect('/main_menu_fallback')
     # If they pressed 2 or want to go back, return to main menu
     elif dtmf_input == '2' or "back" in user_resp or "main" in user_resp:
         # Reset session variables for ordering
         session['understand_retry'] = 0
         session['order_silence_retry'] = 0
+        session['understanding_attempt'] = 0
         response.redirect('/main_menu_fallback')
         return Response(str(response), mimetype='text/xml')
     # Otherwise try again with their speech input (if they provided any)
@@ -996,13 +1027,28 @@ def modification_silence_fallback():
     user_resp = (request.form.get('SpeechResult', '') or "").lower()
     dtmf_input = request.form.get('Digits', '')
     
+    # Track how many times we've been in this fallback
+    mod_fallback_count = session.get('mod_fallback_count', 0)
+    session['mod_fallback_count'] = mod_fallback_count + 1
+    
     # Create response
     response = VoiceResponse()
+    
+    # After too many attempts, just keep the order as is
+    if mod_fallback_count >= 2:
+        logger.warning("Too many modification fallbacks - keeping order as is")
+        session['mod_fallback_count'] = 0
+        session['modify_silence_retry'] = 0
+        
+        response.say("I'll keep your order as is since we're having trouble with modifications.")
+        response.redirect('/confirm_order_after_modification')
+        return Response(str(response), mimetype='text/xml')
     
     # If they pressed 1 or said to keep order, confirm as is
     if dtmf_input == '1' or "keep" in user_resp or "as is" in user_resp:
         # Reset modification silence counter
         session['modify_silence_retry'] = 0
+        session['mod_fallback_count'] = 0
         
         # Redirect to confirmation
         response.redirect('/confirm_order_after_modification')
@@ -1012,6 +1058,7 @@ def modification_silence_fallback():
         # Reset session variables for ordering
         session['modify_silence_retry'] = 0
         session['modification_in_progress'] = False
+        session['mod_fallback_count'] = 0
         response.redirect('/main_menu_fallback')
         return Response(str(response), mimetype='text/xml')
     # Otherwise try again with their speech input (if they provided any)
@@ -1020,10 +1067,21 @@ def modification_silence_fallback():
         response.redirect('/new_modify_order')
         return Response(str(response), mimetype='text/xml')
     else:
-        # No input provided, just confirm the current order as is
+        # No input provided after first attempt - give them another clear choice
+        with response.gather(
+            input='dtmf speech',
+            action='/modification_silence_fallback',
+            num_digits=1,
+            timeout=15,
+            speech_timeout=15
+        ) as g:
+            g.say(
+                "I'm having trouble hearing your modification. Press 1 or say 'keep it' to keep your order as is. Press 2 or say 'cancel' to cancel and return to the main menu.")
+        
+        # Final fallback - keep the order as is if we still get nothing
+        response.say("I'll keep your order as is.")
         response.redirect('/confirm_order_after_modification')
-        return Response(str(response), mimetype='text/xml')
-    
+        
     return Response(str(response), mimetype='text/xml')
 
 
