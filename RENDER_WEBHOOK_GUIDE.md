@@ -87,14 +87,27 @@ For testing purposes only, you can temporarily bypass signature validation:
 export ALLOW_UNSIGNED_WEBHOOKS=true
 ```
 
-## How Webhook Signatures Work
+## How Render Webhook Signatures Work
 
-Render uses HMAC-SHA256 for webhook signature validation:
+Render uses HMAC-SHA256 for webhook signature validation with this specific format:
 
-1. The message format is: `webhook_id.timestamp.payload.secret`
-2. This message is signed with HMAC-SHA256 using the secret
-3. The signature is Base64 encoded and prefixed with `v1,`
-4. The application validates by recreating the signature and comparing
+1. Render sends these HTTP headers with each webhook:
+   - `Webhook-Id`: A unique ID for the webhook event (e.g., `evt-cvqsus7gi27c73f8sqmg`)
+   - `Webhook-Timestamp`: Unix timestamp when the webhook was sent
+   - `Webhook-Signature`: Format `v1,base64_signature`
+
+2. The signature is created using this exact format:
+   ```
+   message = webhook_id + "." + timestamp + "." + json_body + "." + webhook_secret
+   signature = HMAC-SHA256(message, webhook_secret)
+   base64_signature = Base64(signature)
+   ```
+
+3. Important details:
+   - The JSON body must be exactly the same as what Render sends (no extra whitespace)
+   - Headers may have different casing (our app checks multiple variations)
+   - The webhook secret must be exactly the same on both sides
+   - The signature uses the raw message, not a hashed version
 
 The signature validation code is in `app/routes/webhook.py` in the `validate_signature` function.
 
