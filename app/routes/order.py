@@ -6,6 +6,7 @@ import threading
 import logging
 import re
 import traceback
+import os
 from collections import defaultdict
 from datetime import datetime
 from flask import Blueprint, request, session, Response, jsonify
@@ -23,6 +24,8 @@ from app.utils.order_utils import (
 from app.utils.menu_utils import load_menu_data, is_item_snoozed_timebased
 from app.utils.helpers import log_info, commit_with_retry
 from twilio.twiml.messaging_response import MessagingResponse
+from sqlalchemy import text
+
 # Try to import from the original module first 
 try:
     from app.utils.agent_utils import analyze_user_input, get_order_modifications
@@ -36,6 +39,14 @@ except ImportError:
 from app import db, twilio_client
 from app.models import Order
 from app.config import TWILIO_NUMBER as TWILIO_PHONE_NUMBER
+
+# Try to import tasks module for status updates
+try:
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from tasks import send_order_status_update_task
+except ImportError:
+    logger.warning("Could not import send_order_status_update_task from tasks module. Will try again when needed.")
 
 order_bp = Blueprint('order', __name__)
 logger = logging.getLogger(__name__)
@@ -1202,6 +1213,13 @@ def order_status():
     
     # Update order in database with comprehensive status information
     try:
+        # We've already imported these at the top of the file, but double-check here
+        # to ensure we have them in this scope
+        if 'Order' not in globals():
+            from app.models import Order
+        if 'text' not in globals():
+            from sqlalchemy import text
+        
         # First try to get the order
         try:
             order_record = db.session.query(Order).filter_by(id=order_id).first()
@@ -1389,33 +1407,58 @@ def order_status():
                     log_info(f"Error formatting stored ETA: {eta_err}")
             
             # Send status update to customer with enhanced information
-            from tasks import send_order_status_update_task
+            # Use the already imported task function or try to re-import as a fallback
+            if 'send_order_status_update_task' not in globals():
+                try:
+                    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+                    from tasks import send_order_status_update_task
+                except ImportError:
+                    log_info("Could not import send_order_status_update_task, will use direct SMS instead")
+                    send_order_status_update_task = None
             try:
                 logging.info(f"Attempting to send status update task for order {order_id}")
-                # Call the task directly for now until Redis/Celery is properly setup
-                send_order_status_update_task(
-                    order_id, 
-                    status_message,
-                    location_id=order_record.location_id
-                )
-                logging.info(f"Status update task executed successfully for order {order_id}")
+                
+                # Check if we have the task function available
+                if 'send_order_status_update_task' in globals() and send_order_status_update_task:
+                    # Call the task directly for now until Redis/Celery is properly setup
+                    send_order_status_update_task(
+                        order_id, 
+                        status_message,
+                        location_id=order_record.location_id
+                    )
+                    logging.info(f"Status update task executed successfully for order {order_id}")
+                else:
+                    # No task function, use direct SMS
+                    logging.info("Task function not available, sending SMS directly")
+                    raise ImportError("Task not available")
+                    
             except Exception as task_error:
                 logging.error(f"Error sending status update task: {task_error}")
                 # Fall back to direct SMS sending if task execution fails
                 try:
-                    # Import necessary components
-                    from app.models import Order
-                    
-                    # Get the order detail
-                    order = db.session.get(Order, order_id)
-                    if order and order.sender:
+                    # Get the order detail using the record we already have
+                    if order_record and order_record.sender:
                         # Send SMS directly
                         twilio_client.messages.create(
                             body=status_message,
                             from_=TWILIO_PHONE_NUMBER,
-                            to=order.sender
+                            to=order_record.sender
                         )
-                        logging.info(f"Sent status update directly via SMS to {order.sender}")
+                        logging.info(f"Sent status update directly via SMS to {order_record.sender}")
+                    else:
+                        # Try to get the order from the DB as a backup
+                        from app.models import Order
+                        order = db.session.get(Order, order_id)
+                        if order and order.sender:
+                            # Send SMS directly
+                            twilio_client.messages.create(
+                                body=status_message,
+                                from_=TWILIO_PHONE_NUMBER,
+                                to=order.sender
+                            )
+                            logging.info(f"Sent status update directly via SMS to {order.sender}")
+                        else:
+                            logging.error(f"Could not find order or sender for order_id: {order_id}")
                 except Exception as sms_error:
                     logging.error(f"Error sending direct SMS: {sms_error}")
             
