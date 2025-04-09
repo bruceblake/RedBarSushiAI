@@ -384,6 +384,39 @@ def handle_menu_questions():
     """Handle menu-related questions from the caller."""
     user_input = request.form.get('SpeechResult', '').lower()
     
+    # Check for silence
+    if not user_input:
+        menu_silence_retry = session.get('menu_question_silence', 0)
+        session['menu_question_silence'] = menu_silence_retry + 1
+        
+        response = VoiceResponse()
+        if menu_silence_retry >= 2:
+            # After multiple silences, provide more options
+            with response.gather(
+                input='dtmf',
+                action='/main_menu',
+                num_digits=1,
+                timeout=10
+            ) as g:
+                g.say("I'm having trouble hearing you. Press 1 to order, 2 for menu questions, or 3 to speak with a person.")
+            return Response(str(response), mimetype='text/xml')
+        else:
+            # Retry with a prompt
+            with response.gather(
+                input='speech',
+                action='/handle_menu_questions',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                timeout=8  # Give more time
+            ) as g:
+                g.say("I didn't hear your question. You can ask about our menu items, prices, or special rolls. What would you like to know?")
+            return Response(str(response), mimetype='text/xml')
+    
+    # Reset silence counter when we get speech
+    session['menu_question_silence'] = 0
+    
     # Use the new agent-based analysis
     analysis = analyze_user_input(user_input)
     intent = analysis.get('intent', 'other')

@@ -150,18 +150,42 @@ def take_order():
     
     # Check if the user was silent or speech wasn't captured
     if not user_resp:
+        # Track silence retries for this specific part of the flow
+        order_silence_retry = session.get('order_silence_retry', 0)
+        session['order_silence_retry'] = order_silence_retry + 1
+        
         response = VoiceResponse()
-        with response.gather(
-            input='speech',
-            action='/take_order',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=7  # Give more time for the user to think and speak
-        ) as g:
-            g.say(
-                "I'm waiting for your order. Please tell me what sushi items you'd like to order. For example, you can say 'I'd like two California rolls and one spicy tuna roll'.")
+        
+        # Change the message based on how many retries
+        if order_silence_retry >= 2:
+            # After multiple tries, give more detailed guidance
+            with response.gather(
+                input='speech dtmf',
+                action='/take_order',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                timeout=10  # Give even more time for the third try
+            ) as g:
+                g.say(
+                    "I'm having trouble hearing you. Speak clearly and tell me what sushi items you'd like to order. For example, say 'two California rolls and one spicy tuna roll'. Or press any key to return to the main menu.")
+            
+            # Add a fallback to main menu after gathering
+            response.redirect('/main_menu_fallback')
+        else:
+            # Normal or first retry prompt
+            with response.gather(
+                input='speech',
+                action='/take_order',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                timeout=8  # Give more time for the user to think and speak
+            ) as g:
+                g.say(
+                    "I'm waiting for your order. Please tell me what sushi items you'd like to order. For example, you can say 'I'd like two California rolls and one spicy tuna roll'.")
         return Response(str(response), mimetype='text/xml')
     
     # Use the agent to analyze the order
@@ -173,17 +197,41 @@ def take_order():
     
     # If we couldn't understand the order, ask again
     if intent != 'order_food' or not analysis.get('menu_items'):
-        with response.gather(
-            input='speech',
-            action='/take_order',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=6  # More time for the retry
-        ) as g:
-            g.say(
-                "I'm sorry, I couldn't understand your order. Please tell me again what items you'd like to order from our menu.")
+        # Track understanding retries separately from silence
+        understand_retry = session.get('understand_retry', 0)
+        session['understand_retry'] = understand_retry + 1
+        
+        # Reset silence counter since we got some speech
+        session['order_silence_retry'] = 0
+        
+        # Change approach based on retry count
+        if understand_retry >= 2:
+            # After multiple failed attempts, offer more options
+            with response.gather(
+                input='speech dtmf',
+                action='/understanding_fallback',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                num_digits=1,
+                timeout=8  # More time
+            ) as g:
+                g.say(
+                    "I'm having trouble understanding your order. You can try again by speaking clearly, press 1 to hear our popular menu items, or press 2 to return to the main menu.")
+        else:
+            # First retry with better guidance
+            with response.gather(
+                input='speech',
+                action='/take_order',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                timeout=8  # More time for the retry
+            ) as g:
+                g.say(
+                    "I'm sorry, I couldn't understand your order. Please tell me again what items you'd like to order from our menu. For example, you can say 'I'd like a California roll and a spicy tuna roll'.")
         return Response(str(response), mimetype='text/xml')
 
     # Get the menu items from the analysis
@@ -404,17 +452,33 @@ def confirm_order_from_initial():
     
     # Handle unclear response
     else:
-        with response.gather(
-            input='speech dtmf',
-            action='/confirm_order_from_initial',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            num_digits=1
-        ) as g:
-            g.say(
-                "I didn't catch that. Say yes or press 1 if correct, or no or press 2 to modify.")
+        # Track confirmation retries
+        confirm_retry_count = session.get('confirm_retry_count', 0)
+        session['confirm_retry_count'] = confirm_retry_count + 1
+        
+        if confirm_retry_count >= 2:
+            # After multiple unclear responses, give simpler options
+            with response.gather(
+                input='dtmf',
+                action='/confirm_order_from_initial',
+                timeout=10,
+                num_digits=1
+            ) as g:
+                g.say(
+                    "Please use your keypad. Press 1 to confirm your order, or press 2 to modify it.")
+        else:
+            # Normal retry
+            with response.gather(
+                input='speech dtmf',
+                action='/confirm_order_from_initial',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                num_digits=1
+            ) as g:
+                g.say(
+                    "I didn't catch that. Say yes or press 1 if correct, or no or press 2 to modify.")
     
     return Response(str(response), mimetype='text/xml')
 
@@ -427,18 +491,40 @@ def new_modify_order():
     
     # Check if the user was silent or speech wasn't captured
     if not user_resp:
+        # Track silence retries for modifications
+        modify_silence_retry = session.get('modify_silence_retry', 0)
+        session['modify_silence_retry'] = modify_silence_retry + 1
+        
         response = VoiceResponse()
-        with response.gather(
-            input='speech',
-            action='/new_modify_order',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=7  # Give more time for the user to think and speak
-        ) as g:
-            g.say(
-                "I'm waiting to hear your modifications. For example, you can say 'add one spicy tuna roll' or 'remove the California roll'.")
+        
+        # Change the message based on how many retries
+        if modify_silence_retry >= 2:
+            # After multiple tries, give more detailed guidance or fallback
+            with response.gather(
+                input='speech dtmf',
+                action='/modification_silence_fallback',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                num_digits=1,
+                timeout=10  # Give even more time
+            ) as g:
+                g.say(
+                    "I'm having trouble hearing your modifications. You can say something like 'add one spicy tuna roll' or 'remove the California roll'. Or press 1 to keep your order as is, or 2 to cancel.")
+        else:
+            # Normal or first retry prompt
+            with response.gather(
+                input='speech',
+                action='/new_modify_order',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                timeout=8  # Give more time
+            ) as g:
+                g.say(
+                    "I'm waiting to hear your modifications. For example, you can say 'add one spicy tuna roll' or 'remove the California roll'.")
         return Response(str(response), mimetype='text/xml')
         
     log_info(f"User requested order modification: {user_resp}")
@@ -826,17 +912,117 @@ def confirm_order_after_modification():
     
     # Handle unclear response
     else:
+        # Track final confirmation retries
+        final_confirm_retry = session.get('final_confirm_retry', 0)
+        session['final_confirm_retry'] = final_confirm_retry + 1
+        
+        if final_confirm_retry >= 2:
+            # After multiple unclear responses, give simpler options and longer timeout
+            with response.gather(
+                input='dtmf',
+                action='/confirm_order_after_modification',
+                timeout=12,
+                num_digits=1
+            ) as g:
+                g.say(
+                    "Please use your keypad. Press 1 to confirm your order, or press 2 to modify it again.")
+        else:
+            # Normal retry
+            with response.gather(
+                input='speech dtmf',
+                action='/confirm_order_after_modification',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                num_digits=1
+            ) as g:
+                g.say(
+                    "I didn't catch that. Say 'yes' or press 1 if correct, 'no' or press 2 to modify again.")
+    
+    return Response(str(response), mimetype='text/xml')
+
+
+@order_bp.route('/understanding_fallback', methods=['POST'])
+def understanding_fallback():
+    """Handle fallbacks for when we can't understand the order after multiple tries."""
+    # Get user response
+    user_resp = (request.form.get('SpeechResult', '') or "").lower()
+    dtmf_input = request.form.get('Digits', '')
+    
+    # Create response
+    response = VoiceResponse()
+    
+    # If they pressed 1, give them popular menu suggestions
+    if dtmf_input == '1' or "menu" in user_resp or "popular" in user_resp:
+        # Reset understanding retry counter
+        session['understand_retry'] = 0
         with response.gather(
-            input='speech dtmf',
-            action='/confirm_order_after_modification',
+            input='speech',
+            action='/take_order',
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
-            num_digits=1
+            timeout=8  # Give more time
         ) as g:
             g.say(
-                "I didn't catch that. Say 'yes' or press 1 if correct, 'no' or press 2 to modify again.")
+                "Our most popular items are California Roll, Spicy Tuna Roll, Dragon Roll, and Rainbow Roll. " +
+                "Please tell me what you would like to order.")
+    # If they pressed 2 or want to go back, return to main menu
+    elif dtmf_input == '2' or "back" in user_resp or "main" in user_resp:
+        # Reset session variables for ordering
+        session['understand_retry'] = 0
+        session['order_silence_retry'] = 0
+        response.redirect('/main_menu_fallback')
+        return Response(str(response), mimetype='text/xml')
+    # Otherwise try again with their speech input (if they provided any)
+    elif user_resp:
+        # Their response might be an order attempt, so pass it to take_order
+        response.redirect('/take_order')
+        return Response(str(response), mimetype='text/xml')
+    else:
+        # No input provided, return to main menu as fallback
+        response.redirect('/main_menu_fallback')
+        return Response(str(response), mimetype='text/xml')
+    
+    return Response(str(response), mimetype='text/xml')
+
+
+@order_bp.route('/modification_silence_fallback', methods=['POST'])
+def modification_silence_fallback():
+    """Handle fallbacks for when we can't hear modification requests after multiple tries."""
+    # Get user response
+    user_resp = (request.form.get('SpeechResult', '') or "").lower()
+    dtmf_input = request.form.get('Digits', '')
+    
+    # Create response
+    response = VoiceResponse()
+    
+    # If they pressed 1 or said to keep order, confirm as is
+    if dtmf_input == '1' or "keep" in user_resp or "as is" in user_resp:
+        # Reset modification silence counter
+        session['modify_silence_retry'] = 0
+        
+        # Redirect to confirmation
+        response.redirect('/confirm_order_after_modification')
+        return Response(str(response), mimetype='text/xml')
+    # If they pressed 2 or said to cancel, go back to main menu
+    elif dtmf_input == '2' or "cancel" in user_resp:
+        # Reset session variables for ordering
+        session['modify_silence_retry'] = 0
+        session['modification_in_progress'] = False
+        response.redirect('/main_menu_fallback')
+        return Response(str(response), mimetype='text/xml')
+    # Otherwise try again with their speech input (if they provided any)
+    elif user_resp:
+        # Their response might be a modification attempt, so pass it to new_modify_order
+        response.redirect('/new_modify_order')
+        return Response(str(response), mimetype='text/xml')
+    else:
+        # No input provided, just confirm the current order as is
+        response.redirect('/confirm_order_after_modification')
+        return Response(str(response), mimetype='text/xml')
     
     return Response(str(response), mimetype='text/xml')
 
