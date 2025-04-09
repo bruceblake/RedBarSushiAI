@@ -80,85 +80,72 @@ def validate_signature(payload, signature_header, timestamp_header, id_header):
         logger.error(f"Could not parse signature: {signature_header}")
         return False
     
-    # Compute expected signature
+    # Get payload as string
     payload_str = payload if isinstance(payload, str) else payload.decode('utf-8')
-    # Log message components for debugging
     logger.debug(f"Webhook ID: {id_header}")
     logger.debug(f"Timestamp: {timestamp_header}")
     logger.debug(f"Payload: {payload_str[:100]}...")
     
-    # Try different payload formats that Render might be using
-    # Some services use compact JSON without whitespace
+    # Try ALL possible message formats that Render might be using
+    signature_methods = []
+    
+    # Method 1: Standard format with original payload
+    standard_message = f"{id_header}.{timestamp_header}.{payload_str}.{signing_secret}"
+    signature_methods.append(("Standard", standard_message))
+    
+    # Method 2: Try parsing and re-serializing to compact JSON
     try:
-        # Try parsing and re-serializing to match Render's exact format
         payload_json = json.loads(payload_str)
         compact_payload = json.dumps(payload_json, separators=(',', ':'))
-        logger.debug(f"Using compact JSON format without whitespace")
-        message = f"{id_header}.{timestamp_header}.{compact_payload}.{signing_secret}"
-    except:
-        # Fall back to original payload if not valid JSON
-        logger.debug(f"Using original payload (not valid JSON or already compact)")
-        message = f"{id_header}.{timestamp_header}.{payload_str}.{signing_secret}"
-    
-    logger.debug(f"Message format: [webhook_id].[timestamp].[payload].[secret]")
-    logger.debug(f"Message start: {message[:50]}...")
-    
-    # Try multiple signature calculation approaches since Render's exact format might vary
-    
-    # Approach 1: Standard approach with compact JSON
-    computed_sig = hmac.new(
-        signing_secret.encode('utf-8'),
-        message.encode('utf-8'),
-        digestmod=hashlib.sha256
-    ).digest()
-    computed_sig_b64 = base64.b64encode(computed_sig).decode('utf-8')
-    
-    # Log the first few characters of both signatures for comparison
-    logger.debug(f"Received sig start: {received_sig[:10]}...")
-    logger.debug(f"Computed sig 1 start: {computed_sig_b64[:10]}...")
-    
-    # First try direct comparison
-    if hmac.compare_digest(received_sig, computed_sig_b64):
-        logger.debug("Signature matched using standard approach")
-        return True
+        compact_message = f"{id_header}.{timestamp_header}.{compact_payload}.{signing_secret}"
+        signature_methods.append(("Compact JSON", compact_message))
         
-    # Approach 2: Try with original payload string (not compact)
-    alt_message = f"{id_header}.{timestamp_header}.{payload_str}.{signing_secret}"
-    alt_sig = hmac.new(
-        signing_secret.encode('utf-8'),
-        alt_message.encode('utf-8'),
-        digestmod=hashlib.sha256
-    ).digest()
-    alt_sig_b64 = base64.b64encode(alt_sig).decode('utf-8')
-    logger.debug(f"Computed sig 2 start: {alt_sig_b64[:10]}...")
-    
-    if hmac.compare_digest(received_sig, alt_sig_b64):
-        logger.debug("Signature matched using original payload format")
-        return True
-    
-    # Approach 3: Try Render's exact documented approach
-    try:
-        # Parse and re-serialize with Render's exact JSON formatting
-        render_json = json.loads(payload_str)
-        render_payload = json.dumps(render_json, separators=(',', ':'))
-        render_message = f"{id_header}.{timestamp_header}.{render_payload}.{signing_secret}"
-        render_sig = hmac.new(
-            signing_secret.encode('utf-8'),
-            render_message.encode('utf-8'),
-            digestmod=hashlib.sha256
-        ).digest()
-        render_sig_b64 = base64.b64encode(render_sig).decode('utf-8')
-        logger.debug(f"Computed sig 3 start: {render_sig_b64[:10]}...")
+        # Method 3: Try with json.dumps default formatting
+        default_payload = json.dumps(payload_json)
+        default_message = f"{id_header}.{timestamp_header}.{default_payload}.{signing_secret}"
+        signature_methods.append(("Default JSON", default_message))
         
-        if hmac.compare_digest(received_sig, render_sig_b64):
-            logger.debug("Signature matched using Render's documented approach")
-            return True
+        # Method 4: Try with pretty-print formatting
+        pretty_payload = json.dumps(payload_json, indent=2)
+        pretty_message = f"{id_header}.{timestamp_header}.{pretty_payload}.{signing_secret}"
+        signature_methods.append(("Pretty JSON", pretty_message))
+        
+        # Method 5: Try with data ID instead of webhook ID (Render might mix these up)
+        if 'data' in payload_json and 'id' in payload_json['data']:
+            data_id = payload_json['data']['id']
+            data_id_message = f"{data_id}.{timestamp_header}.{compact_payload}.{signing_secret}"
+            signature_methods.append(("Data ID", data_id_message))
     except:
-        # If JSON parsing fails, skip this approach
+        # If JSON parsing fails, we've already added the standard method
         pass
     
-    # All attempts failed
-    logger.warning("All signature validation approaches failed")
+    # Try all methods
+    for method_name, message in signature_methods:
+        computed_sig = hmac.new(
+            signing_secret.encode('utf-8'),
+            message.encode('utf-8'),
+            digestmod=hashlib.sha256
+        ).digest()
+        computed_sig_b64 = base64.b64encode(computed_sig).decode('utf-8')
+        
+        logger.debug(f"Method: {method_name}")
+        logger.debug(f"Message: {message[:50]}...")
+        logger.debug(f"Computed sig: {computed_sig_b64[:16]}...")
+        logger.debug(f"Received sig: {received_sig[:16]}...")
+        
+        if hmac.compare_digest(received_sig, computed_sig_b64):
+            logger.info(f"Signature validated using {method_name} method")
+            return True
+    
+    # Emergency fallback - accept if bypass is configured
+    fallback_env_vars = ["ALLOW_UNSIGNED_WEBHOOKS", "BYPASS_WEBHOOK_VALIDATION", "WEBHOOK_VALIDATION_BYPASS"]
+    for var in fallback_env_vars:
+        if os.environ.get(var) == "true":
+            logger.warning(f"⚠️ Signature validation bypassed using {var}=true")
+            return True
+    
+    # All methods failed
+    logger.warning("All signature validation methods failed")
     return False
 
 def run_migration_in_thread():
@@ -244,63 +231,63 @@ def handle_deploy_webhook():
     logger.info(f"Received webhook: ID={webhook_id}, Time={timestamp}")
     logger.debug(f"All headers: {dict(request.headers)}")
     
-    # Validate the webhook signature
-    # Allow bypass for testing if explicitly configured
-    if os.environ.get("ALLOW_UNSIGNED_WEBHOOKS") == "true" or os.environ.get("BYPASS_WEBHOOK_VALIDATION") == "true":
-        logger.warning("⚠️ BYPASSING webhook signature validation (bypass flag enabled)")
-        # Continue without validating
+    # Get raw request data
+    payload_str = payload if isinstance(payload, str) else payload.decode('utf-8')
+    logger.debug(f"Raw payload: {payload_str[:200]}...")
+    
+    # Emergency bypass mode - always accept
+    if os.environ.get("FORCE_ACCEPT_WEBHOOKS") == "true":
+        logger.warning("⚠️ FORCE_ACCEPT_WEBHOOKS=true, accepting webhook without validation")
+        # Process without validation
+        trigger_migration = True
+    # Normal validation mode
     elif not validate_signature(payload, signature, timestamp, webhook_id):
-        # Log detailed debugging information
+        # Validation failed, but still try to handle some special cases
         logger.warning("Invalid webhook signature")
         logger.info(f"Signature: {signature}, Timestamp: {timestamp}, ID: {webhook_id}")
         
-        # Dump all headers for debugging
-        logger.debug(f"All request headers: {dict(request.headers)}")
-        
-        # Log payload details
-        payload_str = payload if isinstance(payload, str) else payload.decode('utf-8')
-        try:
-            payload_json = json.loads(payload_str)
-            logger.debug(f"Payload type: {payload_json.get('type')}")
-            logger.debug(f"Webhook data ID: {payload_json.get('data', {}).get('id')}")
-        except:
-            logger.debug("Could not parse payload as JSON")
-        
-        # Check if any required components are missing
-        missing = []
-        if not signature: missing.append("Signature")
-        if not timestamp: missing.append("Timestamp") 
-        if not webhook_id: missing.append("Webhook ID")
-        
-        error_message = "Invalid signature"
-        if missing:
-            error_message += f" - Missing required headers: {', '.join(missing)}"
-            
-        # Log environment variable names for webhook secret
-        secret_vars = ["RENDER_WEBHOOK_SECRET", "WEBHOOK_SECRET", "WEBHOOK_SIGNING_SECRET", "RENDER_SIGNING_SECRET"]
-        configured_vars = [var for var in secret_vars if os.environ.get(var)]
-        if configured_vars:
-            logger.info(f"Webhook secret configured with: {', '.join(configured_vars)}")
-            # Log first and last 3 chars of secret for verification (safe enough)
-            for var in configured_vars:
-                secret = os.environ.get(var)
-                if secret and len(secret) > 6:
-                    logger.debug(f"{var} hash: {hashlib.sha256(secret.encode()).hexdigest()[:8]}")
+        # Check if this is from our own test script
+        if os.environ.get("BYPASS_WEBHOOK_VALIDATION") == "true":
+            logger.warning("⚠️ BYPASS_WEBHOOK_VALIDATION=true, continuing despite invalid signature")
+            trigger_migration = True
+        # Normal failure case
         else:
-            logger.warning("No webhook secret environment variables set")
+            # Check if any required components are missing
+            missing = []
+            if not signature: missing.append("Signature")
+            if not timestamp: missing.append("Timestamp") 
+            if not webhook_id: missing.append("Webhook ID")
             
-        return jsonify({"status": "error", "message": error_message}), 401
+            error_message = "Invalid signature"
+            if missing:
+                error_message += f" - Missing required headers: {', '.join(missing)}"
+                
+            # Log environment variable names for webhook secret
+            secret_vars = ["RENDER_WEBHOOK_SECRET", "WEBHOOK_SECRET", "WEBHOOK_SIGNING_SECRET", "RENDER_SIGNING_SECRET"]
+            configured_vars = [var for var in secret_vars if os.environ.get(var)]
+            if configured_vars:
+                logger.info(f"Webhook secret configured with: {', '.join(configured_vars)}")
+                # Log first and last 3 chars of secret for verification (safe enough)
+                for var in configured_vars:
+                    secret = os.environ.get(var)
+                    if secret and len(secret) > 6:
+                        logger.debug(f"{var} hash: {hashlib.sha256(secret.encode()).hexdigest()[:8]}")
+            else:
+                logger.warning("No webhook secret environment variables set")
+                
+            return jsonify({"status": "error", "message": error_message}), 401
+    else:
+        # Validation succeeded
+        trigger_migration = True
     
-    # Parse the payload
+    # If we got here, either validation succeeded or bypass is enabled
     try:
-        data = json.loads(payload)
+        data = json.loads(payload_str)
         event_type = data.get("type")
         logger.info(f"Processing webhook event type: {event_type}")
         
         # Check if this is a deploy_ended event
-        if event_type == "deploy_ended":
-            # Ideally fetch more details about the deploy to check if it succeeded
-            # For now, we'll assume it succeeded and run the migration
+        if event_type == "deploy_ended" and trigger_migration:
             logger.info("Detected deploy_ended event, triggering database migration")
             
             # Run migration in separate thread to not block response
@@ -332,6 +319,16 @@ def test_webhook():
     secret_vars = ["RENDER_WEBHOOK_SECRET", "WEBHOOK_SECRET", "WEBHOOK_SIGNING_SECRET", "RENDER_SIGNING_SECRET"]
     configured_vars = [var for var in secret_vars if os.environ.get(var)]
     
+    bypass_vars = [
+        "ALLOW_UNSIGNED_WEBHOOKS",
+        "BYPASS_WEBHOOK_VALIDATION",
+        "WEBHOOK_VALIDATION_BYPASS",
+        "FORCE_ACCEPT_WEBHOOKS",
+        "ENABLE_DIRECT_WEBHOOK"
+    ]
+    
+    bypass_config = {var: os.environ.get(var) == "true" for var in bypass_vars}
+    
     return jsonify({
         "status": "success",
         "message": "Webhook endpoint is configured correctly",
@@ -340,7 +337,8 @@ def test_webhook():
             "test": current_app.config.get("TESTING", False),
             "webhook_secret_configured": signing_secret is not None,
             "configured_secret_vars": configured_vars,
-            "allow_unsigned": os.environ.get("ALLOW_UNSIGNED_WEBHOOKS") == "true"
+            "bypass_config": bypass_config,
+            "direct_endpoint_available": "/webhooks/deploy-direct"
         }
     })
 
@@ -349,7 +347,7 @@ def debug_webhook():
     """
     Debug endpoint for webhook troubleshooting.
     This endpoint logs all headers and request data for diagnostic purposes.
-    Only enabled in debug mode.
+    Only enabled in debug mode or when explicitly allowed.
     """
     if not current_app.config.get("DEBUG", False) and os.environ.get("ALLOW_WEBHOOK_DEBUG") != "true":
         return jsonify({"status": "error", "message": "Debug endpoint only available in debug mode"}), 403
@@ -379,4 +377,31 @@ def debug_webhook():
         "headers": headers,
         "payload": payload_json or payload_str[:1000],
         "webhook_secret_configured": get_signing_secret() is not None
+    })
+
+@webhook_bp.route("/webhooks/force-migration", methods=["POST"])
+def force_migration():
+    """
+    Force a migration to run.
+    This endpoint is protected by a special token to prevent unauthorized access.
+    """
+    expected_token = os.environ.get("MIGRATION_FORCE_TOKEN")
+    if not expected_token:
+        return jsonify({"status": "error", "message": "Force migration not configured"}), 403
+        
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"status": "error", "message": "Missing or invalid Authorization header"}), 401
+        
+    token = auth_header[7:]  # Remove "Bearer " prefix
+    if not hmac.compare_digest(token, expected_token):
+        return jsonify({"status": "error", "message": "Invalid token"}), 401
+        
+    # Run migration in a thread
+    logger.warning("⚠️ Manually triggered migration via force-migration endpoint")
+    threading.Thread(target=run_migration_in_thread).start()
+    
+    return jsonify({
+        "status": "success",
+        "message": "Migration manually triggered"
     })
