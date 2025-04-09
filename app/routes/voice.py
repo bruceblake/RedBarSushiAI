@@ -64,14 +64,40 @@ def receive_call():
 def take_name():
     full_speech = request.form.get('SpeechResult', '').strip()
     
-    # Use AI to intelligently extract the name
-    caller_name = extract_name_from_speech(full_speech)
+    # Check if speech is empty, which means the user was silent
+    if not full_speech:
+        response = VoiceResponse()
+        with response.gather(
+            input='speech',
+            action='/take_name',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            timeout=5  # Give the user more time to respond
+        ) as g:
+            g.say("I'm waiting for your name. Please tell me your name so I can help you with your order.")
+        return Response(str(response), mimetype="text/xml")
+    
+    # Use the enhanced AI agent to extract the name
+    caller_name = extract_name_with_agent(full_speech)
     
     if caller_name:
         session['caller_name'] = caller_name
         menu_prompt = f"Thanks, {session['caller_name']}! Press or say 1 to order, 2 for menu questions, 3 for a real person."
     else:
-        menu_prompt = "I didn't catch your name. Please say it clearly."
+        # Try again with a more specific prompt if we couldn't get the name
+        response = VoiceResponse()
+        with response.gather(
+            input='speech',
+            action='/take_name',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto"
+        ) as g:
+            g.say("I didn't catch your name. Could you please say just your first name clearly?")
+        return Response(str(response), mimetype="text/xml")
     
     response = VoiceResponse()
     with response.gather(
@@ -87,9 +113,74 @@ def take_name():
     return Response(str(response), mimetype="text/xml")
 
 
+def extract_name_with_agent(speech_text):
+    """
+    Use the AI agent to extract a name from speech text.
+    Falls back to regex-based extraction if agent isn't available.
+    
+    Args:
+        speech_text: The raw speech text from the user
+        
+    Returns:
+        str: The extracted name, or empty string if no name found
+    """
+    logger.info(f"Extracting name from: '{speech_text}'")
+    
+    # Check if OpenAI is available
+    try:
+        from app.utils.agent_utils import OPENAI_API_KEY, log_openai_request, log_openai_response
+        
+        if OPENAI_API_KEY:
+            logger.info("Using OpenAI for name extraction")
+            
+            # Prepare system message with instruction
+            messages = [
+                {"role": "system", "content": "You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY the name, nothing else."},
+                {"role": "user", "content": f"Extract the person's name from: '{speech_text}'. Respond with just the name, properly capitalized."}
+            ]
+            
+            # Log the request
+            log_openai_request("gpt-4o", messages, "extract_name")
+            
+            try:
+                import openai
+                response = openai.chat.completions.create(
+                    model="gpt-4o",
+                    messages=messages,
+                    max_tokens=20,  # Short response for just the name
+                    temperature=0  # Deterministic response
+                )
+                
+                # Log the response
+                log_openai_response(response, "extract_name")
+                
+                # Extract the name
+                if response and response.choices and response.choices[0].message:
+                    name = response.choices[0].message.content.strip()
+                    
+                    # Basic validation of returned name
+                    if name and len(name) > 1:
+                        # Make sure it's not an explanation
+                        if len(name.split()) <= 3 and not any(word in name.lower() for word in ["sorry", "couldn't", "extract", "doesn't"]):
+                            logger.info(f"Successfully extracted name: {name}")
+                            return name
+                        else:
+                            logger.warning(f"AI returned a non-name response: {name}")
+                    else:
+                        logger.warning("AI returned empty or very short name")
+            except Exception as e:
+                logger.error(f"Error using OpenAI for name extraction: {e}")
+    except ImportError:
+        logger.warning("OpenAI module not available for name extraction")
+    
+    # Fall back to regex-based extraction
+    logger.info("Falling back to regex-based name extraction")
+    return extract_name_from_speech(speech_text)
+
+
 def extract_name_from_speech(speech_text):
     """
-    Intelligently extract a name from speech text.
+    Intelligently extract a name from speech text using regex patterns.
     
     Args:
         speech_text: The raw speech text from the user
@@ -106,6 +197,9 @@ def extract_name_from_speech(speech_text):
         r"(?:my|this is|it'?s|the|i'm|i am|is|they call me|call me|you can call me)\s+(?:name\s+is\s+)?([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
         # Just the name alone "John Smith"
         r"^([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})$",
+        # Patterns for different cultures and formats
+        r"(?:i'm called|i am called|i go by|people call me)\s+([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
+        r"(?:the name's|names|my name's)\s+([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
     ]
     
     # Normalize the text
@@ -126,7 +220,8 @@ def extract_name_from_speech(speech_text):
         return " ".join(word.capitalize() for word in words)
     else:
         # Take the first two words if they seem like a name (not common speech fillers)
-        common_fillers = ["um", "uh", "so", "well", "like", "yes", "no", "yeah", "hi", "hello", "hey"]
+        common_fillers = ["um", "uh", "so", "well", "like", "yes", "no", "yeah", "hi", "hello", "hey", 
+                         "this", "the", "a", "an", "what", "where", "when", "who", "why", "how"]
         potential_name = []
         
         for word in words[:3]:  # Look at first 3 words at most
