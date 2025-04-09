@@ -177,6 +177,28 @@ class Location(db.Model):
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 ```
 
+### Database Migration
+When deploying a new version of the codebase, you may need to run the database migration script to add new columns to your existing database:
+
+```bash
+# Run the migration script
+python migrate_db.py
+
+# Alternatively, use environment variables for database connection
+DATABASE_URL=postgresql://user:password@host:port/dbname python migrate_db.py
+```
+
+The migration script adds the following columns to the `Order` table:
+- `status_code` - Numeric code for the status (from Deliverect)
+- `status_updated_at` - Timestamp of the last status update
+- `delivery_status` - Status specific to delivery (for delivery orders)
+- `delivery_status_code` - Numeric code for delivery status
+- `courier_name` - Name of the delivery courier
+- `courier_phone` - Phone number of the delivery courier
+- `estimated_delivery_time` - When the delivery is expected to arrive
+
+The code includes fallback mechanisms to handle database schemas that haven't been migrated yet, but running the migration script is recommended for full functionality.
+
 ## Status Code Reference
 
 ### POS Status Codes
