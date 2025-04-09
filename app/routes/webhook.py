@@ -164,7 +164,3 @@ def test_webhook():
             "webhook_secret_configured": get_signing_secret() is not None
         }
     })
-
-def init_app(app):
-    """Register the blueprint with the Flask app."""
-    app.register_blueprint(webhook_bp)

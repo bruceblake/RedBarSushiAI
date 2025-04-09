@@ -237,6 +237,23 @@ The `migrate_sms_tracking.py` script has been updated to fix transaction issues.
 
 This fixes the "current transaction is aborted, commands ignored until end of transaction block" error that could occur with the previous implementation.
 
+### Automatic Migration with Render Webhooks
+
+We've also implemented an automated migration system using Render webhooks:
+
+1. **Webhook Integration**: A webhook endpoint at `/webhooks/deploy` receives deploy notifications from Render
+2. **Automatic Execution**: When a successful deployment completes, the migration script runs automatically
+3. **Secure Validation**: All webhooks are validated using HMAC-SHA256 signatures
+4. **Asynchronous Processing**: Migrations run in a background thread to not block the response
+
+To set this up in your Render environment:
+- Configure a webhook in your Render Dashboard (Integrations > Webhooks)
+- Set the webhook URL to your application's `/webhooks/deploy` endpoint
+- Select the "Deploy Ended" event type
+- Set the `RENDER_WEBHOOK_SECRET` environment variable in your Render service
+
+This enables fully automated database schema maintenance with each deployment.
+
 ## Troubleshooting
 
 ### SMS Command Issue Fixes
