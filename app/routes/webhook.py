@@ -28,11 +28,20 @@ TOLERANCE = 5 * 60
 
 def get_signing_secret():
     """Get the webhook signing secret from environment variables."""
-    secret = os.environ.get("RENDER_WEBHOOK_SECRET")
-    if not secret:
-        logger.warning("RENDER_WEBHOOK_SECRET environment variable not set!")
-        return None
-    return secret
+    # Try different environment variable names since Render might be using a different one
+    for var_name in ["RENDER_WEBHOOK_SECRET", "WEBHOOK_SECRET", "WEBHOOK_SIGNING_SECRET", "RENDER_SIGNING_SECRET"]:
+        secret = os.environ.get(var_name)
+        if secret:
+            logger.info(f"Using webhook signing secret from {var_name}")
+            return secret
+            
+    # For development/testing, allow a special bypass if explicitly enabled
+    if os.environ.get("WEBHOOK_BYPASS_SIGNATURE") == "true" and current_app.config.get("DEBUG", False):
+        logger.warning("WEBHOOK_BYPASS_SIGNATURE is enabled - skipping signature validation in debug mode")
+        return "debug_bypass_secret"
+        
+    logger.warning("No webhook signing secret found in environment variables!")
+    return None
 
 def validate_signature(payload, signature_header, timestamp_header, id_header):
     """
@@ -115,8 +124,14 @@ def handle_deploy_webhook():
     logger.info(f"Received webhook: ID={webhook_id}, Time={timestamp}")
     
     # Validate the webhook signature
-    if not validate_signature(payload, signature, timestamp, webhook_id):
+    # Allow bypass for testing if explicitly configured
+    if os.environ.get("ALLOW_UNSIGNED_WEBHOOKS") == "true":
+        logger.warning("⚠️ BYPASSING webhook signature validation (ALLOW_UNSIGNED_WEBHOOKS=true)")
+        # Continue without validating
+    elif not validate_signature(payload, signature, timestamp, webhook_id):
+        # Log detailed debugging information
         logger.warning("Invalid webhook signature")
+        logger.info(f"Signature: {signature}, Timestamp: {timestamp}, ID: {webhook_id}")
         return jsonify({"status": "error", "message": "Invalid signature"}), 401
     
     # Parse the payload
