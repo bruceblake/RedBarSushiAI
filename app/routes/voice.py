@@ -272,23 +272,72 @@ def extract_name_from_speech(speech_text):
 
 @voice_bp.route('/main_menu_fallback', methods=['POST', 'GET'])
 def main_menu_fallback():
-    """Fallback route for when we couldn't get a name but need to continue"""
+    """
+    Fallback for when we can't get a name or other input.
+    Simply set a default name and continue with DTMF-focused options.
+    """
     # Set a generic name if we don't have one
     if 'caller_name' not in session or not session['caller_name']:
-        session['caller_name'] = "Customer"
+        session['caller_name'] = "Valued Customer"
     
-    # Redirect to the main menu with a special message
+    # Reset all retry counters
+    session['silence_retry_count'] = 0
+    session['menu_silence_retry_count'] = 0
+    session['menu_question_silence'] = 0
+    session['order_silence_retry'] = 0
+    session['understand_retry'] = 0
+    session['modify_silence_retry'] = 0
+    
+    logger.info("Entering main_menu_fallback - all silence counters reset")
+    
+    # Create voice response focused on DTMF input
     response = VoiceResponse()
     with response.gather(
-        input='speech dtmf',
+        input='dtmf speech',  # Allow both but emphasize DTMF in the prompt
         action='/main_menu',
-        enhanced=True,
-        speech_model="phone_call",
-        language="en-US",
-        speech_timeout="auto",
-        num_digits=1
+        num_digits=1,
+        timeout=20,  # Extended timeout to give plenty of time
+        speech_timeout=15
     ) as g:
-        g.say(f"Welcome to Red Bar Sushi! Press 1 to order, 2 for menu questions, 3 for a real person.")
+        g.say(
+            f"Welcome to Red Bar Sushi! We may be having trouble hearing you. Please use your phone keypad. Press 1 to order, press 2 for menu questions, or press 3 to speak with a person.")
+        # Add a brief pause to give them time to process
+        g.pause(length=1)
+        g.say("Again, press 1 to order, 2 for menu, or 3 for help.")
+    
+    # Add fallback if we still get nothing - in the worst case, don't hang up
+    response.redirect('/main_menu_dtmf_only')
+    
+    return Response(str(response), mimetype='text/xml')
+
+@voice_bp.route('/main_menu_dtmf_only', methods=['POST', 'GET'])
+def main_menu_dtmf_only():
+    """
+    Last resort fallback that only accepts DTMF input.
+    """
+    logger.warning("Entering DTMF-only mode - audio quality may be very poor")
+    
+    response = VoiceResponse()
+    with response.gather(
+        input='dtmf',  # DTMF only
+        action='/main_menu',
+        num_digits=1,
+        timeout=30  # Very long timeout
+    ) as g:
+        g.say(
+            "We're having trouble with the audio connection. Please use your phone keypad only.")
+        g.pause(length=1)
+        g.say("Press 1 to place an order.")
+        g.pause(length=1)
+        g.say("Press 2 for menu information.")
+        g.pause(length=1)
+        g.say("Press 3 to speak with a staff member.")
+        g.pause(length=3)
+        g.say("Press any key now to continue.")
+    
+    # If we still don't get any input, provide a friendly message and end the call
+    response.say("We apologize for the technical difficulties. Please call back or visit our website at redbar sushi dot com. Thank you for your patience.")
+    
     return Response(str(response), mimetype='text/xml')
 
 @voice_bp.route('/main_menu', methods=['POST'])
@@ -320,17 +369,39 @@ def main_menu():
     # Handle silence by incrementing counter and giving appropriate prompts
     if silence:
         session['menu_silence_retry_count'] = silence_retry_count + 1
+        logger.info(f"Menu silence detected. Retry count: {silence_retry_count+1}")
         
-        # After multiple silences, give clearer instructions
-        if silence_retry_count >= 2:
+        # After multiple silences, give clearer instructions with progressively more help
+        if silence_retry_count >= 3:
+            # Too many silent attempts, use a super clear message with long timeout
+            logger.warning("Multiple silences detected in main menu, going to DTMF-only mode")
             with response.gather(
-                input='dtmf',
+                input='dtmf speech',
                 action='/main_menu',
                 num_digits=1,
-                timeout=10
+                timeout=15,
+                speech_timeout=15  # Much longer timeout
             ) as g:
                 g.say(
-                    "I'm having trouble hearing you. Please press 1 to order, 2 for menu questions, or 3 for a real person.")
+                    "I can't hear you clearly. Please press 1 on your keypad to order, press 2 for menu questions, or press 3 to speak with a person. You can also try speaking louder.")
+                
+            # If we still get nothing, redirect to a basic menu that doesn't require speech
+            response.redirect('/main_menu_fallback')
+            return Response(str(response), mimetype='text/xml')
+        elif silence_retry_count >= 1:
+            # First retry with better guidance and speech + DTMF
+            with response.gather(
+                input='dtmf speech',
+                action='/main_menu',
+                num_digits=1,
+                timeout=12,
+                speech_timeout=12
+            ) as g:
+                g.say(
+                    "I'm having trouble hearing you. Please press 1 to order, 2 for menu questions, or 3 for a real person. Or you can speak your choice clearly.")
+            
+            # If still nothing, we'll redirect to handle that case
+            response.redirect('/main_menu')
             return Response(str(response), mimetype='text/xml')
     else:
         # Reset counter when we get input
@@ -390,28 +461,45 @@ def handle_menu_questions():
         session['menu_question_silence'] = menu_silence_retry + 1
         
         response = VoiceResponse()
-        if menu_silence_retry >= 2:
-            # After multiple silences, provide more options
+        if menu_silence_retry >= 3:
+            # After too many silences, redirect to fallback mode
+            logger.warning("Too many silences in menu questions, redirecting to fallback")
+            response.redirect('/main_menu_fallback')
+            return Response(str(response), mimetype='text/xml')
+        elif menu_silence_retry >= 1:
+            # After first or second attempt, provide more options with both speech and DTMF
             with response.gather(
-                input='dtmf',
-                action='/main_menu',
+                input='speech dtmf',
+                action='/handle_menu_questions',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=12,
+                timeout=15,
                 num_digits=1,
-                timeout=10
+                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls" # Help Twilio recognize common items
             ) as g:
-                g.say("I'm having trouble hearing you. Press 1 to order, 2 for menu questions, or 3 to speak with a person.")
+                g.say("I'm having trouble hearing you. You can ask about our menu items by speaking clearly, or press 1 to hear our most popular items, press 2 to return to the main menu.")
+            
+            # Provide a fallback if gather fails
+            response.redirect('/main_menu')
             return Response(str(response), mimetype='text/xml')
         else:
-            # Retry with a prompt
+            # First retry with a prompt
             with response.gather(
                 input='speech',
                 action='/handle_menu_questions',
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
-                speech_timeout="auto",
-                timeout=8  # Give more time
+                speech_timeout=10, # Use fixed timeout
+                timeout=12,  # Give more time
+                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls" # Help Twilio recognize common items
             ) as g:
                 g.say("I didn't hear your question. You can ask about our menu items, prices, or special rolls. What would you like to know?")
+            
+            # Add fallback in case this gather fails too
+            response.redirect('/handle_menu_questions')
             return Response(str(response), mimetype='text/xml')
     
     # Reset silence counter when we get speech

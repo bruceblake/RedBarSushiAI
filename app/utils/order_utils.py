@@ -49,7 +49,7 @@ def dtmf_yes_no(dtmf: str) -> str:
     return None
 
 def build_order_description(order_items: List[Dict[str, Any]]) -> str:
-    """Build a text description of the order."""
+    """Build a text description of the order with grouped items."""
     description = []
     
     # Separate available and unavailable items
@@ -63,18 +63,42 @@ def build_order_description(order_items: List[Dict[str, Any]]) -> str:
         else:
             available_items.append(item)
     
-    # Process available items first
+    # Group available items by name and modifiers
+    grouped_items = {}
     for item in available_items:
-        quantity = item.get("quantity", 1)
         name = item.get("name", "unknown item")
+        quantity = item.get("quantity", 1)
         modifiers = item.get("modifier", [])
         
-        if not modifiers:
-            # Format with quantity × item name
-            description.append(f"- {quantity}× {name}")
+        # Create a key that includes the name and modifiers
+        if modifiers:
+            # Sort modifiers to ensure consistent grouping
+            sorted_mods = sorted(modifiers, key=lambda x: x.get("name", ""))
+            mod_key = tuple([(mod.get("name", ""), mod.get("quantity", 1)) for mod in sorted_mods])
+            key = (name, mod_key)
         else:
-            mods = ", ".join([f"{mod.get('quantity', 1)}× {mod.get('name','')}" for mod in modifiers])
-            description.append(f"- {quantity}× {name} with {mods}")
+            key = (name, ())
+        
+        # Add to the grouped items
+        if key in grouped_items:
+            grouped_items[key] += quantity
+        else:
+            grouped_items[key] = quantity
+    
+    # Format grouped items
+    for (name, mod_key), total_quantity in grouped_items.items():
+        if not mod_key:  # No modifiers
+            description.append(f"- {total_quantity} {name}")
+        else:
+            mod_strs = []
+            for mod_name, mod_quantity in mod_key:
+                if mod_quantity > 1:
+                    mod_strs.append(f"{mod_quantity} {mod_name}")
+                else:
+                    mod_strs.append(mod_name)
+            
+            mods_text = ", ".join(mod_strs)
+            description.append(f"- {total_quantity} {name} with {mods_text}")
     
     # Add unavailable items with clear indication
     if unavailable_items:

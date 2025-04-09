@@ -120,13 +120,16 @@ def send_confirmation_sms_task(self, order_id, order_message, sender, caller_nam
             lines = base_message.split('\n')
             for line in lines:
                 if line.startswith('- '):  # This is an item line
-                    # Ensure item quantity is properly formatted with × symbol
-                    if ' × ' not in line and ' x ' not in line:
-                        # Try to parse and reformat
+                    # Remove special formatting and just use a plain number
+                    if line.startswith('- '):
+                        # Try to parse and reformat without "×" or "TIMES"
                         parts = line.strip('- ').split(' ', 1)
                         if len(parts) == 2 and parts[0].isdigit():
                             quantity, name = parts
-                            line = f"- {quantity}× {name}"
+                            line = f"- {quantity} {name}"
+                        elif '×' in line or 'x' in line:
+                            # Replace "3×" or "3x" with just "3"
+                            line = re.sub(r'(\d+)[×x]', r'\1', line)
                     
                     order_items_text += line + "\n"
                 elif "total" in line.lower():  # This is the total line
@@ -332,15 +335,18 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
                 try:
                     items_section = order.message.split("YOUR ORDER:")[1].split("\n\n")[0] if "YOUR ORDER:" in order.message else ""
                     if items_section:
-                        # Ensure consistent formatting with × for quantities
+                        # Format quantities without "×" symbol
                         formatted_lines = []
                         for line in items_section.strip().split('\n'):
                             if line.startswith('- '):
-                                if ' × ' not in line and ' x ' not in line:
-                                    parts = line.strip('- ').split(' ', 1)
-                                    if len(parts) == 2 and parts[0].isdigit():
-                                        quantity, name = parts
-                                        line = f"- {quantity}× {name}"
+                                # Try to parse and reformat without "×" or "TIMES"
+                                parts = line.strip('- ').split(' ', 1)
+                                if len(parts) == 2 and parts[0].isdigit():
+                                    quantity, name = parts
+                                    line = f"- {quantity} {name}"
+                                elif '×' in line or 'x' in line:
+                                    # Replace "3×" or "3x" with just "3"
+                                    line = re.sub(r'(\d+)[×x]', r'\1', line)
                             formatted_lines.append(line)
                         order_items = '\n'.join(formatted_lines)
                 except:
