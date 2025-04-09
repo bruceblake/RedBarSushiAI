@@ -66,18 +66,45 @@ def take_name():
     
     # Check if speech is empty, which means the user was silent
     if not full_speech:
+        # Track how many silence retries we've done
+        silence_retry_count = session.get('silence_retry_count', 0)
+        session['silence_retry_count'] = silence_retry_count + 1
+        
         response = VoiceResponse()
-        with response.gather(
-            input='speech',
-            action='/take_name',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=5  # Give the user more time to respond
-        ) as g:
+        
+        # Vary the message based on how many times we've tried
+        if silence_retry_count >= 2:
+            # After multiple silent attempts, give a more directive prompt
+            g = response.gather(
+                input='speech dtmf',
+                action='/take_name',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                timeout=7  # Give more time
+            )
+            g.say("I need your name to continue. Please say your name or press any key to continue.")
+            
+            # Add a fallback to continue even without a name after too many silent attempts
+            response.redirect('/main_menu_fallback')
+        else:
+            # Normal prompt for the first retry
+            g = response.gather(
+                input='speech',
+                action='/take_name',
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout="auto",
+                timeout=7  # Give more time
+            )
             g.say("I'm waiting for your name. Please tell me your name so I can help you with your order.")
+        
         return Response(str(response), mimetype="text/xml")
+    
+    # Reset silence counter when we get speech
+    session['silence_retry_count'] = 0
     
     # Use the enhanced AI agent to extract the name
     caller_name = extract_name_with_agent(full_speech)
@@ -89,14 +116,15 @@ def take_name():
         # Try again with a more specific prompt if we couldn't get the name
         response = VoiceResponse()
         with response.gather(
-            input='speech',
+            input='speech dtmf',
             action='/take_name',
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto"
+            speech_timeout="auto",
+            timeout=7  # Give more time
         ) as g:
-            g.say("I didn't catch your name. Could you please say just your first name clearly?")
+            g.say("I didn't catch your name. Please say just your first name clearly, or press any key to continue.")
         return Response(str(response), mimetype="text/xml")
     
     response = VoiceResponse()
@@ -242,10 +270,36 @@ def extract_name_from_speech(speech_text):
     return ""
 
 
+@voice_bp.route('/main_menu_fallback', methods=['POST', 'GET'])
+def main_menu_fallback():
+    """Fallback route for when we couldn't get a name but need to continue"""
+    # Set a generic name if we don't have one
+    if 'caller_name' not in session or not session['caller_name']:
+        session['caller_name'] = "Customer"
+    
+    # Redirect to the main menu with a special message
+    response = VoiceResponse()
+    with response.gather(
+        input='speech dtmf',
+        action='/main_menu',
+        enhanced=True,
+        speech_model="phone_call",
+        language="en-US",
+        speech_timeout="auto",
+        num_digits=1
+    ) as g:
+        g.say(f"Welcome to Red Bar Sushi! Press 1 to order, 2 for menu questions, 3 for a real person.")
+    return Response(str(response), mimetype='text/xml')
+
 @voice_bp.route('/main_menu', methods=['POST'])
 def main_menu():
     user_resp = (request.form.get('SpeechResult', '') or "").lower()
     dtmf_input = request.form.get('Digits', '')
+    
+    # Track silence for retries
+    silence = not user_resp and not dtmf_input
+    silence_retry_count = session.get('menu_silence_retry_count', 0)
+    
     choice = None
     if dtmf_input == '1':
         choice = 'order'
@@ -263,6 +317,25 @@ def main_menu():
     
     response = VoiceResponse()
     
+    # Handle silence by incrementing counter and giving appropriate prompts
+    if silence:
+        session['menu_silence_retry_count'] = silence_retry_count + 1
+        
+        # After multiple silences, give clearer instructions
+        if silence_retry_count >= 2:
+            with response.gather(
+                input='dtmf',
+                action='/main_menu',
+                num_digits=1,
+                timeout=10
+            ) as g:
+                g.say(
+                    "I'm having trouble hearing you. Please press 1 to order, 2 for menu questions, or 3 for a real person.")
+            return Response(str(response), mimetype='text/xml')
+    else:
+        # Reset counter when we get input
+        session['menu_silence_retry_count'] = 0
+    
     if choice == 'order' and channel_status == 1:
         session['ordering_in_progress'] = True
         with response.gather(
@@ -271,7 +344,8 @@ def main_menu():
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto"
+            speech_timeout="auto",
+            timeout=7  # Give more time
         ) as g:
             g.say("Please tell me what you would like to order.")
     elif choice == 'ask_menu':
@@ -281,7 +355,8 @@ def main_menu():
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto"
+            speech_timeout="auto",
+            timeout=7  # Give more time
         ) as g:
             g.say(
                 "You can ask for the menu, prices, descriptions, or say what you'd like to order.")
@@ -296,6 +371,7 @@ def main_menu():
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
+            timeout=7,  # Give more time
             num_digits=1
         ) as g:
             g.say(
