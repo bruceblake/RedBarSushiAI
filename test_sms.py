@@ -338,6 +338,46 @@ def test_webhook_config(app):
         logger.error(f"Error testing webhook config: {e}")
         return False, str(e)
 
+def test_migration():
+    """Test the database migration script without actually running migrations"""
+    try:
+        # Import the migration module
+        import migrate_sms_tracking
+        
+        # Get the database URL (without actually connecting)
+        db_url = migrate_sms_tracking.get_database_url()
+        
+        # Parse the URL (without connecting)
+        db_params = migrate_sms_tracking.parse_db_url(db_url)
+        
+        # Print configuration details
+        print("\n=== DATABASE MIGRATION TEST ===")
+        print(f"Database URL: {db_url}")
+        print(f"Database name: {db_params['dbname']}")
+        print(f"Database host: {db_params['host']}")
+        print(f"Database port: {db_params['port']}")
+        print(f"Database user: {db_params['user']}")
+        
+        # Describe the columns that would be added
+        print("\nColumns that would be added (if they don't exist):")
+        for column_name, column_type in [
+            ('sms_sid', 'VARCHAR(50)'),
+            ('sms_status', 'VARCHAR(20)'),
+            ('sms_error_code', 'INTEGER'),
+            ('sms_error_message', 'VARCHAR(255)')
+        ]:
+            print(f"  - {column_name}: {column_type}")
+        
+        print("\n✅ Migration script configuration test passed!")
+        print("\nTo perform the actual migration, run:")
+        print("  python migrate_sms_tracking.py")
+        
+        return True, "Migration script configuration test passed"
+    
+    except Exception as e:
+        logger.error(f"Error testing migration script: {e}")
+        return False, str(e)
+
 def print_help():
     """Print help information about this script"""
     print("\n🍣 RED BAR SUSHI SMS TESTING TOOL 🍣")
@@ -354,7 +394,9 @@ def print_help():
     print("   python test_sms.py check")
     print("\n5. Test webhook configuration:")
     print("   python test_sms.py webhook")
-    print("\n6. Display this help message:")
+    print("\n6. Test database migration script:")
+    print("   python test_sms.py migration")
+    print("\n7. Display this help message:")
     print("   python test_sms.py help")
 
 def main():
@@ -381,6 +423,9 @@ def main():
     
     # Webhook command
     subparsers.add_parser('webhook', help='Test webhook configuration')
+    
+    # Migration command
+    subparsers.add_parser('migration', help='Test database migration script configuration')
     
     # Help command
     subparsers.add_parser('help', help='Show help information')
@@ -486,6 +531,22 @@ def main():
             return True
         else:
             print(f"\n❌ Failed to retrieve webhook configuration: {result}")
+            return False
+            
+    elif args.command == 'migration':
+        # Test migration script configuration
+        success, result = test_migration()
+        
+        if success:
+            return True
+        else:
+            print(f"\n❌ Migration script test failed: {result}")
+            
+            # Provide troubleshooting information
+            print("\nTroubleshooting steps:")
+            print("1. Check your database connection settings")
+            print("2. Make sure the SQLALCHEMY_DATABASE_URI or DATABASE_URL is set correctly")
+            print("3. Verify the database user has ALTER TABLE permissions")
             return False
     
     return True

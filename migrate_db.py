@@ -6,8 +6,8 @@ Run this script to update your database schema without losing existing data.
 import os
 import sys
 import logging
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime
-from sqlalchemy.sql import text
+import psycopg2
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,46 +29,99 @@ def get_database_url():
         
     return database_url
 
-def add_column_if_not_exists(conn, table_name, column_name, column_type, nullable=True):
-    """Add a column to a table if it doesn't exist."""
-    # Check if the column exists
+def parse_db_url(url):
+    """Parse a database URL into its components."""
+    # Remove postgresql:// prefix
+    if url.startswith('postgresql://'):
+        url = url[len('postgresql://'):]
+    
+    # Split user:password@host:port/dbname
+    auth, rest = url.split('@', 1)
+    host_port, dbname = rest.split('/', 1)
+    
+    # Handle user:password
+    if ':' in auth:
+        user, password = auth.split(':', 1)
+    else:
+        user = auth
+        password = ''
+    
+    # Handle host:port
+    if ':' in host_port:
+        host, port = host_port.split(':', 1)
+        port = int(port)
+    else:
+        host = host_port
+        port = 5432
+    
+    return {
+        'user': user,
+        'password': password,
+        'host': host,
+        'port': port,
+        'dbname': dbname
+    }
+
+def check_column_exists(cursor, table_name, column_name):
+    """Check if a column exists in a table."""
     try:
-        result = conn.execute(text(f"SELECT {column_name} FROM {table_name} LIMIT 0"))
+        cursor.execute(f"SELECT {column_name} FROM {table_name} LIMIT 0")
+        return True  # Column exists
+    except psycopg2.Error:
+        return False  # Column doesn't exist
+
+def add_column_if_not_exists(cursor, table_name, column_name, column_type, nullable=True):
+    """Add a column to a table if it doesn't exist."""
+    if check_column_exists(cursor, table_name, column_name):
         logger.info(f"Column {column_name} already exists in {table_name}.")
         return False  # Column exists
-    except Exception:
-        # Column doesn't exist, add it
-        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type} {'NULL' if nullable else 'NOT NULL'}"))
+    
+    # Column doesn't exist, add it
+    null_str = "NULL" if nullable else "NOT NULL"
+    try:
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type} {null_str}")
         logger.info(f"Added column {column_name} to {table_name}.")
         return True  # Column added
+    except psycopg2.Error as e:
+        logger.error(f"Error adding column {column_name}: {e}")
+        return False  # Failed to add column
 
 def run_migration():
     """Run the database migration."""
     database_url = get_database_url()
     
     try:
-        # Connect to the database
+        # Parse the database URL
         logger.info(f"Connecting to database: {database_url}")
-        engine = create_engine(database_url)
+        db_params = parse_db_url(database_url)
         
-        # Start a connection
-        with engine.connect() as conn:
+        # Connect directly using psycopg2 to avoid transaction issues
+        conn = psycopg2.connect(
+            user=db_params['user'],
+            password=db_params['password'],
+            host=db_params['host'],
+            port=db_params['port'],
+            dbname=db_params['dbname']
+        )
+        
+        # Set isolation level to avoid transaction issues
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        
+        # Create a cursor
+        with conn.cursor() as cursor:
             # Add necessary columns to order table
             added_any = False
             
             # Deliverect status tracking columns
-            added_any |= add_column_if_not_exists(conn, '"order"', 'status_code', 'INTEGER')
-            added_any |= add_column_if_not_exists(conn, '"order"', 'status_updated_at', 'TIMESTAMP')
+            added_any |= add_column_if_not_exists(cursor, '"order"', 'status_code', 'INTEGER')
+            added_any |= add_column_if_not_exists(cursor, '"order"', 'status_updated_at', 'TIMESTAMP')
             
             # Delivery tracking columns
-            added_any |= add_column_if_not_exists(conn, '"order"', 'delivery_status', 'VARCHAR(30)')
-            added_any |= add_column_if_not_exists(conn, '"order"', 'delivery_status_code', 'INTEGER')
-            added_any |= add_column_if_not_exists(conn, '"order"', 'courier_name', 'VARCHAR(50)')
-            added_any |= add_column_if_not_exists(conn, '"order"', 'courier_phone', 'VARCHAR(20)')
-            added_any |= add_column_if_not_exists(conn, '"order"', 'estimated_delivery_time', 'TIMESTAMP')
-            
-            # Commit the transaction
-            conn.execute(text("COMMIT"))
+            added_any |= add_column_if_not_exists(cursor, '"order"', 'delivery_status', 'VARCHAR(30)')
+            added_any |= add_column_if_not_exists(cursor, '"order"', 'delivery_status_code', 'INTEGER')
+            added_any |= add_column_if_not_exists(cursor, '"order"', 'courier_name', 'VARCHAR(50)')
+            added_any |= add_column_if_not_exists(cursor, '"order"', 'courier_phone', 'VARCHAR(20)')
+            added_any |= add_column_if_not_exists(cursor, '"order"', 'estimated_delivery_time', 'TIMESTAMP')
             
             if added_any:
                 logger.info("Migration completed successfully!")
@@ -79,6 +132,9 @@ def run_migration():
     except Exception as e:
         logger.error(f"Error during migration: {e}")
         return False
+    finally:
+        if 'conn' in locals() and conn is not None:
+            conn.close()
 
 if __name__ == "__main__":
     logger.info("Starting database migration")

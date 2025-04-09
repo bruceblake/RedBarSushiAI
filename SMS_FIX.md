@@ -225,6 +225,18 @@ This creates the following columns in the `order` table:
 - `sms_error_code`: VARCHAR (error code if delivery failed)
 - `sms_error_message`: VARCHAR (detailed error message)
 
+### Migration Script Improvements
+
+The `migrate_sms_tracking.py` script has been updated to fix transaction issues. Key improvements include:
+
+1. **Direct Database Connection**: Now uses `psycopg2` to connect directly to the database instead of SQLAlchemy
+2. **Auto-commit Mode**: Uses `ISOLATION_LEVEL_AUTOCOMMIT` to avoid transaction blocks that could be aborted
+3. **Enhanced Error Handling**: Better logging and connection cleanup
+4. **Idempotent Design**: Safe to run multiple times (only adds columns that don't exist)
+5. **Database URL Detection**: Gets connection info from environment variables or app config
+
+This fixes the "current transaction is aborted, commands ignored until end of transaction block" error that could occur with the previous implementation.
+
 ## Troubleshooting
 
 ### SMS Command Issue Fixes
@@ -259,6 +271,18 @@ This creates the following columns in the `order` table:
    - Check your Twilio account status (possible suspension)
    - Verify the recipient's phone format is correct (E.164 format)
    - Ensure the destination country is supported by your Twilio account
+
+4. **Database Migration Fails with Transaction Error**
+   - Error: "current transaction is aborted, commands ignored until end of transaction block"
+   - Solution: Use the updated `migrate_sms_tracking.py` script which uses direct psycopg2 connection with `ISOLATION_LEVEL_AUTOCOMMIT`
+   - Verify database user has ALTER TABLE permissions
+   - If the issue persists, you can run the SQL commands manually:
+     ```sql
+     ALTER TABLE "order" ADD COLUMN IF NOT EXISTS sms_sid VARCHAR(50);
+     ALTER TABLE "order" ADD COLUMN IF NOT EXISTS sms_status VARCHAR(20);
+     ALTER TABLE "order" ADD COLUMN IF NOT EXISTS sms_error_code INTEGER;
+     ALTER TABLE "order" ADD COLUMN IF NOT EXISTS sms_error_message VARCHAR(255);
+     ```
 
 ### Debugging Tools
 
