@@ -28,6 +28,21 @@ class Order(db.Model):
         
     def get_status_display(self):
         """Returns a user-friendly status description based on the status code"""
+        # Check if status_code attribute exists (for backward compatibility)
+        if not hasattr(self, 'status_code') or self.status_code is None:
+            # Fallback to traditional status mapping
+            status_map = {
+                "NEW": "received and is being processed",
+                "ACCEPTED": "accepted and being prepared",
+                "PREPARING": "now being prepared in the kitchen",
+                "READY": "ready for pickup! 🎉",
+                "COMPLETED": "completed. Thank you for your order! 🙏",
+                "FAILED": "could not be processed. Please call us",
+                "REJECTED": "could not be processed. Please call us",
+                "CANCELLED": "cancelled"
+            }
+            return status_map.get(self.status, self.status or "Processing")
+            
         # POS statuses
         if self.status_code == 10:
             return "New - Received by restaurant"

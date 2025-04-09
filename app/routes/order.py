@@ -886,6 +886,9 @@ def order_status():
     - 76-89: Delivery tracking statuses
     - 90-99: Completion statuses
     - 100+: Cancellation and error statuses
+    
+    Note: This endpoint has fallback mechanisms for databases that haven't been migrated
+    to support the new status_code and delivery tracking columns.
     """
     # Get request data
     data = request.get_json() or {}
@@ -916,43 +919,109 @@ def order_status():
     
     # Update order in database with comprehensive status information
     try:
-        order_record = db.session.query(Order).filter_by(id=order_id).first()
+        # First try to get the order
+        try:
+            order_record = db.session.query(Order).filter_by(id=order_id).first()
+        except Exception as db_err:
+            # If we get a column does not exist error, it means we haven't migrated the database yet
+            if "column order.status_code does not exist" in str(db_err):
+                log_info("Database schema needs migration. Using legacy query without new columns.")
+                # Use a simpler query that doesn't reference the new columns
+                sql = text("SELECT id, sender, caller_name, message, status, timestamp, location_id, "
+                           "sms_sid, sms_status, sms_error_code, sms_error_message "
+                           "FROM \"order\" WHERE id = :order_id LIMIT 1")
+                result = db.session.execute(sql, {"order_id": order_id})
+                row = result.fetchone()
+                if row:
+                    # Create Order object manually
+                    order_record = Order()
+                    order_record.id = row.id
+                    order_record.sender = row.sender
+                    order_record.caller_name = row.caller_name
+                    order_record.message = row.message
+                    order_record.status = row.status
+                    order_record.timestamp = row.timestamp
+                    order_record.location_id = row.location_id
+                    order_record.sms_sid = row.sms_sid
+                    order_record.sms_status = row.sms_status
+                    order_record.sms_error_code = row.sms_error_code
+                    order_record.sms_error_message = row.sms_error_message
+                    # Set additional attributes that will be needed but not in DB yet
+                    order_record.status_code = None
+                    order_record.status_updated_at = None
+                    order_record.delivery_status = None
+                    order_record.delivery_status_code = None
+                    order_record.courier_name = None
+                    order_record.courier_phone = None
+                    order_record.estimated_delivery_time = None
+                else:
+                    return jsonify({"error": "Order not found"}), 404
+            else:
+                # Re-raise if it's a different error
+                raise
+                
         if not order_record:
             return jsonify({"error": "Order not found"}), 404
         
         # Store original status for change detection
         previous_status = order_record.status
-        previous_code = order_record.status_code
+        previous_code = getattr(order_record, 'status_code', None)
         
-        # Update status fields
+        # Update status field that should always exist
         order_record.status = status
-        order_record.status_code = status_code
-        order_record.status_updated_at = datetime.now()
         
-        # Handle delivery specific information
-        if status_code in [76, 81, 83, 85, 87, 89]:
-            # This is a delivery status
-            order_record.delivery_status = status
-            order_record.delivery_status_code = status_code
+        # Check if new columns are available in the database 
+        try:
+            # Try to update new columns - if they don't exist in db, these will be ignored
+            if hasattr(order_record, 'status_code'):
+                order_record.status_code = status_code
+            if hasattr(order_record, 'status_updated_at'):
+                order_record.status_updated_at = datetime.now()
             
-            # Store courier information if provided
-            if courier_name:
-                order_record.courier_name = courier_name
-            if courier_phone:
-                order_record.courier_phone = courier_phone
-            
-            # Parse and store ETA if provided
-            if eta:
-                try:
-                    # Assuming eta is in milliseconds since epoch
-                    eta_datetime = datetime.fromtimestamp(int(eta) / 1000)
-                    order_record.estimated_delivery_time = eta_datetime
-                except (ValueError, TypeError) as e:
-                    log_info(f"Error parsing ETA: {e}, value: {eta}")
+            # Handle delivery specific information if columns exist
+            if status_code in [76, 81, 83, 85, 87, 89]:
+                # This is a delivery status
+                if hasattr(order_record, 'delivery_status'):
+                    order_record.delivery_status = status
+                if hasattr(order_record, 'delivery_status_code'):
+                    order_record.delivery_status_code = status_code
+                
+                # Store courier information if provided and columns exist
+                if courier_name and hasattr(order_record, 'courier_name'):
+                    order_record.courier_name = courier_name
+                if courier_phone and hasattr(order_record, 'courier_phone'):
+                    order_record.courier_phone = courier_phone
+                
+                # Parse and store ETA if provided and column exists
+                if eta and hasattr(order_record, 'estimated_delivery_time'):
+                    try:
+                        # Assuming eta is in milliseconds since epoch
+                        eta_datetime = datetime.fromtimestamp(int(eta) / 1000)
+                        order_record.estimated_delivery_time = eta_datetime
+                    except (ValueError, TypeError) as e:
+                        log_info(f"Error parsing ETA: {e}, value: {eta}")
+        except Exception as col_err:
+            log_info(f"Error updating new columns (they may not exist yet): {col_err}")
         
-        # Save changes to database
-        if not commit_with_retry(db.session):
-            return jsonify({"error": "Database error"}), 500
+        # Try to save changes to database - handle potential schema issues
+        try:
+            if not commit_with_retry(db.session):
+                # If commit failed, try a simpler update with just the status
+                log_info("Full update failed, trying simplified update with just status.")
+                sql = text("UPDATE \"order\" SET status = :status WHERE id = :order_id")
+                db.session.execute(sql, {"status": status, "order_id": order_id})
+                db.session.commit()
+        except Exception as commit_err:
+            log_info(f"Error committing changes: {commit_err}")
+            # Try the most basic update possible
+            try:
+                sql = text("UPDATE \"order\" SET status = :status WHERE id = :order_id")
+                db.session.execute(sql, {"status": status, "order_id": order_id})
+                db.session.commit()
+                log_info("Used direct SQL to update status")
+            except Exception as sql_err:
+                log_info(f"Error with direct SQL update: {sql_err}")
+                return jsonify({"error": "Database error"}), 500
         
         # Determine if this is a status change that should trigger customer notification
         should_notify = False
@@ -985,11 +1054,36 @@ def order_status():
             
         # Create a detailed status message with courier info if applicable
         if should_notify:
-            # Generate a user-friendly status description
-            friendly_status = order_record.get_status_display()
-            
-            # Create the status message
-            status_message = f"Your order ({order_id}) status: {friendly_status}"
+            # Generate simple status message for compatibility or friendly message if columns exist
+            try:
+                # First try to use the advanced status description
+                friendly_status = order_record.get_status_display()
+                status_message = f"Your order ({order_id[:8]}) status: {friendly_status}"
+            except:
+                # Fallback to a simpler status message
+                status_message = f"Your order ({order_id[:8]}) status update: "
+                if status_code == 10:
+                    status_message += "has been received by the restaurant"
+                elif status_code == 20:
+                    status_message += "has been accepted and is being prepared"
+                elif status_code == 50:
+                    status_message += "is now being prepared in the kitchen"
+                elif status_code == 70:
+                    status_message += "is ready for pickup!"
+                elif status_code == 90:
+                    status_message += "has been completed. Thank you!"
+                elif status_code == 120:
+                    status_message += "has encountered an issue. Please call us."
+                elif status_code in [76, 81]:
+                    status_message += "has been assigned to a delivery courier"
+                elif status_code == 83:
+                    status_message += "courier is on the way to the restaurant"
+                elif status_code == 87:
+                    status_message += "is on the way to you!"
+                elif status_code == 89:
+                    status_message += "courier has arrived at your location"
+                else:
+                    status_message += f"is now {status}"
             
             # Add courier information for delivery statuses
             if status_code in [83, 85, 87, 89] and courier_name:
@@ -998,9 +1092,18 @@ def order_status():
                     status_message += f" ({courier_phone})"
                     
             # Add ETA information if available
-            if order_record.estimated_delivery_time:
-                eta_time = order_record.estimated_delivery_time.strftime("%I:%M %p")
-                status_message += f"\nEstimated delivery/pickup time: {eta_time}"
+            if eta:
+                try:
+                    eta_time = datetime.fromtimestamp(int(eta) / 1000).strftime("%I:%M %p")
+                    status_message += f"\nEstimated delivery/pickup time: {eta_time}"
+                except Exception as eta_err:
+                    log_info(f"Error formatting ETA: {eta_err}")
+            elif hasattr(order_record, 'estimated_delivery_time') and order_record.estimated_delivery_time:
+                try:
+                    eta_time = order_record.estimated_delivery_time.strftime("%I:%M %p")
+                    status_message += f"\nEstimated delivery/pickup time: {eta_time}"
+                except Exception as eta_err:
+                    log_info(f"Error formatting stored ETA: {eta_err}")
             
             # Send status update to customer with enhanced information
             from tasks import send_order_status_update_task
@@ -1453,7 +1556,39 @@ def sms_status_callback():
     
     # Find the order with this SMS SID
     try:
-        order = db.session.query(Order).filter_by(sms_sid=message_sid).first()
+        try:
+            # First try standard query
+            order = db.session.query(Order).filter_by(sms_sid=message_sid).first()
+        except Exception as db_err:
+            # If we get a column does not exist error, it means we haven't migrated the database yet
+            if "column order.status_code does not exist" in str(db_err):
+                log_info("Database schema needs migration. Using legacy query for SMS status.")
+                # Use a simpler query that doesn't reference the new columns
+                sql = text("SELECT id, sender, caller_name, message, status, timestamp, location_id, "
+                        "sms_sid, sms_status, sms_error_code, sms_error_message "
+                        "FROM \"order\" WHERE sms_sid = :sms_sid LIMIT 1")
+                result = db.session.execute(sql, {"sms_sid": message_sid})
+                row = result.fetchone()
+                
+                if row:
+                    order = Order()
+                    order.id = row.id
+                    order.sender = row.sender
+                    order.caller_name = row.caller_name
+                    order.message = row.message
+                    order.status = row.status
+                    order.timestamp = row.timestamp
+                    order.location_id = row.location_id
+                    order.sms_sid = row.sms_sid
+                    order.sms_status = row.sms_status
+                    order.sms_error_code = row.sms_error_code
+                    order.sms_error_message = row.sms_error_message
+                else:
+                    order = None
+            else:
+                # Re-raise if it's a different error
+                raise
+                
         if order:
             # Update the SMS status information
             order.sms_status = message_status
@@ -1468,33 +1603,89 @@ def sms_status_callback():
             elif message_status == 'undelivered' or message_status == 'failed':
                 log_info(f"SMS delivery failed to {to_number} for order {order.id}: {error_code} - {error_message}")
                 
-            # Commit the changes
-            if not commit_with_retry(db.session):
-                log_info(f"Error updating SMS status for order {order.id}")
-                return jsonify({"success": False, "error": "Database commit failed"}), 500
+            # Try to commit the changes - handle errors with simple SQL if needed
+            try:
+                if not commit_with_retry(db.session):
+                    # If commit failed, try a simpler update with just the status
+                    log_info("Full update failed, trying simplified SMS status update.")
+                    sql = text("UPDATE \"order\" SET sms_status = :status WHERE id = :order_id")
+                    db.session.execute(sql, {"status": message_status, "order_id": order.id})
+                    db.session.commit()
+            except Exception as commit_err:
+                log_info(f"Error committing SMS status changes: {commit_err}")
+                # Try the most basic update possible
+                try:
+                    sql = text("UPDATE \"order\" SET sms_status = :status WHERE id = :order_id")
+                    db.session.execute(sql, {"status": message_status, "order_id": order.id})
+                    db.session.commit()
+                    log_info("Used direct SQL to update SMS status")
+                except Exception as sql_err:
+                    log_info(f"Error with direct SQL SMS update: {sql_err}")
+                    return jsonify({"success": False, "error": "Database error"}), 500
                 
             log_info(f"Updated SMS status for order {order.id} to {message_status}")
             return jsonify({"success": True}), 200
         else:
             # Try to find the order by phone number if SID doesn't match
             if to_number:
-                recent_order = db.session.query(Order).filter_by(
-                    sender=to_number
-                ).order_by(Order.timestamp.desc()).first()
+                try:
+                    # First try standard query
+                    recent_order = db.session.query(Order).filter_by(
+                        sender=to_number
+                    ).order_by(Order.timestamp.desc()).first()
+                except Exception as db_err:
+                    # If we get a column does not exist error, use direct SQL
+                    if "column order.status_code does not exist" in str(db_err):
+                        log_info("Using legacy query to find order by phone number.")
+                        sql = text("SELECT id, sender, caller_name, message, status, timestamp, location_id, "
+                                "sms_sid, sms_status, sms_error_code, sms_error_message "
+                                "FROM \"order\" WHERE sender = :sender ORDER BY timestamp DESC LIMIT 1")
+                        result = db.session.execute(sql, {"sender": to_number})
+                        row = result.fetchone()
+                        
+                        if row:
+                            recent_order = Order()
+                            recent_order.id = row.id
+                            recent_order.sender = row.sender
+                            recent_order.caller_name = row.caller_name
+                            recent_order.message = row.message
+                            recent_order.status = row.status
+                            recent_order.timestamp = row.timestamp
+                            recent_order.location_id = row.location_id
+                            recent_order.sms_sid = row.sms_sid
+                            recent_order.sms_status = row.sms_status
+                            recent_order.sms_error_code = row.sms_error_code
+                            recent_order.sms_error_message = row.sms_error_message
+                        else:
+                            recent_order = None
+                    else:
+                        # Re-raise if it's a different error
+                        raise
                 
                 if recent_order:
-                    # Update the SMS status information for the most recent order
-                    recent_order.sms_sid = message_sid  # Update with the new SID
-                    recent_order.sms_status = message_status
-                    if error_code:
-                        recent_order.sms_error_code = error_code
-                    if error_message:
-                        recent_order.sms_error_message = error_message
-                    
-                    # Commit the changes
-                    if not commit_with_retry(db.session):
-                        log_info(f"Error updating SMS status for recent order {recent_order.id}")
-                        return jsonify({"success": False, "error": "Database commit failed"}), 500
+                    # Try to update using direct SQL to avoid model attribute issues
+                    try:
+                        sql = text("UPDATE \"order\" SET sms_sid = :sms_sid, sms_status = :status WHERE id = :order_id")
+                        params = {
+                            "sms_sid": message_sid,
+                            "status": message_status,
+                            "order_id": recent_order.id
+                        }
+                        if error_code:
+                            sql = text("UPDATE \"order\" SET sms_sid = :sms_sid, sms_status = :status, "
+                                    "sms_error_code = :error_code WHERE id = :order_id")
+                            params["error_code"] = error_code
+                        if error_message:
+                            sql = text("UPDATE \"order\" SET sms_sid = :sms_sid, sms_status = :status, "
+                                    "sms_error_message = :error_message WHERE id = :order_id")
+                            params["error_message"] = error_message
+                        
+                        db.session.execute(sql, params)
+                        db.session.commit()
+                        log_info(f"Updated SMS status for order {recent_order.id} using direct SQL")
+                    except Exception as sql_err:
+                        log_info(f"Error with direct SQL update for order by phone: {sql_err}")
+                        return jsonify({"success": False, "error": "Database error"}), 500
                     
                     log_info(f"Updated SMS status for recent order {recent_order.id} (matched by phone number)")
                     return jsonify({"success": True}), 200
