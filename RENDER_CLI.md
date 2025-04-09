@@ -230,20 +230,35 @@ These events are particularly useful for our database migration workflow:
 - `postgres_restarted`: Triggered when a Postgres database restarts
 - `postgres_backup_completed`: Triggered when a database backup completes
 
-### Example: Automating Database Migrations
+### Example: Automating Database Migrations with Render Webhooks
 
-We could set up a webhook to automatically run our migration script after a successful deployment:
+We've implemented a webhook system that automatically runs our database migration script after successful deployments:
 
-1. Create a simple endpoint in our application:
+1. The webhook endpoint is already implemented at `/webhooks/deploy`:
    ```python
-   @app.route('/webhooks/deploy', methods=['POST'])
+   @webhook_bp.route("/webhooks/deploy", methods=["POST"])
    def handle_deploy_webhook():
-       # Validate the webhook signature
-       # If deploy_ended event and successful:
-       #   Run migrate_sms_tracking.py
-       return '', 200
+       # Validates the webhook signature
+       # If deploy_ended event is received:
+       #   Runs migrate_sms_tracking.py in a separate thread
+       return jsonify({"status": "success"}), 200
    ```
 
-2. Configure the webhook in Render Dashboard to send `deploy_ended` events
+2. To configure this in Render:
+   - Go to Integrations > Webhooks in your Render Dashboard
+   - Create a new webhook with the following settings:
+     - Name: "Deploy Database Migration"
+     - URL: `https://your-app.onrender.com/webhooks/deploy`
+     - Events: Select "Deploy Ended"
 
-3. Monitor migration results in application logs
+3. Set the RENDER_WEBHOOK_SECRET environment variable:
+   - In your Render service dashboard, go to Environment
+   - Add a new Secret File with:
+     - Key: `RENDER_WEBHOOK_SECRET`
+     - Value: A secure random string (make this very strong)
+
+4. Testing the webhook setup:
+   - Use the included test script: `./test_webhook.py --test`
+   - Simulate a deploy event: `./test_webhook.py --event deploy_ended`
+
+5. Monitor migration results in your Render logs
