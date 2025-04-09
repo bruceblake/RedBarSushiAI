@@ -82,13 +82,25 @@ def validate_signature(payload, signature_header, timestamp_header, id_header):
     
     # Compute expected signature
     payload_str = payload if isinstance(payload, str) else payload.decode('utf-8')
+    # Log message components for debugging
+    logger.debug(f"Webhook ID: {id_header}")
+    logger.debug(f"Timestamp: {timestamp_header}")
+    logger.debug(f"Payload: {payload_str[:100]}...")
+    
     message = f"{id_header}.{timestamp_header}.{payload_str}.{signing_secret}"
+    logger.debug(f"Message format: [webhook_id].[timestamp].[payload].[secret]")
+    
     computed_sig = hmac.new(
         signing_secret.encode('utf-8'),
         message.encode('utf-8'),
         digestmod=hashlib.sha256
     ).digest()
     computed_sig_b64 = base64.b64encode(computed_sig).decode('utf-8')
+    
+    # Log the first few characters of both signatures for comparison
+    # (safe to log partial signatures for debugging)
+    logger.debug(f"Received sig start: {received_sig[:10]}...")
+    logger.debug(f"Computed sig start: {computed_sig_b64[:10]}...")
     
     # Compare signatures using constant-time comparison
     return hmac.compare_digest(received_sig, computed_sig_b64)
@@ -116,12 +128,29 @@ def handle_deploy_webhook():
     """
     # Get request data and headers
     payload = request.get_data()
-    signature = request.headers.get("webhook-signature")
-    timestamp = request.headers.get("webhook-timestamp")
-    webhook_id = request.headers.get("webhook-id")
     
-    # Log webhook receipt
+    # Try different header case variations
+    signature = (request.headers.get("webhook-signature") or 
+                request.headers.get("Webhook-Signature") or
+                request.headers.get("WEBHOOK-SIGNATURE") or
+                request.headers.get("x-webhook-signature") or
+                request.headers.get("X-Webhook-Signature"))
+    
+    timestamp = (request.headers.get("webhook-timestamp") or 
+                request.headers.get("Webhook-Timestamp") or
+                request.headers.get("WEBHOOK-TIMESTAMP") or
+                request.headers.get("x-webhook-timestamp") or
+                request.headers.get("X-Webhook-Timestamp"))
+    
+    webhook_id = (request.headers.get("webhook-id") or 
+                request.headers.get("Webhook-Id") or
+                request.headers.get("WEBHOOK-ID") or
+                request.headers.get("x-webhook-id") or
+                request.headers.get("X-Webhook-Id"))
+    
+    # Log webhook receipt and all headers for debugging
     logger.info(f"Received webhook: ID={webhook_id}, Time={timestamp}")
+    logger.debug(f"All headers: {dict(request.headers)}")
     
     # Validate the webhook signature
     # Allow bypass for testing if explicitly configured
@@ -132,7 +161,25 @@ def handle_deploy_webhook():
         # Log detailed debugging information
         logger.warning("Invalid webhook signature")
         logger.info(f"Signature: {signature}, Timestamp: {timestamp}, ID: {webhook_id}")
-        return jsonify({"status": "error", "message": "Invalid signature"}), 401
+        # Check if any required components are missing
+        missing = []
+        if not signature: missing.append("Signature")
+        if not timestamp: missing.append("Timestamp") 
+        if not webhook_id: missing.append("Webhook ID")
+        
+        error_message = "Invalid signature"
+        if missing:
+            error_message += f" - Missing required headers: {', '.join(missing)}"
+            
+        # Log environment variable names for webhook secret
+        secret_vars = ["RENDER_WEBHOOK_SECRET", "WEBHOOK_SECRET", "WEBHOOK_SIGNING_SECRET", "RENDER_SIGNING_SECRET"]
+        configured_vars = [var for var in secret_vars if os.environ.get(var)]
+        if configured_vars:
+            logger.info(f"Webhook secret configured with: {', '.join(configured_vars)}")
+        else:
+            logger.warning("No webhook secret environment variables set")
+            
+        return jsonify({"status": "error", "message": error_message}), 401
     
     # Parse the payload
     try:
@@ -170,12 +217,56 @@ def handle_deploy_webhook():
 @webhook_bp.route("/webhooks/test", methods=["GET"])
 def test_webhook():
     """Test endpoint to verify webhook configuration."""
+    # Check if webhook secret is configured
+    signing_secret = get_signing_secret()
+    secret_vars = ["RENDER_WEBHOOK_SECRET", "WEBHOOK_SECRET", "WEBHOOK_SIGNING_SECRET", "RENDER_SIGNING_SECRET"]
+    configured_vars = [var for var in secret_vars if os.environ.get(var)]
+    
     return jsonify({
         "status": "success",
         "message": "Webhook endpoint is configured correctly",
         "environment": {
             "debug": current_app.config.get("DEBUG", False),
             "test": current_app.config.get("TESTING", False),
-            "webhook_secret_configured": get_signing_secret() is not None
+            "webhook_secret_configured": signing_secret is not None,
+            "configured_secret_vars": configured_vars,
+            "allow_unsigned": os.environ.get("ALLOW_UNSIGNED_WEBHOOKS") == "true"
         }
+    })
+
+@webhook_bp.route("/webhooks/debug", methods=["POST"])
+def debug_webhook():
+    """
+    Debug endpoint for webhook troubleshooting.
+    This endpoint logs all headers and request data for diagnostic purposes.
+    Only enabled in debug mode.
+    """
+    if not current_app.config.get("DEBUG", False) and os.environ.get("ALLOW_WEBHOOK_DEBUG") != "true":
+        return jsonify({"status": "error", "message": "Debug endpoint only available in debug mode"}), 403
+    
+    # Get all headers
+    headers = dict(request.headers)
+    
+    # Get request data
+    payload = request.get_data()
+    payload_str = payload.decode('utf-8') if isinstance(payload, bytes) else payload
+    
+    # Try to parse as JSON
+    try:
+        payload_json = json.loads(payload_str)
+    except:
+        payload_json = None
+    
+    # Log everything
+    logger.info(f"Debug webhook received")
+    logger.debug(f"Headers: {headers}")
+    logger.debug(f"Raw payload: {payload_str[:500]}...")
+    
+    # Return diagnostic information
+    return jsonify({
+        "status": "success",
+        "message": "Webhook debug information",
+        "headers": headers,
+        "payload": payload_json or payload_str[:1000],
+        "webhook_secret_configured": get_signing_secret() is not None
     })

@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: redbarsushi-web
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
+    envVars:
+      - key: PROCESS
+        value: web
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: REDIS_URL
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      # The remaining environment variables will need to be added
+      # in the Render dashboard after deployment
+
+  - type: worker
+    name: redbarsushi-celery
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./fix_celery.sh
+    envVars:
+      - key: PROCESS
+        value: celery
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: REDIS_URL
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      # The remaining environment variables will need to be added
+      # in the Render dashboard after deployment
+
+  - type: redis
+    name: redbarsushi-redis
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+    plan: free
