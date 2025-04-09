@@ -351,22 +351,44 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
             
             # Create the status header with an emoji reflecting the status type
             status_emoji = "📋"
+            status_text = "STATUS"
             if order.status_code:
                 # POS preparation status
-                if 10 <= order.status_code <= 69:
+                if 10 <= order.status_code <= 49:
                     status_emoji = "👨‍🍳"
+                    status_text = "CURRENT STATUS: PREPARING"
+                elif 50 <= order.status_code <= 69:
+                    status_emoji = "👨‍🍳"
+                    status_text = "CURRENT STATUS: ALMOST READY"
                 # Ready for pickup
                 elif 70 <= order.status_code <= 75:
                     status_emoji = "✅"
+                    status_text = "CURRENT STATUS: READY FOR PICKUP"
                 # Delivery status
                 elif 76 <= order.status_code <= 89:
                     status_emoji = "🚚"
+                    status_text = "CURRENT STATUS: OUT FOR DELIVERY"
                 # Completed 
                 elif 90 <= order.status_code <= 99:
                     status_emoji = "🎉"
+                    status_text = "CURRENT STATUS: COMPLETED"
                 # Failed/canceled
                 elif order.status_code >= 100:
                     status_emoji = "⚠️"
+                    status_text = "CURRENT STATUS: ISSUE REPORTED"
+            elif order_status:
+                # Legacy status mapping if no status code but we have order_status
+                status_map = {
+                    "NEW": ("📋", "CURRENT STATUS: RECEIVED"),
+                    "ACCEPTED": ("👨‍🍳", "CURRENT STATUS: ACCEPTED"),
+                    "PREPARING": ("👨‍🍳", "CURRENT STATUS: PREPARING"),
+                    "READY": ("✅", "CURRENT STATUS: READY FOR PICKUP"),
+                    "COMPLETED": ("🎉", "CURRENT STATUS: COMPLETED"),
+                    "FAILED": ("⚠️", "CURRENT STATUS: ISSUE REPORTED"),
+                    "REJECTED": ("⚠️", "CURRENT STATUS: REJECTED"),
+                    "CANCELLED": ("⚠️", "CURRENT STATUS: CANCELLED")
+                }
+                status_emoji, status_text = status_map.get(order_status, ("📋", "STATUS"))
             
             # Start building the formatted status message
             formatted_status = f"""🍣 RED BAR SUSHI STATUS UPDATE 🍣
@@ -377,7 +399,8 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
 
 {order_items}
 
-{status_emoji} STATUS: {friendly_status}"""
+{status_emoji} {status_text}
+{friendly_status}"""
 
             # Add delivery-specific information if applicable
             if order.status_code in [76, 81, 83, 85, 87, 89]:

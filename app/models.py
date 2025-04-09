@@ -32,65 +32,65 @@ class Order(db.Model):
         if not hasattr(self, 'status_code') or self.status_code is None:
             # Fallback to traditional status mapping
             status_map = {
-                "NEW": "received and is being processed",
-                "ACCEPTED": "accepted and being prepared",
-                "PREPARING": "now being prepared in the kitchen",
-                "READY": "ready for pickup! 🎉",
-                "COMPLETED": "completed. Thank you for your order! 🙏",
-                "FAILED": "could not be processed. Please call us",
-                "REJECTED": "could not be processed. Please call us",
-                "CANCELLED": "cancelled"
+                "NEW": "Your order has been received and is being processed",
+                "ACCEPTED": "Your order has been accepted and is being prepared",
+                "PREPARING": "Your order is now being prepared in the kitchen",
+                "READY": "Your order is ready for pickup! 🎉",
+                "COMPLETED": "Your order has been completed. Thank you for your order! 🙏",
+                "FAILED": "There was an issue with your order. Please call us at (833) 324-7207",
+                "REJECTED": "We're sorry, but your order could not be processed. Please call us at (833) 324-7207",
+                "CANCELLED": "Your order has been cancelled"
             }
-            return status_map.get(self.status, self.status or "Processing")
+            return status_map.get(self.status, self.status or "Your order is being processed")
             
-        # POS statuses
+        # POS statuses - use more customer-friendly language
         if self.status_code == 10:
-            return "New - Received by restaurant"
+            return "Your order has been received by the restaurant"
         elif self.status_code == 20:
-            return "Accepted - Order confirmed"
+            return "Your order has been confirmed by the restaurant"
         elif self.status_code == 40:
-            return "Printed - Ticket sent to kitchen"
+            return "Your order has been sent to the kitchen"
         elif self.status_code == 50:
-            return "Preparing - In preparation"
+            return "Your order is now being prepared in the kitchen"
         elif self.status_code == 60:
-            return "Prepared - Cooking completed"
+            return "The preparation of your order has been completed"
         elif self.status_code == 70:
-            return "Pickup Ready - Ready for collection"
+            return "Your order is ready for pickup! You can come to the restaurant now"
         elif self.status_code == 90:
-            return "Finalized - Order completed"
+            return "Your order has been completed. Thank you for ordering with us!"
         elif self.status_code == 95:
-            return "Auto-Finalized - Order handled"
+            return "Your order has been completed. Thank you for ordering with us!"
         elif self.status_code == 110:
-            return "Canceled - Order canceled"
+            return "Your order has been canceled. Please call us at (833) 324-7207 if you didn't request this"
         elif self.status_code == 120:
-            return "Failed - Order failed"
+            return "There was an issue with your order. Please call us at (833) 324-7207 for assistance"
             
-        # Delivery statuses
+        # Delivery statuses - more detailed for customer tracking
         elif self.status_code == 76:
-            return "Delivery Created - Looking for courier"
+            return "We're looking for a delivery courier for your order"
         elif self.status_code == 81:
-            return "Delivery Confirmed - Courier assigned"
+            return "A courier has been assigned to deliver your order"
         elif self.status_code == 83:
-            return "En Route to Pickup - Courier approaching restaurant"
+            return "Your courier is on the way to the restaurant to pick up your order"
         elif self.status_code == 85:
-            return "Arrived at Pickup - Courier at restaurant"
+            return "Your courier has arrived at the restaurant and is collecting your order"
         elif self.status_code == 87:
-            return "En Route To Dropoff - Courier heading to you"
+            return "Your order is on the way to you! The courier has left the restaurant"
         elif self.status_code == 89:
-            return "Arrived At Drop Off - Courier arrived at your location"
+            return "Your courier has arrived at your location with your order"
         elif self.status_code == 115:
-            return "Delivery Canceled - Delivery was canceled"
+            return "The delivery for your order has been canceled. Please call us at (833) 324-7207"
             
-        # System statuses
+        # System statuses - simplified for customers
         elif self.status_code == 1:
-            return "Parsed - Order received by system"
+            return "Your order has been received by our system"
         elif self.status_code == 2:
-            return "Received by POS - Order sent to restaurant"
+            return "Your order has been sent to the restaurant"
         elif self.status_code == 25:
-            return "Scheduled - Order awaiting scheduled time"
+            return "Your order is scheduled and will be prepared at the requested time"
         
-        # Default fallback
-        return self.status or "Processing"
+        # Default fallback - customer friendly
+        return "Your order is being processed" if not self.status else f"Your order status: {self.status}"
 
 class Location(db.Model):
     __tablename__ = 'location'
