@@ -24,9 +24,18 @@ echo "Starting virtual X server..."
 # Kill any existing Xvfb processes to avoid conflicts
 pkill Xvfb 2>/dev/null || true
     
-# Try multiple displays (:99, :1, :0) in case some are already in use
-for display_num in 99 1 0; do
+# Try multiple displays in a better order - prefer lower numbers first
+# as Render often has :99 already in use
+for display_num in 1 2 3 4 5 99 0; do
     echo "Trying display :${display_num}..."
+    
+    # Check if display is already in use before attempting to start Xvfb
+    if [ -e "/tmp/.X${display_num}-lock" ]; then
+        echo "Display :${display_num} is already in use (lock file exists)"
+        continue
+    fi
+    
+    # Start Xvfb on this display
     Xvfb :${display_num} -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
     XVFB_PID=$!
     export DISPLAY=:${display_num}
