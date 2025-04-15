@@ -93,11 +93,11 @@ if not AGENT_API_AVAILABLE and OPENAI_API_KEY:
         messages = [{"role": "user", "content": "Test"}]
         
         # Log the API request
-        log_openai_request("gpt-4o", messages, "api_key_test")
+        log_openai_request("gpt-4.1-mini", messages, "api_key_test")
         
         try:
             response = openai.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1-mini",
                 messages=messages,
                 max_tokens=1
             )
@@ -322,7 +322,7 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
             
             # Create the agent with appropriate tools and model
             agent = Agent(
-                model="gpt-4o",
+                model="gpt-4.1-mini",
                 instructions="""
                 You are an assistant that helps parse customer food orders for a sushi restaurant. 
                 Your job is to:
@@ -493,7 +493,7 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
             
             # Create the agent with appropriate tools and model
             agent = Agent(
-                model="gpt-4o",
+                model="gpt-4.1-mini",
                 instructions="""
                 You are an assistant that helps modify existing food orders. 
                 Your job is to:
@@ -658,12 +658,12 @@ else:
                     # Log the API request
                     logger.info(f"[ORDER-PARSE] Processing order text: '{order_text}'")
                     logger.info(f"[ORDER-PARSE] Using menu categories: {categories}")
-                    log_openai_request("gpt-4o", messages, "parse_order")
+                    log_openai_request("gpt-4.1-mini", messages, "parse_order")
                     
                     try:
                         # Initial request to identify potential items
                         response = openai.chat.completions.create(
-                            model="gpt-4o",
+                            model="gpt-4.1-mini",
                             messages=messages,
                             response_format={"type": "json_object"}
                         )
@@ -853,12 +853,12 @@ else:
                     # Log the request
                     logger.info(f"[MODIFY-ORDER] Processing modification: '{modification_text}'")
                     logger.info(f"[MODIFY-ORDER] Current order has {len(current_order.get('items', []))} items")
-                    log_openai_request("gpt-4o", messages, "modify_order")
+                    log_openai_request("gpt-4.1-mini", messages, "modify_order")
                     
                     try:
                         # Request to identify modifications
                         response = openai.chat.completions.create(
-                            model="gpt-4o",
+                            model="gpt-4.1-mini",
                             messages=messages,
                             response_format={"type": "json_object"}
                         )

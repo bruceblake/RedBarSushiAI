@@ -4,10 +4,11 @@ import logging
 import json
 import os
 import requests
+import importlib
 from datetime import datetime
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.menu_validator import validate_and_fix_menu_data
-from app.utils.menu_utils import process_deliverect_menu, load_menu_data, write_menu_file, sync_reference_handlers, MENU_FILE_PATH
+from app.utils.menu_utils import process_deliverect_menu, load_menu_data, write_menu_file, sync_reference_handlers, MENU_FILE_PATH, USE_REDBAR_MENU
 
 menu_bp = Blueprint('menu', __name__)
 logger = logging.getLogger(__name__)
@@ -506,6 +507,61 @@ def delete_menu():
 
 
 
+@menu_bp.route('/toggle_menu', methods=['GET', 'POST'])
+@menu_bp.route('/change_menu', methods=['GET', 'POST'])
+def toggle_menu():
+    """Toggle between menu_data.json and redbar_menu_data.json"""
+    current_setting = os.environ.get('USE_REDBAR_MENU', 'false').lower() == 'true'
+    
+    # Allow explicit setting through query param
+    if request.args.get('use_redbar') is not None:
+        new_setting = request.args.get('use_redbar').lower() in ['true', '1', 'yes']
+        logger.info(f"Setting USE_REDBAR_MENU to {new_setting} based on query parameter")
+    else:
+        # Toggle if no parameter provided
+        new_setting = not current_setting
+        logger.info(f"Toggling USE_REDBAR_MENU from {current_setting} to {new_setting}")
+    
+    # Set environment variable
+    os.environ['USE_REDBAR_MENU'] = str(new_setting).lower()
+    
+    # Update the global USE_REDBAR_MENU variable in menu_utils
+    import app.utils.menu_utils as menu_utils
+    menu_utils.USE_REDBAR_MENU = new_setting
+    
+    # Clear the menu cache to force a reload
+    menu_utils._menu_cache = None
+    menu_utils._last_refresh_time = 0
+    
+    # Reload the module to update the file paths
+    importlib.reload(menu_utils)
+    
+    # Force refresh the menu data
+    try:
+        menu_data = load_menu_data(force_refresh=True)
+        item_count = len(menu_data.get('items', []))
+        
+        # Check if the actual file we're using matches what we expect
+        expected_filename = 'redbar_menu_data.json' if new_setting else 'menu_data.json'
+        actual_filename = os.path.basename(MENU_FILE_PATH)
+        filename_match = expected_filename in actual_filename
+        
+        return jsonify({
+            "success": True,
+            "use_redbar_menu": new_setting,
+            "menu_file_path": MENU_FILE_PATH,
+            "filename_match": filename_match,
+            "item_count": item_count,
+            "message": f"Now using {'redbar_menu_data.json' if new_setting else 'menu_data.json'} with {item_count} items"
+        })
+    except Exception as e:
+        logger.error(f"Error toggling menu: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "use_redbar_menu": new_setting
+        }), 500
+
 @menu_bp.route('/write_test', methods=['GET', 'POST'])
 def write_test():
     """
@@ -535,6 +591,47 @@ def write_test():
         "env": dict(os.environ),
         "user": os.getuid()
     }), 200
+
+@menu_bp.route('/menu_settings', methods=['GET'])
+def menu_settings():
+    """Show current menu settings and configuration"""
+    # Check menu file status
+    current_setting = os.environ.get('USE_REDBAR_MENU', 'false').lower() == 'true'
+    menu_utils_setting = USE_REDBAR_MENU
+    
+    # Get loaded menu file path
+    try:
+        # Force refresh the menu data to ensure we're looking at what's actually loaded
+        menu_data = load_menu_data(force_refresh=True)
+        item_count = len(menu_data.get('items', []))
+        
+        # Check specific menu items to help identify which menu we're using
+        items_sample = [item.get('name') for item in menu_data.get('items', [])[:5]]
+        # Check for distinctive items to help identify the menu
+        has_redbar_items = any(name and 'Roll' in name for name in items_sample)
+        
+        return jsonify({
+            "status": "success",
+            "menu_file_path": MENU_FILE_PATH,
+            "USE_REDBAR_MENU_env": current_setting,
+            "USE_REDBAR_MENU_var": menu_utils_setting,
+            "item_count": item_count,
+            "items_sample": items_sample,
+            "likely_using_redbar_menu": has_redbar_items,
+            "current_menu": "redbar_menu_data.json" if menu_utils_setting else "menu_data.json",
+            "menu_file_exists": os.path.exists(MENU_FILE_PATH),
+            "redbar_menu_exists": os.path.exists(os.path.join(os.getcwd(), 'redbar_menu_data.json')),
+            "regular_menu_exists": os.path.exists(os.path.join(os.getcwd(), 'menu_data.json')),
+            "toggle_url": request.url_root + "toggle_menu"
+        })
+    except Exception as e:
+        logger.error(f"Error checking menu settings: {e}")
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "USE_REDBAR_MENU_env": current_setting,
+            "USE_REDBAR_MENU_var": menu_utils_setting
+        }), 500
 
 @menu_bp.route('/fix_item_error', methods=['GET'])
 def fix_item_error():
