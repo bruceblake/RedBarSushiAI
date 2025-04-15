@@ -17,6 +17,213 @@ logger = logging.getLogger(__name__)
 deliverect_tokens = {}
 token_expiries = {}
 
+def process_deliverect_menu(menu_data):
+    """
+    Process a menu data payload from Deliverect into the internal menu format.
+    
+    This function handles various formats of Deliverect menu data, including:
+    - Lists of items with nested categories
+    - Deeply nested menu structures
+    - Simple product lists
+    
+    Args:
+        menu_data: The menu data from Deliverect API
+        
+    Returns:
+        dict: Processed menu data in the standard internal format
+    """
+    logger.info("Processing Deliverect menu data")
+    
+    # Initialize the result structure
+    result = {
+        "items": [],
+        "modifiers": [],
+        "modifierGroups": [],
+        "name_variants": {}
+    }
+    
+    # Handle the case where menu_data is a list
+    if isinstance(menu_data, list):
+        # Check if this is a simple list of product objects
+        if all(isinstance(item, dict) and "name" in item and "price" in item for item in menu_data):
+            # Process direct list of products
+            for product in menu_data:
+                if _is_valid_product(product):
+                    item = _convert_product_to_item(product)
+                    if item:
+                        result["items"].append(item)
+                        _add_name_variants(result["name_variants"], item["name"])
+        else:
+            # It's a complex structure, try to find products recursively
+            for item in menu_data:
+                if isinstance(item, dict):
+                    # Look for categories directly
+                    categories = item.get("categories", [])
+                    if categories and isinstance(categories, list):
+                        for category in categories:
+                            _process_category(category, result)
+                    
+                    # Look for menu with categories
+                    menu = item.get("menu", {})
+                    if menu and isinstance(menu, dict):
+                        menu_categories = menu.get("categories", [])
+                        if menu_categories and isinstance(menu_categories, list):
+                            for category in menu_categories:
+                                _process_category(category, result)
+                    
+                    # Recursively scan for products in any structure
+                    _recursively_find_products(item, result)
+    
+    # Handle the case where menu_data is a dict
+    elif isinstance(menu_data, dict):
+        # Check if this is a direct product
+        if "name" in menu_data and "price" in menu_data:
+            if _is_valid_product(menu_data):
+                item = _convert_product_to_item(menu_data)
+                if item:
+                    result["items"].append(item)
+                    _add_name_variants(result["name_variants"], item["name"])
+        else:
+            # Look for categories directly
+            categories = menu_data.get("categories", [])
+            if categories and isinstance(categories, list):
+                for category in categories:
+                    _process_category(category, result)
+                    
+            # Look for menu with categories
+            menu = menu_data.get("menu", {})
+            if menu and isinstance(menu, dict):
+                menu_categories = menu.get("categories", [])
+                if menu_categories and isinstance(menu_categories, list):
+                    for category in menu_categories:
+                        _process_category(category, result)
+            
+            # Recursively scan for products in any structure
+            _recursively_find_products(menu_data, result)
+    
+    logger.info(f"Processed Deliverect menu: found {len(result['items'])} items")
+    return result
+
+def _process_category(category, result):
+    """Process a category and extract its products."""
+    if not isinstance(category, dict):
+        return
+        
+    products = category.get("products", [])
+    category_name = category.get("name", "")
+    
+    # Skip if products is not a list
+    if not isinstance(products, list):
+        return
+        
+    # Process each product in the category
+    for product in products:
+        if _is_valid_product(product):
+            # Add category info to the product
+            if category_name and isinstance(product, dict):
+                product["category"] = category_name
+                
+            item = _convert_product_to_item(product)
+            if item:
+                result["items"].append(item)
+                _add_name_variants(result["name_variants"], item["name"])
+
+def _recursively_find_products(data, result, max_depth=10, current_depth=0):
+    """Recursively search for products in nested structures."""
+    if current_depth >= max_depth:
+        return
+        
+    if isinstance(data, dict):
+        # Check if this could be a product
+        if "name" in data and ("price" in data or "id" in data):
+            if _is_valid_product(data):
+                item = _convert_product_to_item(data)
+                if item and not any(existing["name"] == item["name"] for existing in result["items"]):
+                    result["items"].append(item)
+                    _add_name_variants(result["name_variants"], item["name"])
+        
+        # Look for products, dishes, items, etc.
+        for key, value in data.items():
+            if key in ["products", "dishes", "items", "menuItems"] and isinstance(value, list):
+                for product in value:
+                    if _is_valid_product(product):
+                        item = _convert_product_to_item(product)
+                        if item:
+                            result["items"].append(item)
+                            _add_name_variants(result["name_variants"], item["name"])
+            
+            # Recursively search deeper
+            _recursively_find_products(value, result, max_depth, current_depth + 1)
+    
+    elif isinstance(data, list):
+        for item in data:
+            _recursively_find_products(item, result, max_depth, current_depth + 1)
+
+def _is_valid_product(product):
+    """Check if a product object is valid."""
+    return (isinstance(product, dict) and 
+            "name" in product and 
+            isinstance(product["name"], str) and 
+            len(product["name"]) > 0)
+
+def _convert_product_to_item(product):
+    """Convert a Deliverect product to the internal item format."""
+    if not isinstance(product, dict) or "name" not in product:
+        return None
+        
+    # Basic required fields
+    item = {
+        "name": product["name"],
+        "reference_handler": product.get("plu", product.get("id", "")),
+        "available": product.get("available", True),
+        "price": product.get("price", 0) / 100 if product.get("price") else 0,  # Convert from cents
+        "description": product.get("description", "")
+    }
+    
+    # Add category if available
+    if "category" in product:
+        item["category"] = product["category"]
+    
+    # Add any additional fields that might be useful
+    if "allergens" in product:
+        item["allergens"] = product["allergens"]
+    if "snoozed" in product:
+        item["snoozed"] = product["snoozed"]
+    if "snoozeUntil" in product:
+        item["snoozeUntil"] = product["snoozeUntil"]
+    
+    return item
+
+def _add_name_variants(name_variants, item_name):
+    """Generate and add name variants for an item."""
+    if not item_name:
+        return
+        
+    # Normalize the name
+    original_name = item_name
+    lower_name = item_name.lower()
+    
+    # Add the direct name mapping
+    name_variants[lower_name] = original_name
+    
+    # Split the name and create variants
+    parts = lower_name.split()
+    if len(parts) > 1:
+        # Add combinations of adjacent words
+        for i in range(len(parts) - 1):
+            variant = parts[i] + " " + parts[i + 1]
+            if len(variant) >= 3 and variant not in name_variants:
+                name_variants[variant] = original_name
+        
+        # Add the last word if it's substantial
+        if len(parts[-1]) > 3:
+            name_variants[parts[-1]] = original_name
+            
+        # Add first and last word if different
+        if len(parts) > 2 and parts[0] != parts[-1]:
+            variant = parts[0] + " " + parts[-1]
+            name_variants[variant] = original_name
+
 
 def get_deliverect_token(location_id=None):
     """
