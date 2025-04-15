@@ -8,7 +8,8 @@ import importlib
 from datetime import datetime
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.menu_validator import validate_and_fix_menu_data
-from app.utils.menu_utils import process_deliverect_menu, load_menu_data, write_menu_file, sync_reference_handlers, MENU_FILE_PATH, USE_REDBAR_MENU
+from app.utils.menu_utils import load_menu_data, write_menu_file, sync_reference_handlers, MENU_FILE_PATH, USE_REDBAR_MENU
+from app.utils.deliverect import process_deliverect_menu
 
 menu_bp = Blueprint('menu', __name__)
 logger = logging.getLogger(__name__)
