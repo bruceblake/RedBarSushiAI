@@ -168,12 +168,12 @@ def extract_name_with_agent(speech_text):
             ]
             
             # Log the request
-            log_openai_request("gpt-4o", messages, "extract_name")
+            log_openai_request("gpt-4.1-mini", messages, "extract_name")
             
             try:
                 import openai
                 response = openai.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-4.1-mini",
                     messages=messages,
                     max_tokens=20,  # Short response for just the name
                     temperature=0  # Deterministic response
@@ -533,9 +533,18 @@ def handle_menu_questions():
             language="en-US",
             speech_timeout="auto"
         ) as g:
-            g.say("Our menu features a variety of sushi rolls, nigiri, sashimi, and traditional Japanese dishes. " +
-                  "We have special rolls like California Roll, Spicy Tuna Roll, Dragon Roll, and more. " +
-                  "Would you like to know about specific items or would you like to place an order now?")
+            # Use agent.menu_tool to get categories for more accurate information
+            menu_categories = []
+            try:
+                agent = OrderParsingAgent()
+                menu_categories = agent.menu_tool.get_menu_categories()
+                cat_text = ", ".join(menu_categories[:5]) + " and more"
+            except:
+                cat_text = "sushi rolls, nigiri, sashimi, and special rolls"
+                
+            g.say(f"Our menu features a variety of {cat_text}. " +
+                  "We have popular items like California Roll, Spicy Tuna Roll, Dragon Roll, and more. " +
+                  "Would you like to know about specific items, prices, or would you like to place an order now?")
     elif intent == 'get_menu_item_price' or intent == 'describe_menu_item':
         # Look up the specific item using agent
         agent = OrderParsingAgent()
@@ -543,16 +552,55 @@ def handle_menu_questions():
         if 'menu_items' in analysis and analysis['menu_items']:
             item_name = analysis['menu_items'][0]['name']
         
-        # Get item details from menu
+        logger.info(f"Looking up menu item details for: '{item_name}'")
+        
+        # Get item details from menu with enhanced logging
         result = agent.menu_tool.get_details(item_name)
+        logger.info(f"Menu lookup result: {result.get('found', False)}")
         
         if result.get("found"):
             item = result.get("item", {})
-            description = f"The {item.get('name')} costs ${item.get('price', 0):.2f}."
-            if intent == 'describe_menu_item':
-                description += f" {item.get('description', 'It is one of our popular items.')}"
+            # Check if item is available
+            if item.get("available", True) and not item.get("snoozed", False):
+                description = f"The {item.get('name')} costs ${item.get('price', 0):.2f}."
+                if intent == 'describe_menu_item':
+                    description += f" {item.get('description', 'It is one of our popular items.')}"
+                
+                # Add modifier info if available
+                if result.get("modifiers") and intent == 'describe_menu_item':
+                    mod_groups = result.get("modifiers", [])
+                    if mod_groups:
+                        mod_info = " Available add-ons include: "
+                        mod_list = []
+                        for group in mod_groups[:2]:  # Limit to first 2 groups for brevity
+                            for mod in group.get("modifiers", [])[:3]:  # Limit to first 3 modifiers per group
+                                mod_name = mod.get("name", "")
+                                mod_price = mod.get("price", 0)
+                                if mod_price > 0:
+                                    mod_list.append(f"{mod_name} (${mod_price:.2f})")
+                                else:
+                                    mod_list.append(mod_name)
+                        if mod_list:
+                            description += mod_info + ", ".join(mod_list) + "."
+            else:
+                # Item exists but is unavailable
+                if item.get("snoozed", False):
+                    description = f"I'm sorry, the {item.get('name')} is temporarily unavailable."
+                else:
+                    description = f"I'm sorry, the {item.get('name')} is not currently available."
         else:
-            description = "I'm sorry, I couldn't find that item on our menu."
+            # Try to suggest alternatives if item not found
+            from app.utils.menu_utils import get_popular_menu_items
+            try:
+                popular_items = get_popular_menu_items(3)
+                if popular_items:
+                    items_text = ", ".join([f"{item['name']} (${item['price']:.2f})" for item in popular_items])
+                    description = f"I'm sorry, I couldn't find '{item_name}' on our menu. You might be interested in: {items_text}."
+                else:
+                    description = "I'm sorry, I couldn't find that item on our menu."
+            except Exception as e:
+                logger.error(f"Error getting popular items: {e}")
+                description = "I'm sorry, I couldn't find that item on our menu."
             
         with response.gather(
             input='speech',
@@ -1006,11 +1054,20 @@ def websocket_capabilities():
     # Get the audio processor to check what capabilities are available
     audio_processor = get_audio_processor()
     
+    # Get more detailed information about the audio processor
+    processor_type = type(audio_processor).__name__
+    backend_info = ""
+    if hasattr(audio_processor, 'backend'):
+        backend_info = audio_processor.backend
+    
     capabilities = {
         "websockets_available": True,
         "real_time_stt": hasattr(audio_processor, 'process_audio_stream'),
         "real_time_tts": hasattr(audio_processor, 'generate_speech') and asyncio.iscoroutinefunction(audio_processor.generate_speech),
         "conversation": True,
+        "processor_type": processor_type,
+        "backend": backend_info or "standard",
+        "model": "gpt-4.1-mini",
         "supported_content_types": ["audio/webm", "audio/mp3", "audio/wav"],
         "supported_voices": ["alloy", "echo", "fable", "onyx", "nova", "shimmer"],
         "endpoints": {

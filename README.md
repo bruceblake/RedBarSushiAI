@@ -163,7 +163,7 @@ This ensures that even if a customer uses different wording than what's in the m
 ### a. Order Calculation and Confirmation
 
 - **analyze_user_input():**  
-  This function sends the customer's spoken order to OpenAI's GPT-4o-2024-11-20 to extract intent and order details in a structured format.
+  This function sends the customer's spoken order to OpenAI's GPT-4.1-mini to extract intent and order details in a structured format.
   
 - **Fuzzy Matching:**  
   Functions like `find_menu_item()` and `find_menu_item_any_status()` use Levenshtein distance to match spoken orders with menu items.

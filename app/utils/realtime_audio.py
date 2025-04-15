@@ -333,18 +333,21 @@ class BasicAudioProcessor:
                     "role": "system",
                     "content": "You are an AI assistant for Red Bar Sushi restaurant. "
                               "Be helpful, concise, and friendly. Provide restaurant information "
-                              "and take orders accurately."
+                              "and take orders accurately. When asked about menu items or prices, "
+                              "always check the actual menu data to provide accurate information. "
+                              "Verify all menu items exist before providing information about them. "
+                              "Use the menu data to accurately quote prices and menu options."
                 })
             
             # Add user message
             messages = conversation_history + [{"role": "user", "content": transcript}]
             
             # Log the request
-            log_openai_request("gpt-4o", messages, "process_conversation")
+            log_openai_request("gpt-4.1-mini", messages, "process_conversation")
             
             # Create a streaming chat completion
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1-mini",
                 messages=messages,
                 stream=True
             )
@@ -723,18 +726,21 @@ class RealtimeAudioProcessor:
                     "role": "system",
                     "content": "You are an AI assistant for Red Bar Sushi restaurant. "
                               "Be helpful, concise, and friendly. Provide restaurant information "
-                              "and take orders accurately."
+                              "and take orders accurately. When asked about menu items or prices, "
+                              "always check the actual menu data to provide accurate information. "
+                              "Verify all menu items exist before providing information about them. "
+                              "Use the menu data to accurately quote prices and menu options."
                 })
             
             # Add user message
             messages = conversation_history + [{"role": "user", "content": transcript}]
             
             # Log the request
-            log_openai_request("gpt-4o", messages, "process_conversation")
+            log_openai_request("gpt-4.1-mini", messages, "process_conversation")
             
             # Create a streaming chat completion
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1-mini",
                 messages=messages,
                 stream=True
             )
@@ -931,7 +937,7 @@ def get_audio_processor():
                     
                     # Create a streaming chat completion
                     response = self.openai_client.chat.completions.create(
-                        model="gpt-4o", messages=messages, stream=True)
+                        model="gpt-4.1-mini", messages=messages, stream=True)
                     
                     # Stream the response tokens
                     complete_text = ""

@@ -654,6 +654,9 @@ Be helpful, concise, and friendly. Speak naturally like a restaurant host.
 - When taking orders, confirm items and ask clarifying questions 
 - If you don't understand, politely ask the customer to repeat
 - You can access the restaurant's menu and hours
+- When asked about menu items, always check the actual menu to provide correct information
+- Accurately state prices and descriptions from the menu data
+- When customers ask about menu items, always verify against the current menu data to ensure accuracy
 - Do not use visuals like emojis or formatting, as this is an audio conversation
 - Pronounce any Japanese food terms correctly
             """
@@ -705,7 +708,7 @@ Be helpful, concise, and friendly. Speak naturally like a restaurant host.
                 
                 # Create a streaming chat completion
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-4.1-mini",
                     messages=messages,
                     stream=True
                 )
@@ -852,7 +855,7 @@ Be helpful, concise, and friendly. Speak naturally like a restaurant host.
                 
                 # Create a streaming chat completion
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-4.1-mini",
                     messages=messages,
                     stream=True
                 )
@@ -1004,7 +1007,7 @@ async def _post_process_transcript(self, transcript):
         
         # Call GPT to correct the transcript
         response = self.openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1-mini",
             temperature=0,  # Lower temperature for more deterministic results
             messages=[
                 {"role": "system", "content": system_prompt},

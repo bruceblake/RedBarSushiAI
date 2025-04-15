@@ -170,7 +170,10 @@ class HeadlessAudioProcessor:
                     "role": "system",
                     "content": "You are an AI assistant for Red Bar Sushi restaurant. "
                               "Be helpful, concise, and friendly. Provide restaurant information "
-                              "and take orders accurately."
+                              "and take orders accurately. When asked about menu items or prices, "
+                              "always check the actual menu data to provide accurate information. "
+                              "Verify all menu items exist before providing information about them. "
+                              "Use the menu data to accurately quote prices and menu options."
                 })
             
             # Add user message
@@ -178,7 +181,7 @@ class HeadlessAudioProcessor:
             
             # Create a streaming chat completion
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1-mini",
                 messages=messages,
                 stream=True
             )

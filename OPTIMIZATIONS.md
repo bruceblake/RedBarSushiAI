@@ -82,7 +82,7 @@ The system now includes specialized speech recognition improvements for restaura
 
 1. **Menu-Aware Whisper Prompting**: The system now uses menu item names as Whisper prompts, which dramatically improves recognition of menu items in customer speech.
 
-2. **Post-Processing with GPT-4o**: Customer transcripts are post-processed with GPT to correct menu item names and improve recognition quality.
+2. **Post-Processing with GPT-4.1-mini**: Customer transcripts are post-processed with GPT to correct menu item names and improve recognition quality.
 
 3. **Automatic Menu Parsing**: The system dynamically extracts menu items from your menu data file to use in the speech recognition chain.
 
