@@ -12,6 +12,12 @@
    - Improved partial update detection and handling
    - Added automatic menu recovery if update fails
 
+3. **Improved order quantity handling**:
+   - Enhanced logging for item quantities to aid in debugging
+   - Added better validation and handling of item quantities
+   - Ensured consistent quantity handling throughout the ordering process
+   - Fixed default quantity (1) when not explicitly specified
+
 This document provides comprehensive documentation for the Deliverect integration in the RedBarSushiAI application, including recent fixes and implementation details for developers.
 
 ## Implementation Details
@@ -88,23 +94,37 @@ We send orders to Deliverect in this format:
     {
       "name": "Cheeseburger",
       "plu": "BURG-CHEESE",  // We now clean this before sending to remove ###PRNT
+      "quantity": 2,         // Can be any positive integer, defaults to 1 if not specified
+      "price": 1095,         // Price PER UNIT in cents (not the total for all items)
+      "subItems": [
+        {
+          "name": "extra cheese",
+          "plu": "MOD-CHEESE",
+          "quantity": 1,     // Modifier quantity can also be specified
+          "price": 100       // Price PER UNIT in cents
+        }
+      ]
+    },
+    {
+      "name": "French Fries",
+      "plu": "SIDE-FRIES",
       "quantity": 1,
-      "price": 1095,
+      "price": 495,
       "subItems": []
     }
   ],
-  "total": 1095,
+  "total": 2785,            // Total in cents: (1095*2) + 100 + 495
   "status": "NEW",
   "channelOrderId": "123456789",
   "orderType": 1,
   "payment": {
-    "amount": 1161,
+    "amount": 2952,         // Total with tax
     "type": 0
   },
   "taxes": [
     {
       "name": "taxes",
-      "total": 66
+      "total": 167          // Tax amount in cents
     }
   ]
 }
@@ -128,6 +148,16 @@ We send orders to Deliverect in this format:
 1. Enhanced menu update process now detects partial updates and merges them with existing data
 2. Pre-update backups are created to prevent data loss
 3. Auto-recovery restores from backup if an update fails
+
+### Order Quantity Issues
+
+**Problem**: Orders may show incorrect quantities or fail to properly calculate totals
+
+**Solution**:
+1. Ensure all order items include a "quantity" field (will default to 1 if omitted)
+2. Remember that prices in the API are always PER UNIT and not the total price
+3. Use the enhanced logging to verify quantities are being processed correctly
+4. For complex orders, verify modifier and child item quantities are correctly set
 
 ## Integration Guide
 

@@ -409,6 +409,13 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
       sender (str): The customer's phone number.
       caller_name (str): The customer's name.
       order_items (list): List of dictionaries for each ordered item.
+          Each item should have:
+          - name: Name of the item
+          - price: Base price per unit
+          - quantity: Number of this item (defaults to 1 if not specified)
+          - reference_handler: PLU code or product identifier
+          - modifier: Optional list of modifiers
+          - childItems: Optional list of child items for meal deals
       total_price (float): The total price (base) of the order.
       order_id (str): A unique identifier for the order.
       location_id (str, optional): Store location identifier.
@@ -417,6 +424,25 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
     Returns:
       dict: The JSON payload ready to be sent to Deliverect.
     """
+    # Log the incoming order items with their quantities for debugging
+    logger.info(f"[DELIVERECT-ORDER] Received order with {len(order_items)} items")
+    for idx, item in enumerate(order_items):
+        item_qty = item.get("quantity", 1)
+        item_name = item.get("name", "Unknown")
+        logger.info(f"[DELIVERECT-ORDER] Item {idx+1}: {item_name} x{item_qty}")
+        
+        # Log modifiers if present
+        for mod_idx, mod in enumerate(item.get("modifier", [])):
+            mod_qty = mod.get("quantity", 1) 
+            mod_name = mod.get("name", "Unknown")
+            logger.info(f"[DELIVERECT-ORDER] -- Modifier {mod_idx+1}: {mod_name} x{mod_qty}")
+            
+        # Log child items if present
+        for child_idx, child in enumerate(item.get("childItems", [])):
+            child_qty = child.get("quantity", 1)
+            child_name = child.get("name", "Unknown")
+            logger.info(f"[DELIVERECT-ORDER] -- Child Item {child_idx+1}: {child_name} x{child_qty}")
+            
     # In a test environment, skip validation
     if 'pytest' in sys.modules:
         logger.info("[DELIVERECT-ORDER] Skipping validation in test environment")
@@ -513,12 +539,16 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
         # Clean the PLU code to ensure Deliverect compatibility
         clean_plu = clean_plu_code(item["reference_handler"])
         
+        # Get item quantity (default to 1 if not specified)
+        quantity = item.get("quantity", 1)
+        logger.info(f"[DELIVERECT-ORDER] Processing item '{item['name']}' with quantity {quantity}")
+        
         del_item = {
             "name": item["name"],
             # Unique product identifier - cleaned for Deliverect compatibility
             "plu": clean_plu,
-            "quantity": item.get("quantity", 1),
-            "price": int(round(item.get("price", 0.0) * 100)),  # Round properly
+            "quantity": quantity,
+            "price": int(round(item.get("price", 0.0) * 100)),  # Price per unit in cents
             "subItems": []
         }
         
@@ -528,11 +558,15 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
             mod_plu = mod.get("reference_handler", mod.get("plu", ""))
             clean_mod_plu = clean_plu_code(mod_plu)
             
+            # Get modifier quantity (default to 1 if not specified)
+            mod_quantity = mod.get("quantity", 1)
+            logger.info(f"[DELIVERECT-ORDER] Processing modifier '{mod.get('name', '')}' with quantity {mod_quantity}")
+            
             sub_item = {
                 "name": mod.get("name", "").lower(),
                 "plu": clean_mod_plu,  # Use cleaned PLU code for Deliverect compatibility
-                "quantity": mod.get("quantity", 1),
-                "price": int(round(mod.get("price", 0.0) * 100))  # Round properly
+                "quantity": mod_quantity,
+                "price": int(round(mod.get("price", 0.0) * 100))  # Price per unit in cents
             }
             
             # Log if price seems incorrect
@@ -548,11 +582,15 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
                 child_plu = child.get("reference_handler", "")
                 clean_child_plu = clean_plu_code(child_plu)
                 
+                # Get child item quantity (default to 1 if not specified)
+                child_quantity = child.get("quantity", 1)
+                logger.info(f"[DELIVERECT-ORDER] Processing child item '{child.get('name', '')}' with quantity {child_quantity}")
+                
                 child_item = {
                     "name": child["name"],
                     "plu": clean_child_plu,  # Use cleaned PLU code for Deliverect compatibility
-                    "quantity": child.get("quantity", 1),
-                    "price": int(round(child.get("price", 0.0) * 100)),
+                    "quantity": child_quantity,
+                    "price": int(round(child.get("price", 0.0) * 100)), # Price per unit in cents
                     "subItems": []
                 }
                 
@@ -562,11 +600,15 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
                     mod_plu = mod.get("reference_handler", mod.get("plu", ""))
                     clean_mod_plu = clean_plu_code(mod_plu)
                     
+                    # Get child item modifier quantity (default to 1 if not specified)
+                    child_mod_quantity = mod.get("quantity", 1)
+                    logger.info(f"[DELIVERECT-ORDER] Processing child item modifier '{mod.get('name', '')}' with quantity {child_mod_quantity}")
+                    
                     sub_item = {
                         "name": mod.get("name", "").lower(),
                         "plu": clean_mod_plu,  # Use cleaned PLU code for Deliverect compatibility
-                        "quantity": mod.get("quantity", 1),
-                        "price": int(round(mod.get("price", 0.0) * 100))
+                        "quantity": child_mod_quantity,
+                        "price": int(round(mod.get("price", 0.0) * 100)) # Price per unit in cents
                     }
                     
                     # Log if price seems incorrect

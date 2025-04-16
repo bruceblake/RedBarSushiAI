@@ -117,7 +117,7 @@ def test_build_deliverect_order():
     order_items = [
         {
             "name": "California Roll",
-            "quantity": 2,
+            "quantity": 2,  # Test multiple quantity
             "price": 9.95,
             "reference_handler": "cal_roll_1###PRNT",  # Add problematic suffix to test cleaning
             "modifier": [
@@ -130,9 +130,18 @@ def test_build_deliverect_order():
             "price": 3.50,
             "reference_handler": "miso_soup_1",
             "modifier": []
+        },
+        {
+            "name": "Spicy Tuna Roll",
+            # No quantity specified - should default to 1
+            "price": 11.95,
+            "reference_handler": "spicy_tuna_1",
+            "modifier": [
+                {"name": "extra wasabi", "quantity": 2, "price": 0.25, "reference_handler": "WASABI"}
+            ]
         }
     ]
-    total_price = 23.90  # (9.95 * 2) + 0.50 + 3.50
+    total_price = 36.35  # (9.95 * 2) + 0.50 + 3.50 + 11.95 + (0.25 * 2)
     order_id = 'test-123'
     
     # Build the order
@@ -142,19 +151,38 @@ def test_build_deliverect_order():
     assert payload['orderId'] == 'test-123'
     assert payload['customer']['name'] == 'Test User'
     assert payload['customer']['phone'] == '+1234567890'
-    assert payload['total'] == 2390  # cents
+    assert payload['total'] == 3635  # cents
     assert payload['status'] == 'NEW'
     assert payload['channelOrderId'] == 'test-123'
     
     # Check items
-    assert len(payload['items']) == 2
+    assert len(payload['items']) == 3
+    
+    # Check California Roll (quantity 2)
     assert payload['items'][0]['name'] == 'California Roll'
     assert payload['items'][0]['quantity'] == 2
-    assert payload['items'][0]['price'] == 995  # cents
+    assert payload['items'][0]['price'] == 995  # cents in Deliverect format
     
     # Check modifiers
     assert len(payload['items'][0]['subItems']) == 1
     assert payload['items'][0]['subItems'][0]['name'] == 'spicy mayo'
+    assert payload['items'][0]['subItems'][0]['quantity'] == 1
+    
+    # Check Miso Soup (quantity 1)
+    assert payload['items'][1]['name'] == 'Miso Soup'
+    assert payload['items'][1]['quantity'] == 1
+    assert payload['items'][1]['price'] == 350  # cents
+    
+    # Check Spicy Tuna Roll (default quantity 1)
+    assert payload['items'][2]['name'] == 'Spicy Tuna Roll'
+    assert payload['items'][2]['quantity'] == 1  # Default quantity
+    assert payload['items'][2]['price'] == 1195  # cents
+    
+    # Check modifier with quantity > 1
+    assert len(payload['items'][2]['subItems']) == 1
+    assert payload['items'][2]['subItems'][0]['name'] == 'extra wasabi'
+    assert payload['items'][2]['subItems'][0]['quantity'] == 2  # Testing multiple modifier quantity
+    assert payload['items'][2]['subItems'][0]['price'] == 25  # cents
     
     # Check that PLU codes were cleaned (###PRNT removed)
     assert payload['items'][0]['plu'] == 'cal_roll_1'  # Should be cleaned from "cal_roll_1###PRNT"
