@@ -22,8 +22,12 @@ This document lists all environment variables used by the RedBarSushiAI applicat
 | `TWILIO_NUMBER` | Twilio phone number | None | Yes for SMS/voice |
 | `OWNER_PHONE_NUMBER` | Owner's phone for notifications | TWILIO_NUMBER | No |
 | `CUSTOMER_SERVICE_NUMBER` | Phone number shown to customers | TWILIO_NUMBER | No |
-| `STAGING_OWNER_PHONE` | Owner's phone for staging env | OWNER_PHONE_NUMBER | No |
+| `STAGING_OWNER_PHONE` | Owner's phone for staging env | Same as production OWNER_PHONE_NUMBER | No |
 | `TEST_PHONE_NUMBER` | Number for testing SMS | TWILIO_NUMBER | No |
+
+### Important Note About Phone Numbers
+
+The system now uses the same phone number for both production and staging environments by default. This was implemented because some phone numbers were causing Twilio error 30034 (invalid recipient). If you need to use different numbers for different environments, make sure to test that the numbers are valid with Twilio first.
 
 ## OpenAI Configuration
 

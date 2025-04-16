@@ -66,9 +66,14 @@ CUSTOMER_SERVICE_NUMBER = os.getenv("CUSTOMER_SERVICE_NUMBER", "+18333247207")
 TEST_PHONE_NUMBER = os.getenv("TEST_PHONE_NUMBER", "+18333247207")
 
 # Environment-specific owner numbers
+# IMPORTANT: We're using the same phone number for both production and staging
+# because the previous staging phone number was invalid with Twilio (error 30034)
+WORKING_PHONE = "+18333247207"  # This is the known working phone number
+
 if os.environ.get('FLASK_ENV') == 'staging' or os.environ.get('IS_STAGING'):
-    # Staging environment numbers
-    STAGING_OWNER_PHONE = os.getenv("STAGING_OWNER_PHONE", OWNER_PHONE_NUMBER)
+    # For staging, we now default to the same working phone as production
+    # to avoid SMS delivery failures (Twilio error 30034)
+    STAGING_OWNER_PHONE = os.getenv("STAGING_OWNER_PHONE", WORKING_PHONE)
     # Use staging owner number if we're in staging environment
     OWNER_PHONE_NUMBER = STAGING_OWNER_PHONE
 
