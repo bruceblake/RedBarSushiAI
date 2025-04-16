@@ -6,10 +6,19 @@ on:
     
 jobs:
   lint:
+    name: Lint & Format
     runs-on: ubuntu-latest
+    continue-on-error: false
     steps:
     - uses: actions/checkout@v3
-    
+    - name: Cache pip
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -35,10 +44,19 @@ jobs:
         flake8 app/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
         
   security-scan:
+    name: Security Scan
     runs-on: ubuntu-latest
+    continue-on-error: false
     steps:
     - uses: actions/checkout@v3
-    
+    - name: Cache pip
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -52,12 +70,18 @@ jobs:
     - name: Run Bandit security scan
       run: |
         bandit -r app/ -f json -o bandit-results.json -s B104,B110,B404,B603 || true
-        
+    - name: Upload Bandit results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: bandit-results
+        path: bandit-results.json
     - name: Check for security vulnerabilities
       run: |
         safety check -r requirements.txt --full-report
         
   api-schema-check:
+    name: API Schema Check
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
