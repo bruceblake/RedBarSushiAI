@@ -24,6 +24,12 @@ Fixed two critical issues affecting order processing and SMS delivery:
    - This prevents Twilio error 30034 by ensuring all test messages use a valid, deliverable phone number
    - Updated error handling for error code 30034 with clearer error messages
 
+4. **Removed Owner Notifications** (April 16, 2025 Update):
+   - Completely removed owner notification SMS functionality
+   - Disabled all SMS notifications that were previously sent to OWNER_PHONE_NUMBER
+   - Only customer-facing SMS notifications are now sent
+   - This reduces SMS API usage and simplifies the system
+
 ### Environment-specific Phone Numbers
 
 The application now supports different phone numbers for different environments:

@@ -258,23 +258,9 @@ Thank you for ordering{location_prefix}!
                 except Exception as alt_e:
                     logging.error(f"Alternative SMS approach also failed: {alt_e}")
             
-            # Send SMS notification to owner (not WhatsApp)
-            try:
-                # Include location in owner notification
-                owner_msg = text_msg
-                if location_id and "location" not in owner_msg:
-                    owner_msg = f"New order from{location_prefix}:\n{owner_msg}"
-                    
-                # Use regular SMS for owner notification
-                twilio_client.messages.create(
-                    body=owner_msg,
-                    from_=TWILIO_PHONE_NUMBER,
-                    to=OWNER_PHONE_NUMBER,
-                    status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
-                )
-                logging.info(f"Owner notification SMS sent to {OWNER_PHONE_NUMBER}")
-            except Exception as e:
-                logging.info(f"Owner notification SMS error: {e}")
+            # Owner notification has been removed
+            # No SMS notification will be sent to the owner
+            logging.info("Owner notification SMS has been disabled")
             
             # Update order in database (should already exist but update message)
             try:
@@ -538,23 +524,9 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
                 except Exception as alt_e:
                     logging.error(f"Alternative SMS approach for status update also failed: {alt_e}")
 
-            # Send SMS notification to owner (not WhatsApp)
-            try:
-                # Add customer info for owner message
-                owner_formatted_status = formatted_status + f"\n\nCustomer: {order.sender}"
-                if order.caller_name:
-                    owner_formatted_status += f" ({order.caller_name})"
-                
-                # Use regular SMS for owner notification
-                twilio_client.messages.create(
-                    body=owner_formatted_status,
-                    from_=TWILIO_PHONE_NUMBER,
-                    to=OWNER_PHONE_NUMBER,
-                    status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
-                )
-                logging.info(f"Owner status notification SMS sent to {OWNER_PHONE_NUMBER}")
-            except Exception as e:
-                logging.info(f"Owner status notification SMS error: {e}")
+            # Owner notification has been removed
+            # No SMS status notification will be sent to the owner
+            logging.info("Owner status notification SMS has been disabled")
                 
             # Handle failed orders for reporting
             if order.status_code in [110, 115, 120] or order_status in ["FAILED", "CANCELLED", "REJECTED"]:
