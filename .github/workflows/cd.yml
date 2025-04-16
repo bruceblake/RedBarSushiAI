@@ -15,6 +15,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
       
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y portaudio19-dev
+      
     - name: Set up environment
       run: |
         echo "DEPLOY_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
