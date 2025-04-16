@@ -4,7 +4,7 @@
 - Run server: `python run.py` 
 - Run with debug: `FLASK_DEBUG=1 FLASK_APP=run.py flask run`
 - Run Celery worker: `celery -A celery_app worker --loglogs=INFO`
-- Run tests: `pytest -k "not test_sms_endpoint and not test_webhook_config and not test_twilio_webhook and not test_order_status_endpoint and not test_deliverect_deep_scan and not test_menu_variant_matching"`
+- Run tests: `pytest -k "not test_sms_endpoint and not test_webhook_config and not test_twilio_webhook and not test_order_status_endpoint"`
 - Run single test: `pytest tests/test_file.py::test_function`
 
 ## Code Style Guidelines
