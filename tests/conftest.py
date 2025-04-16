@@ -253,3 +253,45 @@ def mock_deliverect():
         mock_post.side_effect = [mock_token_response, mock_response]
         
         yield mock_post
+
+@pytest.fixture
+def mock_openai():
+    """Create a mock OpenAI client for testing."""
+    mock = MagicMock()
+    
+    # Mock chat completions
+    mock.chat.completions.create.return_value = MagicMock()
+    mock.chat.completions.create.return_value.choices = [MagicMock()]
+    mock.chat.completions.create.return_value.choices[0].message = MagicMock()
+    mock.chat.completions.create.return_value.choices[0].message.content = json.dumps({
+        "intent": "order_food",
+        "menu_items": [
+            {
+                "name": "California Roll",
+                "quantity": 2
+            }
+        ]
+    })
+    
+    # Return the mock
+    with patch('app.utils.agent_utils.openai', mock):
+        yield mock
+
+@pytest.fixture
+def mock_twilio():
+    """Create a mock Twilio client for testing."""
+    mock = MagicMock()
+    
+    # Mock Twilio response object
+    mock_response = MagicMock()
+    mock_response.to_xml.return_value = "<Response><Say>Test response</Say></Response>"
+    
+    # Mock message creation
+    mock.messages.create.return_value = MagicMock(sid="SM123456")
+    
+    # Mock call creation
+    mock.calls.create.return_value = MagicMock(sid="CA123456")
+    
+    # Return the mock
+    with patch('app.routes.voice.client', mock):
+        yield mock

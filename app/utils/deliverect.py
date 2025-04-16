@@ -124,7 +124,7 @@ def _process_category(category, result):
                 product["category"] = category_name
                 
             item = _convert_product_to_item(product)
-            if item:
+            if item and not any(existing["name"] == item["name"] for existing in result["items"]):
                 result["items"].append(item)
                 _add_name_variants(result["name_variants"], item["name"])
 
@@ -148,7 +148,7 @@ def _recursively_find_products(data, result, max_depth=10, current_depth=0):
                 for product in value:
                     if _is_valid_product(product):
                         item = _convert_product_to_item(product)
-                        if item:
+                        if item and not any(existing["name"] == item["name"] for existing in result["items"]):
                             result["items"].append(item)
                             _add_name_variants(result["name_variants"], item["name"])
             
