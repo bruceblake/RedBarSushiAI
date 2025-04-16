@@ -997,3 +997,57 @@ def process_meal_deal(meal_deal_item, selections=None):
         result["childItems"].append(child_item)
     
     return result
+
+def add_name_variants(menu_data, variants_dict):
+    """
+    Add name variants to the menu data.
+    
+    Args:
+        menu_data: The menu data to update
+        variants_dict: Dictionary of variants to add (variant -> actual name)
+        
+    Returns:
+        dict: Updated menu data
+    """
+    # Get existing variants
+    existing_variants = menu_data.get("name_variants", {})
+    
+    # Add new variants
+    for variant, actual_name in variants_dict.items():
+        existing_variants[variant.lower()] = actual_name
+    
+    # Update menu data
+    menu_data["name_variants"] = existing_variants
+    
+    return menu_data
+
+def build_nested_modifiers(modifier, menu_data):
+    """
+    Build a nested structure of modifiers.
+    
+    Args:
+        modifier: The modifier to process
+        menu_data: The menu data containing all modifiers
+        
+    Returns:
+        dict: Processed modifier with nested sub-modifiers
+    """
+    # Create base modifier
+    result = {
+        "name": modifier.get("name", ""),
+        "reference_handler": modifier.get("reference_handler", ""),
+        "price": modifier.get("price", 0.0),
+        "quantity": modifier.get("quantity", 1),
+        "subModifiers": []
+    }
+    
+    # Process sub-modifiers if any
+    for sub_mod in modifier.get("modifiers", []):
+        result["subModifiers"].append({
+            "name": sub_mod.get("name", ""),
+            "reference_handler": sub_mod.get("reference_handler", ""),
+            "price": sub_mod.get("price", 0.0),
+            "quantity": sub_mod.get("quantity", 1)
+        })
+    
+    return result

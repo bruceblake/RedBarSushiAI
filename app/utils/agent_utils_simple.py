@@ -61,6 +61,43 @@ def analyze_user_input(text: str) -> Dict[str, Any]:
         "confidence": 0.8 if found_items else 0.2
     }
 
+def process_user_input(text: str) -> Dict[str, Any]:
+    """
+    Process user input to determine intent and extract relevant information.
+    This is a wrapper around analyze_user_input that handles additional processing.
+    
+    Args:
+        text: The user's input text
+        
+    Returns:
+        dict: Processed input with intent and extracted information
+    """
+    # First analyze the basic intent and items
+    analysis = analyze_user_input(text)
+    
+    # Additional processing for specific intents
+    if analysis["intent"] == "order_food":
+        # Enhance the order with details if needed
+        pass
+    elif analysis["intent"] == "menu_query":
+        # Add query type information
+        analysis["query"] = {"type": "generic"}
+        if "price" in text.lower() or "cost" in text.lower() or "how much" in text.lower():
+            analysis["query"]["type"] = "price"
+            # Try to extract which item they're asking about
+            menu_data = load_menu_data()
+            for item in menu_data.get("items", []):
+                item_name = item.get("name", "").lower()
+                if item_name in text.lower():
+                    analysis["query"]["item"] = item.get("name")
+                    break
+    
+    # Enhance with conversation context if needed
+    if "hello" in text.lower() or "hi" in text.lower() or "greeting" in text.lower():
+        analysis["intent"] = "greeting"
+    
+    return analysis
+
 def get_order_modifications(text: str, current_items: List[Dict[str, Any]]) -> Dict[str, List]:
     """
     Analyze text to determine requested modifications to an order.
