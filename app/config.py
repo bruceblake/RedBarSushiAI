@@ -65,6 +65,10 @@ CUSTOMER_SERVICE_NUMBER = os.getenv("CUSTOMER_SERVICE_NUMBER", "+18333247207")
 # Test phone numbers - useful for validating SMS without sending to customers
 TEST_PHONE_NUMBER = os.getenv("TEST_PHONE_NUMBER", "+18333247207")
 
+# Default test customer phone number to use in staging environment
+# This ensures SMS deliverability by using a known working number
+DEFAULT_TEST_CUSTOMER_NUMBER = os.getenv("DEFAULT_TEST_CUSTOMER_NUMBER", "+18333247207")
+
 # Environment-specific owner numbers
 # IMPORTANT: We're using the same phone number for both production and staging
 # because the previous staging phone number was invalid with Twilio (error 30034)

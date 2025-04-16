@@ -16,6 +16,13 @@ Fixed two critical issues affecting order processing and SMS delivery:
    - Modified the config to use the same working phone number (`+18333247207`) for both production and staging
    - Added `WORKING_PHONE` constant in config.py to ensure consistent functionality
    - Updated documentation to explain the phone number standardization
+   
+3. **Automatic Phone Number Substitution in Staging** (April 16, 2025 Update):
+   - Added `DEFAULT_TEST_CUSTOMER_NUMBER` environment variable with default value of `+18333247207`
+   - Modified voice call handling to automatically use this number in staging environments
+   - Added automatic detection of staging environments to apply this substitution
+   - This prevents Twilio error 30034 by ensuring all test messages use a valid, deliverable phone number
+   - Updated error handling for error code 30034 with clearer error messages
 
 ### Environment-specific Phone Numbers
 
