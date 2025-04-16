@@ -137,32 +137,78 @@ class SushiMenuTool:
         Returns:
             dict: The search results
         """
-        results = []
-        query_lower = query.lower().strip()
-        
-        # First try to find exact matches
+        # First try to find exact matches using our enhanced matching system
         item = find_menu_item_by_name(query)
         if item:
             return {"found": True, "items": [item], "query": query}
         
-        # Then try to find partial matches
-        name_variants = self.menu_data.get("name_variants", {})
-        matching_variants = []
+        # If exact match fails, let's do a more thorough search with scoring
+        results = []
+        scored_items = []
+        query_lower = query.lower().strip()
         
-        for variant, item_name in name_variants.items():
-            if query_lower in variant:
-                matching_variants.append((variant, item_name))
+        # Get all menu items and evaluate with a scoring system
+        for item in self.menu_data.get("items", []):
+            item_name = item.get("name", "").lower()
+            
+            # Skip empty names
+            if not item_name:
+                continue
+                
+            # Calculate match score
+            score = 0
+            
+            # Check for direct matches
+            if item_name == query_lower:
+                score = 100
+            elif query_lower in item_name:
+                # Longer query matches are better
+                score = 80 + min(len(query_lower), 15)
+            elif item_name in query_lower:
+                # If menu item is contained in query
+                match_ratio = len(item_name) / len(query_lower)
+                score = 60 + int(match_ratio * 20)
+                
+            # Word-level matching
+            if score < 30:  # Only do word matching for lower-scoring matches
+                query_words = set(query_lower.split())
+                item_words = set(item_name.split())
+                
+                # Words in common
+                common_words = query_words.intersection(item_words)
+                
+                if common_words:
+                    # Calculate scores based on word overlap
+                    word_match_ratio = len(common_words) / len(item_words) if item_words else 0
+                    query_coverage = len(common_words) / len(query_words) if query_words else 0
+                    
+                    # Combined score with higher weight for query coverage
+                    word_score = int((word_match_ratio * 0.4 + query_coverage * 0.6) * 50)
+                    score = max(score, word_score)
+            
+            # Special case for terms like "veggie burger"
+            if "veggie" in query_lower and "burger" in item_name:
+                if "veggie" in item_name:
+                    # Boost veggie burger for veggie queries
+                    score += 20
+            
+            # Only include reasonably good matches
+            if score >= 30:
+                scored_items.append((item, score))
         
-        # Find the actual items for the matching variants
-        for _, item_name in matching_variants:
-            for item in self.menu_data.get("items", []):
-                if item.get("name") == item_name and item not in results:
-                    results.append(item)
+        # Sort by score
+        scored_items.sort(key=lambda x: x[1], reverse=True)
+        
+        # Take the top results
+        results = [item for item, _ in scored_items[:5]]
         
         return {
             "found": len(results) > 0,
             "items": results,
-            "query": query
+            "query": query,
+            "debug_info": {
+                "top_matches": [(item.get("name"), score) for item, score in scored_items[:3]] if scored_items else []
+            }
         }
     
     def get_menu_categories(self) -> List[str]:
