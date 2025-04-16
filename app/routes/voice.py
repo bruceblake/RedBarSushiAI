@@ -55,7 +55,19 @@ def receive_call():
     logger.info("==== END CALL DETAILS ====")
     
     # Set initial session variables
-    session['sender'] = request.values.get('From', '')
+    from app.config import DEFAULT_TEST_CUSTOMER_NUMBER
+    
+    # Get the caller's phone number
+    caller_number = request.values.get('From', '')
+    
+    # In staging environment, use a default test number to ensure SMS deliverability
+    is_staging = os.environ.get('IS_STAGING') or os.environ.get('FLASK_ENV') == 'staging'
+    if is_staging and DEFAULT_TEST_CUSTOMER_NUMBER:
+        logger.info(f"STAGING ENV: Using default test number instead of {caller_number}")
+        session['sender'] = DEFAULT_TEST_CUSTOMER_NUMBER
+    else:
+        session['sender'] = caller_number
+        
     session['order_message'] = ""
     session['total_price'] = 0
     session['modification_in_progress'] = False
