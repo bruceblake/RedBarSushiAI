@@ -130,9 +130,16 @@ def test_build_deliverect_order():
             "price": 3.50,
             "reference_handler": "miso_soup_1",
             "modifier": []
+        },
+        {
+            "name": "Chicken Tenders",
+            "quantity": 1,
+            "price": 8.00,
+            "reference_handler": "VAR-PROD-1",  # Variant product without variations
+            "modifier": []
         }
     ]
-    total_price = 23.90  # (9.95 * 2) + 0.50 + 3.50
+    total_price = 31.90  # (9.95 * 2) + 0.50 + 3.50 + 8.00
     order_id = 'test-123'
     
     # Build the order
@@ -142,12 +149,12 @@ def test_build_deliverect_order():
     assert payload['orderId'] == 'test-123'
     assert payload['customer']['name'] == 'Test User'
     assert payload['customer']['phone'] == '+1234567890'
-    assert payload['total'] == 2390  # cents
+    assert payload['total'] == 3190  # cents
     assert payload['status'] == 'NEW'
     assert payload['channelOrderId'] == 'test-123'
     
     # Check items
-    assert len(payload['items']) == 2
+    assert len(payload['items']) == 3
     assert payload['items'][0]['name'] == 'California Roll'
     assert payload['items'][0]['quantity'] == 2
     assert payload['items'][0]['price'] == 995  # cents
@@ -160,6 +167,12 @@ def test_build_deliverect_order():
     assert payload['items'][0]['plu'] == 'cal_roll_1'  # Should be cleaned from "cal_roll_1###PRNT"
     assert payload['items'][0]['subItems'][0]['plu'] == 'SPICY-MAYO'  # Should be cleaned from "SPICY-MAYO###PRNT"
     assert payload['items'][1]['plu'] == 'miso_soup_1'  # This one was already clean
+    
+    # Check that variant products have a default variation sub-item
+    assert payload['items'][2]['plu'] == 'VAR-PROD-1'  # Variant product
+    assert len(payload['items'][2]['subItems']) == 1  # Should have one sub item
+    assert payload['items'][2]['subItems'][0]['name'] == 'default variation'
+    assert payload['items'][2]['subItems'][0]['plu'] == 'VAR-PROD-1-DEFAULT'
     
     # Check tax calculation
     sales_tax = 0.06

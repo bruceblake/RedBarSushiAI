@@ -513,6 +513,11 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
         # Clean the PLU code to ensure Deliverect compatibility
         clean_plu = clean_plu_code(item["reference_handler"])
         
+        # Check if this is a variant product (starts with VAR-PROD)
+        is_variant = clean_plu.startswith("VAR-PROD")
+        if is_variant:
+            logger.info(f"[DELIVERECT-ORDER] Product {item['name']} with PLU {clean_plu} is a variant product")
+        
         del_item = {
             "name": item["name"],
             # Unique product identifier - cleaned for Deliverect compatibility
@@ -521,6 +526,19 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
             "price": int(round(item.get("price", 0.0) * 100)),  # Round properly
             "subItems": []
         }
+        
+        # For variant products, add a default variation if no other sub items exist
+        if is_variant and not item.get("modifier", []) and not item.get("childItems", []):
+            logger.info(f"[DELIVERECT-ORDER] Adding default variation sub item for variant product {item['name']}")
+            # Add a default variation as required by Deliverect
+            default_variation = {
+                "name": f"default variation",
+                "plu": f"{clean_plu}-DEFAULT",
+                "quantity": 1,
+                "price": 0  # Price is already included in the parent item
+            }
+            del_item["subItems"].append(default_variation)
+        
         
         # Process any modifiers for this item
         for mod in item.get("modifier", []):

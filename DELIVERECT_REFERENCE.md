@@ -7,7 +7,12 @@
    - Updated deliverect.py to sanitize all PLU codes before sending to Deliverect API
    - Fixed the "Invalid PLU" errors in the ordering system
 
-2. **Enhanced menu update robustness**:
+2. **Added support for variant products**:
+   - Fixed "Some order product is a variant, but the order does not contain a variation sub item" error
+   - Added automatic detection of VAR-PROD prefixed items as variants
+   - Added default variation sub-items for variant products with no explicit variations
+
+3. **Enhanced menu update robustness**:
    - Added pre-update backup system to prevent data loss 
    - Improved partial update detection and handling
    - Added automatic menu recovery if update fails
@@ -29,6 +34,19 @@ Our system now automatically cleans PLU codes before sending them to Deliverect 
 1. Removing the ###PRNT suffix from all PLU codes
 2. Ensuring consistency between item names and PLU codes
 3. Providing appropriate error messages when PLU issues occur
+
+### Variant Products
+
+Variant products in Deliverect have special requirements:
+
+- Products with PLU codes starting with `VAR-PROD` are considered variants
+- All variant products MUST have at least one variation sub-item
+- Example: A product with PLU `VAR-PROD-1` must include at least one sub-item
+
+Our system handles variants by:
+1. Automatically detecting products with the `VAR-PROD` prefix
+2. Adding a default variation sub-item if none is explicitly provided
+3. Properly formatting the variation sub-item with the same product PLU plus "-DEFAULT" suffix
 
 ### Menu Update Robustness
 
@@ -119,6 +137,15 @@ We send orders to Deliverect in this format:
 **Solution**: 
 1. The system now automatically removes "###PRNT" suffix from PLU codes before sending to Deliverect
 2. To manually fix, update reference_handler values in menu_data.json to remove any special characters
+
+### Variant Product Errors
+
+**Problem**: Orders fail with error "Some order product (VAR-PROD-1) is a variant, but the order does not contain a variation sub item"
+
+**Solution**:
+1. The system now automatically adds a default variation sub-item for products with PLU codes starting with "VAR-PROD"
+2. If using custom variants, ensure each variant product has at least one variation sub-item
+3. For manual fixes, add a variation to the product in the menu data or change the product's PLU code to a non-variant format
 
 ### Menu Updates Failing
 
