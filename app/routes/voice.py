@@ -129,8 +129,28 @@ def take_name():
     caller_name = extract_name_with_agent(full_speech)
     
     if caller_name:
-        session['caller_name'] = caller_name
-        menu_prompt = f"Thanks, {session['caller_name']}! Press or say 1 to order, 2 for menu questions, 3 for a real person."
+        # Store name in session temporarily before confirmation
+        session['temp_caller_name'] = caller_name
+        
+        # Create a name confirmation response that spells out the name
+        response = VoiceResponse()
+        
+        # Spell out the name for confirmation
+        spelled_name = " ".join(list(caller_name))
+        
+        with response.gather(
+            input='speech dtmf',
+            action='/confirm_name',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            timeout=5,
+            num_digits=1
+        ) as g:
+            g.say(f"I heard {caller_name}, spelled {spelled_name}. Is that correct? Say yes or press 1 for yes, or say no or press 2 to correct it.")
+        
+        return Response(str(response), mimetype="text/xml")
     else:
         # Try again with a more specific prompt if we couldn't get the name
         response = VoiceResponse()
@@ -145,18 +165,52 @@ def take_name():
         ) as g:
             g.say("I didn't catch your name. Please say just your first name clearly, or press any key to continue.")
         return Response(str(response), mimetype="text/xml")
+
+
+@voice_bp.route('/confirm_name', methods=['POST'])
+def confirm_name():
+    # Get the response from the user
+    user_resp = (request.form.get('SpeechResult', '') or "").lower()
+    dtmf_input = request.form.get('Digits', '')
+    
+    # Determine if the user confirmed the name
+    confirmed = False
+    if dtmf_input == '1' or 'yes' in user_resp or 'correct' in user_resp or 'right' in user_resp or 'that\'s it' in user_resp:
+        confirmed = True
+    
+    # Get the temporary name from session
+    temp_name = session.get('temp_caller_name', 'Valued Customer')
     
     response = VoiceResponse()
-    with response.gather(
-        input='speech dtmf',
-        action='/main_menu',
-        enhanced=True,
-        speech_model="phone_call",
-        language="en-US",
-        speech_timeout="auto",
-        num_digits=1
-    ) as g:
-        g.say(menu_prompt)
+    
+    if confirmed:
+        # Set the confirmed name and move to main menu
+        session['caller_name'] = temp_name
+        menu_prompt = f"Thanks, {session['caller_name']}! Press or say 1 to order, 2 for menu questions, 3 for a real person."
+        
+        with response.gather(
+            input='speech dtmf',
+            action='/main_menu',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            num_digits=1
+        ) as g:
+            g.say(menu_prompt)
+    else:
+        # User said the name was incorrect, ask for name again
+        with response.gather(
+            input='speech',
+            action='/take_name',
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            timeout=7  # Give more time
+        ) as g:
+            g.say("I apologize for getting that wrong. Please tell me your name again.")
+    
     return Response(str(response), mimetype="text/xml")
 
 
