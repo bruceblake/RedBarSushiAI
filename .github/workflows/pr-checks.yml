@@ -70,12 +70,6 @@ jobs:
     - name: Run Bandit security scan
       run: |
         bandit -r app/ -f json -o bandit-results.json -s B104,B110,B404,B603 || true
-    - name: Upload Bandit results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: bandit-results
-        path: bandit-results.json
     - name: Check for security vulnerabilities
       run: |
         safety check -r requirements.txt --full-report

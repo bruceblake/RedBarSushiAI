@@ -64,12 +64,6 @@ jobs:
         echo "TESTING=true" >> .env.test
     - name: Run tests
       run: pytest --cov=app --cov-report=xml --cov-report=html
-    - name: Upload coverage report
-      if: always()
-      uses: actions/upload-artifact@v2
-      with:
-        name: coverage-report
-        path: htmlcov/
 
   lint:
     name: Lint & Format
