@@ -47,6 +47,64 @@ logger = logging.getLogger(__name__)
 # Dictionary to track busy mode status per location
 LOCATIONS_BUSY_STATUS = {}
 
+@location_bp.route('/list', methods=['GET'])
+def list_locations():
+    """List all registered locations."""
+    try:
+        locations = db.session.query(Location).all()
+        result = []
+        for loc in locations:
+            result.append({
+                "id": loc.id,
+                "name": loc.name,
+                "status": loc.status,
+                "created_at": loc.created_at.isoformat() if hasattr(loc, 'created_at') and loc.created_at else None,
+                "updated_at": loc.updated_at.isoformat() if hasattr(loc, 'updated_at') and loc.updated_at else None
+            })
+        return jsonify({"locations": result}), 200
+    except Exception as e:
+        logger.error(f"Error listing locations: {e}")
+        return jsonify({"error": "Failed to list locations"}), 500
+
+@location_bp.route('/info/<location_id>', methods=['GET'])
+def location_info(location_id):
+    """Get information about a specific location."""
+    try:
+        location = db.session.query(Location).filter_by(id=location_id).first()
+        if not location:
+            return jsonify({"error": f"Location {location_id} not found"}), 404
+            
+        # Create result with location information
+        result = {
+            "id": location.id,
+            "name": location.name,
+            "status": location.status,
+            "created_at": location.created_at.isoformat() if hasattr(location, 'created_at') and location.created_at else None,
+            "updated_at": location.updated_at.isoformat() if hasattr(location, 'updated_at') and location.updated_at else None,
+            "webhook_base": location.webhook_base if hasattr(location, 'webhook_base') else None,
+            # Don't include API key details for security
+            "has_credentials": hasattr(location, 'api_key') and location.api_key is not None,
+            "busy_status": LOCATIONS_BUSY_STATUS.get(location_id, False)
+        }
+        
+        # Get all webhooks for this location
+        result["webhooks"] = get_location_webhook_urls(location_id)
+            
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error getting location info: {e}")
+        return jsonify({"error": f"Failed to get location info: {str(e)}"}), 500
+
+@location_bp.route('/register', methods=['POST'])
+def register_without_id():
+    """Endpoint for when location ID is not provided in URL."""
+    return jsonify({
+        "error": "Missing location ID in URL",
+        "message": "Please use the format: /location/{location_id}/register",
+        "example": "/location/my-location-id/register",
+        "help": "The location ID is a unique identifier for this restaurant location. You can use any string without spaces."
+    }), 400
+
 
 @location_bp.route('/<location_id>/register', methods=['POST'])
 def register_channel_per_location(location_id):
