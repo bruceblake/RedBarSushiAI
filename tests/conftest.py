@@ -68,6 +68,9 @@ def app():
     test_config = {
         'TESTING': True,
         'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
+        'SQLALCHEMY_ENGINE_OPTIONS': {
+            'connect_args': {'check_same_thread': False}
+        },
         'SQLALCHEMY_TRACK_MODIFICATIONS': False,
         'SERVER_NAME': 'localhost',
         'WTF_CSRF_ENABLED': False,

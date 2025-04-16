@@ -142,11 +142,32 @@ class TestConversationHandling:
         })
         return mock_response
     
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, monkeypatch):
+        """Set up mocks for the test class."""
+        # Create a sample menu fixture at the class level
+        self.test_menu = {
+            "items": [
+                {
+                    "name": "California Roll",
+                    "price": 7.95,
+                    "reference_handler": "cal-roll-1",
+                    "available": True,
+                    "category": "Rolls"
+                }
+            ],
+            "name_variants": {
+                "california roll": "California Roll",
+                "cali roll": "California Roll"
+            }
+        }
+        
+        # Mock the load_menu_data function to return our test menu
+        monkeypatch.setattr('app.utils.menu_utils.load_menu_data', lambda *args, **kwargs: self.test_menu)
+    
     @patch('app.utils.agent_utils_simple.openai.chat.completions.create')
-    @patch('app.utils.menu_utils.load_menu_data')
-    def test_process_user_input_order(self, mock_load_menu_data, mock_openai_create, sample_menu, mock_openai_response):
+    def test_process_user_input_order(self, mock_openai_create, mock_openai_response):
         """Test processing user input for an order."""
-        mock_load_menu_data.return_value = sample_menu
         mock_openai_create.return_value = mock_openai_response
         
         result = process_user_input("I'd like two California Rolls please")
