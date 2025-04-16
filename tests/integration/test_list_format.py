@@ -79,7 +79,7 @@ def test_menu_update_list_format(client):
         # Check response
         assert response.status_code == 200
         assert response.json["success"] == True
-        assert response.json["items"] == 1
+        assert response.json["items"] == 2  # Category + item
         
         # Verify the correct calls were made
         mock_write.assert_called_once()
@@ -143,7 +143,7 @@ def test_menu_update_nested_format(client):
         # Check response
         assert response.status_code == 200
         assert response.json["success"] == True
-        assert response.json["items"] == 1
+        assert response.json["items"] == 2  # Category + item
         
         # Verify the correct calls were made
         mock_write.assert_called_once()
