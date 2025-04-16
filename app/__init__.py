@@ -196,7 +196,16 @@ def create_app(test_config=None):
     # Simple root route that doesn't require database access
     @app.route('/')
     def index():
-        return {"message": "Welcome to Red Bar Sushi AI API", "version": "1.0.0"}
+        # Add environment info to help diagnose routing issues
+        env_type = "Staging" if os.environ.get('FLASK_ENV') == 'staging' or os.environ.get('IS_STAGING') else "Production"
+        return {
+            "message": f"Welcome to Red Bar Sushi AI API ({env_type} Environment)", 
+            "version": "1.0.0",
+            "environment": env_type,
+            "host": request.host,
+            "base_url": request.base_url,
+            "flask_env": os.environ.get('FLASK_ENV', 'not set')
+        }
         
     @app.route('/menu-check')
     def menu_check():
@@ -241,6 +250,39 @@ def create_app(test_config=None):
         return result
         
     # Add a comprehensive health check endpoint
+    # Add a special endpoint to help diagnose routing issues
+    @app.route('/environment')
+    def environment_info():
+        """Return detailed information about the environment"""
+        import socket
+        import platform
+        
+        # Get environment variables
+        env_vars = {key: value for key, value in os.environ.items() 
+                   if not any(secret in key.lower() for secret in ['key', 'secret', 'password', 'token'])}
+        
+        info = {
+            "environment": os.environ.get('FLASK_ENV', 'not set'),
+            "is_staging": os.environ.get('IS_STAGING', False),
+            "render": os.environ.get('RENDER', False),
+            "docker": os.environ.get('DOCKER', False),
+            "host": request.host,
+            "url": request.url,
+            "base_url": request.base_url,
+            "remote_addr": request.remote_addr,
+            "hostname": socket.gethostname(),
+            "ip": socket.gethostbyname(socket.gethostname()),
+            "platform": platform.platform(),
+            "python_version": platform.python_version(),
+            "working_directory": os.getcwd(),
+            "render_instance_id": os.environ.get('RENDER_INSTANCE_ID', 'not in Render'),
+            "render_service_id": os.environ.get('RENDER_SERVICE_ID', 'not in Render'),
+            "timestamp": datetime.now().isoformat(),
+            "environment_variables": env_vars
+        }
+        
+        return jsonify(info)
+    
     @app.route('/healthcheck')
     def healthcheck():
         # Basic health information
@@ -248,7 +290,8 @@ def create_app(test_config=None):
             'status': 'ok',
             'message': 'RedBarSushiAI is running',
             'timestamp': datetime.now().isoformat(),
-            'environment': 'production' if os.environ.get('RENDER', False) else 'development',
+            'environment': 'staging' if os.environ.get('FLASK_ENV') == 'staging' or os.environ.get('IS_STAGING') else
+                         ('production' if os.environ.get('RENDER', False) else 'development'),
             'checks': {}
         }
         
