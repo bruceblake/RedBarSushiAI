@@ -1,21 +1,28 @@
 # RedBarSushiAI
 
-An AI-powered voice ordering system for Red Bar Sushi, enabling customers to place orders and get menu information over the phone.
+![Build Status](https://img.shields.io/github/actions/workflow/status/yourusername/RedBarSushiAI/ci.yml?branch=main)
+![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)
+![License](https://img.shields.io/badge/license-Proprietary-red)
 
-## Features
+---
 
-- Voice-based ordering system using Twilio
-- Menu inquiries and recommendations
-- Order validation and processing via Deliverect
+**RedBarSushiAI** is an AI-powered voice ordering system for Red Bar Sushi, enabling customers to place orders and get menu information over the phone. It features seamless menu management, real-time order status, and multi-location support—all driven by state-of-the-art voice and messaging APIs.
+
+---
+
+## 🚀 Features
+- Voice-based ordering (Twilio integration)
+- Menu inquiries & recommendations
+- Order validation & processing (Deliverect integration)
 - Multi-location support
-- Real-time order status updates
-- SMS confirmation messages
-- WebSocket-based real-time audio processing
+- Real-time order status & SMS confirmations
+- WebSocket-based audio processing
 
-## Development Setup
+---
+
+## 🛠️ Quick Start
 
 ### Prerequisites
-
 - Python 3.11+
 - PostgreSQL
 - Redis (for Celery)
@@ -24,40 +31,157 @@ An AI-powered voice ordering system for Red Bar Sushi, enabling customers to pla
 - Deliverect API credentials
 
 ### Installation
-
-1. Clone the repository:
-   ```
+1. **Clone the repository:**
+   ```sh
    git clone https://github.com/yourusername/RedBarSushiAI.git
    cd RedBarSushiAI
    ```
-
-2. Create and activate a virtual environment:
-   ```
+2. **Create and activate a virtual environment:**
+   ```sh
    python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   # On macOS/Linux:
+   source venv/bin/activate
+   # On Windows:
+   venv\Scripts\activate
    ```
-
-3. Install dependencies:
-   ```
+3. **Install dependencies:**
+   ```sh
    pip install -r requirements.txt
    ```
-
-4. Create environment file:
-   ```
+4. **Copy and edit environment file:**
+   ```sh
    cp .env.example .env
+   # Edit .env with your API keys and config
    ```
-   
-5. Edit the `.env` file with your API keys and configuration.
-
-6. Create the database:
+5. **Create the database:**
+   ```sh
+   createdb redbarsushi
    ```
-   createdb redbarsushi  # If using PostgreSQL CLI
-   ```
-   
-7. Run database migrations:
-   ```
+6. **Run database migrations:**
+   ```sh
    python migrate_db.py
    ```
+
+---
+
+## ▶️ Usage
+
+- Start the Flask server:
+  ```sh
+  python run.py
+  ```
+- Start Celery worker (in another terminal):
+  ```sh
+  celery -A celery_app worker --loglevel=INFO
+  ```
+- For development with auto-reload:
+  ```sh
+  FLASK_DEBUG=1 FLASK_APP=run.py flask run
+  ```
+
+---
+
+## 🧪 Testing
+
+- Run all tests:
+  ```sh
+  pytest
+  ```
+- Run a specific test:
+  ```sh
+  pytest tests/test_file.py::test_function
+  ```
+
+---
+
+## 🐳 Docker
+
+- Build the Docker image:
+  ```sh
+  docker build -t redbarsushiai .
+  ```
+- Run the container:
+  ```sh
+  docker run -p 8080:8080 -e DOCKER_CONTAINER=true redbarsushiai
+  ```
+
+---
+
+## 🚦 CI/CD Pipeline
+
+- Automated tests and checks on every push and pull request
+- Deploys to staging from `staging` branch
+- Deploys to production from `main` branch
+- See `.github/workflows/` for details
+
+---
+
+## 📁 Menu Data
+
+Both `menu_data.json` and `redbar_menu_data.json` are present for menu data. Keep both unless you are sure one is obsolete.
+
+---
+
+## 🧩 How It Works
+
+### System Workflow
+
+1. **Customer Call**: Customer calls the Red Bar Sushi phone number (Twilio).
+2. **Voice Interaction**: Twilio forwards the call to the Flask backend, which uses OpenAI for speech recognition and intent parsing.
+3. **Menu & Order**: The backend uses `menu_data.json`/`redbar_menu_data.json` to answer menu questions and take orders.
+4. **Order Validation**: Orders are validated and processed via Deliverect API.
+5. **Order Status**: Real-time order status is provided via SMS (Twilio) and WebSocket audio updates.
+6. **Multi-location**: System supports multiple restaurant locations.
+
+**Data Flow:**
+- Customer → Twilio → Flask API → OpenAI/Deliverect → Customer (via SMS/voice)
+
+### CI/CD & Deployment Workflow
+
+1. **Push/PR to GitHub**: Code pushed to `development`, `staging`, or `main` branches triggers GitHub Actions workflows.
+2. **CI Pipeline**:
+   - Runs tests (pytest)
+   - Lints code
+   - Checks security
+3. **CD Pipeline**:
+   - Deploys to **staging** on push to `staging`
+   - Deploys to **production** on push to `main`
+   - Uses Render for hosting and deployment
+4. **Secrets & Env Vars**: Managed via GitHub Secrets and `.env` files.
+
+**External Services:**
+- **Twilio**: Voice/SMS communication
+- **OpenAI**: Natural language processing
+- **Deliverect**: Order management
+- **Render**: Hosting & deployment
+
+---
+
+## 📚 Documentation
+- [docs/README.md](docs/README.md) — Project documentation index
+- [.env.example](.env.example) — Environment variables reference
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome! Please:
+- Fork the repo and create a feature branch
+- Write tests for new features
+- Follow the existing code style
+- Open a PR to `development` or `staging`
+
+---
+
+## 📬 Support
+
+For issues, open a GitHub issue or contact the maintainer.
+
+---
+
+## License
+
+Proprietary - All Rights Reserved
 
 ### Running the Application
 
