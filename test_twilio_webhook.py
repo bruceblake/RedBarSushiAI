@@ -223,15 +223,21 @@ def print_problem_solving_guidance(results):
     print(f"2. Try visiting {args.url}/environment in your browser")
     print(f"3. Verify that your Render service is correctly configured to deploy from the 'staging' branch")
 
+# Only parse arguments when running as a script, not when imported by pytest
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test Twilio webhook configuration with staging environment")
     parser.add_argument("--url", required=True, help="Base URL of the staging environment (e.g., https://redbarsushi-staging.onrender.com)")
     args = parser.parse_args()
-    
-    # Clean up the URL
-    base_url = args.url.rstrip("/")
-    if not base_url.startswith("http"):
-        base_url = "https://" + base_url
+else:
+    # Define a dummy args object for when imported by pytest
+    class Args:
+        url = "https://redbarsushi-staging.onrender.com"
+    args = Args()
+
+# Clean up the URL
+base_url = args.url.rstrip("/")
+if not base_url.startswith("http"):
+    base_url = "https://" + base_url
     
     print("="*60)
     print(f"TESTING TWILIO WEBHOOKS FOR: {base_url}")

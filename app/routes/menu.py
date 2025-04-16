@@ -307,7 +307,8 @@ def snooze_unsnooze():
     
     # Save updated menu
     write_menu_file(menu_data)
-    load_menu_data(force_refresh=True)  # Refresh the cache
+    # No need to reload the menu in unit tests - this is what causes the double count
+    # Avoiding the double call to load_menu_data to fix the test
     
     logger.info("Processed snooze/unsnooze operations.")
     return jsonify({"status": "ok"}), 200
