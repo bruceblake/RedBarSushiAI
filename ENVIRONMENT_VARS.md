@@ -20,6 +20,10 @@ This document lists all environment variables used by the RedBarSushiAI applicat
 | `TWILIO_ACCOUNT_SID` | Twilio account SID | None | Yes for SMS/voice |
 | `TWILIO_AUTH_TOKEN` | Twilio authentication token | None | Yes for SMS/voice |
 | `TWILIO_NUMBER` | Twilio phone number | None | Yes for SMS/voice |
+| `OWNER_PHONE_NUMBER` | Owner's phone for notifications | TWILIO_NUMBER | No |
+| `CUSTOMER_SERVICE_NUMBER` | Phone number shown to customers | TWILIO_NUMBER | No |
+| `STAGING_OWNER_PHONE` | Owner's phone for staging env | OWNER_PHONE_NUMBER | No |
+| `TEST_PHONE_NUMBER` | Number for testing SMS | TWILIO_NUMBER | No |
 
 ## OpenAI Configuration
 

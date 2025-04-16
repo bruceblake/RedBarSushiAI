@@ -53,7 +53,24 @@ TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "ACb8391ed8d92871d85180ca9a
 TWILIO_API_KEY_SID = os.getenv("TWILIO_API_KEY_SID", "SK55c8d2ec3e662acffb868fcc42ed75ac")
 TWILIO_API_SECRET = os.getenv("TWILIO_API_SECRET", "Ky6uApOQMFAZKCbhe5aaZkyGIBzdIRMT")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "d4830ea0bb52ffdb63620c2333fcdd59")
+# Twilio Phone Numbers - Main phone numbers
 TWILIO_NUMBER = os.getenv("TWILIO_NUMBER", "+18333247207")
+
+# Owner phone numbers for notifications
+OWNER_PHONE_NUMBER = os.getenv("OWNER_PHONE_NUMBER", "+18333247207")  
+
+# Customer service numbers by environment
+CUSTOMER_SERVICE_NUMBER = os.getenv("CUSTOMER_SERVICE_NUMBER", "+18333247207")
+
+# Test phone numbers - useful for validating SMS without sending to customers
+TEST_PHONE_NUMBER = os.getenv("TEST_PHONE_NUMBER", "+18333247207")
+
+# Environment-specific owner numbers
+if os.environ.get('FLASK_ENV') == 'staging' or os.environ.get('IS_STAGING'):
+    # Staging environment numbers
+    STAGING_OWNER_PHONE = os.getenv("STAGING_OWNER_PHONE", OWNER_PHONE_NUMBER)
+    # Use staging owner number if we're in staging environment
+    OWNER_PHONE_NUMBER = STAGING_OWNER_PHONE
 
 # ------------------------------
 # AssemblyAI (if used)
