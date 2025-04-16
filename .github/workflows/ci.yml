@@ -8,11 +8,73 @@ on:
 
 jobs:
   test:
+    name: Run Unit Tests
     runs-on: ubuntu-latest
-    
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: [3.10, 3.11]
     services:
       redis:
         image: redis
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Cache pip
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y portaudio19-dev
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest-cov
+    - name: Setup test environment
+      run: |
+        cp .env.example .env.test || echo "No .env.example file found, skipping"
+        echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env.test
+        echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}" >> .env.test
+        echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" >> .env.test
+        echo "TWILIO_NUMBER=${{ secrets.TWILIO_NUMBER }}" >> .env.test
+        echo "FLASK_ENV=testing" >> .env.test
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/testdb" >> .env.test
+        echo "REDIS_URL=redis://localhost:6379/0" >> .env.test
+        echo "TESTING=true" >> .env.test
+    - name: Run tests
+      run: pytest --cov=app --cov-report=xml --cov-report=html
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: htmlcov/
+
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    continue-on-error: false
         ports:
           - 6379:6379
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
