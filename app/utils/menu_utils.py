@@ -111,8 +111,17 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
     Returns:
         bool: True if write was successful, False otherwise
     """
+    # Determine the file path
     if file_path is None:
-        file_path = MENU_FILE_PATH
+        if location_id:
+            # Location-specific file path
+            file_path = os.path.join(os.path.dirname(MENU_FILE_PATH), f"menu_data_{location_id}.json")
+            logger.info(f"Using location-specific file path: {file_path}")
+        else:
+            file_path = MENU_FILE_PATH
+    
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
     # Create a backup before writing
     try:
@@ -122,7 +131,8 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         # Check if file exists first
         if os.path.exists(file_path):
             timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-            backup_file = os.path.join(BACKUP_FOLDER, f'menu_backup_{timestamp}.json')
+            location_suffix = f"_{location_id}" if location_id else ""
+            backup_file = os.path.join(BACKUP_FOLDER, f'menu_backup{location_suffix}_{timestamp}.json')
             shutil.copy2(file_path, backup_file)
             logger.info(f"Created backup at {backup_file}")
     except Exception as e:
@@ -135,10 +145,19 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         
         logger.info(f"Successfully wrote menu data to {file_path}")
         
-        # Clear cache to force reload
+        # Clear legacy cache to force reload
         global _menu_cache, _last_refresh_time
         _menu_cache = None
         _last_refresh_time = 0
+        
+        # Clear location-specific cache if it exists
+        if hasattr(load_menu_data, '_menu_cache_dict'):
+            cache_key = f"menu_{location_id}" if location_id else "menu_default"
+            if cache_key in load_menu_data._menu_cache_dict:
+                del load_menu_data._menu_cache_dict[cache_key]
+                if cache_key in load_menu_data._last_refresh_dict:
+                    del load_menu_data._last_refresh_dict[cache_key]
+                logger.info(f"Cleared cached menu data for {cache_key}")
         
         return True
     except Exception as e:
@@ -171,12 +190,13 @@ def create_default_menu():
     # For now, just use the empty menu as we don't want default items
     return create_empty_menu()
 
-def load_menu_data(force_refresh=False):
+def load_menu_data(force_refresh=False, location_id=None):
     """
     Load menu data from the file, with caching to avoid frequent reads.
     
     Args:
         force_refresh: If True, bypass cache and load directly from file
+        location_id: Optional location ID to load location-specific menu
         
     Returns:
         dict: The menu data
@@ -184,20 +204,43 @@ def load_menu_data(force_refresh=False):
     global _menu_cache, _last_refresh_time
     current_time = time.time()
     
-    # Check if we have cached data that's still fresh
-    if _menu_cache is not None and not force_refresh:
-        time_since_refresh = current_time - _last_refresh_time
-        if time_since_refresh < _cache_duration:
-            return _menu_cache
+    # Use different cache key for different locations
+    cache_key = f"menu_{location_id}" if location_id else "menu_default"
     
-    # Determine the path to the menu file, with fallbacks
-    file_path = find_menu_file_path()
+    # Create menu cache dict if needed
+    if not hasattr(load_menu_data, '_menu_cache_dict'):
+        load_menu_data._menu_cache_dict = {}
+        load_menu_data._last_refresh_dict = {}
+    
+    # Check if we have cached data that's still fresh
+    if not force_refresh and cache_key in load_menu_data._menu_cache_dict:
+        time_since_refresh = current_time - load_menu_data._last_refresh_dict.get(cache_key, 0)
+        if time_since_refresh < _cache_duration:
+            return load_menu_data._menu_cache_dict[cache_key]
+    
+    # Determine the file path based on location ID if provided
+    if location_id:
+        # Try location-specific file first
+        location_file = os.path.join(os.path.dirname(MENU_FILE_PATH), f"menu_data_{location_id}.json")
+        if os.path.exists(location_file):
+            file_path = location_file
+            logger.info(f"Using location-specific menu file: {file_path}")
+        else:
+            # Fallback to default if location-specific not found
+            file_path = find_menu_file_path()
+            logger.info(f"Location-specific menu not found, using default: {file_path}")
+    else:
+        file_path = find_menu_file_path()
     
     if not file_path:
         logger.warning("No menu file found. Creating an empty menu structure.")
         empty_menu = create_empty_menu()
         
         # Update cache
+        load_menu_data._menu_cache_dict[cache_key] = empty_menu
+        load_menu_data._last_refresh_dict[cache_key] = current_time
+        
+        # Also update the global cache for backward compatibility
         _menu_cache = empty_menu
         _last_refresh_time = current_time
         
@@ -228,7 +271,12 @@ def load_menu_data(force_refresh=False):
                 menu_data = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
                 logger.info(f"Created empty menu structure")
             
-        # Update cache
+        # Update both caches - the new location-based one and the legacy one
+        # New cache (location-aware)
+        load_menu_data._menu_cache_dict[cache_key] = menu_data
+        load_menu_data._last_refresh_dict[cache_key] = current_time
+        
+        # Legacy cache for backward compatibility
         _menu_cache = menu_data
         _last_refresh_time = current_time
         
@@ -252,7 +300,12 @@ def load_menu_data(force_refresh=False):
         # Return empty menu structure - NO DEFAULT ITEMS
         empty_menu = create_empty_menu()
         
-        # Update cache with empty menu
+        # Update both caches - the new location-based one and the legacy one
+        # New cache (location-aware)
+        load_menu_data._menu_cache_dict[cache_key] = empty_menu
+        load_menu_data._last_refresh_dict[cache_key] = current_time
+        
+        # Legacy cache for backward compatibility
         _menu_cache = empty_menu
         _last_refresh_time = current_time
         
@@ -262,16 +315,24 @@ def load_menu_data(force_refresh=False):
         # Return empty menu structure - NO DEFAULT ITEMS
         empty_menu = create_empty_menu()
         
-        # Update cache to avoid repeat errors
+        # Update both caches - the new location-based one and the legacy one
+        # New cache (location-aware)
+        load_menu_data._menu_cache_dict[cache_key] = empty_menu
+        load_menu_data._last_refresh_dict[cache_key] = current_time
+        
+        # Legacy cache for backward compatibility
         _menu_cache = empty_menu
         _last_refresh_time = current_time
         
         # Try to save it for future use
         try:
-            write_menu_file(empty_menu, os.path.join(os.getcwd(), 'menu_data.json'))
-            logger.info("Saved empty menu structure after loading error")
-        except Exception:
-            pass
+            target_file_path = os.path.join(os.getcwd(), 'menu_data.json')
+            if location_id:
+                target_file_path = os.path.join(os.path.dirname(MENU_FILE_PATH), f"menu_data_{location_id}.json")
+            write_menu_file(empty_menu, target_file_path, location_id=location_id)
+            logger.info(f"Saved empty menu structure after loading error to {target_file_path}")
+        except Exception as save_error:
+            logger.error(f"Error saving empty menu: {save_error}")
             
         return empty_menu
 
@@ -572,3 +633,71 @@ def get_popular_menu_items(count=5):
         })
     
     return result
+
+def sync_reference_handlers(source_location_id=None, target_location_id=None):
+    """
+    Synchronize reference handlers between two location menu files.
+    This is used to ensure consistent PLUs and reference handlers across locations.
+    
+    Args:
+        source_location_id: Location ID to use as the source (with correct reference handlers)
+        target_location_id: Location ID to update with the source reference handlers
+        
+    Returns:
+        dict: Statistics about the synchronization
+    """
+    logger.info(f"Synchronizing reference handlers from {source_location_id} to {target_location_id}")
+    
+    # Load source menu data
+    source_menu = load_menu_data(force_refresh=True, location_id=source_location_id)
+    
+    # Load target menu data
+    target_menu = load_menu_data(force_refresh=True, location_id=target_location_id)
+    
+    # Create a mapping of item name to reference handler from source
+    reference_map = {}
+    for item in source_menu.get("items", []):
+        name = item.get("name", "").lower()
+        reference = item.get("reference_handler", "")
+        if name and reference:
+            reference_map[name] = reference
+    
+    # Update reference handlers in target
+    updated_count = 0
+    no_match_count = 0
+    already_match_count = 0
+    
+    for item in target_menu.get("items", []):
+        name = item.get("name", "").lower()
+        if name in reference_map:
+            source_reference = reference_map[name]
+            target_reference = item.get("reference_handler", "")
+            
+            if not target_reference or target_reference != source_reference:
+                logger.info(f"Updating reference for {name}: {target_reference} -> {source_reference}")
+                item["reference_handler"] = source_reference
+                updated_count += 1
+            else:
+                already_match_count += 1
+        else:
+            no_match_count += 1
+            logger.warning(f"No matching item found in source for: {name}")
+    
+    # Save updated target menu if changes were made
+    if updated_count > 0:
+        target_file_path = None
+        if target_location_id:
+            # Customize path for location if needed
+            target_file_path = os.path.join(os.path.dirname(MENU_FILE_PATH), f"menu_data_{target_location_id}.json")
+        
+        write_menu_file(target_menu, file_path=target_file_path, location_id=target_location_id)
+        logger.info(f"Saved updated menu with {updated_count} reference handler changes")
+    
+    # Return statistics
+    return {
+        "updated": updated_count,
+        "no_match": no_match_count,
+        "already_match": already_match_count,
+        "total_source_items": len(source_menu.get("items", [])),
+        "total_target_items": len(target_menu.get("items", []))
+    }
