@@ -11177,3 +11177,1007 @@ IndexError: list index out of range
 
 2025-04-16 02:05:48,518 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
 2025-04-16 02:05:48,518 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-16 02:10:00,084 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,084 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,112 - INFO - twilio.http_client - -- BEGIN Twilio API Request --
+2025-04-16 02:10:00,112 - INFO - twilio.http_client - GET Request: https://api.twilio.com/2010-04-01/Accounts.json
+2025-04-16 02:10:00,112 - INFO - twilio.http_client - Headers:
+2025-04-16 02:10:00,112 - INFO - twilio.http_client - Content-Type : application/x-www-form-urlencoded
+2025-04-16 02:10:00,112 - INFO - twilio.http_client - Accept : application/json
+2025-04-16 02:10:00,112 - INFO - twilio.http_client - User-Agent : twilio-python/9.5.2 (Linux x86_64) Python/3.13.2
+2025-04-16 02:10:00,112 - INFO - twilio.http_client - X-Twilio-Client : python-9.5.2
+2025-04-16 02:10:00,112 - INFO - twilio.http_client - Accept-Charset : utf-8
+2025-04-16 02:10:00,112 - INFO - twilio.http_client - -- END Twilio API Request --
+2025-04-16 02:10:00,112 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): api.twilio.com:443
+2025-04-16 02:10:00,311 - DEBUG - urllib3.connectionpool - https://api.twilio.com:443 "GET /2010-04-01/Accounts.json HTTP/1.1" 401 107
+2025-04-16 02:10:00,312 - INFO - twilio.http_client - Response Status Code: 401
+2025-04-16 02:10:00,312 - INFO - twilio.http_client - Response Headers: {'Content-Type': 'application/json', 'Content-Length': '107', 'Connection': 'keep-alive', 'Date': 'Wed, 16 Apr 2025 06:10:00 GMT', 'X-Twilio-Error-Code': '20003', 'Twilio-Request-Id': 'RQ7ee2fefe019be76a94f2c551dac67b4d', 'Twilio-Request-Duration': '0.017', 'X-Home-Region': 'us1', 'X-API-Domain': 'api.twilio.com', 'Strict-Transport-Security': 'max-age=31536000', 'WWW-Authenticate': 'Basic realm="Twilio API"', 'X-Cache': 'Error from cloudfront', 'Via': '1.1 87e6563b344d9d0eb9b5aa233652bc74.cloudfront.net (CloudFront)', 'X-Amz-Cf-Pop': 'IAD61-P2', 'X-Amz-Cf-Id': 'NbyOzgIVhHYK_oIb8zVfCWoZhCftQX3KdBZil79Onw092y3NpBjB2Q==', 'X-Powered-By': 'AT-5000', 'X-Shenanigans': 'none', 'Vary': 'Origin'}
+2025-04-16 02:10:00,315 - INFO - twilio.http_client - -- BEGIN Twilio API Request --
+2025-04-16 02:10:00,316 - INFO - twilio.http_client - POST Request: https://api.twilio.com/2010-04-01/Accounts/ACb8391ed8d92871d85180ca9adea481b6/Messages.json
+2025-04-16 02:10:00,316 - INFO - twilio.http_client - Headers:
+2025-04-16 02:10:00,316 - INFO - twilio.http_client - Content-Type : application/x-www-form-urlencoded
+2025-04-16 02:10:00,316 - INFO - twilio.http_client - Accept : application/json
+2025-04-16 02:10:00,316 - INFO - twilio.http_client - User-Agent : twilio-python/9.5.2 (Linux x86_64) Python/3.13.2
+2025-04-16 02:10:00,316 - INFO - twilio.http_client - X-Twilio-Client : python-9.5.2
+2025-04-16 02:10:00,316 - INFO - twilio.http_client - Accept-Charset : utf-8
+2025-04-16 02:10:00,316 - INFO - twilio.http_client - -- END Twilio API Request --
+2025-04-16 02:10:00,360 - DEBUG - urllib3.connectionpool - https://api.twilio.com:443 "POST /2010-04-01/Accounts/ACb8391ed8d92871d85180ca9adea481b6/Messages.json HTTP/1.1" 401 107
+2025-04-16 02:10:00,360 - INFO - twilio.http_client - Response Status Code: 401
+2025-04-16 02:10:00,360 - INFO - twilio.http_client - Response Headers: {'Content-Type': 'application/json', 'Content-Length': '107', 'Connection': 'keep-alive', 'Date': 'Wed, 16 Apr 2025 06:10:00 GMT', 'X-Powered-By': 'AT-5000', 'X-Twilio-Error-Code': '20003', 'Twilio-Request-Id': 'RQf53771b07e54859ae771ce749ad9e81e', 'Twilio-Request-Duration': '0.011', 'X-Home-Region': 'us1', 'X-Api-Domain': 'api.twilio.com', 'Strict-Transport-Security': 'max-age=31536000', 'Www-Authenticate': 'Basic realm="Twilio API"', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type, If-Match, If-Modified-Since, If-None-Match, If-Unmodified-Since, Idempotency-Key, X-Pre-Auth-Context, X-Target-Region', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS', 'Access-Control-Expose-Headers': 'ETag, Twilio-Request-Id', 'Access-Control-Allow-Credentials': 'true', 'X-Shenanigans': 'none', 'X-Cache': 'Error from cloudfront', 'Via': '1.1 87e6563b344d9d0eb9b5aa233652bc74.cloudfront.net (CloudFront)', 'X-Amz-Cf-Pop': 'IAD61-P2', 'X-Amz-Cf-Id': 'wuoqCbIJ70rvLSxIL-ylwAWMmKbHlXRewSz4c8IfnaqPgCmJcTpbFQ=='}
+2025-04-16 02:10:00,381 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,381 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,384 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-16 02:10:00,384 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 491 bytes
+2025-04-16 02:10:00,384 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] Found callback URL: https://api.staging.deliverect.com/channelName/menuStatus/1234567890
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] Found stores: ['store1']
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] Found 1 menus in async format
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] Using first menu for processing
+2025-04-16 02:10:00,385 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,385 - INFO - app.utils.deliverect - Processed Deliverect menu: found 3 items
+2025-04-16 02:10:00,385 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,385 - INFO - root - [MENU-LOAD] Using 9 name variants from menu data
+2025-04-16 02:10:00,385 - INFO - root - [MENU-PRICES] Loaded 9 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,385 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,385 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Sushi Rolls: cat1
+2025-04-16 02:10:00,385 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Sushi Rolls has missing or invalid price, setting default to 7.5
+2025-04-16 02:10:00,385 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-16 02:10:00,385 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for California Roll: CAL-ROLL
+2025-04-16 02:10:00,385 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 2 is missing ID, setting to: ITEM-0002
+2025-04-16 02:10:00,385 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Spicy Tuna Roll: SPICY-TUNA
+2025-04-16 02:10:00,385 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 3 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,385 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 3 items
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] All 3 items have valid PLUs for Deliverect integration.
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 3 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Sushi Rolls -> PLU: cat1 | Reference: cat1
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: California Roll -> PLU: CAL-ROLL | Reference: CAL-ROLL
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 3: Spicy Tuna Roll -> PLU: SPICY-TUNA | Reference: SPICY-TUNA
+2025-04-16 02:10:00,385 - WARNING - app.routes.menu - [MENU-UPDATE] Failed to create backup: cannot access local variable 'json' where it is not associated with a value
+2025-04-16 02:10:00,385 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 3 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,386 - INFO - app.utils.menu_utils - Created backup at /home/proxyie/MySoftware/RedBarSushiAI/backups/menu_backup_20250416021000.json
+2025-04-16 02:10:00,386 - INFO - app.utils.menu_utils - Successfully wrote menu data to /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,386 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-16 02:10:00,386 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-16 02:10:00,386 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,386 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,386 - DEBUG - app.utils.menu_utils - Sample item: Sushi Rolls - 7.5
+2025-04-16 02:10:00,386 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-16 02:10:00,386 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 12.95
+2025-04-16 02:10:00,386 - INFO - app.utils.menu_utils - Loaded 3 total items, 3 currently available
+2025-04-16 02:10:00,386 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 3 items
+2025-04-16 02:10:00,386 - INFO - app.routes.menu - [MENU-UPDATE] Callback response: 200
+2025-04-16 02:10:00,400 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,400 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 200 bytes
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] Found callback URL: https://api.staging.deliverect.com/channelName/menuStatus/1234567890
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] Found stores: ['store1']
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] Found 1 menus in async format
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] Using first menu for processing
+2025-04-16 02:10:00,402 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,402 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-16 02:10:00,402 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,402 - INFO - root - [MENU-LOAD] Using 12 name variants from menu data
+2025-04-16 02:10:00,402 - INFO - root - [MENU-PRICES] Loaded 12 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,402 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,402 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Sushi Rolls: cat1
+2025-04-16 02:10:00,402 - INFO - app.utils.menu_validator - [MENU-FIX] Set price for Sushi Rolls to common price: 7.5
+2025-04-16 02:10:00,402 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,402 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] All 1 items have valid PLUs for Deliverect integration.
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 1 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Sushi Rolls -> PLU: cat1 | Reference: cat1
+2025-04-16 02:10:00,402 - WARNING - app.routes.menu - [MENU-UPDATE] Failed to create backup: cannot access local variable 'json' where it is not associated with a value
+2025-04-16 02:10:00,402 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 1 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,403 - INFO - app.utils.menu_utils - Created backup at /home/proxyie/MySoftware/RedBarSushiAI/backups/menu_backup_20250416021000.json
+2025-04-16 02:10:00,403 - INFO - app.utils.menu_utils - Successfully wrote menu data to /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,403 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-16 02:10:00,403 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-16 02:10:00,403 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,403 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,403 - DEBUG - app.utils.menu_utils - Sample item: Sushi Rolls - 7.5
+2025-04-16 02:10:00,403 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-16 02:10:00,403 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-16 02:10:00,403 - INFO - app.routes.menu - [MENU-UPDATE] Callback response: 200
+2025-04-16 02:10:00,415 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,415 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,416 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-16 02:10:00,417 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 305 bytes
+2025-04-16 02:10:00,417 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-16 02:10:00,417 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,417 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-16 02:10:00,417 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,417 - INFO - root - [MENU-LOAD] Using 4 name variants from menu data
+2025-04-16 02:10:00,417 - INFO - root - [MENU-PRICES] Loaded 4 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,417 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,417 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Cheeseburger: CHEESEBURGER
+2025-04-16 02:10:00,417 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-16 02:10:00,417 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Veggie Burger: VEGGIE-BURGER
+2025-04-16 02:10:00,417 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,417 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items
+2025-04-16 02:10:00,417 - INFO - app.routes.menu - [MENU-UPDATE] All 2 items have valid PLUs for Deliverect integration.
+2025-04-16 02:10:00,417 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 2 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,417 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Cheeseburger -> PLU: CHEESEBURGER | Reference: CHEESEBURGER
+2025-04-16 02:10:00,417 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Veggie Burger -> PLU: VEGGIE-BURGER | Reference: VEGGIE-BURGER
+2025-04-16 02:10:00,417 - WARNING - app.routes.menu - [MENU-UPDATE] Failed to create backup: cannot access local variable 'json' where it is not associated with a value
+2025-04-16 02:10:00,417 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 2 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,417 - INFO - app.utils.menu_utils - Created backup at /home/proxyie/MySoftware/RedBarSushiAI/backups/menu_backup_20250416021000.json
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - Successfully wrote menu data to /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-16 02:10:00,418 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,418 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,418 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-16 02:10:00,418 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 2 items
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,418 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,418 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Cheeseburger'
+2025-04-16 02:10:00,418 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cheeseburger'
+2025-04-16 02:10:00,418 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 5 name variants
+2025-04-16 02:10:00,418 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger', 'vb']...
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cheeseburger' → 'Cheeseburger'
+2025-04-16 02:10:00,418 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Cheeseburger
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'cheeseburger'
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cheeseburger'
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 5 name variants
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger', 'vb']...
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cheeseburger' → 'Cheeseburger'
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Cheeseburger
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'burger'
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'burger'
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 5 name variants
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger', 'vb']...
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'burger' → 'Veggie Burger'
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Veggie Burger'
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'veggie burger'
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 5 name variants
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger', 'vb']...
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'veggie burger' → 'Veggie Burger'
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'veggie'
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'veggie'
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 5 name variants
+2025-04-16 02:10:00,419 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger', 'vb']...
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'veggie' → 'Veggie Burger'
+2025-04-16 02:10:00,419 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-16 02:10:00,423 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-16 02:10:00,423 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 506 bytes
+2025-04-16 02:10:00,423 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-16 02:10:00,423 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,423 - INFO - app.utils.deliverect - Processed Deliverect menu: found 4 items
+2025-04-16 02:10:00,423 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,423 - INFO - root - [MENU-LOAD] Using 5 name variants from menu data
+2025-04-16 02:10:00,424 - INFO - root - [MENU-PRICES] Loaded 5 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,424 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Burgers: cat1
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_validator - [MENU-FIX] Set price for Burgers to common price: 9.95
+2025-04-16 02:10:00,424 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Cheeseburger: BURG-CHEESE
+2025-04-16 02:10:00,424 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 2 is missing ID, setting to: ITEM-0002
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Veggie Burger: prod2
+2025-04-16 02:10:00,424 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 3 is missing ID, setting to: ITEM-0003
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Kids Burger: KidsBurger
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 4 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 4 items
+2025-04-16 02:10:00,424 - INFO - app.routes.menu - [MENU-UPDATE] All 4 items have valid PLUs for Deliverect integration.
+2025-04-16 02:10:00,424 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 4 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,424 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Burgers -> PLU: cat1 | Reference: cat1
+2025-04-16 02:10:00,424 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Cheeseburger -> PLU: BURG-CHEESE | Reference: BURG-CHEESE
+2025-04-16 02:10:00,424 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 3: Veggie Burger -> PLU: prod2 | Reference: prod2
+2025-04-16 02:10:00,424 - WARNING - app.routes.menu - [MENU-UPDATE] Failed to create backup: cannot access local variable 'json' where it is not associated with a value
+2025-04-16 02:10:00,424 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 4 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_utils - Using Flask-configured menu file path: testing_data/test_menu_output.json
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_utils - Created backup at /home/proxyie/MySoftware/RedBarSushiAI/backups/menu_backup_20250416021000.json
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_utils - Successfully wrote menu data to testing_data/test_menu_output.json
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-16 02:10:00,424 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_utils - Loading menu data from testing_data/test_menu_output.json
+2025-04-16 02:10:00,424 - INFO - app.utils.menu_utils - Successfully loaded menu data from testing_data/test_menu_output.json
+2025-04-16 02:10:00,424 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,424 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 0.10949999999999999
+2025-04-16 02:10:00,425 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 0.09949999999999999
+2025-04-16 02:10:00,425 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,425 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 4 items
+2025-04-16 02:10:00,430 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-16 02:10:00,430 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 203 bytes
+2025-04-16 02:10:00,430 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-16 02:10:00,430 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,430 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-16 02:10:00,430 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,430 - INFO - root - [MENU-LOAD] Using 5 name variants from menu data
+2025-04-16 02:10:00,430 - INFO - root - [MENU-PRICES] Loaded 5 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,430 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,430 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Sushi: cat1
+2025-04-16 02:10:00,430 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Sushi has missing or invalid price, setting default to 7.5
+2025-04-16 02:10:00,430 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-16 02:10:00,430 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for California Roll: CAL-ROLL
+2025-04-16 02:10:00,430 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,430 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items
+2025-04-16 02:10:00,430 - INFO - app.routes.menu - [MENU-UPDATE] All 2 items have valid PLUs for Deliverect integration.
+2025-04-16 02:10:00,430 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 2 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,430 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Sushi -> PLU: cat1 | Reference: cat1
+2025-04-16 02:10:00,430 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: California Roll -> PLU: CAL-ROLL | Reference: CAL-ROLL
+2025-04-16 02:10:00,430 - WARNING - app.routes.menu - [MENU-UPDATE] Failed to create backup: cannot access local variable 'json' where it is not associated with a value
+2025-04-16 02:10:00,430 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 2 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,431 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-16 02:10:00,431 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-16 02:10:00,436 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-16 02:10:00,437 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 254 bytes
+2025-04-16 02:10:00,437 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-16 02:10:00,437 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,437 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-16 02:10:00,437 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,437 - INFO - root - [MENU-LOAD] Using 5 name variants from menu data
+2025-04-16 02:10:00,437 - INFO - root - [MENU-PRICES] Loaded 5 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,437 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,437 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Burgers: cat1
+2025-04-16 02:10:00,437 - INFO - app.utils.menu_validator - [MENU-FIX] Set price for Burgers to common price: 9.95
+2025-04-16 02:10:00,437 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-16 02:10:00,437 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Cheeseburger: CHEESE-BURG
+2025-04-16 02:10:00,437 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,437 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items
+2025-04-16 02:10:00,437 - INFO - app.routes.menu - [MENU-UPDATE] All 2 items have valid PLUs for Deliverect integration.
+2025-04-16 02:10:00,437 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 2 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,437 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Burgers -> PLU: cat1 | Reference: cat1
+2025-04-16 02:10:00,437 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Cheeseburger -> PLU: CHEESE-BURG | Reference: CHEESE-BURG
+2025-04-16 02:10:00,437 - WARNING - app.routes.menu - [MENU-UPDATE] Failed to create backup: cannot access local variable 'json' where it is not associated with a value
+2025-04-16 02:10:00,437 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 2 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,437 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-16 02:10:00,438 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-16 02:10:00,442 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-16 02:10:00,443 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 216 bytes
+2025-04-16 02:10:00,443 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-16 02:10:00,443 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,443 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-16 02:10:00,443 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,443 - INFO - root - [MENU-LOAD] Using 5 name variants from menu data
+2025-04-16 02:10:00,443 - INFO - root - [MENU-PRICES] Loaded 5 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,443 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,443 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Edamame: EDAMAME
+2025-04-16 02:10:00,443 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,443 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-16 02:10:00,443 - INFO - app.routes.menu - [MENU-UPDATE] All 1 items have valid PLUs for Deliverect integration.
+2025-04-16 02:10:00,443 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 1 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,443 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Edamame -> PLU: EDAMAME | Reference: EDAMAME
+2025-04-16 02:10:00,443 - WARNING - app.routes.menu - [MENU-UPDATE] Failed to create backup: cannot access local variable 'json' where it is not associated with a value
+2025-04-16 02:10:00,443 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 1 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,443 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-16 02:10:00,443 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-16 02:10:00,444 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,444 - INFO - app.utils.deliverect - Processed Deliverect menu: found 4 items
+2025-04-16 02:10:00,444 - INFO - app.utils.menu_utils - Created backup at /home/proxyie/MySoftware/RedBarSushiAI/backups/menu_backup_20250416021000.json
+2025-04-16 02:10:00,444 - INFO - app.utils.menu_utils - Successfully wrote menu data to testing_data/test_menu_import_output.json
+2025-04-16 02:10:00,444 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-16 02:10:00,458 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,458 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,459 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Cheeseburger'
+2025-04-16 02:10:00,459 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cheeseburger'
+2025-04-16 02:10:00,459 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 10 name variants
+2025-04-16 02:10:00,459 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'veggie', 'burger']...
+2025-04-16 02:10:00,459 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cheeseburger' → 'Cheeseburger'
+2025-04-16 02:10:00,459 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Cheeseburger
+2025-04-16 02:10:00,459 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'cheeseburger'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cheeseburger'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 10 name variants
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'veggie', 'burger']...
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cheeseburger' → 'Cheeseburger'
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Cheeseburger
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'burger'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'burger'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 10 name variants
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'veggie', 'burger']...
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'burger' → 'Veggie Burger'
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'veggie'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'veggie'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 10 name variants
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'veggie', 'burger']...
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'veggie' → 'Veggie Burger'
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Spicy Tuna Roll'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'spicy tuna roll'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 10 name variants
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'veggie', 'burger']...
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'spicy tuna roll' → 'Spicy Tuna Roll'
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Spicy Tuna Roll
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'spicy'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'spicy'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 10 name variants
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'veggie', 'burger']...
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'spicy' → 'Spicy Tuna Roll'
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Spicy Tuna Roll
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'tuna roll'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'tuna roll'
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 10 name variants
+2025-04-16 02:10:00,460 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'veggie', 'burger']...
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found partial name variant match: 'tuna roll' ⟷ 'spicy tuna roll' → 'Spicy Tuna Roll'
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found partial name variant match: 'tuna roll' ⟷ 'tuna' → 'Spicy Tuna Roll'
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found partial name variant match: 'tuna roll' ⟷ 'roll' → 'Spicy Tuna Roll'
+2025-04-16 02:10:00,460 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item via partial variant: Spicy Tuna Roll
+2025-04-16 02:10:00,474 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,474 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,476 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-16 02:10:00,476 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 441 bytes
+2025-04-16 02:10:00,476 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-16 02:10:00,476 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,476 - INFO - app.utils.deliverect - Processed Deliverect menu: found 4 items
+2025-04-16 02:10:00,477 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,477 - INFO - root - [MENU-LOAD] Using 5 name variants from menu data
+2025-04-16 02:10:00,477 - INFO - root - [MENU-PRICES] Loaded 5 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,477 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,477 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Burgers: cat1
+2025-04-16 02:10:00,477 - INFO - app.utils.menu_validator - [MENU-FIX] Set price for Burgers to common price: 9.95
+2025-04-16 02:10:00,477 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-16 02:10:00,477 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Cheeseburger: BURG-CHEESE
+2025-04-16 02:10:00,477 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 2 is missing ID, setting to: ITEM-0002
+2025-04-16 02:10:00,477 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Veggie Burger: prod2
+2025-04-16 02:10:00,477 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 3 is missing ID, setting to: ITEM-0003
+2025-04-16 02:10:00,477 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item Kids Burger has no PLU! Using synthetic reference: KidsBurger. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-16 02:10:00,477 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Kids Burger: KidsBurger
+2025-04-16 02:10:00,477 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 4 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,477 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 4 items
+2025-04-16 02:10:00,477 - INFO - app.routes.menu - [MENU-UPDATE] All 4 items have valid PLUs for Deliverect integration.
+2025-04-16 02:10:00,477 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 4 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,477 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Burgers -> PLU: cat1 | Reference: cat1
+2025-04-16 02:10:00,477 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Cheeseburger -> PLU: BURG-CHEESE | Reference: BURG-CHEESE
+2025-04-16 02:10:00,477 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 3: Veggie Burger -> PLU: prod2 | Reference: prod2
+2025-04-16 02:10:00,477 - WARNING - app.routes.menu - [MENU-UPDATE] Failed to create backup: cannot access local variable 'json' where it is not associated with a value
+2025-04-16 02:10:00,477 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 4 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,477 - INFO - app.utils.menu_utils - Created backup at /home/proxyie/MySoftware/RedBarSushiAI/backups/menu_backup_20250416021000.json
+2025-04-16 02:10:00,478 - INFO - app.utils.menu_utils - Successfully wrote menu data to /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,478 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-16 02:10:00,478 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,478 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,478 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,478 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,478 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,478 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,478 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 4 items
+2025-04-16 02:10:00,478 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,478 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,478 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,478 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,478 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,478 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,485 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'I want a California Roll'
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'I want a California Roll'
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: msg_123
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.runs.create().id' id='140517142113520'>
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.runs.create().status' id='140517142114192'>
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [AGENT-RESPONSE] Received response of length: 55
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [AGENT-CONTENT] Response preview: {"items": [{"name": "California Roll", "quantity": 1}]}...
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [AGENT-JSON] Attempting to parse entire response as JSON
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [AGENT-PARSE] Successfully parsed response as JSON with keys: ['items']
+2025-04-16 02:10:00,486 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-16 02:10:00,486 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-16 02:10:00,486 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 9 name variants
+2025-04-16 02:10:00,486 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['burgers', 'cheeseburger', 'veggie burger', 'veggie', 'burger']...
+2025-04-16 02:10:00,486 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'California Roll'
+2025-04-16 02:10:00,486 - WARNING - app.utils.agent_utils - [AGENT-PRICE] Could not find price for 'California Roll', using 0.0
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [AGENT-VALIDATE] Added empty modifier list for 'California Roll'
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [{'name': 'California Roll', 'quantity': 1, 'price': 0.0, 'reference_handler': '', 'modifier': []}]}
+2025-04-16 02:10:00,486 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] Found 1 items, intent: 'order_food'
+2025-04-16 02:10:00,487 - INFO - app.utils.agent_utils - [ORDER-MODIFICATIONS] Processing modification request: 'Add a Spicy Tuna Roll'
+2025-04-16 02:10:00,488 - INFO - app.utils.agent_utils - [AGENT-MODIFY] Initializing modification agent for: 'Add a Spicy Tuna Roll'
+2025-04-16 02:10:00,488 - INFO - app.utils.agent_utils - [AGENT-CURRENT] Current order has 1 items
+2025-04-16 02:10:00,488 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: msg_123
+2025-04-16 02:10:00,488 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.runs.create().id' id='140517142109152'>
+2025-04-16 02:10:00,489 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.runs.create().status' id='140517142110496'>
+2025-04-16 02:10:00,489 - INFO - app.utils.agent_utils - [AGENT-RESPONSE] Received response of length: 55
+2025-04-16 02:10:00,489 - INFO - app.utils.agent_utils - [AGENT-CONTENT] Response preview: {"items": [{"name": "California Roll", "quantity": 1}]}...
+2025-04-16 02:10:00,489 - INFO - app.utils.agent_utils - [AGENT-JSON] Attempting to parse entire response as JSON
+2025-04-16 02:10:00,489 - INFO - app.utils.agent_utils - [AGENT-PARSE] Successfully parsed response as JSON with keys: ['items']
+2025-04-16 02:10:00,489 - WARNING - app.utils.agent_utils - [AGENT-VALIDATE] Missing 'additions' key in modifications, adding empty list
+2025-04-16 02:10:00,489 - WARNING - app.utils.agent_utils - [AGENT-VALIDATE] Missing 'removals' key in modifications, adding empty list
+2025-04-16 02:10:00,489 - INFO - app.utils.agent_utils - [ORDER-MODIFICATIONS] Found modifications: additions=0, removals=0
+2025-04-16 02:10:00,490 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'I want a California Roll and a Spicy Tuna Roll'
+2025-04-16 02:10:00,490 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: msg_123
+2025-04-16 02:10:00,491 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.runs.create().id' id='140517134008736'>
+2025-04-16 02:10:00,491 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.runs.create().status' id='140517134009408'>
+2025-04-16 02:10:00,491 - INFO - app.utils.agent_utils - [AGENT-RESPONSE] Received response of length: 55
+2025-04-16 02:10:00,491 - INFO - app.utils.agent_utils - [AGENT-CONTENT] Response preview: {"items": [{"name": "California Roll", "quantity": 1}]}...
+2025-04-16 02:10:00,491 - INFO - app.utils.agent_utils - [AGENT-JSON] Attempting to parse entire response as JSON
+2025-04-16 02:10:00,491 - INFO - app.utils.agent_utils - [AGENT-PARSE] Successfully parsed response as JSON with keys: ['items']
+2025-04-16 02:10:00,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-16 02:10:00,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-16 02:10:00,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 9 name variants
+2025-04-16 02:10:00,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['burgers', 'cheeseburger', 'veggie burger', 'veggie', 'burger']...
+2025-04-16 02:10:00,491 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'California Roll'
+2025-04-16 02:10:00,491 - WARNING - app.utils.agent_utils - [AGENT-PRICE] Could not find price for 'California Roll', using 0.0
+2025-04-16 02:10:00,491 - INFO - app.utils.agent_utils - [AGENT-VALIDATE] Added empty modifier list for 'California Roll'
+2025-04-16 02:10:00,492 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-16 02:10:00,492 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-16 02:10:00,492 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-16 02:10:00,492 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-16 02:10:00,492 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-16 02:10:00,492 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-16 02:10:00,492 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'california roll'
+2025-04-16 02:10:00,492 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-16 02:10:00,492 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-16 02:10:00,492 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-16 02:10:00,492 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-16 02:10:00,492 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-16 02:10:00,493 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'cali roll'
+2025-04-16 02:10:00,493 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cali roll'
+2025-04-16 02:10:00,493 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-16 02:10:00,493 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-16 02:10:00,493 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cali roll' → 'California Roll'
+2025-04-16 02:10:00,493 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-16 02:10:00,493 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'california'
+2025-04-16 02:10:00,493 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california'
+2025-04-16 02:10:00,493 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-16 02:10:00,493 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-16 02:10:00,493 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california' → 'California Roll'
+2025-04-16 02:10:00,493 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-16 02:10:00,494 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Salmon Nigiri'
+2025-04-16 02:10:00,494 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'salmon nigiri'
+2025-04-16 02:10:00,494 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-16 02:10:00,494 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-16 02:10:00,494 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'salmon nigiri' → 'Salmon Nigiri'
+2025-04-16 02:10:00,494 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] Found match 'Salmon Nigiri' but item is unavailable/snoozed
+2025-04-16 02:10:00,494 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-16 02:10:00,494 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-16 02:10:00,494 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-16 02:10:00,494 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-16 02:10:00,494 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-16 02:10:00,494 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-16 02:10:00,497 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,497 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,497 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,497 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,497 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,497 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,499 - INFO - app.routes.order - [ORDER-MODIFY] Processing modifications: {"additions": [{"name": "Spicy Tuna Roll", "quantity": 1}], "removals": []}
+2025-04-16 02:10:00,499 - INFO - app.routes.order - [ORDER-MODIFY] Current order: [{"name": "California Roll", "quantity": 1, "price": 7.95, "reference_handler": "cal-roll-1", "modifier": []}]
+2025-04-16 02:10:00,499 - INFO - app.routes.order - [ORDER-MODIFY] Processed additions: [{"name": "Spicy Tuna Roll", "quantity": 1}]
+2025-04-16 02:10:00,499 - INFO - app.routes.order - [ORDER-MODIFY] Processed removals: []
+2025-04-16 02:10:00,500 - INFO - app.routes.order - [ORDER-MODIFY] Processing modifications: {"additions": [], "removals": [{"name": "California Roll", "quantity": 1}]}
+2025-04-16 02:10:00,500 - INFO - app.routes.order - [ORDER-MODIFY] Current order: [{"name": "California Roll", "quantity": 1, "price": 7.95, "reference_handler": "cal-roll-1", "modifier": []}]
+2025-04-16 02:10:00,501 - INFO - app.routes.order - [ORDER-MODIFY] Processed additions: []
+2025-04-16 02:10:00,501 - INFO - app.routes.order - [ORDER-MODIFY] Processed removals: [{"name": "California Roll", "quantity": 1}]
+2025-04-16 02:10:00,502 - INFO - app.utils.realtime_audio - Processing chunk for session session123...
+2025-04-16 02:10:00,504 - INFO - app.utils.direct_realtime - Processing audio data...
+2025-04-16 02:10:00,506 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,506 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-16 02:10:00,512 - INFO - app.utils.deliverect - Fetching Deliverect token for location default...
+2025-04-16 02:10:00,513 - INFO - app.utils.deliverect - Deliverect token for location default fetched successfully.
+2025-04-16 02:10:00,515 - INFO - app.utils.deliverect - Fetching Deliverect token for location default...
+2025-04-16 02:10:00,515 - ERROR - app.utils.deliverect - Error fetching Deliverect token: API Error
+2025-04-16 02:10:00,516 - INFO - app.utils.deliverect - Deliverect token for default expired or not found, refreshing...
+2025-04-16 02:10:00,516 - INFO - app.utils.deliverect - Token for default will expire at 1969-12-31T20:28:20
+2025-04-16 02:10:00,517 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-16 02:10:00,533 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,533 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,537 - INFO - root - Received registration request: {"status": "register"}
+2025-04-16 02:10:00,537 - INFO - root - Channel registered with Deliverect: None (ID: None)
+2025-04-16 02:10:00,537 - INFO - root - Registered webhooks with base URL: https://redbarsushiai.onrender.com
+2025-04-16 02:10:00,537 - INFO - root - Response: {"statusUpdateURL": "https://redbarsushiai.onrender.com/order_status", "menuUpdateURL": "https://redbarsushiai.onrender.com/menu_update", "snoozeUnsnoozeURL": "https://redbarsushiai.onrender.com/snoozeUnsnooze", "busyModeURL": "https://redbarsushiai.onrender.com/busy_mode", "updatePrepTimeURL": "https://redbarsushiai.onrender.com/updatePrepTime", "courierUpdateURL": "https://redbarsushiai.onrender.com/courierUpdate", "paymentUpdateURL": "https://redbarsushiai.onrender.com/payment_update"}
+2025-04-16 02:10:00,537 - INFO - root - Received registration request: {"status": "active"}
+2025-04-16 02:10:00,537 - INFO - root - Channel activated with Deliverect: None (ID: None)
+2025-04-16 02:10:00,537 - INFO - root - Registered webhooks with base URL: https://redbarsushiai.onrender.com
+2025-04-16 02:10:00,537 - INFO - root - Response: {"statusUpdateURL": "https://redbarsushiai.onrender.com/order_status", "menuUpdateURL": "https://redbarsushiai.onrender.com/menu_update", "snoozeUnsnoozeURL": "https://redbarsushiai.onrender.com/snoozeUnsnooze", "busyModeURL": "https://redbarsushiai.onrender.com/busy_mode", "updatePrepTimeURL": "https://redbarsushiai.onrender.com/updatePrepTime", "courierUpdateURL": "https://redbarsushiai.onrender.com/courierUpdate", "paymentUpdateURL": "https://redbarsushiai.onrender.com/payment_update"}
+2025-04-16 02:10:00,538 - INFO - root - Received registration request: {"status": "inactive"}
+2025-04-16 02:10:00,538 - INFO - root - Channel deactivated with Deliverect: None (ID: None)
+2025-04-16 02:10:00,538 - INFO - root - Registered webhooks with base URL: https://redbarsushiai.onrender.com
+2025-04-16 02:10:00,538 - INFO - root - Response: {"statusUpdateURL": "https://redbarsushiai.onrender.com/order_status", "menuUpdateURL": "https://redbarsushiai.onrender.com/menu_update", "snoozeUnsnoozeURL": "https://redbarsushiai.onrender.com/snoozeUnsnooze", "busyModeURL": "https://redbarsushiai.onrender.com/busy_mode", "updatePrepTimeURL": "https://redbarsushiai.onrender.com/updatePrepTime", "courierUpdateURL": "https://redbarsushiai.onrender.com/courierUpdate", "paymentUpdateURL": "https://redbarsushiai.onrender.com/payment_update"}
+2025-04-16 02:10:00,538 - INFO - root - Received registration request: {"status": "invalid"}
+2025-04-16 02:10:00,539 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-16 02:10:00,539 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-16 02:10:00,540 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,540 - INFO - app.utils.deliverect - Processed Deliverect menu: found 5 items
+2025-04-16 02:10:00,553 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,553 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,555 - INFO - app.utils.deliverect - Registering location test_location with name 'Test Location'
+2025-04-16 02:10:00,558 - INFO - app.utils.deliverect - Creating new location test_location
+2025-04-16 02:10:00,560 - INFO - app.utils.deliverect - Location test_location registered successfully
+2025-04-16 02:10:00,560 - INFO - app.utils.deliverect - Registering location test_location with name 'Updated Test Location'
+2025-04-16 02:10:00,561 - INFO - app.utils.deliverect - Updating existing location test_location
+2025-04-16 02:10:00,562 - INFO - app.utils.deliverect - Location test_location registered successfully
+2025-04-16 02:10:00,577 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,577 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,581 - INFO - app.utils.deliverect - Updating location downtown status to 'inactive'
+2025-04-16 02:10:00,583 - INFO - app.utils.deliverect - Location downtown status updated to 'inactive'
+2025-04-16 02:10:00,583 - INFO - app.utils.deliverect - Updating location nonexistent status to 'active'
+2025-04-16 02:10:00,584 - WARNING - app.utils.deliverect - Location nonexistent not found, cannot update status
+2025-04-16 02:10:00,595 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,595 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,599 - INFO - app.utils.deliverect - Generating webhook URLs for location downtown with BASE_URL: https://redbarsushiai.onrender.com
+2025-04-16 02:10:00,600 - INFO - app.utils.deliverect - Generated location-specific webhook URLs: {"statusUpdateURL": "https://redbarsushiai.onrender.com/location/downtown/order_status", "menuUpdateURL": "https://redbarsushiai.onrender.com/location/downtown/menu_update", "snoozeUnsnoozeURL": "https://redbarsushiai.onrender.com/location/downtown/snoozeUnsnooze", "busyModeURL": "https://redbarsushiai.onrender.com/location/downtown/busy_mode", "updatePrepTimeURL": "https://redbarsushiai.onrender.com/location/downtown/updatePrepTime", "courierUpdateURL": "https://redbarsushiai.onrender.com/location/downtown/courierUpdate", "paymentUpdateURL": "https://redbarsushiai.onrender.com/location/downtown/payment_update"}
+2025-04-16 02:10:00,600 - INFO - app.utils.deliverect - Generating webhook URLs for location nonexistent with BASE_URL: https://redbarsushiai.onrender.com
+2025-04-16 02:10:00,600 - INFO - app.utils.deliverect - Generated standard webhook URLs: {"statusUpdateURL": "https://redbarsushiai.onrender.com/order_status", "menuUpdateURL": "https://redbarsushiai.onrender.com/menu_update", "snoozeUnsnoozeURL": "https://redbarsushiai.onrender.com/snoozeUnsnooze", "busyModeURL": "https://redbarsushiai.onrender.com/busy_mode", "updatePrepTimeURL": "https://redbarsushiai.onrender.com/updatePrepTime", "courierUpdateURL": "https://redbarsushiai.onrender.com/courierUpdate", "paymentUpdateURL": "https://redbarsushiai.onrender.com/payment_update"}
+2025-04-16 02:10:00,614 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,614 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,619 - INFO - app.utils.deliverect - Registering location new_loc with name 'New Test Location'
+2025-04-16 02:10:00,620 - INFO - app.utils.deliverect - Creating new location new_loc
+2025-04-16 02:10:00,620 - INFO - app.utils.deliverect - Location new_loc registered successfully
+2025-04-16 02:10:00,621 - INFO - app.utils.deliverect - Updating location new_loc status to 'registered'
+2025-04-16 02:10:00,622 - INFO - app.utils.deliverect - Location new_loc status updated to 'registered'
+2025-04-16 02:10:00,622 - INFO - root - Location new_loc registered with Deliverect
+2025-04-16 02:10:00,622 - INFO - app.utils.deliverect - Generating webhook URLs for location new_loc with BASE_URL: https://redbarsushiai.onrender.com
+2025-04-16 02:10:00,622 - INFO - app.utils.deliverect - Generated location-specific webhook URLs: {"statusUpdateURL": "https://redbarsushiai.onrender.com/location/new_loc/order_status", "menuUpdateURL": "https://redbarsushiai.onrender.com/location/new_loc/menu_update", "snoozeUnsnoozeURL": "https://redbarsushiai.onrender.com/location/new_loc/snoozeUnsnooze", "busyModeURL": "https://redbarsushiai.onrender.com/location/new_loc/busy_mode", "updatePrepTimeURL": "https://redbarsushiai.onrender.com/location/new_loc/updatePrepTime", "courierUpdateURL": "https://redbarsushiai.onrender.com/location/new_loc/courierUpdate", "paymentUpdateURL": "https://redbarsushiai.onrender.com/location/new_loc/payment_update"}
+2025-04-16 02:10:00,623 - INFO - app.utils.deliverect - Registering location new_loc with name 'New Test Location'
+2025-04-16 02:10:00,624 - INFO - app.utils.deliverect - Updating existing location new_loc
+2025-04-16 02:10:00,624 - INFO - app.utils.deliverect - Location new_loc registered successfully
+2025-04-16 02:10:00,641 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,641 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,645 - INFO - root - Received menu update data for location downtown: {'categories': [{'id': 'sushi', 'name': 'Sushi', 'products': [{'id': 'california_roll', 'name': 'California Roll', 'price': 995}]}]}
+2025-04-16 02:10:00,646 - INFO - root - Processing Deliverect menu format for location downtown
+2025-04-16 02:10:00,646 - WARNING - app.utils.menu_validator - [MENU-FIX] modifiers is not a valid list: <class 'NoneType'>
+2025-04-16 02:10:00,646 - WARNING - app.utils.menu_validator - [MENU-FIX] modifierGroups is not a valid list: <class 'NoneType'>
+2025-04-16 02:10:00,646 - WARNING - app.utils.menu_validator - [MENU-FIX] name_variants is not a valid dictionary: <class 'NoneType'>
+2025-04-16 02:10:00,646 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,646 - INFO - root - [MENU-LOAD] Using 9 name variants from menu data
+2025-04-16 02:10:00,646 - INFO - root - [MENU-PRICES] Loaded 9 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,646 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,646 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item California Roll has no PLU! Using synthetic reference: CaliforniaRoll. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-16 02:10:00,646 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for California Roll: CaliforniaRoll
+2025-04-16 02:10:00,646 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,646 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-16 02:10:00,646 - WARNING - app.utils.menu_utils - Test file not found or invalid: /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json. Creating an empty menu.
+2025-04-16 02:10:00,646 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:00,646 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,646 - INFO - root - Menu updated successfully for location downtown
+2025-04-16 02:10:00,661 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,661 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,665 - INFO - root - Product california_roll updated successfully for location downtown
+2025-04-16 02:10:00,677 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,677 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,692 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,692 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,706 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,706 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,723 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,724 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,730 - INFO - root - Order confirmation at downtown: Speech='yes', DTMF=''
+2025-04-16 02:10:00,730 - INFO - root - User confirmation interpreted as: yes
+2025-04-16 02:10:00,730 - INFO - root - Order downtown-test-123 for location downtown saved successfully.
+2025-04-16 02:10:00,731 - INFO - app.utils.deliverect - Deliverect token for downtown expired or not found, refreshing...
+2025-04-16 02:10:00,732 - INFO - app.utils.deliverect - Fetching Deliverect token for location downtown...
+2025-04-16 02:10:00,733 - INFO - app.utils.deliverect - Deliverect token for location downtown fetched successfully.
+2025-04-16 02:10:00,734 - INFO - app.utils.deliverect - Token for downtown will expire at 1969-12-31T19:00:01
+2025-04-16 02:10:00,734 - INFO - root - Deliverect order for location downtown successfully submitted: <MagicMock name='post().text' id='140517134013104'>
+2025-04-16 02:10:00,746 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,746 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,767 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,767 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,771 - INFO - app.utils.menu_utils - Using Flask-configured menu file path: /tmp/pytest-of-proxyie/pytest-14/test_write_menu_file0/test_menu.json
+2025-04-16 02:10:00,771 - INFO - app.utils.menu_utils - Successfully wrote menu data to /tmp/pytest-of-proxyie/pytest-14/test_write_menu_file0/test_menu.json
+2025-04-16 02:10:00,771 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-16 02:10:00,783 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,783 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,786 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,786 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,786 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,786 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,786 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,786 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,786 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,786 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,787 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-16 02:10:00,787 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 11.95
+2025-04-16 02:10:00,787 - DEBUG - app.utils.menu_utils - Sample item: Dragon Roll - 14.95
+2025-04-16 02:10:00,787 - INFO - app.utils.menu_utils - Loaded 4 total items, 2 currently available
+2025-04-16 02:10:00,787 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,787 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,787 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-16 02:10:00,787 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 11.95
+2025-04-16 02:10:00,787 - DEBUG - app.utils.menu_utils - Sample item: Dragon Roll - 14.95
+2025-04-16 02:10:00,787 - INFO - app.utils.menu_utils - Loaded 4 total items, 2 currently available
+2025-04-16 02:10:00,801 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,801 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,803 - WARNING - app.utils.menu_utils - Test file not found or invalid: /tmp/pytest-of-proxyie/pytest-14/test_load_menu_data_file_not_f0/nonexistent_file.json. Creating an empty menu.
+2025-04-16 02:10:00,803 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:00,803 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,816 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,816 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,819 - INFO - app.utils.menu_utils - Loading menu data from /tmp/pytest-of-proxyie/pytest-14/test_load_menu_data_invalid_js0/invalid_menu.json
+2025-04-16 02:10:00,819 - ERROR - app.utils.menu_utils - Invalid JSON in menu file /tmp/pytest-of-proxyie/pytest-14/test_load_menu_data_invalid_js0/invalid_menu.json
+2025-04-16 02:10:00,819 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:00,819 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,820 - ERROR - app.utils.menu_utils - Failed to parse timestamp: not a timestamp
+2025-04-16 02:10:00,821 - ERROR - app.utils.menu_utils - Failed to parse timestamp: invalid
+2025-04-16 02:10:00,821 - ERROR - app.utils.menu_utils - Failed to parse timestamp: also invalid
+2025-04-16 02:10:00,822 - ERROR - app.utils.menu_utils - Invalid time format in availability: invalid - also invalid
+2025-04-16 02:10:00,833 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,833 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,835 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,835 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,836 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,836 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,836 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,836 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,836 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-16 02:10:00,837 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 83 bytes
+2025-04-16 02:10:00,837 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-16 02:10:00,837 - WARNING - app.utils.menu_validator - [MENU-FIX] modifiers is not a valid list: <class 'NoneType'>
+2025-04-16 02:10:00,837 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,837 - INFO - root - [MENU-LOAD] Using 9 name variants from menu data
+2025-04-16 02:10:00,837 - INFO - root - [MENU-PRICES] Loaded 9 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,837 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-16 02:10:00,837 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item Test Item has no PLU! Using synthetic reference: TestItem. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-16 02:10:00,837 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Test Item: TestItem
+2025-04-16 02:10:00,837 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Test Item has missing or invalid price, setting default to 7.5
+2025-04-16 02:10:00,837 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-16 02:10:00,837 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-16 02:10:00,837 - INFO - app.routes.menu - [MENU-UPDATE] All 1 items have valid PLUs for Deliverect integration.
+2025-04-16 02:10:00,837 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 1 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,837 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Test Item -> PLU: TestItem | Reference: TestItem
+2025-04-16 02:10:00,837 - WARNING - app.routes.menu - [MENU-UPDATE] Failed to create backup: cannot access local variable 'json' where it is not associated with a value
+2025-04-16 02:10:00,837 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 1 items, 0 modifiers, 0 groups
+2025-04-16 02:10:00,837 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-16 02:10:00,837 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-16 02:10:00,850 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,850 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,853 - INFO - app.routes.menu - Received snooze/unsnooze data: {'operations': [{'action': 'snooze', 'item': 'California Roll'}]}
+2025-04-16 02:10:00,853 - INFO - app.routes.menu - Processed snooze/unsnooze operations.
+2025-04-16 02:10:00,854 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,854 - INFO - app.utils.deliverect - Processed Deliverect menu: found 0 items
+2025-04-16 02:10:00,855 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,855 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-16 02:10:00,855 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-16 02:10:00,855 - INFO - app.utils.deliverect - Processed Deliverect menu: found 0 items
+2025-04-16 02:10:00,866 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,866 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,869 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,869 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,869 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,869 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,869 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,869 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,871 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,871 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,871 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-16 02:10:00,871 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 11.95
+2025-04-16 02:10:00,871 - DEBUG - app.utils.menu_utils - Sample item: Dragon Roll - 14.95
+2025-04-16 02:10:00,871 - INFO - app.utils.menu_utils - Loaded 4 total items, 2 currently available
+2025-04-16 02:10:00,871 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-16 02:10:00,871 - INFO - app.routes.order - Available (not snoozed) items: 2
+2025-04-16 02:10:00,871 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-16 02:10:00,872 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-16 02:10:00,872 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 12 name variants
+2025-04-16 02:10:00,872 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'california', 'roll', 'californiaroll', 'spicy tuna roll']...
+2025-04-16 02:10:00,872 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-16 02:10:00,872 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-16 02:10:00,883 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,883 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,886 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,887 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,887 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,887 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,887 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,887 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,888 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,888 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,888 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-16 02:10:00,888 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 11.95
+2025-04-16 02:10:00,888 - DEBUG - app.utils.menu_utils - Sample item: Dragon Roll - 14.95
+2025-04-16 02:10:00,888 - INFO - app.utils.menu_utils - Loaded 4 total items, 2 currently available
+2025-04-16 02:10:00,888 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-16 02:10:00,888 - INFO - app.routes.order - Available (not snoozed) items: 2
+2025-04-16 02:10:00,889 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-16 02:10:00,889 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-16 02:10:00,889 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 12 name variants
+2025-04-16 02:10:00,889 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'california', 'roll', 'californiaroll', 'spicy tuna roll']...
+2025-04-16 02:10:00,889 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-16 02:10:00,889 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-16 02:10:00,901 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,901 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,917 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,917 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,921 - WARNING - app.utils.menu_utils - Test file not found or invalid: /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json. Creating an empty menu.
+2025-04-16 02:10:00,921 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:00,921 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,921 - INFO - app.routes.order - Menu data loaded: 0 items found
+2025-04-16 02:10:00,921 - INFO - app.routes.order - Available (not snoozed) items: 0
+2025-04-16 02:10:00,921 - WARNING - app.routes.order - No available items found - creating empty menu structure
+2025-04-16 02:10:00,921 - INFO - app.routes.order - Using default menu with 0 items
+2025-04-16 02:10:00,938 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,938 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,941 - INFO - app.routes.order - Menu data loaded: 0 items found
+2025-04-16 02:10:00,941 - INFO - app.routes.order - Available (not snoozed) items: 0
+2025-04-16 02:10:00,941 - WARNING - app.routes.order - No available items found - creating empty menu structure
+2025-04-16 02:10:00,941 - INFO - app.routes.order - Using default menu with 0 items
+2025-04-16 02:10:00,953 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,953 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,956 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,956 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,956 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,956 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,956 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,956 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,957 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,957 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,957 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-16 02:10:00,957 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 11.95
+2025-04-16 02:10:00,957 - DEBUG - app.utils.menu_utils - Sample item: Dragon Roll - 14.95
+2025-04-16 02:10:00,957 - INFO - app.utils.menu_utils - Loaded 4 total items, 2 currently available
+2025-04-16 02:10:00,957 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-16 02:10:00,957 - INFO - app.routes.order - Available (not snoozed) items: 2
+2025-04-16 02:10:00,968 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,969 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,972 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,972 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,972 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,972 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,972 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,972 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,973 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,973 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,973 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-16 02:10:00,973 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 11.95
+2025-04-16 02:10:00,973 - DEBUG - app.utils.menu_utils - Sample item: Dragon Roll - 14.95
+2025-04-16 02:10:00,973 - INFO - app.utils.menu_utils - Loaded 4 total items, 2 currently available
+2025-04-16 02:10:00,973 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-16 02:10:00,973 - INFO - app.routes.order - Available (not snoozed) items: 2
+2025-04-16 02:10:00,973 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Nonexistent Roll'
+2025-04-16 02:10:00,973 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'nonexistent roll'
+2025-04-16 02:10:00,973 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 12 name variants
+2025-04-16 02:10:00,973 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'california', 'roll', 'californiaroll', 'spicy tuna roll']...
+2025-04-16 02:10:00,973 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found partial name variant match: 'nonexistent roll' ⟷ 'roll' → 'California Roll'
+2025-04-16 02:10:00,973 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item via partial variant: California Roll
+2025-04-16 02:10:00,985 - INFO - root - Application starting in development mode
+2025-04-16 02:10:00,986 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:00,989 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,989 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:00,989 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:00,989 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:00,989 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:00,989 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:00,990 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,990 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json
+2025-04-16 02:10:00,990 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-16 02:10:00,990 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 11.95
+2025-04-16 02:10:00,990 - DEBUG - app.utils.menu_utils - Sample item: Dragon Roll - 14.95
+2025-04-16 02:10:00,990 - INFO - app.utils.menu_utils - Loaded 4 total items, 2 currently available
+2025-04-16 02:10:00,990 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-16 02:10:00,990 - INFO - app.routes.order - Available (not snoozed) items: 2
+2025-04-16 02:10:00,990 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Dragon Roll'
+2025-04-16 02:10:00,990 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'dragon roll'
+2025-04-16 02:10:00,990 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 12 name variants
+2025-04-16 02:10:00,990 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'california', 'roll', 'californiaroll', 'spicy tuna roll']...
+2025-04-16 02:10:00,990 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'dragon roll' → 'Dragon Roll'
+2025-04-16 02:10:00,990 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Dragon Roll
+2025-04-16 02:10:01,002 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,002 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,006 - INFO - root - Order confirmation: Speech='yes, that is correct', DTMF=''
+2025-04-16 02:10:01,006 - INFO - root - User confirmation interpreted as: yes
+2025-04-16 02:10:01,007 - WARNING - app.utils.menu_utils - Test file not found or invalid: /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json. Creating an empty menu.
+2025-04-16 02:10:01,007 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:01,007 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,007 - INFO - root - Order test-123 saved successfully.
+2025-04-16 02:10:01,007 - WARNING - app.utils.menu_utils - Test file not found or invalid: /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json. Creating an empty menu.
+2025-04-16 02:10:01,007 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:01,007 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,008 - INFO - app.utils.order_utils - [ORDER-VALIDATE] Found 0/0 available menu items
+2025-04-16 02:10:01,008 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'California Roll' with reference 'cal_roll_1' not found in menu
+2025-04-16 02:10:01,008 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] No valid items in order after validation
+2025-04-16 02:10:01,008 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Unavailable items: California Roll
+2025-04-16 02:10:01,008 - WARNING - app.utils.menu_utils - Test file not found or invalid: /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json. Creating an empty menu.
+2025-04-16 02:10:01,008 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:01,008 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,008 - INFO - root - No valid items with reference handlers in order, cannot submit to Deliverect
+2025-04-16 02:10:01,008 - INFO - root - Attempting to send SMS confirmation task directly for order test-123
+2025-04-16 02:10:01,008 - INFO - root - SMS confirmation task executed successfully for order test-123
+2025-04-16 02:10:01,024 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,024 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,028 - INFO - root - Order confirmation: Speech='no, i need to make changes', DTMF=''
+2025-04-16 02:10:01,028 - INFO - root - User confirmation interpreted as: no
+2025-04-16 02:10:01,041 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,041 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,044 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,044 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,044 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:01,044 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:01,044 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:01,044 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:01,046 - INFO - root - User requested order modification: Add a spicy tuna roll
+2025-04-16 02:10:01,046 - INFO - app.routes.order - [ORDER-MODIFY] Processing modifications: {"additions": [{"name": "Spicy Tuna Roll", "quantity": 1, "modifier": []}], "removals": []}
+2025-04-16 02:10:01,046 - INFO - app.routes.order - [ORDER-MODIFY] Current order: [{"name": "California Roll", "quantity": 2, "price": 9.95, "reference_handler": "cal_roll_1"}]
+2025-04-16 02:10:01,046 - INFO - app.routes.order - [ORDER-MODIFY] Processed additions: [{"name": "Spicy Tuna Roll", "quantity": 1, "modifier": []}]
+2025-04-16 02:10:01,046 - INFO - app.routes.order - [ORDER-MODIFY] Processed removals: []
+2025-04-16 02:10:01,046 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'spicy tuna roll'
+2025-04-16 02:10:01,046 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'spicy tuna roll'
+2025-04-16 02:10:01,046 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 9 name variants
+2025-04-16 02:10:01,046 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['burgers', 'cheeseburger', 'veggie burger', 'veggie', 'burger']...
+2025-04-16 02:10:01,046 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'spicy tuna roll'
+2025-04-16 02:10:01,046 - INFO - root - Order updated after modification: [{'name': 'California Roll', 'quantity': 2, 'price': 9.95, 'reference_handler': 'cal_roll_1'}, {'name': 'Spicy Tuna Roll', 'quantity': 1, 'modifier': []}]
+2025-04-16 02:10:01,059 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,059 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,061 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,061 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,061 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:01,061 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:01,061 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:01,061 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:01,077 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,077 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,079 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,079 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,079 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:01,079 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:01,079 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:01,079 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:01,092 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,092 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,095 - INFO - app.utils.agent_utils - [ORDER-MODIFICATIONS] Processing modification request: 'I just want a Spicy Tuna Roll'
+2025-04-16 02:10:01,095 - INFO - app.utils.agent_utils - [AGENT-MODIFY] Initializing modification agent for: 'I just want a Spicy Tuna Roll'
+2025-04-16 02:10:01,095 - INFO - app.utils.agent_utils - [AGENT-CURRENT] Current order has 0 items
+2025-04-16 02:10:01,095 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140517134016800'>
+2025-04-16 02:10:01,096 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140517134019488'>
+2025-04-16 02:10:01,096 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140517134019152'>
+2025-04-16 02:10:01,097 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in modify_order: list index out of range
+2025-04-16 02:10:01,097 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 558, in modify_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-16 02:10:01,097 - INFO - app.utils.agent_utils - [ORDER-MODIFICATIONS] Found modifications: additions=0, removals=0
+2025-04-16 02:10:01,109 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,109 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,115 - INFO - root - Final confirmation after modification: Speech='yes, that is correct', DTMF=''
+2025-04-16 02:10:01,115 - INFO - root - User final decision: yes
+2025-04-16 02:10:01,115 - WARNING - app.utils.menu_utils - Test file not found or invalid: /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json. Creating an empty menu.
+2025-04-16 02:10:01,115 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:01,115 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,116 - INFO - root - Order test-456 saved successfully.
+2025-04-16 02:10:01,116 - WARNING - app.utils.menu_utils - Test file not found or invalid: /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json. Creating an empty menu.
+2025-04-16 02:10:01,116 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:01,116 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,116 - INFO - app.utils.order_utils - [ORDER-VALIDATE] Found 0/0 available menu items
+2025-04-16 02:10:01,116 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'California Roll' with reference 'cal_roll_1' not found in menu
+2025-04-16 02:10:01,116 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'Spicy Tuna Roll' with reference 'spicy_tuna_1' not found in menu
+2025-04-16 02:10:01,116 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] No valid items in order after validation
+2025-04-16 02:10:01,116 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Unavailable items: California Roll, Spicy Tuna Roll
+2025-04-16 02:10:01,116 - WARNING - app.utils.menu_utils - Test file not found or invalid: /home/proxyie/MySoftware/RedBarSushiAI/tests/test_menu_data.json. Creating an empty menu.
+2025-04-16 02:10:01,116 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-16 02:10:01,116 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,116 - INFO - root - No valid items with reference handlers in order, cannot submit to Deliverect
+2025-04-16 02:10:01,116 - INFO - root - Attempting to send SMS confirmation task directly for order test-456
+2025-04-16 02:10:01,116 - INFO - root - SMS confirmation task executed successfully for order test-456
+2025-04-16 02:10:01,130 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,130 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,133 - INFO - root - Final confirmation after modification: Speech='no, i need to make more changes', DTMF=''
+2025-04-16 02:10:01,133 - INFO - root - User final decision: no
+2025-04-16 02:10:01,146 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,146 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,148 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,149 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,149 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:01,149 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:01,149 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:01,149 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:01,153 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Modifier with reference 'MOD-UNAVAIL' not found in menu or unavailable: Unavailable Mod
+2025-04-16 02:10:01,153 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Modifier not found in menu: Not In Menu Mod
+2025-04-16 02:10:01,153 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Removed 2 invalid modifiers from item Delicious Steak Frites
+2025-04-16 02:10:01,166 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,166 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,181 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,181 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,201 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,201 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,216 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,216 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,230 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,230 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,233 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,233 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,233 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:01,233 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:01,233 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:01,233 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:01,244 - INFO - root - Application starting in development mode
+2025-04-16 02:10:01,244 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:01,247 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,247 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 02:10:01,247 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 9.95
+2025-04-16 02:10:01,247 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-16 02:10:01,247 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-16 02:10:01,247 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-16 02:10:01,248 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-16 02:10:02,251 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-16 02:10:03,251 - ERROR - root - Commit attempt 2 failed: DB Error
+2025-04-16 02:10:03,277 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,277 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,289 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,290 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,292 - INFO - app.routes.voice - Extracting name from: 'John Doe'
+2025-04-16 02:10:03,292 - INFO - app.routes.voice - Using OpenAI for name extraction
+2025-04-16 02:10:03,292 - INFO - app.utils.agent_utils - [OPENAI-REQUEST] Function: extract_name, Model: gpt-4.1-mini
+2025-04-16 02:10:03,292 - INFO - app.utils.agent_utils - [OPENAI-MESSAGES] system: You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY...; user: Extract the person's name from: 'John Doe'. Respond with just the name, properly capitalized.
+2025-04-16 02:10:03,293 - INFO - app.utils.agent_utils - [OPENAI-RESPONSE] Function: extract_name
+2025-04-16 02:10:03,293 - INFO - app.utils.agent_utils - [OPENAI-CONTENT] <MagicMock name='mock.chat.completions.create().choices.__getitem__().message.content.__getitem__()' id='140517122100256'>...
+2025-04-16 02:10:03,293 - INFO - app.utils.agent_utils - [OPENAI-FULL] <MagicMock name='mock.chat.completions.create()' id='140517122098576'>...
+2025-04-16 02:10:03,294 - WARNING - app.routes.voice - AI returned empty or very short name
+2025-04-16 02:10:03,294 - INFO - app.routes.voice - Falling back to regex-based name extraction
+2025-04-16 02:10:03,306 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,306 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,320 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,320 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,339 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,339 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,442 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,442 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - ==== INCOMING CALL RECEIVED ====
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - Request came from: 127.0.0.1
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - User agent: Werkzeug/3.1.3
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - Host header: localhost
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - URL: http://localhost/
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - Base URL: http://localhost/
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - Request method: POST
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - Environment: undefined
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - Is this staging?: No, not explicitly marked as staging
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - Current working directory: /home/proxyie/MySoftware/RedBarSushiAI
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - From number: +1234567890
+2025-04-16 02:10:03,445 - INFO - app.routes.voice - ==== END CALL DETAILS ====
+2025-04-16 02:10:03,457 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,457 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,460 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'i want to order a california roll'
+2025-04-16 02:10:03,460 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'i want to order a california roll'
+2025-04-16 02:10:03,460 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140517134016800'>
+2025-04-16 02:10:03,460 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140517134019488'>
+2025-04-16 02:10:03,461 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140517134019152'>
+2025-04-16 02:10:03,461 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-16 02:10:03,461 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 384, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-16 02:10:03,461 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-16 02:10:03,461 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-16 02:10:03,472 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,472 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,475 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'tell me about your menu'
+2025-04-16 02:10:03,475 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'tell me about your menu'
+2025-04-16 02:10:03,475 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140517134016800'>
+2025-04-16 02:10:03,475 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140517134019488'>
+2025-04-16 02:10:03,475 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140517134019152'>
+2025-04-16 02:10:03,475 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-16 02:10:03,476 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 384, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-16 02:10:03,476 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-16 02:10:03,476 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-16 02:10:03,488 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,489 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,492 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'how much is a california roll?'
+2025-04-16 02:10:03,492 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'how much is a california roll?'
+2025-04-16 02:10:03,492 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140517134016800'>
+2025-04-16 02:10:03,492 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140517134019488'>
+2025-04-16 02:10:03,492 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140517134019152'>
+2025-04-16 02:10:03,492 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-16 02:10:03,492 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 384, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-16 02:10:03,492 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-16 02:10:03,492 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-16 02:10:03,503 - INFO - root - Application starting in development mode
+2025-04-16 02:10:03,504 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 02:10:03,507 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'something unrelated'
+2025-04-16 02:10:03,507 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'something unrelated'
+2025-04-16 02:10:03,507 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140517134016800'>
+2025-04-16 02:10:03,507 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140517134019488'>
+2025-04-16 02:10:03,507 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140517134019152'>
+2025-04-16 02:10:03,507 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-16 02:10:03,508 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 384, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-16 02:10:03,508 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-16 02:10:03,508 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
