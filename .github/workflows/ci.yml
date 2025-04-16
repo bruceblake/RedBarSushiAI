@@ -102,14 +102,34 @@ jobs:
           echo "DEPLOY_ENV=staging" >> $GITHUB_ENV
         fi
 
-    - name: Trigger Render deployment
-      if: success() && secrets.RENDER_DEPLOY_HOOK_URL != '' && secrets.RENDER_API_KEY != ''
+    - name: Set Render webhook variable
+      run: |
+        # Check for RENDER_WEBHOOK_SECRET first, then fall back to RENDER_DEPLOY_HOOK_URL and RENDER_API_KEY
+        if [[ -n "${{ secrets.RENDER_WEBHOOK_SECRET }}" ]]; then
+          echo "HAS_RENDER_SECRETS=true" >> $GITHUB_ENV
+          echo "USING_RENDER_WEBHOOK_SECRET=true" >> $GITHUB_ENV
+        elif [[ -n "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" && -n "${{ secrets.RENDER_API_KEY }}" ]]; then
+          echo "HAS_RENDER_SECRETS=true" >> $GITHUB_ENV
+          echo "USING_RENDER_WEBHOOK_SECRET=false" >> $GITHUB_ENV
+        else
+          echo "HAS_RENDER_SECRETS=false" >> $GITHUB_ENV
+          echo "USING_RENDER_WEBHOOK_SECRET=false" >> $GITHUB_ENV
+        fi
+
+    - name: Trigger Render deployment (webhook secret)
+      if: success() && env.HAS_RENDER_SECRETS == 'true' && env.USING_RENDER_WEBHOOK_SECRET == 'true'
+      run: |
+        curl -X POST "https://api.render.com/deploy/${{ secrets.RENDER_WEBHOOK_SECRET }}?branch=${{ env.DEPLOY_BRANCH }}"
+        echo "Triggered Render deployment for ${{ env.DEPLOY_ENV }} environment using webhook secret"
+        
+    - name: Trigger Render deployment (legacy method)
+      if: success() && env.HAS_RENDER_SECRETS == 'true' && env.USING_RENDER_WEBHOOK_SECRET != 'true'
       run: |
         curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}?branch=${{ env.DEPLOY_BRANCH }}" -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
-        echo "Triggered Render deployment for ${{ env.DEPLOY_ENV }} environment"
+        echo "Triggered Render deployment for ${{ env.DEPLOY_ENV }} environment using legacy method"
         
     - name: Skip Render deployment
-      if: success() && (secrets.RENDER_DEPLOY_HOOK_URL == '' || secrets.RENDER_API_KEY == '')
+      if: success() && env.HAS_RENDER_SECRETS != 'true'
       run: |
         echo "Skipping Render deployment - missing required secrets"
         echo "To enable automatic deployments, set RENDER_DEPLOY_HOOK_URL and RENDER_API_KEY secrets in your repository"
