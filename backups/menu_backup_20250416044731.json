@@ -2,22 +2,34 @@
   "items": [
     {
       "name": "Cheeseburger",
-      "reference_handler": "CHEESEBURGER",
+      "reference_handler": "BURG-CHEESE",
       "available": true,
       "price": 10.95,
       "description": "Juicy beef patty with melted cheese",
+      "category": "Burgers",
       "id": "ITEM-0000",
-      "plu": "CHEESEBURGER",
+      "plu": "BURG-CHEESE",
       "snoozed": false
     },
     {
       "name": "Veggie Burger",
-      "reference_handler": "VEGGIE-BURGER",
+      "reference_handler": "BURG-VEGGIE",
       "available": true,
       "price": 9.95,
       "description": "Plant-based patty with toppings",
+      "category": "Burgers",
       "id": "ITEM-0001",
-      "plu": "VEGGIE-BURGER",
+      "plu": "BURG-VEGGIE",
+      "snoozed": false
+    },
+    {
+      "name": "Burgers",
+      "reference_handler": "cat1",
+      "available": true,
+      "price": 6.95,
+      "description": "",
+      "id": "ITEM-0002",
+      "plu": "cat1",
       "snoozed": false
     }
   ],
@@ -27,6 +39,7 @@
     "cheeseburger": "Cheeseburger",
     "veggie burger": "Veggie Burger",
     "veggie": "Veggie Burger",
-    "burger": "Veggie Burger"
+    "burger": "Veggie Burger",
+    "burgers": "Burgers"
   }
 }

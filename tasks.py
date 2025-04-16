@@ -6,10 +6,38 @@ import os
 import gc
 import time
 import resource
+import re
 from app import db, twilio_client, create_app
 from app.models import Order
 from app.utils.helpers import log_info, commit_with_retry
 import app.config as config
+
+# Helper function to format phone numbers consistently
+def format_phone_display(phone_number):
+    """
+    Format a phone number for display in SMS messages.
+    Converts +1XXXXXXXXXX to (XXX) XXX-XXXX format.
+    
+    Args:
+        phone_number (str): Phone number in E.164 format (+1XXXXXXXXXX)
+        
+    Returns:
+        str: Formatted phone number (XXX) XXX-XXXX
+    """
+    # Remove any non-digit characters
+    digits_only = re.sub(r'\D', '', phone_number)
+    
+    # If it starts with country code (1), remove it
+    if digits_only.startswith('1') and len(digits_only) > 10:
+        digits_only = digits_only[1:]
+        
+    # Ensure we have 10 digits
+    if len(digits_only) != 10:
+        # Return original if not 10 digits
+        return phone_number
+        
+    # Format as (XXX) XXX-XXXX
+    return f"({digits_only[:3]}) {digits_only[3:6]}-{digits_only[6:]}"
 
 # Import celery instance after it's fully defined
 from celery_app import celery
@@ -45,10 +73,12 @@ def memory_profiler(func):
         return result
     return wrapper
 
-# Use regular SMS number, not WhatsApp
+# Use phone numbers from config
 TWILIO_PHONE_NUMBER = config.TWILIO_NUMBER
-# Owner phone number without WhatsApp prefix for regular SMS
-OWNER_PHONE_NUMBER = '+18333247207'
+# Owner phone number for notifications
+OWNER_PHONE_NUMBER = config.OWNER_PHONE_NUMBER
+# Customer service number
+CUSTOMER_SERVICE_NUMBER = config.CUSTOMER_SERVICE_NUMBER
 
 @celery.task(name="tasks.sync_menu_references")
 @memory_profiler
@@ -154,9 +184,9 @@ Thank you for ordering{location_prefix}!
             text_msg += f"\n{pickup_time}"
             text_msg += f"\n🕒 Order placed at: {current_time}"
             
-            # Add restaurant location and phone
+            # Add restaurant location and phone - use customer service number from config
             text_msg += f"\n\n📍 {location_name}"
-            text_msg += "\n📞 (833) 324-7207"  # Restaurant phone
+            text_msg += f"\n📞 {format_phone_display(CUSTOMER_SERVICE_NUMBER)}"
             
             # Create payment link with better description
             try:
@@ -228,23 +258,9 @@ Thank you for ordering{location_prefix}!
                 except Exception as alt_e:
                     logging.error(f"Alternative SMS approach also failed: {alt_e}")
             
-            # Send SMS notification to owner (not WhatsApp)
-            try:
-                # Include location in owner notification
-                owner_msg = text_msg
-                if location_id and "location" not in owner_msg:
-                    owner_msg = f"New order from{location_prefix}:\n{owner_msg}"
-                    
-                # Use regular SMS for owner notification
-                twilio_client.messages.create(
-                    body=owner_msg,
-                    from_=TWILIO_PHONE_NUMBER,
-                    to=OWNER_PHONE_NUMBER,
-                    status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
-                )
-                logging.info(f"Owner notification SMS sent to {OWNER_PHONE_NUMBER}")
-            except Exception as e:
-                logging.info(f"Owner notification SMS error: {e}")
+            # Owner notification has been removed
+            # No SMS notification will be sent to the owner
+            logging.info("Owner notification SMS has been disabled")
             
             # Update order in database (should already exist but update message)
             try:
@@ -440,7 +456,8 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
             if order.status_code == 70:
                 formatted_status += "\n\n⏱️ Your order is ready for pickup now!"
                 formatted_status += f"\n📍 Please pick up at: {location_name}"
-                formatted_status += "\n📞 Call (833) 324-7207 if you need assistance"
+                # Format the phone number using helper function
+                formatted_status += f"\n📞 Call {format_phone_display(CUSTOMER_SERVICE_NUMBER)} if you need assistance"
             
             # Preparing (code 50)
             elif order.status_code == 50:
@@ -456,7 +473,8 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
             
             # Failed/rejected orders (codes 110, 120)
             elif order.status_code in [110, 120]:
-                formatted_status += "\n\n⚠️ Please call us at (833) 324-7207 regarding your order"
+                # Format the phone number using helper function
+                formatted_status += f"\n\n⚠️ Please call us at {format_phone_display(CUSTOMER_SERVICE_NUMBER)} regarding your order"
             
             # Add reminder for SMS commands with better formatting
             formatted_status += "\n\n📱 SMS COMMANDS:"
@@ -506,23 +524,9 @@ def send_order_status_update_task(self, order_id, status_message, location_id=No
                 except Exception as alt_e:
                     logging.error(f"Alternative SMS approach for status update also failed: {alt_e}")
 
-            # Send SMS notification to owner (not WhatsApp)
-            try:
-                # Add customer info for owner message
-                owner_formatted_status = formatted_status + f"\n\nCustomer: {order.sender}"
-                if order.caller_name:
-                    owner_formatted_status += f" ({order.caller_name})"
-                
-                # Use regular SMS for owner notification
-                twilio_client.messages.create(
-                    body=owner_formatted_status,
-                    from_=TWILIO_PHONE_NUMBER,
-                    to=OWNER_PHONE_NUMBER,
-                    status_callback=f"{os.environ.get('BASE_URL', 'https://redbarsushiai.onrender.com')}/sms_status_callback"
-                )
-                logging.info(f"Owner status notification SMS sent to {OWNER_PHONE_NUMBER}")
-            except Exception as e:
-                logging.info(f"Owner status notification SMS error: {e}")
+            # Owner notification has been removed
+            # No SMS status notification will be sent to the owner
+            logging.info("Owner status notification SMS has been disabled")
                 
             # Handle failed orders for reporting
             if order.status_code in [110, 115, 120] or order_status in ["FAILED", "CANCELLED", "REJECTED"]:

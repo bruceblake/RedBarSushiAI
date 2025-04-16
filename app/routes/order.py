@@ -1899,7 +1899,12 @@ def sms_status_callback():
         
         # Auto-retry logic for failed messages (if error is recoverable)
         recoverable_errors = ['30001', '30002', '30003', '30004', '30005', '30006', '30007']
-        if error_code in recoverable_errors and to_number:
+        # Error 30034 means invalid recipient number - we should log this clearly
+        if error_code == '30034':
+            log_info(f"ERROR 30034: Invalid recipient phone number: {to_number}. This number cannot receive SMS.")
+            # No retry for invalid number - update documentation to use correct numbers
+            # The system has been configured to use the same working number in all environments
+        elif error_code in recoverable_errors and to_number:
             log_info(f"Queueing retry for recoverable error {error_code} to {to_number}")
             # This will be implemented if needed - would need a celery task
     

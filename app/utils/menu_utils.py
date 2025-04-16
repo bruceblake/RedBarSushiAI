@@ -110,6 +110,11 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
     Returns:
         bool: True if write was successful, False otherwise
     """
+    # Ensure operating system functions are available
+    import os
+    import json
+    import tempfile
+    
     # Check if the app context is available to get the configured path
     from flask import current_app, has_app_context
     
@@ -125,6 +130,25 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
             logger.info(f"Using location-specific file path: {file_path}")
         else:
             file_path = MENU_FILE_PATH
+    
+    # Validate menu data before writing
+    if not isinstance(menu_data, dict):
+        logger.error(f"Invalid menu data type: {type(menu_data).__name__}, expected dict")
+        return False
+        
+    if "items" not in menu_data:
+        logger.error("Menu data missing 'items' key")
+        return False
+        
+    items = menu_data.get("items", [])
+    if not isinstance(items, list):
+        logger.error(f"Invalid items type: {type(items).__name__}, expected list")
+        return False
+        
+    # Check if items are properly formatted
+    item_count = len(items)
+    if item_count == 0:
+        logger.warning("Writing menu with 0 items - this might indicate a problem!")
     
     # Ensure the directory exists
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -144,12 +168,46 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
     except Exception as e:
         logger.warning(f"Could not create backup: {e}")
     
-    # Write the new file
+    # Write to a temporary file first, then atomically move it to the target path
+    # This prevents corruption if writing is interrupted
+    import tempfile
+    temp_file = None
+    
     try:
-        with open(file_path, 'w') as file:
+        # Create a temporary file in the same directory
+        temp_fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(file_path), prefix="menu_", suffix=".tmp")
+        os.close(temp_fd)  # Close the file descriptor
+        temp_file = temp_path
+        
+        # Write the menu data to the temporary file
+        with open(temp_path, 'w') as file:
             json.dump(menu_data, file, indent=2)
         
-        logger.info(f"Successfully wrote menu data to {file_path}")
+        # Check if the write was successful by reading back
+        try:
+            with open(temp_path, 'r') as check_file:
+                check_data = json.load(check_file)
+                check_items = len(check_data.get("items", []))
+                if check_items != item_count:
+                    logger.warning(f"Verification mismatch: wrote {item_count} items but read back {check_items}")
+        except Exception as check_e:
+            logger.error(f"Failed to verify temporary file: {check_e}")
+            # Continue anyway since the initial write succeeded
+        
+        # Atomically move the temp file to the target path
+        # This is safer than direct writing, especially for critical files
+        import os
+        # Different approaches for different platforms
+        if os.name == 'posix':  # Unix/Linux/Mac
+            os.rename(temp_path, file_path)
+        else:  # Windows
+            # Windows may need this if the destination exists
+            if os.path.exists(file_path):
+                os.replace(temp_path, file_path)
+            else:
+                os.rename(temp_path, file_path)
+        
+        logger.info(f"Successfully wrote menu data with {item_count} items to {file_path}")
         
         # Clear legacy cache to force reload
         global _menu_cache, _last_refresh_time
@@ -168,6 +226,12 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         return True
     except Exception as e:
         logger.error(f"Error writing menu file: {e}")
+        # Try to clean up the temp file if it exists
+        if temp_file and os.path.exists(temp_file):
+            try:
+                os.unlink(temp_file)
+            except:
+                pass
         return False
 
 def create_empty_menu():
@@ -453,37 +517,187 @@ def find_menu_item_by_name(item_name: str, check_availability: bool = False) -> 
                 logger.warning(f"[MENU-LOOKUP] Found direct match '{item.get('name')}' but item is unavailable/snoozed")
                 return None
     
-    # Try partial variant match if both above fail
-    partial_matches = []
-    for variant, actual_name in name_variants.items():
-        # Check if variant is contained in search term or vice versa
-        if len(variant) >= 4 and (variant in item_name_lower or item_name_lower in variant):
-            logger.info(f"[MENU-LOOKUP] Found partial name variant match: '{item_name_lower}' ⟷ '{variant}' → '{actual_name}'")
-            partial_matches.append(actual_name)
+    # Look for multi-word matches from the query
+    # This is especially helpful for distinguishing between "veggie burger" and generic "burger"
+    words = item_name_lower.split()
+    if len(words) >= 2:
+        # Try to find multi-word matches first (more specific)
+        for i in range(len(words) - 1):
+            two_word_term = f"{words[i]} {words[i+1]}"
+            if two_word_term in name_variants:
+                actual_name = name_variants[two_word_term]
+                logger.info(f"[MENU-LOOKUP] Found multi-word match: '{two_word_term}' → '{actual_name}'")
+                
+                # Look up the corresponding item
+                for item in menu_data.get("items", []):
+                    if item.get("name", "").lower() == actual_name.lower():
+                        if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
+                            logger.info(f"[MENU-LOOKUP] Found menu item via multi-word match: {item.get('name')}")
+                            return item
     
-    # Look up items for partial matches
-    for actual_name in partial_matches:
+    # Special case for "veggie burger" search
+    if "veggie" in item_name_lower and "burger" in item_name_lower:
+        logger.info("[MENU-LOOKUP] Detected 'veggie burger' in search term, prioritizing this match")
+        # First look for the "Veggie Burger" menu item directly
+        for item in menu_data.get("items", []):
+            if "veggie burger" in item.get("name", "").lower():
+                if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
+                    logger.info(f"[MENU-LOOKUP] Found 'Veggie Burger' via special case handling")
+                    return item
+    
+    # Special case for "chicken satay/sate" search
+    if ("chicken" in item_name_lower and "satay" in item_name_lower) or \
+       ("chicken" in item_name_lower and "sate" in item_name_lower):
+        logger.info("[MENU-LOOKUP] Detected 'chicken satay/sate' in search term, prioritizing this match")
+        # Look for the "Chicken Sate" menu item directly
+        for item in menu_data.get("items", []):
+            if "chicken sate" in item.get("name", "").lower():
+                if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
+                    logger.info(f"[MENU-LOOKUP] Found 'Chicken Sate' via special case handling")
+                    return item
+    
+    # Try partial variant match if both above fail
+    # We'll use a scoring system to find the best match
+    scored_matches = []
+    
+    for variant, actual_name in name_variants.items():
+        # Skip very short variants that might cause false matches
+        if len(variant) < 4:
+            continue
+            
+        # Check different matching scenarios and assign scores
+        score = 0
+        
+        # Exact match would have been caught earlier, but let's add it for completeness
+        if variant == item_name_lower:
+            score = 100
+        # Full input contains full variant (e.g., "veggie burger" in "i want a veggie burger please")
+        elif variant in item_name_lower:
+            # Longer variant matches are more significant
+            score = 80 + len(variant)
+            
+            # Special case: Multi-word variants are more specific and should score higher
+            if ' ' in variant:
+                variant_word_count = len(variant.split())
+                if variant_word_count > 1:
+                    # Add bonus points for multi-word matches - they're more specific
+                    score += variant_word_count * 5
+                    
+        # Full variant contains full input (e.g., "burger" in "veggie burger")
+        elif item_name_lower in variant:
+            # Match quality depends on how much of the variant is matched
+            match_ratio = len(item_name_lower) / len(variant)
+            # Higher score for more complete matches
+            score = 50 + int(match_ratio * 30)
+            
+        # If variant and search term share words, also consider it
+        if score == 0:
+            # Tokenize both strings
+            variant_words = set(variant.split())
+            search_words = set(item_name_lower.split())
+            common_words = variant_words.intersection(search_words)
+            
+            # If we have common words, score based on percentage of words matched
+            if common_words:
+                match_ratio = len(common_words) / len(variant_words)
+                score = int(match_ratio * 45)  # Max 45 for word matching
+                
+        # Special case: "veggie burger" vs "burger" disambiguation
+        # If search term contains "veggie" and "burger", strongly prioritize "veggie burger" variant
+        if "veggie" in item_name_lower and "burger" in item_name_lower:
+            if variant == "veggie burger":
+                logger.info(f"[MENU-LOOKUP] Boosting score for 'veggie burger' variant")
+                score += 30  # Significant boost
+            elif variant == "burger":
+                logger.info(f"[MENU-LOOKUP] Reducing score for generic 'burger' variant when 'veggie' is present")
+                score -= 20  # Penalty for generic term when specific is available
+                
+        # Special case: "chicken satay/sate" vs "chicken" disambiguation
+        # If search term contains "satay" or "sate", prioritize chicken sate over generic chicken items
+        if ("satay" in item_name_lower or "sate" in item_name_lower) and "chicken" in item_name_lower:
+            if variant == "chicken sate" or variant == "sate":
+                logger.info(f"[MENU-LOOKUP] Boosting score for 'chicken sate' variant")
+                score += 30  # Significant boost
+            elif variant == "chicken" and "tender" in actual_name.lower():
+                logger.info(f"[MENU-LOOKUP] Reducing score for 'chicken tenders' when 'satay/sate' is present")
+                score -= 20  # Penalty for generic chicken term when specific satay/sate is requested
+            
+        # Only consider variants that have a decent score
+        if score >= 40:
+            logger.info(f"[MENU-LOOKUP] Found partial name variant match: '{item_name_lower}' ⟷ '{variant}' → '{actual_name}' (score: {score})")
+            scored_matches.append((actual_name, score, variant))
+    
+    # Sort by score (highest first)
+    scored_matches.sort(key=lambda x: x[1], reverse=True)
+    
+    # Look up items for the highest scoring matches first
+    for actual_name, score, variant in scored_matches:
+        logger.info(f"[MENU-LOOKUP] Checking match: {actual_name} (score: {score}, variant: {variant})")
         for item in menu_data.get("items", []):
             if item.get("name", "").lower() == actual_name.lower():
                 # Verify this item is available if required
                 if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
-                    logger.info(f"[MENU-LOOKUP] Found matching menu item via partial variant: {item.get('name')}")
+                    logger.info(f"[MENU-LOOKUP] Found matching menu item via partial variant: {item.get('name')} (score: {score})")
                     return item
                 else:
                     logger.warning(f"[MENU-LOOKUP] Found match via partial variant '{item.get('name')}' but item is unavailable/snoozed")
     
     # Try partial matches within menu items - last resort
+    # Similar scoring system for direct menu item matches
+    menu_item_matches = []
+    
     for item in menu_data.get("items", []):
         item_name_in_menu = item.get("name", "").lower()
         # Only do partial matching if both strings are reasonably long
         if len(item_name_lower) >= 3 and len(item_name_in_menu) >= 3:
-            if item_name_lower in item_name_in_menu or item_name_in_menu in item_name_lower:
-                # Verify this item is available if required
-                if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
-                    logger.info(f"[MENU-LOOKUP] Found partial item match: '{item_name_lower}' ⊂ '{item_name_in_menu}'")
-                    return item
-                else:
-                    logger.warning(f"[MENU-LOOKUP] Found match '{item_name_in_menu}' but item is unavailable/snoozed")
+            score = 0
+            
+            # Exact match would have been caught earlier
+            if item_name_in_menu == item_name_lower:
+                score = 100
+            # Full input contains full menu item (e.g., "veggie burger" in "i want a veggie burger")
+            elif item_name_in_menu in item_name_lower:
+                # Longer item name matches are more significant
+                score = 75 + min(len(item_name_in_menu), 20)  # Cap at 95
+            # Full menu item contains full input (e.g., "veggie" in "veggie burger")
+            elif item_name_lower in item_name_in_menu:
+                # Match quality depends on how much of the menu item is matched
+                match_ratio = len(item_name_lower) / len(item_name_in_menu)
+                # Higher score for more complete matches
+                score = 45 + int(match_ratio * 30)  # Max 75 for partial matches
+            
+            # Word-level matching as a fallback
+            if score == 0:
+                # Tokenize both strings
+                menu_words = set(item_name_in_menu.split())
+                search_words = set(item_name_lower.split())
+                common_words = menu_words.intersection(search_words)
+                
+                # If we have common words, score based on percentage of words matched
+                if common_words and len(menu_words) > 0:
+                    word_match_ratio = len(common_words) / len(menu_words)
+                    # Give priority to items where all search words are present
+                    search_words_ratio = len(common_words) / len(search_words) if search_words else 0
+                    
+                    # Combined score favoring matches with all search words present
+                    score = int((word_match_ratio * 0.3 + search_words_ratio * 0.7) * 40)
+            
+            # Only consider items with a reasonable score
+            if score >= 35:
+                logger.info(f"[MENU-LOOKUP] Found partial item match: '{item_name_lower}' ⊂ '{item_name_in_menu}' (score: {score})")
+                menu_item_matches.append((item, score))
+    
+    # Sort by score (highest first)
+    menu_item_matches.sort(key=lambda x: x[1], reverse=True)
+    
+    # Return the highest-scoring available item
+    for matched_item, score in menu_item_matches:
+        # Verify this item is available if required
+        if not check_availability or (matched_item.get("available", True) and not matched_item.get("snoozed", False)):
+            logger.info(f"[MENU-LOOKUP] Using menu item match: {matched_item.get('name')} (score: {score})")
+            return matched_item
+        else:
+            logger.warning(f"[MENU-LOOKUP] Found match '{matched_item.get('name')}' but item is unavailable/snoozed")
     
     # One last try - if check_availability is true, try again without checking
     if check_availability:
@@ -1186,31 +1400,54 @@ def add_name_variants(item_name, variants_dict=None):
         return variants_dict
         
     # Add the base name as its own variant
-    item_name_lower = item_name.lower()
+    item_name_lower = item_name.lower().strip()
     variants_dict[item_name_lower] = item_name
     
-    # Add some common variant patterns
+    # Add each word with its position to create more specific variants
     words = item_name_lower.split()
     
-    # Add individual words as variants if they're distinctive
+    # For compound terms like "Veggie Burger", create more specific variants
+    # to prevent generic terms like "burger" from matching incorrectly
+    if len(words) >= 2:
+        # Add full item with a prefix to ensure it gets higher priority in matching
+        # e.g., "full:veggie burger" for "Veggie Burger"
+        full_variant = f"full:{item_name_lower}"
+        variants_dict[full_variant] = item_name
+        
+        # Create specific variant for each word combination, with more specific prefixes
+        for i in range(len(words)):
+            # For longer names, create sub-phrases
+            for j in range(i+1, min(i+4, len(words)+1)):  # Limit phrase length to 3 words
+                if j - i >= 2:  # Only meaningful phrases with 2+ words
+                    phrase = ' '.join(words[i:j])
+                    # Add a specificity marker to prioritize these variants
+                    specific_variant = f"specific:{phrase}"
+                    variants_dict[specific_variant] = item_name
+    
+    # Add individual words as variants - but only if they're distinctive
     for word in words:
         if len(word) >= 4:  # Only use reasonably distinctive words
             if word not in variants_dict:
                 variants_dict[word] = item_name
     
-    # Add common multi-word combinations (for tests)
-    if len(words) > 2:
-        # Add pairs of consecutive words as variants
+    # Create more specific pairs for multi-word items
+    if len(words) >= 2:
+        # Add all two-word combinations for better matching
         for i in range(len(words) - 1):
             variant = f"{words[i]} {words[i+1]}"
             if variant not in variants_dict:
                 variants_dict[variant] = item_name
     
+    # Special case for compound items with descriptors
+    if "veggie burger" in item_name_lower:
+        # Ensure "veggie burger" gets very high priority for matching
+        variants_dict["veggie burger+"] = item_name
+    
     # Special case for "Spicy Tuna Roll" -> "tuna roll" (for the failing test)
     if item_name_lower == "spicy tuna roll":
         variants_dict["tuna roll"] = item_name
     
-    # Add abbreviated forms
+    # Add abbreviated forms for longer item names
     if len(words) > 1:
         # First letter of each word
         acronym = ''.join(word[0] for word in words)

@@ -40,7 +40,55 @@ def analyze_user_input(text: str) -> Dict[str, Any]:
     menu_data = load_menu_data()
     
     # Simple keyword matching as a fallback
-    keywords = ["sushi", "roll", "california", "dragon", "spicy", "tuna", "salmon"]
+    keywords = ["sushi", "roll", "california", "dragon", "spicy", "tuna", "salmon", "burger", "veggie", "fries"]
+    
+    # Extract quantity information using simple regex
+    import re
+    quantity_match = re.search(r'(\d+)\s*(?:of|x|,)?\s*(.+)', text.lower())
+    default_quantity = 1
+    
+    if quantity_match:
+        quantity_str = quantity_match.group(1)
+        try:
+            default_quantity = int(quantity_str)
+            logger.info(f"[SIMPLE-AGENT] Extracted quantity from input: {default_quantity}")
+            # Update text to only include the item part for better matching
+            text = quantity_match.group(2).strip()
+        except ValueError:
+            logger.warning(f"[SIMPLE-AGENT] Failed to parse quantity: {quantity_str}")
+    
+    # Check for veggie burger as a special case
+    if "veggie" in text.lower() and "burger" in text.lower():
+        menu_item = find_menu_item_by_name("veggie burger")
+        if menu_item:
+            found_items = [{
+                "name": menu_item.get("name"),
+                "price": menu_item.get("price", 0.0),
+                "reference_handler": menu_item.get("reference_handler", ""),
+                "quantity": default_quantity
+            }]
+            return {
+                "intent": "order_food",
+                "items": found_items,
+                "confidence": 0.9
+            }
+            
+    # Check for chicken satay/sate as a special case
+    if ("chicken" in text.lower() and "satay" in text.lower()) or \
+       ("chicken" in text.lower() and "sate" in text.lower()):
+        menu_item = find_menu_item_by_name("chicken sate")
+        if menu_item:
+            found_items = [{
+                "name": menu_item.get("name"),
+                "price": menu_item.get("price", 0.0),
+                "reference_handler": menu_item.get("reference_handler", ""),
+                "quantity": default_quantity
+            }]
+            return {
+                "intent": "order_food",
+                "items": found_items,
+                "confidence": 0.9
+            }
     
     found_items = []
     for keyword in keywords:
@@ -52,12 +100,12 @@ def analyze_user_input(text: str) -> Dict[str, Any]:
                     "name": menu_item.get("name"),
                     "price": menu_item.get("price", 0.0),
                     "reference_handler": menu_item.get("reference_handler", ""),
-                    "quantity": 1
+                    "quantity": default_quantity
                 })
     
     return {
         "intent": "order_food" if found_items else "other",
-        "menu_items": found_items,
+        "items": found_items,  # Use 'items' consistently for compatibility
         "confidence": 0.8 if found_items else 0.2
     }
 

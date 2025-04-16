@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "name": "Cheeseburger",
+      "reference_handler": "BURG-CHEESE",
+      "available": true,
+      "price": 0.10949999999999999,
+      "description": "Juicy beef patty with melted cheese",
+      "category": "Burgers"
+    },
+    {
+      "name": "Veggie Burger",
+      "reference_handler": "prod2",
+      "available": true,
+      "price": 0.09949999999999999,
+      "description": "Plant-based patty with toppings",
+      "category": "Burgers"
+    },
+    {
+      "name": "Kids Burger",
+      "reference_handler": "KidsBurger",
+      "available": true,
+      "price": 0.0695,
+      "description": "Smaller burger for kids",
+      "category": "Burgers"
+    },
+    {
+      "name": "Burgers",
+      "reference_handler": "cat1",
+      "available": true,
+      "price": 0,
+      "description": "Delicious burgers"
+    }
+  ],
+  "modifiers": [],
+  "modifierGroups": [],
+  "name_variants": {
+    "cheeseburger": "Cheeseburger",
+    "veggie burger": "Veggie Burger",
+    "veggie": "Veggie Burger",
+    "burger": "Kids Burger",
+    "kids burger": "Kids Burger",
+    "kids": "Kids Burger",
+    "burgers": "Burgers"
+  }
+}
