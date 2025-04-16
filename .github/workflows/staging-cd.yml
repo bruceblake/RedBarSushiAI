@@ -40,21 +40,37 @@ jobs:
         git tag "$TAG_NAME"
         git push origin "$TAG_NAME" || echo "Warning: Could not push tag $TAG_NAME to remote repository. This could be due to permission issues."
         
+    - name: Check for Render secrets
+      run: |
+        if [[ -n "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}" && -n "${{ secrets.RENDER_API_KEY }}" ]]; then
+          echo "HAS_RENDER_SECRETS=true" >> $GITHUB_ENV
+        else
+          echo "HAS_RENDER_SECRETS=false" >> $GITHUB_ENV
+        fi
+
     - name: Trigger Render deployment
-      if: secrets.RENDER_STAGING_DEPLOY_HOOK != '' && secrets.RENDER_API_KEY != ''
+      if: env.HAS_RENDER_SECRETS == 'true'
       run: |
         curl -X POST "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}" \
           -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
           -H "Content-Type: application/json"
           
     - name: Skip Render deployment
-      if: secrets.RENDER_STAGING_DEPLOY_HOOK == '' || secrets.RENDER_API_KEY == ''
+      if: env.HAS_RENDER_SECRETS != 'true'
       run: |
         echo "Skipping Render deployment - missing required secrets"
         echo "To enable automatic deployments, set RENDER_STAGING_DEPLOY_HOOK and RENDER_API_KEY secrets in your repository"
           
+    - name: Check for Slack webhook
+      run: |
+        if [[ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]]; then
+          echo "HAS_SLACK_WEBHOOK=true" >> $GITHUB_ENV
+        else
+          echo "HAS_SLACK_WEBHOOK=false" >> $GITHUB_ENV
+        fi
+
     - name: Notify deployment status
-      if: always() && secrets.SLACK_WEBHOOK_URL != ''
+      if: always() && env.HAS_SLACK_WEBHOOK == 'true'
       run: |
         if [ "${{ job.status }}" == "success" ]; then
           STATUS="✅ Staging deployment complete"
@@ -67,5 +83,5 @@ jobs:
         }' ${{ secrets.SLACK_WEBHOOK_URL }} || echo "Slack notification failed"
         
     - name: Skip Slack notification
-      if: secrets.SLACK_WEBHOOK_URL == ''
+      if: env.HAS_SLACK_WEBHOOK != 'true'
       run: echo "Skipping Slack notification - SLACK_WEBHOOK_URL not set"
