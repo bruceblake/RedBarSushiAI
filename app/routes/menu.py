@@ -6,7 +6,7 @@ import os
 import requests
 import importlib
 from datetime import datetime
-from app.utils.helpers import log_info, commit_with_retry
+# app.utils.helpers is imported by other modules
 from app.utils.menu_validator import validate_and_fix_menu_data
 from app.utils.menu_utils import load_menu_data, write_menu_file, sync_reference_handlers, MENU_FILE_PATH, USE_REDBAR_MENU
 from app.utils.deliverect import process_deliverect_menu
@@ -101,7 +101,7 @@ def menu_update():
                     logger.info(f"[MENU-UPDATE] Found {len(menus)} menus in async format")
                     # Use the first menu as our data to process
                     data = menus[0]
-                    logger.info(f"[MENU-UPDATE] Using first menu for processing")
+                    logger.info("[MENU-UPDATE] Using first menu for processing")
         
         # Process the menu data through our robust formatter
         try:
@@ -148,7 +148,7 @@ def menu_update():
                 # Don't return an error - continue processing
                 
             # Save the processed menu
-            import time
+            # Using datetime from imported module
             import os
             
             # CRITICAL: Make a backup of the menu data before attempting to save
@@ -172,7 +172,7 @@ def menu_update():
             # Use the standard write_menu_file function to write the menu data
             if write_menu_file(processed_data):
                 logger.info("[MENU-UPDATE] Successfully wrote menu using write_menu_file")
-                success = True
+                # Write was successful
             else:
                 logger.error("[MENU-UPDATE] Failed to write menu using write_menu_file")
                 
@@ -319,16 +319,16 @@ def snooze_unsnooze():
 
 @menu_bp.route('/busy_mode', methods=['POST'])
 def busy_mode():
-    # Access the global variable from order.py
-    from app.routes.order import BUSY_MODE_ACTIVE
+    # Access the global variable from order.py - import once at the top
+    import app.routes.order
     data = request.get_json() or {}
     status = data.get("status", "").upper()
     
     if status == "PAUSED":
-        globals()['BUSY_MODE_ACTIVE'] = True
+        app.routes.order.BUSY_MODE_ACTIVE = True
         return jsonify({"status": "PAUSED"}), 200
     elif status == "UNPAUSED":
-        globals()['BUSY_MODE_ACTIVE'] = False
+        app.routes.order.BUSY_MODE_ACTIVE = False
         return jsonify({"status": "UNPAUSED"}), 200
     else:
         return jsonify({"error": "Invalid status"}), 400

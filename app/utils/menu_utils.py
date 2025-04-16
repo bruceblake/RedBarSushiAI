@@ -6,10 +6,9 @@ import json
 import os
 import time
 import logging
-import datetime
 import shutil
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
+# Path used only for type hints - can be removed for linting
+from typing import Dict, Any, Optional  # List and Union used in other modules
 from datetime import datetime, timezone, time as dt_time
 
 logger = logging.getLogger(__name__)
@@ -311,9 +310,9 @@ def load_menu_data(force_refresh=False, location_id=None):
             
             # If it's not a Deliverect format, just use an empty structure
             else:
-                logger.error(f"Invalid menu data detected - using empty menu structure")
+                logger.error("Invalid menu data detected - using empty menu structure")
                 menu_data = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
-                logger.info(f"Created empty menu structure")
+                logger.info("Created empty menu structure")
             
         # Update both caches - the new location-based one and the legacy one
         # New cache (location-aware)
@@ -924,6 +923,7 @@ def validate_modifier_constraints(order_items):
     
     return True, ""
 
+
 def process_deliverect_menu(data, location_id=None):
     """
     Process a Deliverect menu data payload for a specific location.
@@ -947,6 +947,7 @@ def process_deliverect_menu(data, location_id=None):
             item['location_id'] = location_id
     
     return processed_data
+
 
 def process_product_changes(product_id, data, location_id=None):
     """
@@ -995,6 +996,7 @@ def process_product_changes(product_id, data, location_id=None):
     
     return False
 
+
 def process_modifier_group_changes(group_id, data):
     """
     Process changes to a modifier group from Deliverect.
@@ -1032,6 +1034,7 @@ def process_modifier_group_changes(group_id, data):
         return True
     
     return False
+
 
 def process_modifier_changes(modifier_id, data):
     """
@@ -1072,6 +1075,8 @@ def process_modifier_changes(modifier_id, data):
         return True
     
     return False
+
+
 
 def update_menu_ordering(data, location_id=None):
     """
@@ -1119,6 +1124,8 @@ def update_menu_ordering(data, location_id=None):
     write_menu_file(menu_data, location_id=location_id)
     return True
 
+
+
 def process_meal_deal(meal_deal_item, selections=None):
     """
     Process a meal deal selection, handling child products and modifiers.
@@ -1159,6 +1166,7 @@ def process_meal_deal(meal_deal_item, selections=None):
         result["childItems"].append(child_item)
     
     return result
+
 
 def add_name_variants(item_name, variants_dict=None):
     """
@@ -1211,6 +1219,7 @@ def add_name_variants(item_name, variants_dict=None):
     
     return variants_dict
 
+
 def add_name_variants_to_menu(menu_data, variants_dict):
     """
     Add name variants to the menu data.
@@ -1233,6 +1242,7 @@ def add_name_variants_to_menu(menu_data, variants_dict):
     menu_data["name_variants"] = existing_variants
     
     return menu_data
+
 
 def build_nested_modifiers(modifier, menu_data):
     """
@@ -1264,3 +1274,4 @@ def build_nested_modifiers(modifier, menu_data):
         })
     
     return result
+
