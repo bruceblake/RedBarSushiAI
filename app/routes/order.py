@@ -1215,11 +1215,11 @@ def order_status():
     
     # Update order in database with comprehensive status information
     try:
-        # Make sure all necessary imports are in scope
-        # The Order model should already be imported at the top of the file
+        # Explicitly use the Order model from the import at the top of file
+        from app.models import Order
         if 'text' not in globals():
             from sqlalchemy import text
-        
+            
         # First try to get the order
         try:
             order_record = db.session.query(Order).filter_by(id=order_id).first()
