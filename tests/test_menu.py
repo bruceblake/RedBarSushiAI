@@ -69,15 +69,17 @@ def test_load_menu_data(app, setup_test_menu, mock_menu_data):
         assert refreshed_data is not None
 
 
-def test_load_menu_data_file_not_found(app):
+def test_load_menu_data_file_not_found(app, tmp_path):
     """Test loading menu data when the file doesn't exist."""
     # Force reset the cache first
     from app.utils.menu_utils import _menu_cache, _last_refresh_time
     globals()['_menu_cache'] = None
     globals()['_last_refresh_time'] = 0
     
-    # Configure a non-existent file path
-    nonexistent_path = os.path.join(app.root_path, 'nonexistent_file.json')
+    # Create a non-existent path in the temp directory
+    nonexistent_path = os.path.join(str(tmp_path), 'nonexistent_file.json')
+    # Make sure the directory exists
+    os.makedirs(os.path.dirname(nonexistent_path), exist_ok=True)
     app.config['MENU_FILE_PATH'] = nonexistent_path
     
     # Make sure the file doesn't exist

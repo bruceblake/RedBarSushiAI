@@ -15,9 +15,15 @@ def test_menu_endpoint():
     app = Flask(__name__)
     app.register_blueprint(menu_bp)
     app.config['TESTING'] = True
+    app.config['MENU_FILE_PATH'] = 'testing_data/test_menu_output.json'
     
     # Load test data
-    with open('testing_data/test_deliverect_payload.json', 'r') as f:
+    # Allow for running test from project root or from tests directory
+    test_file_path = 'testing_data/test_deliverect_payload.json'
+    if not os.path.exists(test_file_path):
+        test_file_path = '../' + test_file_path
+    
+    with open(test_file_path, 'r') as f:
         data = json.load(f)
     
     # Start the app client for testing
@@ -35,7 +41,12 @@ def test_menu_endpoint():
     print(f"Status code: {response.status_code}")
     print(f"Response: {response.get_json()}")
     
-    return response
+    # Assert the response was successful
+    assert response.status_code == 200, f"Expected status code 200, got {response.status_code}"
+    
+    response_data = response.get_json()
+    assert 'success' in response_data, "Response should contain 'success' field"
+    assert response_data['success'] is True, "The 'success' field should be True"
 
 if __name__ == "__main__":
     test_menu_endpoint()

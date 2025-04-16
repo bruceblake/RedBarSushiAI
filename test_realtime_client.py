@@ -219,7 +219,8 @@ def test_imports():
     
     return import_results
 
-if __name__ == "__main__":
+def run_tests():
+    """Run all tests and return results"""
     # First check the X11 display connection
     if USE_X11:
         display_works = test_display_connection()
@@ -251,3 +252,8 @@ if __name__ == "__main__":
             print("2. Or use the DirectRealtimeAudioProcessor which works without X11")
     else:
         print("Everything looks good! The RealtimeClient implementation should work.")
+    
+    return import_results
+
+if __name__ == "__main__":
+    run_tests()

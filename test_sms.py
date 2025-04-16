@@ -401,41 +401,51 @@ def print_help():
 
 def main():
     """Process command line arguments and run the requested test"""
-    parser = argparse.ArgumentParser(description='Red Bar Sushi SMS Testing Tool')
-    subparsers = parser.add_subparsers(dest='command', help='Command to run')
-    
-    # Send command
-    send_parser = subparsers.add_parser('send', help='Send a test SMS')
-    send_parser.add_argument('phone_number', help='Phone number to send test SMS (with or without country code)')
-    send_parser.add_argument('type', nargs='?', default='basic', choices=['basic', 'order', 'status', 'all_commands'], 
-                             help='Type of test message to send')
-    
-    # Test command
-    test_parser = subparsers.add_parser('test', help='Test SMS commands locally')
-    test_parser.add_argument('message', help='Message to test (e.g., status, help, menu)')
-    
-    # Flow command
-    flow_parser = subparsers.add_parser('flow', help='Simulate an order going through all status changes')
-    flow_parser.add_argument('phone_number', help='Phone number to send updates to')
-    
-    # Check command
-    subparsers.add_parser('check', help='Check Twilio configuration')
-    
-    # Webhook command
-    subparsers.add_parser('webhook', help='Test webhook configuration')
-    
-    # Migration command
-    subparsers.add_parser('migration', help='Test database migration script configuration')
-    
-    # Help command
-    subparsers.add_parser('help', help='Show help information')
-    
-    args = parser.parse_args()
-    
-    # If no args or help command, show help
-    if not args.command or args.command == 'help':
-        print_help()
-        return True
+    # Only parse arguments when running as a script, not when imported by pytest
+    if __name__ == "__main__":
+        parser = argparse.ArgumentParser(description='Red Bar Sushi SMS Testing Tool')
+        subparsers = parser.add_subparsers(dest='command', help='Command to run')
+        
+        # Send command
+        send_parser = subparsers.add_parser('send', help='Send a test SMS')
+        send_parser.add_argument('phone_number', help='Phone number to send test SMS (with or without country code)')
+        send_parser.add_argument('type', nargs='?', default='basic', choices=['basic', 'order', 'status', 'all_commands'], 
+                                help='Type of test message to send')
+        
+        # Test command
+        test_parser = subparsers.add_parser('test', help='Test SMS commands locally')
+        test_parser.add_argument('message', help='Message to test (e.g., status, help, menu)')
+        
+        # Flow command
+        flow_parser = subparsers.add_parser('flow', help='Simulate an order going through all status changes')
+        flow_parser.add_argument('phone_number', help='Phone number to send updates to')
+        
+        # Check command
+        subparsers.add_parser('check', help='Check Twilio configuration')
+        
+        # Webhook command
+        subparsers.add_parser('webhook', help='Test webhook configuration')
+        
+        # Migration command
+        subparsers.add_parser('migration', help='Test database migration script configuration')
+        
+        # Help command
+        subparsers.add_parser('help', help='Show help information')
+        
+        args = parser.parse_args()
+        
+        # If no args or help command, show help
+        if not args.command or args.command == 'help':
+            print_help()
+            return True
+    else:
+        # Define a dummy args object for when imported by pytest
+        class Args:
+            command = None
+            phone_number = "+15555555555"
+            type = "basic"
+            message = "help"
+        args = Args()
     
     # Create app context
     app = create_app()

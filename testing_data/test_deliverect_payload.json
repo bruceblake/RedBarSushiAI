@@ -1,0 +1,33 @@
+{
+  "categories": [
+    {
+      "id": "cat1",
+      "name": "Burgers",
+      "description": "Delicious burgers",
+      "products": [
+        {
+          "id": "BURG-CHEESE",
+          "name": "Cheeseburger",
+          "description": "Juicy beef patty with melted cheese",
+          "price": 10.95,
+          "available": true
+        },
+        {
+          "id": "prod2",
+          "name": "Veggie Burger",
+          "description": "Plant-based patty with toppings",
+          "price": 9.95,
+          "available": true
+        },
+        {
+          "id": "KidsBurger",
+          "name": "Kids Burger",
+          "description": "Smaller burger for kids",
+          "price": 6.95,
+          "available": true
+        }
+      ]
+    }
+  ],
+  "modifierGroups": []
+}

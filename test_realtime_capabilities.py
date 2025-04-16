@@ -89,9 +89,16 @@ def test_menu_queries(base_url: str = "http://localhost:5000") -> None:
         print("Make sure the server is running and the API endpoints are accessible.")
 
 def main():
-    parser = argparse.ArgumentParser(description="Test realtime audio and menu query capabilities")
-    parser.add_argument("--url", default="http://localhost:5000", help="Base URL of the server")
-    args = parser.parse_args()
+    # Only parse arguments when running as a script, not when imported by pytest
+    if __name__ == "__main__":
+        parser = argparse.ArgumentParser(description="Test realtime audio and menu query capabilities")
+        parser.add_argument("--url", default="http://localhost:5000", help="Base URL of the server")
+        args = parser.parse_args()
+    else:
+        # Define a dummy args object for when imported by pytest
+        class Args:
+            url = "http://localhost:5000"
+        args = Args()
     
     print("\n=== REDBARSUSHIAI CAPABILITY TESTER ===")
     print(f"Testing server at: {args.url}")
