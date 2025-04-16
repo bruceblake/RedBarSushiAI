@@ -293,5 +293,5 @@ def mock_twilio():
     mock.calls.create.return_value = MagicMock(sid="CA123456")
     
     # Return the mock
-    with patch('app.routes.voice.client', mock):
+    with patch('app.twilio_client', mock):
         yield mock

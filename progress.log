@@ -1740,3 +1740,62 @@ IndexError: list index out of range
 2025-04-16 01:15:32,270 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
 2025-04-16 01:15:32,344 - INFO - root - Application starting in development mode
 2025-04-16 01:15:32,344 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:20:31,426 - INFO - root - Application starting in development mode
+2025-04-16 01:20:31,426 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:20:31,432 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:20:31,432 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:20:31,432 - DEBUG - app.utils.menu_utils - Sample item: Test Item - 9.99
+2025-04-16 01:20:31,432 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-16 01:20:31,508 - INFO - root - Application starting in development mode
+2025-04-16 01:20:31,508 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:20:31,510 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:20:31,511 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:20:31,511 - DEBUG - app.utils.menu_utils - Sample item: Test Item - 9.99
+2025-04-16 01:20:31,511 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-16 01:21:39,770 - INFO - root - Application starting in development mode
+2025-04-16 01:21:39,770 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:21:39,777 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:21:39,777 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:21:39,777 - DEBUG - app.utils.menu_utils - Sample item: Test Item - 9.99
+2025-04-16 01:21:39,777 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-16 01:21:39,789 - INFO - root - Application starting in development mode
+2025-04-16 01:21:39,789 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:21:39,791 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:21:39,791 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:21:39,791 - DEBUG - app.utils.menu_utils - Sample item: Test Item - 9.99
+2025-04-16 01:21:39,791 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-16 01:22:19,414 - INFO - root - Application starting in development mode
+2025-04-16 01:22:19,414 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:22:19,429 - INFO - root - Application starting in development mode
+2025-04-16 01:22:19,429 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:22:19,444 - INFO - root - Application starting in development mode
+2025-04-16 01:22:19,444 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:22:19,460 - INFO - root - Application starting in development mode
+2025-04-16 01:22:19,461 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:22:19,477 - INFO - root - Application starting in development mode
+2025-04-16 01:22:19,477 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:22:19,480 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:22:19,480 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:22:19,480 - DEBUG - app.utils.menu_utils - Sample item: Test Item - 9.99
+2025-04-16 01:22:19,480 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-16 01:22:19,492 - INFO - root - Application starting in development mode
+2025-04-16 01:22:19,492 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:22:19,494 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:22:19,494 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:22:19,494 - DEBUG - app.utils.menu_utils - Sample item: Test Item - 9.99
+2025-04-16 01:22:19,494 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-16 01:22:19,496 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-16 01:22:20,497 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-16 01:22:21,498 - ERROR - root - Commit attempt 2 failed: DB Error
+2025-04-16 01:22:24,058 - INFO - root - Application starting in development mode
+2025-04-16 01:22:24,059 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:22:24,064 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:22:24,064 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:22:24,064 - DEBUG - app.utils.menu_utils - Sample item: Test Item - 9.99
+2025-04-16 01:22:24,064 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-16 01:22:24,078 - INFO - root - Application starting in development mode
+2025-04-16 01:22:24,079 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 01:22:24,082 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:22:24,082 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-16 01:22:24,082 - DEBUG - app.utils.menu_utils - Sample item: Test Item - 9.99
+2025-04-16 01:22:24,082 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
