@@ -182,22 +182,27 @@ def test_webhooks(base_url, location_id):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Manage locations in the RedBarSushiAI system")
     
-    # Base URL parameter
-    parser.add_argument(
-        "--url", 
+    # Subparsers for different commands
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+    
+    # Base URL parameter - add to main parser AND all subparsers
+    url_arg = dict(
+        dest="url",
         default="http://localhost:5000",
         help="Base URL of the API (e.g., https://rebarsushiai-staging.onrender.com)"
     )
     
-    # Subparsers for different commands
-    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+    # Add to main parser
+    parser.add_argument("--url", **url_arg)
     
     # List command
     list_parser = subparsers.add_parser("list", help="List all registered locations")
+    list_parser.add_argument("--url", **url_arg)  # Add URL to this subcommand
     
     # Info command
     info_parser = subparsers.add_parser("info", help="Get information about a specific location")
     info_parser.add_argument("location_id", help="ID of the location")
+    info_parser.add_argument("--url", **url_arg)  # Add URL to this subcommand
     
     # Register command
     register_parser = subparsers.add_parser("register", help="Register a new location")
@@ -205,10 +210,12 @@ if __name__ == "__main__":
     register_parser.add_argument("name", help="Name of the location")
     register_parser.add_argument("--client-id", help="Deliverect client ID")
     register_parser.add_argument("--client-secret", help="Deliverect client secret")
+    register_parser.add_argument("--url", **url_arg)  # Add URL to this subcommand
     
     # Test webhooks command
     test_webhooks_parser = subparsers.add_parser("test-webhooks", help="Test webhook URLs for a location")
     test_webhooks_parser.add_argument("location_id", help="ID of the location")
+    test_webhooks_parser.add_argument("--url", **url_arg)  # Add URL to this subcommand
     
     # Parse arguments
     args = parser.parse_args()
