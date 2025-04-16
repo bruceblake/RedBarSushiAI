@@ -33,30 +33,43 @@ jobs:
       run: |
         git config --global user.name 'GitHub Actions'
         git config --global user.email 'actions@github.com'
-        git tag "deploy-prod-$(date -u +'%Y%m%d%H%M%S')"
-        git push origin --tags
+        TAG_NAME="deploy-prod-$(date -u +'%Y%m%d%H%M%S')"
+        git tag "$TAG_NAME"
+        git push origin "$TAG_NAME" || echo "Warning: Could not push tag $TAG_NAME to remote repository. This could be due to permission issues."
         
     - name: Notify deployment start
+      if: secrets.SLACK_WEBHOOK_URL != ''
       run: |
         curl -X POST -H "Content-Type: application/json" -d '{
           "text": "🚀 Production deployment started for RedBarSushiAI.\nBranch: main\nCommit: ${{ github.sha }}\nTime: ${{ env.DEPLOY_TIME }}"
         }' ${{ secrets.SLACK_WEBHOOK_URL }} || echo "Slack notification failed"
         
+    - name: Skip Slack notification
+      if: secrets.SLACK_WEBHOOK_URL == ''
+      run: echo "Skipping Slack notification - SLACK_WEBHOOK_URL not set"
+        
     - name: Trigger Render deployment
+      if: secrets.RENDER_PROD_DEPLOY_HOOK != '' && secrets.RENDER_API_KEY != ''
       run: |
         curl -X POST "${{ secrets.RENDER_PROD_DEPLOY_HOOK }}" \
           -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
           -H "Content-Type: application/json"
           
+    - name: Skip Render deployment
+      if: secrets.RENDER_PROD_DEPLOY_HOOK == '' || secrets.RENDER_API_KEY == ''
+      run: |
+        echo "Skipping Render deployment - missing required secrets"
+        echo "To enable automatic deployments, set RENDER_PROD_DEPLOY_HOOK and RENDER_API_KEY secrets in your repository"
+          
     - name: Notify deployment complete
-      if: success()
+      if: success() && secrets.SLACK_WEBHOOK_URL != ''
       run: |
         curl -X POST -H "Content-Type: application/json" -d '{
           "text": "✅ Production deployment complete for RedBarSushiAI.\nBranch: main\nCommit: ${{ github.sha }}\nTime: ${{ env.DEPLOY_TIME }}"
         }' ${{ secrets.SLACK_WEBHOOK_URL }} || echo "Slack notification failed"
         
     - name: Notify deployment failure
-      if: failure()
+      if: failure() && secrets.SLACK_WEBHOOK_URL != ''
       run: |
         curl -X POST -H "Content-Type: application/json" -d '{
           "text": "❌ Production deployment failed for RedBarSushiAI.\nBranch: main\nCommit: ${{ github.sha }}\nTime: ${{ env.DEPLOY_TIME }}"
