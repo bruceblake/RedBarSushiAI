@@ -110,6 +110,11 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
     Returns:
         bool: True if write was successful, False otherwise
     """
+    # Ensure operating system functions are available
+    import os
+    import json
+    import tempfile
+    
     # Check if the app context is available to get the configured path
     from flask import current_app, has_app_context
     

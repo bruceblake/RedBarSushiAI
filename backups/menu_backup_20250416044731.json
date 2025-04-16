@@ -13,33 +13,22 @@
     },
     {
       "name": "Veggie Burger",
-      "reference_handler": "prod2",
+      "reference_handler": "BURG-VEGGIE",
       "available": true,
       "price": 9.95,
       "description": "Plant-based patty with toppings",
       "category": "Burgers",
       "id": "ITEM-0001",
-      "plu": "prod2",
-      "snoozed": false
-    },
-    {
-      "name": "Kids Burger",
-      "reference_handler": "KidsBurger",
-      "available": true,
-      "price": 6.95,
-      "description": "Smaller burger for kids",
-      "category": "Burgers",
-      "id": "ITEM-0002",
-      "plu": "KidsBurger",
+      "plu": "BURG-VEGGIE",
       "snoozed": false
     },
     {
       "name": "Burgers",
       "reference_handler": "cat1",
       "available": true,
-      "price": 9.95,
+      "price": 6.95,
       "description": "",
-      "id": "ITEM-0003",
+      "id": "ITEM-0002",
       "plu": "cat1",
       "snoozed": false
     }
@@ -50,9 +39,7 @@
     "cheeseburger": "Cheeseburger",
     "veggie burger": "Veggie Burger",
     "veggie": "Veggie Burger",
-    "burger": "Kids Burger",
-    "kids burger": "Kids Burger",
-    "kids": "Kids Burger",
+    "burger": "Veggie Burger",
     "burgers": "Burgers"
   }
 }
