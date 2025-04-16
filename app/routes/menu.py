@@ -44,6 +44,9 @@ def menu_update():
     logger.info(f"[MENU-UPDATE] Is Deliverect update: {is_deliverect}")
     
     # Create backup of current menu before processing update
+    import os
+    import json
+    
     try:
         current_menu = load_menu_data(force_refresh=True)
         backup_folder = '/tmp/redbar_backups'
@@ -227,6 +230,9 @@ def menu_update():
             # Create backup directory if it doesn't exist
             backup_folder = '/tmp/redbar_backups'
             try:
+                import os
+                import json
+                
                 os.makedirs(backup_folder, exist_ok=True)
                 # Create a backup with timestamp
                 backup_path = os.path.join(backup_folder, f"menu_backup_{timestamp}.json")
