@@ -314,6 +314,48 @@ def calculate_bill_amount(order_items: List[Dict[str, Any]], tax_rate: float = 0
         pass
     
     return round(total, 2)
+# Order modification functions
+
+def apply_modifications(current_items: List[Dict[str, Any]], modifications: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Apply modifications (additions and removals) to the current order items.
+    
+    Args:
+        current_items: Current order items
+        modifications: Dictionary with 'additions' and 'removals' lists
+        
+    Returns:
+        List of updated order items
+    """
+    if not current_items:
+        current_items = []
+    
+    # Create a copy to avoid modifying the original
+    updated_items = current_items.copy()
+    
+    # Handle additions
+    for addition in modifications.get('additions', []):
+        # Add the new item
+        updated_items.append(addition)
+    
+    # Handle removals
+    for removal in modifications.get('removals', []):
+        removal_name = removal.get('name')
+        removal_quantity = removal.get('quantity', 1)
+        
+        # Find the item to remove
+        for i, item in enumerate(updated_items):
+            if item.get('name') == removal_name:
+                if item.get('quantity', 1) <= removal_quantity:
+                    # Remove the entire item
+                    updated_items.pop(i)
+                else:
+                    # Reduce the quantity
+                    item['quantity'] = item.get('quantity', 1) - removal_quantity
+                break
+    
+    return updated_items
+
 # Order validation functions for Deliverect
 
 def validate_order_items(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

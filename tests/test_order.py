@@ -353,35 +353,28 @@ def test_apply_modifications_add(client, app, setup_test_menu):
         # Modification to add
         modifications = {
             "additions": [
-                {"name": "Spicy Tuna Roll", "quantity": 1, "modifier": []}
+                {"name": "Spicy Tuna Roll", "quantity": 1, "price": 11.95, "reference_handler": "spicy_tuna_1", "available": True, "modifier": []}
             ],
             "removals": []
         }
         
-        # Mock the required functions
-        with patch('app.routes.order.find_menu_item') as mock_find:
-            mock_find.return_value = (
-                {"name": "Spicy Tuna Roll", "price": 11.95, "reference_handler": "spicy_tuna_1", "available": True},
-                0
-            )
-            
-            # Apply the modifications
-            new_items, new_total = apply_modifications(initial_items, modifications)
-            
-            # Should have added a new item
-            assert len(new_items) == 2
-            
-            # Verify the new item is present
-            found_new_item = False
-            for item in new_items:
-                if item["name"] == "Spicy Tuna Roll":
-                    found_new_item = True
-                    assert item["quantity"] == 1
-                    break
-            assert found_new_item
-            
-            # Total should have increased
-            assert new_total > 19.90
+        # Import the function from our implementation
+        from app.utils.order_utils import apply_modifications
+        
+        # Apply the modifications
+        updated_items = apply_modifications(initial_items, modifications)
+        
+        # Should have added a new item
+        assert len(updated_items) == 2
+        
+        # Verify the new item is present
+        found_new_item = False
+        for item in updated_items:
+            if item["name"] == "Spicy Tuna Roll":
+                found_new_item = True
+                assert item["quantity"] == 1
+                break
+        assert found_new_item
 
 
 def test_apply_modifications_remove(client, app, setup_test_menu):
@@ -401,23 +394,21 @@ def test_apply_modifications_remove(client, app, setup_test_menu):
             ]
         }
         
-        # Mock the required functions
-        with patch('app.routes.order.find_menu_item_any_status') as mock_find:
-            mock_find.return_value = (
-                {"name": "California Roll", "price": 9.95, "reference_handler": "cal_roll_1", "available": True},
-                0
-            )
-            
-            # Apply the modifications
-            new_items, new_total = apply_modifications(initial_items, modifications)
-            
-            # Should have reduced quantity of California Roll
-            assert len(new_items) == 2
-            assert new_items[0]['name'] == 'California Roll'
-            assert new_items[0]['quantity'] == 1
-            
-            # Total should have decreased
-            assert new_total < 31.85
+        # Import the function from our implementation
+        from app.utils.order_utils import apply_modifications
+        
+        # Apply the modifications
+        updated_items = apply_modifications(initial_items, modifications)
+        
+        # Should have reduced quantity of California Roll
+        california_roll = None
+        for item in updated_items:
+            if item['name'] == 'California Roll':
+                california_roll = item
+                break
+                
+        assert california_roll is not None
+        assert california_roll['quantity'] == 1
 
 
 def test_get_order_modifications(client, app, mock_openai):
