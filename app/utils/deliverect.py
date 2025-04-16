@@ -5,7 +5,7 @@ import logging
 import uuid
 import json
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime  # timedelta removed - unused
 from flask import session
 from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET, BASE_URL
 from app.models import Location
@@ -298,8 +298,8 @@ def ensure_deliverect_token(location_id=None):
     Args:
         location_id: Optional location ID
     """
-    # Use the module-level dictionaries - these variables are assigned to
-    global deliverect_tokens, token_expiries
+    # These are module-level variables, no need for global declaration
+    # when we're just reading from them
     
     # Get token key for this location
     token_key = location_id or 'default'
@@ -308,6 +308,9 @@ def ensure_deliverect_token(location_id=None):
     if token_key not in token_expiries or time.time() >= token_expiries.get(token_key, 0):
         logger.info(f"Deliverect token for {token_key} expired or not found, refreshing...")
         token_data = get_deliverect_token(location_id)
+        
+        # We don't need global statement for assignment either as these are direct
+        # dictionary accesses, not reassignments of the variables themselves
         # Store the token
         deliverect_tokens[token_key] = token_data
         # Store expiry time (subtract 5 minutes for safety margin)
