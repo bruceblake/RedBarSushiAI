@@ -1,6 +1,17 @@
 {
   "items": [
     {
+      "name": "Chicken Burger",
+      "reference_handler": "P-BURG-CHK",
+      "available": true,
+      "price": 6.95,
+      "description": "Delicious chicken burger",
+      "category": "Burgers",
+      "id": "ITEM-CHICKEN",
+      "plu": "P-BURG-CHK",
+      "snoozed": false
+    },
+    {
       "name": "Cheeseburger",
       "reference_handler": "BURG-CHEESE",
       "available": true,
@@ -53,6 +64,8 @@
     "burger": "Kids Burger",
     "kids burger": "Kids Burger",
     "kids": "Kids Burger",
-    "burgers": "Burgers"
+    "burgers": "Burgers",
+    "chicken burger": "Chicken Burger",
+    "chicken": "Chicken Burger"
   }
 }

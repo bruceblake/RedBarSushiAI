@@ -2,6 +2,21 @@
 
 ## Latest Updates (April 2025)
 
+### SMS Delivery Fix (April 16, 2025)
+
+Fixed two critical issues affecting order processing and SMS delivery:
+
+1. **Deliverect PLU Issue Fixed**:
+   - Added "Chicken Burger" to the menu with a valid PLU/reference handler: `P-BURG-CHK`
+   - The previous reference handler (`P-BURG-CHK###PRNT`) contained special characters causing Deliverect to reject orders
+   - Special characters like `#` are not supported in the Deliverect PLU format
+
+2. **SMS Delivery Error Fixed**:
+   - Identified Twilio error code 30034 (invalid recipient phone number) affecting some numbers
+   - Modified the config to use the same working phone number (`+18333247207`) for both production and staging
+   - Added `WORKING_PHONE` constant in config.py to ensure consistent functionality
+   - Updated documentation to explain the phone number standardization
+
 ### Environment-specific Phone Numbers
 
 The application now supports different phone numbers for different environments:
@@ -9,7 +24,7 @@ The application now supports different phone numbers for different environments:
 - Added environment variables for better control:
   - `OWNER_PHONE_NUMBER`: Owner's phone for notifications
   - `CUSTOMER_SERVICE_NUMBER`: Customer-facing phone number
-  - `STAGING_OWNER_PHONE`: Owner's phone for staging environment
+  - `STAGING_OWNER_PHONE`: Owner's phone for staging environment (now defaults to production number)
   - `TEST_PHONE_NUMBER`: Number for testing SMS functionality
 
 - Created a helper function `format_phone_display()` for consistent phone number formatting
