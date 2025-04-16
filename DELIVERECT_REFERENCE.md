@@ -1,28 +1,48 @@
-# Deliverect Integration Reference Guide
-
-This document provides comprehensive documentation for the Deliverect integration in the RedBarSushiAI application, including recent fixes and implementation details for developers.
+# Deliverect Integration Reference
 
 ## Recent Fixes - April 16, 2025
 
-We've implemented several important fixes to enhance the reliability of the Deliverect integration:
-
-1. **Fixed import errors in menu processing**:
-   - Added proper import statements in menu.py and menu_utils.py
-   - Fixed scoping issues with os and json modules
-   - Ensured atomic file operations when writing menu data
+1. **Fixed PLU code format for Deliverect compatibility**:
+   - Added automatic cleaning of PLU codes to remove problematic "###PRNT" suffix
+   - Updated deliverect.py to sanitize all PLU codes before sending to Deliverect API
+   - Fixed the "Invalid PLU" errors in the ordering system
 
 2. **Enhanced menu update robustness**:
-   - Added pre-update backup system
-   - Added validation of incoming Deliverect data
+   - Added pre-update backup system to prevent data loss 
    - Improved partial update detection and handling
-   - Fixed PLU code formatting for items sent to Deliverect (removed ###PRNT suffix)
+   - Added automatic menu recovery if update fails
 
-3. **Improved error handling**:
-   - Added better logging throughout menu update process
-   - Added auto-recovery mechanisms for failed updates
-   - Added proper validation for empty or invalid menu data
+This document provides comprehensive documentation for the Deliverect integration in the RedBarSushiAI application, including recent fixes and implementation details for developers.
 
-These improvements ensure the menu update endpoint properly processes Deliverect data while maintaining data integrity.
+## Implementation Details
+
+### PLU Code Format Requirements
+
+PLU (Price Look-Up) codes are critical for Deliverect integration. They must follow these requirements:
+
+- Must not contain special characters like `###PRNT`
+- The `reference_handler` field should match the `plu` field
+- Valid format examples: `P-BURG-CHK`, `RICE-01`, `DRNK-03`
+- Invalid format example: `P-BURG-CHK###PRNT` (will be rejected by Deliverect)
+
+Our system now automatically cleans PLU codes before sending them to Deliverect by:
+1. Removing the ###PRNT suffix from all PLU codes
+2. Ensuring consistency between item names and PLU codes
+3. Providing appropriate error messages when PLU issues occur
+
+### Menu Update Robustness
+
+We've enhanced the menu update process with these improvements:
+- Pre-update backup system that preserves existing menu before changes
+- Validation of incoming Deliverect data structure before processing
+- Partial update detection to prevent accidental menu data loss
+- Auto-recovery mechanism if updates fail
+
+### Error Handling Improvements
+
+- Enhanced logging throughout the menu update process
+- Auto-recovery mechanisms for failed updates
+- Proper validation for empty or invalid menu data
 
 ## Deliverect API Structure
 
@@ -38,184 +58,98 @@ Deliverect sends menu data in the following structures:
     {
       "_id": "67209bfb174a0e5384d4db4f",
       "name": "Steak & Burgers",
-      "posCategoryId": "STK",
-      "products": ["6721daafc33216a11b4e239d", "6721daafc33216a11b4e23a2", "66b35629a7eb47d479f1d31b"]
+      "products": [
+        {
+          "_id": "67209bfb174a0e5384d4db50",
+          "name": "Cheeseburger",
+          "plu": "BURG-CHEESE",
+          "price": 1095,
+          "available": true,
+          "description": "Juicy beef patty with melted cheese"
+        }
+      ]
     }
-  ],
-  "modifierGroups": {
-    "67209bb4174a0e5384d4d9fb": {
-      "_id": "67209bb4174a0e5384d4d9fb",
-      "name": "Ingredients",
-      "max": 4,
-      "min": 0,
-      "plu": "INGRD",
-      "subProducts": ["67209bb4174a0e5384d4d9fd", "67209bb4174a0e5384d4d9ff"]
-    }
-  },
-  "modifiers": {
-    "67209bb4174a0e5384d4d9fd": {
-      "_id": "67209bb4174a0e5384d4d9fd",
-      "name": "Tomatoes",
-      "price": 0,
-      "plu": "TOMAT"
-    }
-  },
-  "products": {
-    "6721daafc33216a11b4e239d": {
-      "_id": "6721daafc33216a11b4e239d",
-      "name": "Deluxe Burger",
-      "price": 1100,
-      "plu": "P-BRGR-1",
-      "description": "Combo and Nested Modifiers structure"
-    }
-  }
+  ]
 }
 ```
 
-### Menu Data Processing Flow
+### Order Format
 
-1. **Receipt**: Data arrives at `/menu_update` endpoint from Deliverect
-2. **Format Detection**: System identifies the type of data (standard, list, async)
-3. **Processing**: Data goes through `process_deliverect_menu()` to convert to internal format
-4. **Validation**: Data is validated through `validate_and_fix_menu_data()`
-5. **PLU Verification**: System ensures all items have valid PLU codes
-6. **Partial Update Handling**: For partial updates, data is merged with existing menu
-7. **Name Variant Generation**: System generates variants for voice recognition
-8. **Storage**: Data is written to disk with atomic file operations
-9. **Callback**: If provided, status is sent back to Deliverect
-
-## PLU Format Requirements
-
-PLU (Price Look-Up) codes are critical for Deliverect integration. Requirements:
-
-- Must not contain special characters like `###PRNT`
-- The `reference_handler` field should match the `plu` field
-- Valid format example: `P-BURG-CHK`, `RICE-01`, `DRNK-03`
-- Invalid format example: `P-BURG-CHK###PRNT` (will be rejected by Deliverect)
-
-## Internal Data Structure
-
-Our system processes Deliverect data into this format:
+We send orders to Deliverect in this format:
 
 ```json
 {
+  "orderId": "123456789",
+  "customer": {
+    "name": "John Smith",
+    "phone": "+14155552671"
+  },
   "items": [
     {
-      "name": "Chicken Burger",
-      "reference_handler": "P-BURG-CHK",
-      "plu": "P-BURG-CHK",
-      "price": 6.95,
-      "description": "Delicious chicken burger",
-      "category": "Burgers",
-      "id": "ITEM-CHICKEN",
-      "available": true,
-      "snoozed": false
+      "name": "Cheeseburger",
+      "plu": "BURG-CHEESE",  // We now clean this before sending to remove ###PRNT
+      "quantity": 1,
+      "price": 1095,
+      "subItems": []
     }
   ],
-  "modifiers": [],
-  "modifierGroups": [],
-  "name_variants": {
-    "chicken burger": "Chicken Burger",
-    "chicken": "Chicken Burger"
-  }
+  "total": 1095,
+  "status": "NEW",
+  "channelOrderId": "123456789",
+  "orderType": 1,
+  "payment": {
+    "amount": 1161,
+    "type": 0
+  },
+  "taxes": [
+    {
+      "name": "taxes",
+      "total": 66
+    }
+  ]
 }
 ```
 
-## Error Handling and Recovery
+## Common Issues and Solutions
 
-The menu update process includes several safeguards:
+### Invalid PLU Codes
 
-1. **Pre-Update Backup**: Before processing, a backup of the current menu is created
-2. **Data Validation**: JSON parsing with multiple fallback methods
-3. **PLU Validation**: System checks for valid PLU codes and logs warnings
-4. **Partial Update Detection**: System detects and properly handles partial menu updates
-5. **Atomic File Writing**: Uses a temporary file and atomic move to prevent corruption
-6. **Auto-Recovery**: If menu becomes empty after update, system can restore from backup
+**Problem**: Orders fail with error "InvalidProduct: Invalid PLU: P-BURG-CHK###PRNT"
 
-## Test Cases
+**Solution**: 
+1. The system now automatically removes "###PRNT" suffix from PLU codes before sending to Deliverect
+2. To manually fix, update reference_handler values in menu_data.json to remove any special characters
 
-We maintain several test suites for the Deliverect integration:
+### Menu Updates Failing
 
-- `test_deliverect.py`: Basic API functionality tests
-- `test_deliverect_deep_scan.py`: Tests for handling nested data structures
-- `test_deliverect_list_format.py`: Tests for simple list-formatted menu data
-- `test_deliverect_async.py`: Tests for async menu updates with callbacks
-- `test_menu_import.py`: Tests for menu import functionality
-- `test_menu_variant_matching.py`: Tests for name variant generation
+**Problem**: Menu updates sometimes fail when receiving partial data from Deliverect
 
-## Sample Deliverect Menu Structure
+**Solution**:
+1. Enhanced menu update process now detects partial updates and merges them with existing data
+2. Pre-update backups are created to prevent data loss
+3. Auto-recovery restores from backup if an update fails
 
-The Deliverect menu can be very complex. Here's an example of a simple menu:
+## Integration Guide
 
-```json
-[
-  {
-    "availabilities": [
-      {
-        "dayOfWeek": 1,
-        "endTime": "23:59",
-        "startTime": "00:00"
-      }
-    ],
-    "categories": [
-      {
-        "_id": "67209bfb174a0e5384d4db4f",
-        "name": "Steak & Burgers",
-        "products": [
-          "6721daafc33216a11b4e239d",
-          "6721daafc33216a11b4e23a2"
-        ]
-      }
-    ],
-    "products": {
-      "6721daafc33216a11b4e239d": {
-        "_id": "6721daafc33216a11b4e239d",
-        "name": "Deluxe Burger",
-        "price": 1100,
-        "plu": "P-BRGR-1",
-        "description": "Delicious burger"
-      }
-    }
-  }
-]
-```
+### Steps to Connect with Deliverect
 
-## Environment Variables
+1. Register your location with Deliverect
+2. Configure webhook URLs to point to your server
+3. Set up API credentials in the application config
+4. Ensure all menu items have valid PLU codes:
+   - Remove any special characters like ###PRNT from PLU codes
+   - Make sure each item has a unique PLU code
+   - Keep PLU codes simple (letters, numbers, hyphens only)
 
-Important environment variables for Deliverect integration:
+### Testing the Integration
 
-- `DELIVERECT_CLIENT_ID`: API client ID for authentication
-- `DELIVERECT_CLIENT_SECRET`: API client secret for authentication
-- `BASE_URL`: Base URL for webhook callbacks
-- `MENU_FILE_PATH`: Optional custom path for the menu data file
+1. Use the test endpoints to validate menu updates:
+   - `/menu_update` for receiving menu data
+   - `/order` for sending test orders
 
-## Troubleshooting Common Issues
+2. Verify PLU codes in the Menu Settings interface
 
-1. **Empty menu after update**: 
-   - Check if it was a partial update
-   - Check logs for validation errors
-   - Ensure PLU formats are correct
-
-2. **Orders being rejected by Deliverect**:
-   - Verify PLU formats don't contain special characters
-   - Ensure reference_handler matches plu field
-   - Check that all modifiers have valid PLUs
-
-3. **Items not found in voice orders**:
-   - Check if name_variants are being generated
-   - Verify the item wasn't snoozed
-   - Check for category/availability issues
-
-## Best Practices
-
-1. Always ensure PLU codes match between reference_handler and plu fields
-2. Remove any special characters like ###PRNT from PLU codes
-3. Test partial menu updates carefully to ensure they don't overwrite the full menu
-4. Maintain good name_variants for voice recognition
-5. Use proper error handling when interacting with Deliverect API
-
-## References
-
-- [Official Deliverect API Documentation](https://api-docs.deliverect.com/)
-- [Menu Webhooks Guide](https://docs.deliverect.com/reference/menu-webhooks)
-- [Order Management Guide](https://docs.deliverect.com/reference/order-management)
+3. Test with common error scenarios:
+   - Partial menu updates
+   - Network connectivity issues
+   - Order modifications

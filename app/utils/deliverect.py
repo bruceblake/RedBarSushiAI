@@ -380,6 +380,27 @@ def generate_order_id(location_id=None):
         return base_id
 
 
+def clean_plu_code(plu):
+    """
+    Clean a PLU code for Deliverect compatibility.
+    
+    Args:
+        plu: The PLU code to clean
+        
+    Returns:
+        str: A clean PLU code without special characters
+    """
+    if not plu:
+        return ""
+        
+    # Remove the ###PRNT suffix which causes Deliverect errors
+    if isinstance(plu, str) and "###PRNT" in plu:
+        clean_plu = plu.replace("###PRNT", "")
+        logger.info(f"[DELIVERECT-ORDER] Cleaned PLU code: {plu} -> {clean_plu}")
+        return clean_plu
+        
+    return plu
+
 def build_deliverect_order(sender, caller_name, order_items, total_price, order_id, location_id=None, address=None):
     """
     Build the order payload for the Deliverect API.
@@ -416,6 +437,12 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
         # Use the validated items for the rest of the order building
         order_items = validated_order_items
         logger.info(f"[DELIVERECT-ORDER] Order validated with {len(order_items)} valid items")
+        
+        # Clean PLU codes in all items to ensure Deliverect compatibility
+        for item in order_items:
+            if "reference_handler" in item:
+                item["reference_handler"] = clean_plu_code(item["reference_handler"])
+                logger.info(f"[DELIVERECT-ORDER] Item {item.get('name')}: Using reference handler {item['reference_handler']}")
 
     # Define sales tax rate and calculate tax (can be location-specific)
     sales_tax = 0.06
@@ -483,10 +510,13 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
 
     # Process each order item
     for item in order_items:
+        # Clean the PLU code to ensure Deliverect compatibility
+        clean_plu = clean_plu_code(item["reference_handler"])
+        
         del_item = {
             "name": item["name"],
-            # Unique product identifier
-            "plu": item["reference_handler"],
+            # Unique product identifier - cleaned for Deliverect compatibility
+            "plu": clean_plu,
             "quantity": item.get("quantity", 1),
             "price": int(round(item.get("price", 0.0) * 100)),  # Round properly
             "subItems": []
@@ -494,9 +524,13 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
         
         # Process any modifiers for this item
         for mod in item.get("modifier", []):
+            # Get modifier PLU code and clean it
+            mod_plu = mod.get("reference_handler", mod.get("plu", ""))
+            clean_mod_plu = clean_plu_code(mod_plu)
+            
             sub_item = {
                 "name": mod.get("name", "").lower(),
-                "plu": mod.get("reference_handler", mod.get("plu", "")),  # Try reference_handler first, then fallback to plu
+                "plu": clean_mod_plu,  # Use cleaned PLU code for Deliverect compatibility
                 "quantity": mod.get("quantity", 1),
                 "price": int(round(mod.get("price", 0.0) * 100))  # Round properly
             }
@@ -510,9 +544,13 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
         # Process any child items (for meal deals)
         if "childItems" in item:
             for child in item.get("childItems", []):
+                # Get child item PLU code and clean it
+                child_plu = child.get("reference_handler", "")
+                clean_child_plu = clean_plu_code(child_plu)
+                
                 child_item = {
                     "name": child["name"],
-                    "plu": child.get("reference_handler", ""),
+                    "plu": clean_child_plu,  # Use cleaned PLU code for Deliverect compatibility
                     "quantity": child.get("quantity", 1),
                     "price": int(round(child.get("price", 0.0) * 100)),
                     "subItems": []
@@ -520,9 +558,13 @@ def build_deliverect_order(sender, caller_name, order_items, total_price, order_
                 
                 # Process modifiers for this child item
                 for mod in child.get("modifier", []):
+                    # Get modifier PLU code and clean it
+                    mod_plu = mod.get("reference_handler", mod.get("plu", ""))
+                    clean_mod_plu = clean_plu_code(mod_plu)
+                    
                     sub_item = {
                         "name": mod.get("name", "").lower(),
-                        "plu": mod.get("reference_handler", mod.get("plu", "")),  # Try reference_handler first, then fallback to plu
+                        "plu": clean_mod_plu,  # Use cleaned PLU code for Deliverect compatibility
                         "quantity": mod.get("quantity", 1),
                         "price": int(round(mod.get("price", 0.0) * 100))
                     }
