@@ -545,6 +545,17 @@ def find_menu_item_by_name(item_name: str, check_availability: bool = False) -> 
                     logger.info(f"[MENU-LOOKUP] Found 'Veggie Burger' via special case handling")
                     return item
     
+    # Special case for "chicken satay/sate" search
+    if ("chicken" in item_name_lower and "satay" in item_name_lower) or \
+       ("chicken" in item_name_lower and "sate" in item_name_lower):
+        logger.info("[MENU-LOOKUP] Detected 'chicken satay/sate' in search term, prioritizing this match")
+        # Look for the "Chicken Sate" menu item directly
+        for item in menu_data.get("items", []):
+            if "chicken sate" in item.get("name", "").lower():
+                if not check_availability or (item.get("available", True) and not item.get("snoozed", False)):
+                    logger.info(f"[MENU-LOOKUP] Found 'Chicken Sate' via special case handling")
+                    return item
+    
     # Try partial variant match if both above fail
     # We'll use a scoring system to find the best match
     scored_matches = []
@@ -600,6 +611,16 @@ def find_menu_item_by_name(item_name: str, check_availability: bool = False) -> 
             elif variant == "burger":
                 logger.info(f"[MENU-LOOKUP] Reducing score for generic 'burger' variant when 'veggie' is present")
                 score -= 20  # Penalty for generic term when specific is available
+                
+        # Special case: "chicken satay/sate" vs "chicken" disambiguation
+        # If search term contains "satay" or "sate", prioritize chicken sate over generic chicken items
+        if ("satay" in item_name_lower or "sate" in item_name_lower) and "chicken" in item_name_lower:
+            if variant == "chicken sate" or variant == "sate":
+                logger.info(f"[MENU-LOOKUP] Boosting score for 'chicken sate' variant")
+                score += 30  # Significant boost
+            elif variant == "chicken" and "tender" in actual_name.lower():
+                logger.info(f"[MENU-LOOKUP] Reducing score for 'chicken tenders' when 'satay/sate' is present")
+                score -= 20  # Penalty for generic chicken term when specific satay/sate is requested
             
         # Only consider variants that have a decent score
         if score >= 40:

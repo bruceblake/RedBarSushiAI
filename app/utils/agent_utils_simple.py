@@ -72,6 +72,23 @@ def analyze_user_input(text: str) -> Dict[str, Any]:
                 "items": found_items,
                 "confidence": 0.9
             }
+            
+    # Check for chicken satay/sate as a special case
+    if ("chicken" in text.lower() and "satay" in text.lower()) or \
+       ("chicken" in text.lower() and "sate" in text.lower()):
+        menu_item = find_menu_item_by_name("chicken sate")
+        if menu_item:
+            found_items = [{
+                "name": menu_item.get("name"),
+                "price": menu_item.get("price", 0.0),
+                "reference_handler": menu_item.get("reference_handler", ""),
+                "quantity": default_quantity
+            }]
+            return {
+                "intent": "order_food",
+                "items": found_items,
+                "confidence": 0.9
+            }
     
     found_items = []
     for keyword in keywords:

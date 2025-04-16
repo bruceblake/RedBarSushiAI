@@ -75,6 +75,23 @@ def fallback_analyze_user_input(text: str) -> dict:
                 }],
                 "confidence": 0.9
             }
+            
+    # Special case for chicken satay/sate
+    if ("chicken" in text.lower() and "satay" in text.lower()) or \
+       ("chicken" in text.lower() and "sate" in text.lower()):
+        menu_item = find_menu_item_by_name("chicken sate")
+        if menu_item:
+            logging.info(f"[OPENAI-SHIM] Found 'Chicken Sate' via special case handling")
+            return {
+                "intent": "order_food",
+                "items": [{
+                    "name": menu_item.get("name"),
+                    "price": menu_item.get("price", 0.0),
+                    "reference_handler": menu_item.get("reference_handler", ""),
+                    "quantity": quantity
+                }],
+                "confidence": 0.9
+            }
     
     # Default response with empty items
     return {
@@ -100,6 +117,35 @@ def fallback_get_order_modifications(text: str, current_items: list) -> dict:
             logging.info(f"Extracted quantity in modification: {quantity}, item text: {text}")
         except (ValueError, IndexError):
             pass
+    
+    # Special case for chicken satay/sate in modifications
+    if ("chicken" in text.lower() and "satay" in text.lower()) or \
+       ("chicken" in text.lower() and "sate" in text.lower()):
+        from app.utils.menu_utils import find_menu_item_by_name
+        # Check if it's a replacement request
+        if "not" in text.lower() or "instead" in text.lower() or "replace" in text.lower():
+            # Find something to remove - likely chicken tenders
+            item_to_remove = None
+            for item in current_items:
+                if "chicken" in item.get("name", "").lower() and "tender" in item.get("name", "").lower():
+                    item_to_remove = item.get("name")
+                    break
+                    
+            # Find Chicken Sate to add
+            menu_item = find_menu_item_by_name("chicken sate")
+            if menu_item:
+                return {
+                    "additions": [f"{quantity}x {menu_item.get('name')}"],
+                    "removals": [f"{quantity}x {item_to_remove}"] if item_to_remove else []
+                }
+        else:
+            # Just adding chicken sate
+            menu_item = find_menu_item_by_name("chicken sate")
+            if menu_item:
+                return {
+                    "additions": [f"{quantity}x {menu_item.get('name')}"],
+                    "removals": []
+                }
             
     # List to store modifications
     additions = []
