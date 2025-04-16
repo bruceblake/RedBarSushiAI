@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Add a function to log detailed information about OpenAI requests
-def log_openai_request(model, messages, function_name=""):
+from typing import Any, List, Dict
+
+def log_openai_request(model: str, messages: List[Dict[str, Any]], function_name: str = "") -> None:
     """Log detailed information about an OpenAI API request"""
     logger.info(f"[OPENAI-REQUEST] Function: {function_name}, Model: {model}")
     try:
@@ -25,10 +27,10 @@ def log_openai_request(model, messages, function_name=""):
                 msg_summary.append(f"{msg.get('role')}: {truncated}")
         logger.info(f"[OPENAI-MESSAGES] {'; '.join(msg_summary)}")
     except Exception as e:
-        logger.error(f"[OPENAI-REQUEST-ERROR] Failed to log messages: {str(e)}")
+        logger.error(f"[OPENAI-REQUEST-ERROR] Failed to log messages: {str(e)}")  # Broad except, but safe for logging
     
 # Add a function to log detailed information about OpenAI responses
-def log_openai_response(response, function_name=""):
+def log_openai_response(response: Any, function_name: str = "") -> None:
     """Log detailed information about an OpenAI API response"""
     logger.info(f"[OPENAI-RESPONSE] Function: {function_name}")
     try:
@@ -42,11 +44,11 @@ def log_openai_response(response, function_name=""):
                 logger.info(f"[OPENAI-CONTENT] {content[:200]}...")  # Log first 200 chars
         logger.info(f"[OPENAI-FULL] {str(response)[:500]}...")  # Log first 500 chars
     except Exception as e:
-        logger.error(f"[OPENAI-RESPONSE-ERROR] Failed to log response: {str(e)}")
+        logger.error(f"[OPENAI-RESPONSE-ERROR] Failed to log response: {str(e)}")  # Broad except, but safe for logging
         logger.error(f"[OPENAI-RESPONSE-RAW] {str(response)[:500]}...")
 
 # Ensure OpenAI API key is set
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     logger.warning("OPENAI_API_KEY environment variable not set! AI features will be limited.")
     # For production: use a fallback API key if available in a different file
