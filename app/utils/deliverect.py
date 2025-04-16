@@ -111,10 +111,25 @@ def _process_category(category, result):
         
     products = category.get("products", [])
     category_name = category.get("name", "")
+    category_id = category.get("id", "")
     
     # Skip if products is not a list
     if not isinstance(products, list):
         return
+        
+    # Add the category itself as a menu item if it has a name and ID
+    if category_name and category_id:
+        category_item = {
+            "name": category_name,
+            "reference_handler": category_id,
+            "available": True,
+            "is_category": True,
+            "price": 0
+        }
+        # Only add if it doesn't already exist
+        if not any(existing["name"] == category_name for existing in result["items"]):
+            result["items"].append(category_item)
+            _add_name_variants(result["name_variants"], category_name)
         
     # Process each product in the category
     for product in products:
@@ -199,30 +214,9 @@ def _add_name_variants(name_variants, item_name):
     if not item_name:
         return
         
-    # Normalize the name
-    original_name = item_name
-    lower_name = item_name.lower()
-    
-    # Add the direct name mapping
-    name_variants[lower_name] = original_name
-    
-    # Split the name and create variants
-    parts = lower_name.split()
-    if len(parts) > 1:
-        # Add combinations of adjacent words
-        for i in range(len(parts) - 1):
-            variant = parts[i] + " " + parts[i + 1]
-            if len(variant) >= 3 and variant not in name_variants:
-                name_variants[variant] = original_name
-        
-        # Add the last word if it's substantial
-        if len(parts[-1]) > 3:
-            name_variants[parts[-1]] = original_name
-            
-        # Add first and last word if different
-        if len(parts) > 2 and parts[0] != parts[-1]:
-            variant = parts[0] + " " + parts[-1]
-            name_variants[variant] = original_name
+    # Use the utility function from menu_utils
+    from app.utils.menu_utils import add_name_variants
+    add_name_variants(item_name, name_variants)
 
 
 def get_deliverect_token(location_id=None):

@@ -141,22 +141,11 @@ def menu_update():
                 for i, item in enumerate(sample_items):
                     logger.info(f"[MENU-UPDATE] Sample item {i+1}: {item.get('name', 'No name')} -> PLU: {item.get('plu', 'Missing!')} | Reference: {item.get('reference_handler', 'Missing!')}")
             
-            # If we have no items after processing, return error
+            # If we have no items after processing, this is still a valid update (might be just category data)
+            # We'll continue processing but log a warning
             if items_count == 0:
-                logger.error("[MENU-UPDATE] No valid menu items extracted from data")
-                
-                # If we have a callback URL, send a FAILED status
-                if callback_url:
-                    try:
-                        callback_response = requests.post(
-                            callback_url,
-                            json={"status": "FAILED", "comment": "No valid menu items could be extracted"}
-                        )
-                        logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
-                    except Exception as callback_e:
-                        logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
-                
-                return jsonify({"error": "No valid menu items could be extracted from the provided data"}), 400
+                logger.warning("[MENU-UPDATE] No menu items extracted from data, but continuing with update")
+                # Don't return an error - continue processing
                 
             # Save the processed menu
             import time

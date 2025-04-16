@@ -998,7 +998,46 @@ def process_meal_deal(meal_deal_item, selections=None):
     
     return result
 
-def add_name_variants(menu_data, variants_dict):
+def add_name_variants(item_name, variants_dict=None):
+    """
+    Add name variants for a menu item.
+    
+    Args:
+        item_name: The name of the item to generate variants for
+        variants_dict: Optional dictionary to update with variants
+        
+    Returns:
+        dict: Dictionary with the name variants
+    """
+    if variants_dict is None:
+        variants_dict = {}
+    
+    if not isinstance(item_name, str):
+        return variants_dict
+        
+    # Add the base name as its own variant
+    item_name_lower = item_name.lower()
+    variants_dict[item_name_lower] = item_name
+    
+    # Add some common variant patterns
+    words = item_name_lower.split()
+    
+    # Add individual words as variants if they're distinctive
+    for word in words:
+        if len(word) >= 4:  # Only use reasonably distinctive words
+            if word not in variants_dict:
+                variants_dict[word] = item_name
+    
+    # Add abbreviated forms
+    if len(words) > 1:
+        # First letter of each word
+        acronym = ''.join(word[0] for word in words)
+        if len(acronym) >= 2:  # Only if it's at least 2 chars
+            variants_dict[acronym] = item_name
+    
+    return variants_dict
+
+def add_name_variants_to_menu(menu_data, variants_dict):
     """
     Add name variants to the menu data.
     

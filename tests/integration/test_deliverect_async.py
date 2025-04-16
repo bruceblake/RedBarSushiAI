@@ -65,7 +65,7 @@ def test_async_menu_update(client):
         assert response.status_code == 200
         data = response.get_json()
         assert data['success'] is True
-        assert data['items'] == 2  # Two items in our sample menu
+        assert data['items'] == 3  # Items include the category and the two menu items
         
         # Verify callback was called with ONLINE status
         mock_post.assert_called_once()
@@ -103,13 +103,14 @@ def test_async_menu_update_no_items(client):
         # Send request to menu_update endpoint
         response = client.post('/menu_update', json=sample_menu)
         
-        # Check response - should be an error since no items could be extracted
-        assert response.status_code == 400
+        # Check response - we should get success with the category as an item
+        assert response.status_code == 200
         data = response.get_json()
-        assert 'error' in data
+        assert data['success'] is True
+        assert data['items'] == 1  # Just the category itself is an item
         
-        # Verify callback was called with FAILED status
+        # Verify callback was called with ONLINE status
         mock_post.assert_called_once()
         call_args = mock_post.call_args
         assert call_args[0][0] == "https://api.staging.deliverect.com/channelName/menuStatus/1234567890"
-        assert call_args[1]['json']['status'] == "FAILED"
+        assert call_args[1]['json']['status'] == "ONLINE"
