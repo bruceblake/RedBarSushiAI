@@ -32,8 +32,32 @@ def menu_update():
     Returns:
         JSON response with success status
     """
-    # Basic logging of request info
+    # Enhanced logging with more details
+    user_agent = request.headers.get('User-Agent', 'Unknown')
+    content_type = request.headers.get('Content-Type', 'Unknown')
     logger.info(f"[MENU-UPDATE] Processing menu update request from {request.remote_addr}")
+    logger.info(f"[MENU-UPDATE] User-Agent: {user_agent}")
+    logger.info(f"[MENU-UPDATE] Content-Type: {content_type}")
+    
+    # Check if this is a likely Deliverect update (based on headers or IP)
+    is_deliverect = 'Deliverect' in user_agent or 'deliverect' in request.url.lower() or content_type.startswith('application/json')
+    logger.info(f"[MENU-UPDATE] Is Deliverect update: {is_deliverect}")
+    
+    # Create backup of current menu before processing update
+    import os
+    import json
+    
+    try:
+        current_menu = load_menu_data(force_refresh=True)
+        backup_folder = '/tmp/redbar_backups'
+        os.makedirs(backup_folder, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = os.path.join(backup_folder, f"menu_pre_update_{timestamp}.json")
+        with open(backup_path, 'w') as f:
+            json.dump(current_menu, f, indent=2)
+        logger.info(f"[MENU-UPDATE] Created pre-update backup at {backup_path}")
+    except Exception as backup_e:
+        logger.warning(f"[MENU-UPDATE] Failed to create pre-update backup: {backup_e}")
     
     try:
         # Get raw data and parse as JSON
@@ -105,10 +129,43 @@ def menu_update():
         
         # Process the menu data through our robust formatter
         try:
+            # Check data integrity before processing
+            if is_deliverect:
+                logger.info(f"[MENU-UPDATE] Processing Deliverect format menu data")
+                # Log the structure of the data to help debug
+                if isinstance(data, dict):
+                    top_level_keys = list(data.keys())
+                    logger.info(f"[MENU-UPDATE] Top-level keys in data: {top_level_keys}")
+                    
+                    # Check for Deliverect-specific structures
+                    if "categories" in data:
+                        logger.info(f"[MENU-UPDATE] Found standard Deliverect format with categories: {len(data.get('categories', []))}")
+                    elif "products" in data:
+                        logger.info(f"[MENU-UPDATE] Found Deliverect product format: {len(data.get('products', []))} products")
+                    elif "channels" in data:
+                        logger.info(f"[MENU-UPDATE] Found Deliverect channel format: {len(data.get('channels', []))}")
+                elif isinstance(data, list):
+                    logger.info(f"[MENU-UPDATE] Received array data with {len(data)} elements")
+                
+                # Safety check if data is empty or appears invalid from Deliverect
+                if not data or (isinstance(data, dict) and not any(key in data for key in ["categories", "products", "channels", "items"])):
+                    logger.error(f"[MENU-UPDATE] Empty or invalid data from Deliverect")
+                    return jsonify({"error": "Empty or invalid menu data from Deliverect"}), 400
+            
             # First pass - process through the Deliverect menu processor
+            logger.info(f"[MENU-UPDATE] Running data through Deliverect processor")
             processed_data = process_deliverect_menu(data)
             
+            # Check if processed data has items after Deliverect processing
+            if not processed_data.get("items"):
+                logger.error(f"[MENU-UPDATE] No items after Deliverect processing - this indicates a format problem")
+                
+                # If this is from Deliverect and processing failed, don't proceed 
+                if is_deliverect:
+                    return jsonify({"error": "Failed to process Deliverect menu data - no items found"}), 400
+            
             # Second pass - validate and fix any remaining issues
+            logger.info(f"[MENU-UPDATE] Validating and fixing menu data")
             processed_data = validate_and_fix_menu_data(processed_data)
             
             # CRITICAL: Verify that PLUs were preserved during processing
@@ -141,11 +198,27 @@ def menu_update():
                 for i, item in enumerate(sample_items):
                     logger.info(f"[MENU-UPDATE] Sample item {i+1}: {item.get('name', 'No name')} -> PLU: {item.get('plu', 'Missing!')} | Reference: {item.get('reference_handler', 'Missing!')}")
             
-            # If we have no items after processing, this is still a valid update (might be just category data)
-            # We'll continue processing but log a warning
+            # If we have no items after processing, this is a serious problem if from Deliverect
             if items_count == 0:
-                logger.warning("[MENU-UPDATE] No menu items extracted from data, but continuing with update")
-                # Don't return an error - continue processing
+                logger.warning("[MENU-UPDATE] No menu items extracted from data")
+                
+                # For Deliverect updates, this is a fatal error - reject the update
+                if is_deliverect:
+                    logger.error("[MENU-UPDATE] Rejecting empty Deliverect menu update")
+                    # If we have a callback URL, send a FAILED status
+                    if callback_url:
+                        try:
+                            callback_response = requests.post(
+                                callback_url,
+                                json={"status": "FAILED", "comment": "Empty menu data - no items found"}
+                            )
+                            logger.info(f"[MENU-UPDATE] Callback response: {callback_response.status_code}")
+                        except Exception as callback_e:
+                            logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
+                    return jsonify({"error": "No menu items found in Deliverect data. Update rejected to prevent data loss."}), 400
+                    
+                # For other formats, log a warning but continue
+                logger.warning("[MENU-UPDATE] Continuing with empty update for non-Deliverect request")
                 
             # Save the processed menu
             # Using datetime from imported module
@@ -157,6 +230,9 @@ def menu_update():
             # Create backup directory if it doesn't exist
             backup_folder = '/tmp/redbar_backups'
             try:
+                import os
+                import json
+                
                 os.makedirs(backup_folder, exist_ok=True)
                 # Create a backup with timestamp
                 backup_path = os.path.join(backup_folder, f"menu_backup_{timestamp}.json")
@@ -166,8 +242,51 @@ def menu_update():
             except Exception as backup_e:
                 logger.warning(f"[MENU-UPDATE] Failed to create backup: {backup_e}")
             
+            # Retain important data from current menu if this is a partial update
+            if is_deliverect and current_menu and isinstance(current_menu, dict):
+                # Check if we need to preserve some data from the current menu
+                current_items_count = len(current_menu.get("items", []))
+                logger.info(f"[MENU-UPDATE] Current menu has {current_items_count} items")
+                
+                # Don't allow drastic reduction in menu size for Deliverect updates
+                # This prevents accidental data loss due to partial updates
+                if current_items_count > 0 and items_count > 0 and items_count < current_items_count * 0.5:
+                    # This is a suspiciously small update compared to current menu
+                    logger.warning(f"[MENU-UPDATE] Potential partial update detected: {items_count} items vs {current_items_count} current items")
+                    
+                    # Check if this is likely a single category update rather than full menu
+                    processed_categories = set(item.get("category", "") for item in processed_data.get("items", []))
+                    current_categories = set(item.get("category", "") for item in current_menu.get("items", []))
+                    
+                    # If we have fewer categories than current menu, it's likely a partial update
+                    if len(processed_categories) < len(current_categories) * 0.5:
+                        logger.warning(f"[MENU-UPDATE] This appears to be a partial category update. Categories: {processed_categories}")
+                        
+                        # In this case, we'll need to merge this data with existing menu
+                        # Rather than completely replacing the menu
+                        
+                        # Strategy: Remove items in these categories from current menu
+                        # and add the new items from processed_data
+                        updated_items = []
+                        # First add items from current menu that aren't in updated categories
+                        for item in current_menu.get("items", []):
+                            if item.get("category", "") not in processed_categories:
+                                updated_items.append(item)
+                                
+                        # Then add all items from the processed data (the new updates)
+                        updated_items.extend(processed_data.get("items", []))
+                        
+                        # Update processed_data with merged items
+                        processed_data["items"] = updated_items
+                        logger.info(f"[MENU-UPDATE] Merged menu now has {len(updated_items)} items")
+                
+                # Carry over name variants from current menu if not in processed data
+                if "name_variants" not in processed_data or not processed_data["name_variants"]:
+                    logger.info("[MENU-UPDATE] Preserving existing name variants")
+                    processed_data["name_variants"] = current_menu.get("name_variants", {})
+            
             # Detailed logging before attempting to write
-            logger.info(f"[MENU-UPDATE] About to write menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups")
+            logger.info(f"[MENU-UPDATE] About to write menu with {len(processed_data.get('items', []))} items, {len(processed_data.get('modifiers', []))} modifiers, {len(processed_data.get('modifierGroups', []))} groups")
             
             # Use the standard write_menu_file function to write the menu data
             if write_menu_file(processed_data):
@@ -196,9 +315,27 @@ def menu_update():
             # Verify the menu was saved correctly
             reloaded_menu = load_menu_data(force_refresh=True)
             reloaded_count = len(reloaded_menu.get("items", []))
+            reloaded_variants = len(reloaded_menu.get("name_variants", {}))
             
             if reloaded_count == 0:
-                logger.warning("[MENU-UPDATE] Menu reload verification failed")
+                logger.warning("[MENU-UPDATE] Menu reload verification failed - no items found")
+                
+                # Try to restore from backup if available
+                if os.path.exists(backup_path):
+                    logger.info(f"[MENU-UPDATE] Attempting to restore from backup: {backup_path}")
+                    try:
+                        with open(backup_path, 'r') as f:
+                            backup_data = json.load(f)
+                        
+                        # Write the backup data back
+                        if write_menu_file(backup_data):
+                            logger.info("[MENU-UPDATE] Successfully restored from backup")
+                            # Reload one more time to confirm
+                            restored_menu = load_menu_data(force_refresh=True)
+                            restored_count = len(restored_menu.get("items", []))
+                            logger.info(f"[MENU-UPDATE] Restored menu has {restored_count} items")
+                    except Exception as restore_e:
+                        logger.error(f"[MENU-UPDATE] Failed to restore from backup: {restore_e}")
                 
                 # If we have a callback URL, send a FAILED status
                 if callback_url:
@@ -211,7 +348,10 @@ def menu_update():
                     except Exception as callback_e:
                         logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
                 
-                return jsonify({"error": "Menu reload verification failed - menu has 0 items"}), 500
+                return jsonify({
+                    "error": "Menu reload verification failed - menu has 0 items",
+                    "details": "Attempted auto-recovery from backup, check logs for details"
+                }), 500
                 
             logger.info(f"[MENU-UPDATE] Menu update successful with {reloaded_count} items")
             
@@ -226,13 +366,38 @@ def menu_update():
                 except Exception as callback_e:
                     logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
             
+            # Add name variants if needed
+            if "name_variants" in processed_data and processed_data["name_variants"]:
+                logger.info(f"[MENU-UPDATE] Menu already has {variants_count} name variants")
+            else:
+                # Generate name variants for all items
+                logger.info("[MENU-UPDATE] Generating name variants for menu items")
+                variants_dict = {}
+                for item in processed_data.get("items", []):
+                    item_name = item.get("name", "")
+                    if item_name:
+                        from app.utils.menu_utils import add_name_variants
+                        variants_dict = add_name_variants(item_name, variants_dict)
+                
+                # Update the processed data with variants
+                processed_data["name_variants"] = variants_dict
+                logger.info(f"[MENU-UPDATE] Generated {len(variants_dict)} name variants")
+                
+                # Save again with the variants
+                if write_menu_file(processed_data):
+                    logger.info("[MENU-UPDATE] Successfully wrote menu with name variants")
+                else:
+                    logger.error("[MENU-UPDATE] Failed to write menu with name variants")
+            
             # Return success response
             return jsonify({
                 "success": True,
-                "items": items_count,
-                "modifiers": modifiers_count,
-                "modifierGroups": groups_count,
-                "name_variants": variants_count
+                "items": len(processed_data.get("items", [])),
+                "modifiers": len(processed_data.get("modifiers", [])),
+                "modifierGroups": len(processed_data.get("modifierGroups", [])),
+                "name_variants": len(processed_data.get("name_variants", {})),
+                "source": "deliverect" if is_deliverect else "custom",
+                "has_backup": os.path.exists(backup_path) if 'backup_path' in locals() else False
             }), 200
             
         except Exception as e:

@@ -1,5 +1,50 @@
 # SMS Functionality Documentation
 
+## Latest Updates (April 2025)
+
+### SMS Delivery Fix (April 16, 2025)
+
+Fixed two critical issues affecting order processing and SMS delivery:
+
+1. **Deliverect PLU Issue Fixed**:
+   - Added "Chicken Burger" to the menu with a valid PLU/reference handler: `P-BURG-CHK`
+   - The previous reference handler (`P-BURG-CHK###PRNT`) contained special characters causing Deliverect to reject orders
+   - Special characters like `#` are not supported in the Deliverect PLU format
+
+2. **SMS Delivery Error Fixed**:
+   - Identified Twilio error code 30034 (invalid recipient phone number) affecting some numbers
+   - Modified the config to use the same working phone number (`+18333247207`) for both production and staging
+   - Added `WORKING_PHONE` constant in config.py to ensure consistent functionality
+   - Updated documentation to explain the phone number standardization
+   
+3. **Automatic Phone Number Substitution in Staging** (April 16, 2025 Update):
+   - Added `DEFAULT_TEST_CUSTOMER_NUMBER` environment variable with default value of `+18333247207`
+   - Modified voice call handling to automatically use this number in staging environments
+   - Added automatic detection of staging environments to apply this substitution
+   - This prevents Twilio error 30034 by ensuring all test messages use a valid, deliverable phone number
+   - Updated error handling for error code 30034 with clearer error messages
+
+4. **Removed Owner Notifications** (April 16, 2025 Update):
+   - Completely removed owner notification SMS functionality
+   - Disabled all SMS notifications that were previously sent to OWNER_PHONE_NUMBER
+   - Only customer-facing SMS notifications are now sent
+   - This reduces SMS API usage and simplifies the system
+
+### Environment-specific Phone Numbers
+
+The application now supports different phone numbers for different environments:
+
+- Added environment variables for better control:
+  - `OWNER_PHONE_NUMBER`: Owner's phone for notifications
+  - `CUSTOMER_SERVICE_NUMBER`: Customer-facing phone number
+  - `STAGING_OWNER_PHONE`: Owner's phone for staging environment (now defaults to production number)
+  - `TEST_PHONE_NUMBER`: Number for testing SMS functionality
+
+- Created a helper function `format_phone_display()` for consistent phone number formatting
+- Eliminated all hardcoded phone numbers to use environment variables
+- Added environment detection to automatically use staging numbers in staging environment
+- Fixed SMS delivery issues with invalid recipient numbers
+
 This document provides comprehensive information about the SMS functionality in the Red Bar Sushi AI system, including recent enhancements, configuration details, and testing procedures.
 
 ## Recent Updates
