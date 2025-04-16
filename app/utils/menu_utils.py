@@ -126,6 +126,25 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         else:
             file_path = MENU_FILE_PATH
     
+    # Validate menu data before writing
+    if not isinstance(menu_data, dict):
+        logger.error(f"Invalid menu data type: {type(menu_data).__name__}, expected dict")
+        return False
+        
+    if "items" not in menu_data:
+        logger.error("Menu data missing 'items' key")
+        return False
+        
+    items = menu_data.get("items", [])
+    if not isinstance(items, list):
+        logger.error(f"Invalid items type: {type(items).__name__}, expected list")
+        return False
+        
+    # Check if items are properly formatted
+    item_count = len(items)
+    if item_count == 0:
+        logger.warning("Writing menu with 0 items - this might indicate a problem!")
+    
     # Ensure the directory exists
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
@@ -144,12 +163,46 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
     except Exception as e:
         logger.warning(f"Could not create backup: {e}")
     
-    # Write the new file
+    # Write to a temporary file first, then atomically move it to the target path
+    # This prevents corruption if writing is interrupted
+    import tempfile
+    temp_file = None
+    
     try:
-        with open(file_path, 'w') as file:
+        # Create a temporary file in the same directory
+        temp_fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(file_path), prefix="menu_", suffix=".tmp")
+        os.close(temp_fd)  # Close the file descriptor
+        temp_file = temp_path
+        
+        # Write the menu data to the temporary file
+        with open(temp_path, 'w') as file:
             json.dump(menu_data, file, indent=2)
         
-        logger.info(f"Successfully wrote menu data to {file_path}")
+        # Check if the write was successful by reading back
+        try:
+            with open(temp_path, 'r') as check_file:
+                check_data = json.load(check_file)
+                check_items = len(check_data.get("items", []))
+                if check_items != item_count:
+                    logger.warning(f"Verification mismatch: wrote {item_count} items but read back {check_items}")
+        except Exception as check_e:
+            logger.error(f"Failed to verify temporary file: {check_e}")
+            # Continue anyway since the initial write succeeded
+        
+        # Atomically move the temp file to the target path
+        # This is safer than direct writing, especially for critical files
+        import os
+        # Different approaches for different platforms
+        if os.name == 'posix':  # Unix/Linux/Mac
+            os.rename(temp_path, file_path)
+        else:  # Windows
+            # Windows may need this if the destination exists
+            if os.path.exists(file_path):
+                os.replace(temp_path, file_path)
+            else:
+                os.rename(temp_path, file_path)
+        
+        logger.info(f"Successfully wrote menu data with {item_count} items to {file_path}")
         
         # Clear legacy cache to force reload
         global _menu_cache, _last_refresh_time
@@ -168,6 +221,12 @@ def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, 
         return True
     except Exception as e:
         logger.error(f"Error writing menu file: {e}")
+        # Try to clean up the temp file if it exists
+        if temp_file and os.path.exists(temp_file):
+            try:
+                os.unlink(temp_file)
+            except:
+                pass
         return False
 
 def create_empty_menu():
