@@ -1,0 +1,49 @@
+name: CD - Staging Deployment
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [staging]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        ref: staging
+      
+    - name: Set up environment
+      run: |
+        echo "DEPLOY_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+        
+    - name: Create deployment tag
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        git tag "deploy-staging-$(date -u +'%Y%m%d%H%M%S')"
+        git push origin --tags
+        
+    - name: Trigger Render deployment
+      run: |
+        curl -X POST "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}" \
+          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          -H "Content-Type: application/json"
+          
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          STATUS="✅ Staging deployment complete"
+        else
+          STATUS="❌ Staging deployment failed"
+        fi
+        
+        curl -X POST -H "Content-Type: application/json" -d '{
+          "text": "'"$STATUS"' for RedBarSushiAI.\nBranch: staging\nCommit: ${{ github.sha }}\nTime: ${{ env.DEPLOY_TIME }}"
+        }' ${{ secrets.SLACK_WEBHOOK_URL }} || echo "Slack notification failed"

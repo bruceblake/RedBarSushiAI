@@ -1,0 +1,53 @@
+name: CD - Production Deployment
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set up environment
+      run: |
+        echo "DEPLOY_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+        
+    - name: Create deployment tag
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        git tag "deploy-prod-$(date -u +'%Y%m%d%H%M%S')"
+        git push origin --tags
+        
+    - name: Notify deployment start
+      run: |
+        curl -X POST -H "Content-Type: application/json" -d '{
+          "text": "🚀 Production deployment started for RedBarSushiAI.\nBranch: main\nCommit: ${{ github.sha }}\nTime: ${{ env.DEPLOY_TIME }}"
+        }' ${{ secrets.SLACK_WEBHOOK_URL }} || echo "Slack notification failed"
+        
+    - name: Trigger Render deployment
+      run: |
+        curl -X POST "${{ secrets.RENDER_PROD_DEPLOY_HOOK }}" \
+          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          -H "Content-Type: application/json"
+          
+    - name: Notify deployment complete
+      if: success()
+      run: |
+        curl -X POST -H "Content-Type: application/json" -d '{
+          "text": "✅ Production deployment complete for RedBarSushiAI.\nBranch: main\nCommit: ${{ github.sha }}\nTime: ${{ env.DEPLOY_TIME }}"
+        }' ${{ secrets.SLACK_WEBHOOK_URL }} || echo "Slack notification failed"
+        
+    - name: Notify deployment failure
+      if: failure()
+      run: |
+        curl -X POST -H "Content-Type: application/json" -d '{
+          "text": "❌ Production deployment failed for RedBarSushiAI.\nBranch: main\nCommit: ${{ github.sha }}\nTime: ${{ env.DEPLOY_TIME }}"
+        }' ${{ secrets.SLACK_WEBHOOK_URL }} || echo "Slack notification failed"

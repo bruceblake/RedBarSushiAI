@@ -1,0 +1,88 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ main, staging, development ]
+    
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black
+        pip install -r requirements.txt
+        
+    - name: Check code style with Black
+      run: |
+        black --check app tests
+        
+    - name: Lint with flake8
+      run: |
+        flake8 app/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit safety
+        
+    - name: Run Bandit security scan
+      run: |
+        bandit -r app/ -f json -o bandit-results.json -s B104,B110,B404,B603 || true
+        
+    - name: Check for security vulnerabilities
+      run: |
+        safety check -r requirements.txt --full-report
+        
+  api-schema-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Validate API routes
+      run: |
+        python -c "import app; from app.routes import voice, menu, location, order; print('API routes validated')"
+
+  compatibility-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Check for deprecated API usage
+      run: |
+        grep -r "openai.Completion.create" app/ || echo "No deprecated Completion API usage found"
+        grep -r "twilio.rest.TwilioClient" app/ || echo "No deprecated Twilio API usage found"
+        
+    - name: Check for hardcoded credentials
+      run: |
+        grep -r "AKIA" --include="*.py" . || echo "No AWS credentials found"
+        grep -r "sk-" --include="*.py" . || echo "No OpenAI keys found"
+        grep -r "AC[a-zA-Z0-9]" --include="*.py" . || echo "No Twilio credentials found"
