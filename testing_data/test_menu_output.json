@@ -1,24 +1,13 @@
 {
   "items": [
     {
-      "name": "Burgers",
-      "reference_handler": "cat1",
-      "available": true,
-      "is_category": true,
-      "price": 9.95,
-      "id": "ITEM-0000",
-      "plu": "cat1",
-      "description": "",
-      "snoozed": false
-    },
-    {
       "name": "Cheeseburger",
       "reference_handler": "BURG-CHEESE",
       "available": true,
       "price": 0.10949999999999999,
       "description": "Juicy beef patty with melted cheese",
       "category": "Burgers",
-      "id": "ITEM-0001",
+      "id": "ITEM-0000",
       "plu": "BURG-CHEESE",
       "snoozed": false
     },
@@ -29,7 +18,7 @@
       "price": 0.09949999999999999,
       "description": "Plant-based patty with toppings",
       "category": "Burgers",
-      "id": "ITEM-0002",
+      "id": "ITEM-0001",
       "plu": "prod2",
       "snoozed": false
     },
@@ -40,22 +29,30 @@
       "price": 0.0695,
       "description": "Smaller burger for kids",
       "category": "Burgers",
-      "id": "ITEM-0003",
+      "id": "ITEM-0002",
       "plu": "KidsBurger",
+      "snoozed": false
+    },
+    {
+      "name": "Burgers",
+      "reference_handler": "cat1",
+      "available": true,
+      "price": 9.95,
+      "description": "Delicious burgers",
+      "id": "ITEM-0003",
+      "plu": "cat1",
       "snoozed": false
     }
   ],
   "modifiers": [],
   "modifierGroups": [],
   "name_variants": {
-    "burgers": "Burgers",
     "cheeseburger": "Cheeseburger",
     "veggie burger": "Veggie Burger",
     "veggie": "Veggie Burger",
-    "burger": "Veggie Burger",
-    "vb": "Veggie Burger",
+    "burger": "Kids Burger",
     "kids burger": "Kids Burger",
     "kids": "Kids Burger",
-    "kb": "Kids Burger"
+    "burgers": "Burgers"
   }
 }

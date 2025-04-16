@@ -1,13 +1,6 @@
 {
   "items": [
     {
-      "name": "Burgers",
-      "reference_handler": "cat1",
-      "available": true,
-      "is_category": true,
-      "price": 0
-    },
-    {
       "name": "Cheeseburger",
       "reference_handler": "BURG-CHEESE",
       "available": true,
@@ -30,19 +23,24 @@
       "price": 0.0695,
       "description": "Smaller burger for kids",
       "category": "Burgers"
+    },
+    {
+      "name": "Burgers",
+      "reference_handler": "cat1",
+      "available": true,
+      "price": 0,
+      "description": "Delicious burgers"
     }
   ],
   "modifiers": [],
   "modifierGroups": [],
   "name_variants": {
-    "burgers": "Burgers",
     "cheeseburger": "Cheeseburger",
     "veggie burger": "Veggie Burger",
     "veggie": "Veggie Burger",
-    "burger": "Veggie Burger",
-    "vb": "Veggie Burger",
+    "burger": "Kids Burger",
     "kids burger": "Kids Burger",
     "kids": "Kids Burger",
-    "kb": "Kids Burger"
+    "burgers": "Burgers"
   }
 }
