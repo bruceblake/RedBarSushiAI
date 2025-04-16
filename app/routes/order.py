@@ -25,6 +25,8 @@ from app.utils.menu_utils import load_menu_data, is_item_snoozed_timebased
 from app.utils.helpers import log_info, commit_with_retry
 from twilio.twiml.messaging_response import MessagingResponse
 from sqlalchemy import text
+from app.models import Order
+from app import db
 
 # Try to import from the original module first 
 try:
