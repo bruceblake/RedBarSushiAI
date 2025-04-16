@@ -8,9 +8,10 @@ on:
 
 jobs:
   deploy:
+    name: Deploy to Production
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    
+    # Production deployment job
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -69,12 +70,21 @@ jobs:
       run: |
         curl -X POST "${{ secrets.RENDER_PROD_DEPLOY_HOOK }}" \
           -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-          -H "Content-Type: application/json"
-          
+          -H "Content-Type: application/json" | tee render-deploy-log.txt
     - name: Skip Render deployment
       if: env.HAS_RENDER_SECRETS != 'true'
       run: |
         echo "Skipping Render deployment - missing required secrets"
+
+    # Optional: Run CodeQL analysis for production deploy
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: python
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v2
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
         echo "To enable automatic deployments, set RENDER_PROD_DEPLOY_HOOK and RENDER_API_KEY secrets in your repository"
           
     - name: Notify deployment complete
