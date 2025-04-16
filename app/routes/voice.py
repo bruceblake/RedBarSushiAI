@@ -5,6 +5,7 @@ import logging
 import json
 import asyncio
 import time
+import os
 from functools import wraps
 import traceback
 import uuid
@@ -39,6 +40,20 @@ conversation_sessions = {}
 
 @voice_bp.route('/', methods=['GET', 'POST'])
 def receive_call():
+    # Log extensive details about the request to diagnose routing issues
+    logger.info("==== INCOMING CALL RECEIVED ====")
+    logger.info(f"Request came from: {request.remote_addr}")
+    logger.info(f"User agent: {request.user_agent}")
+    logger.info(f"Host header: {request.host}")
+    logger.info(f"URL: {request.url}")
+    logger.info(f"Base URL: {request.base_url}")
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Environment: {os.environ.get('FLASK_ENV', 'undefined')}")
+    logger.info(f"Is this staging?: {os.environ.get('IS_STAGING', 'No, not explicitly marked as staging')}")
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"From number: {request.values.get('From', 'Not provided')}")
+    logger.info("==== END CALL DETAILS ====")
+    
     # Set initial session variables
     session['sender'] = request.values.get('From', '')
     session['order_message'] = ""
@@ -48,6 +63,10 @@ def receive_call():
     session['ordering_in_progress'] = False
 
     response = VoiceResponse()
+    
+    # Add an environment identifier to make it clear which environment is responding
+    env_name = "STAGING" if os.environ.get('IS_STAGING') or os.environ.get('FLASK_ENV') == 'staging' else "PRODUCTION"
+    
     with response.gather(
         input='speech',
         action='/take_name',
@@ -56,7 +75,7 @@ def receive_call():
         language="en-US",
         speech_timeout="auto"
     ) as g:
-        g.say("Hello! Thank you for calling Red Bar Sushi. May I have your name, please?")
+        g.say(f"Hello! This is the {env_name} environment. Thank you for calling Red Bar Sushi. May I have your name, please?")
     return Response(str(response), mimetype="text/xml")
 
 

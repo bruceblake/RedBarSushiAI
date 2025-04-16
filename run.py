@@ -3,7 +3,7 @@ import os
 import sys
 import time
 import logging
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 # Configure basic logging
 logging.basicConfig(
@@ -77,6 +77,28 @@ while retry_count < max_retries:
 @app.route('/hello')
 def hello():
     return {"message": "Hello from RedBarSushiAI\!"}
+
+# Add a special Twilio webhook for staging environment testing
+@app.route('/staging-test', methods=['GET', 'POST'])
+def staging_test():
+    from twilio.twiml.voice_response import VoiceResponse
+    response = VoiceResponse()
+    
+    # Check environment variables to clearly identify which environment is responding
+    is_staging = os.environ.get('FLASK_ENV') == 'staging' or os.environ.get('IS_STAGING')
+    env_name = "STAGING" if is_staging else "PRODUCTION"
+    
+    # Add debugging information
+    print(f"=== STAGING TEST ENDPOINT CALLED ===")
+    print(f"Environment: {env_name}")
+    print(f"Request URL: {request.url}")
+    print(f"Host: {request.host}")
+    
+    # Return a very clear message about which environment is responding
+    response.say(f"This is the {env_name} environment of Red Bar Sushi A I. The host name is {request.host}.")
+    response.hangup()
+    
+    return str(response)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
