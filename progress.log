@@ -21916,3 +21916,20 @@ IndexError: list index out of range
 
 2025-04-16 04:56:38,344 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
 2025-04-16 04:56:38,344 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-16 05:06:07,235 - INFO - root - Application starting in development mode
+2025-04-16 05:06:07,235 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-16 05:06:07,240 - INFO - root - Received registration request: {"status": "register"}
+2025-04-16 05:06:07,240 - INFO - root - Channel registered with Deliverect: None (ID: None)
+2025-04-16 05:06:07,240 - INFO - root - Registered webhooks with base URL: https://redbarsushiai.onrender.com
+2025-04-16 05:06:07,240 - INFO - root - Response: {"statusUpdateURL": "https://redbarsushiai.onrender.com/order_status", "menuUpdateURL": "https://redbarsushiai.onrender.com/menu_update", "snoozeUnsnoozeURL": "https://redbarsushiai.onrender.com/snoozeUnsnooze", "busyModeURL": "https://redbarsushiai.onrender.com/busy_mode", "updatePrepTimeURL": "https://redbarsushiai.onrender.com/updatePrepTime", "courierUpdateURL": "https://redbarsushiai.onrender.com/courierUpdate", "paymentUpdateURL": "https://redbarsushiai.onrender.com/payment_update"}
+2025-04-16 05:06:07,241 - INFO - root - Received registration request: {"status": "active"}
+2025-04-16 05:06:07,241 - INFO - root - Channel activated with Deliverect: None (ID: None)
+2025-04-16 05:06:07,241 - INFO - root - Registered webhooks with base URL: https://redbarsushiai.onrender.com
+2025-04-16 05:06:07,241 - INFO - root - Response: {"statusUpdateURL": "https://redbarsushiai.onrender.com/order_status", "menuUpdateURL": "https://redbarsushiai.onrender.com/menu_update", "snoozeUnsnoozeURL": "https://redbarsushiai.onrender.com/snoozeUnsnooze", "busyModeURL": "https://redbarsushiai.onrender.com/busy_mode", "updatePrepTimeURL": "https://redbarsushiai.onrender.com/updatePrepTime", "courierUpdateURL": "https://redbarsushiai.onrender.com/courierUpdate", "paymentUpdateURL": "https://redbarsushiai.onrender.com/payment_update"}
+2025-04-16 05:06:07,241 - INFO - root - Received registration request: {"status": "inactive"}
+2025-04-16 05:06:07,241 - INFO - root - Channel deactivated with Deliverect: None (ID: None)
+2025-04-16 05:06:07,241 - INFO - root - Registered webhooks with base URL: https://redbarsushiai.onrender.com
+2025-04-16 05:06:07,241 - INFO - root - Response: {"statusUpdateURL": "https://redbarsushiai.onrender.com/order_status", "menuUpdateURL": "https://redbarsushiai.onrender.com/menu_update", "snoozeUnsnoozeURL": "https://redbarsushiai.onrender.com/snoozeUnsnooze", "busyModeURL": "https://redbarsushiai.onrender.com/busy_mode", "updatePrepTimeURL": "https://redbarsushiai.onrender.com/updatePrepTime", "courierUpdateURL": "https://redbarsushiai.onrender.com/courierUpdate", "paymentUpdateURL": "https://redbarsushiai.onrender.com/payment_update"}
+2025-04-16 05:06:07,242 - INFO - root - Received registration request: {"status": "invalid"}
+2025-04-16 05:06:07,243 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-16 05:06:07,243 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment

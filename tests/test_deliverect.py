@@ -17,7 +17,8 @@ from app.utils.deliverect import (
     get_deliverect_token,
     ensure_deliverect_token,
     get_deliverect_headers,
-    build_deliverect_order
+    build_deliverect_order,
+    clean_plu_code
 )
 
 
@@ -92,6 +93,20 @@ def test_get_deliverect_headers():
         # Check header structure
         assert headers['Authorization'] == 'Bearer test_token'
         assert headers['Content-Type'] == 'application/json'
+        
+def test_clean_plu_code():
+    """Test the PLU code cleaning function."""
+    # Test with problematic PLU codes
+    assert clean_plu_code("P-BURG-CHK###PRNT") == "P-BURG-CHK"
+    assert clean_plu_code("ITEM-1234###PRNT") == "ITEM-1234"
+    
+    # Test with already clean PLU codes
+    assert clean_plu_code("CAL-ROLL") == "CAL-ROLL"
+    assert clean_plu_code("MISO-SOUP") == "MISO-SOUP"
+    
+    # Test with None or empty string
+    assert clean_plu_code(None) == ""
+    assert clean_plu_code("") == ""
 
 
 def test_build_deliverect_order():
@@ -104,9 +119,9 @@ def test_build_deliverect_order():
             "name": "California Roll",
             "quantity": 2,
             "price": 9.95,
-            "reference_handler": "cal_roll_1",
+            "reference_handler": "cal_roll_1###PRNT",  # Add problematic suffix to test cleaning
             "modifier": [
-                {"name": "spicy mayo", "quantity": 1, "price": 0.50}
+                {"name": "spicy mayo", "quantity": 1, "price": 0.50, "reference_handler": "SPICY-MAYO###PRNT"}
             ]
         },
         {
@@ -140,6 +155,11 @@ def test_build_deliverect_order():
     # Check modifiers
     assert len(payload['items'][0]['subItems']) == 1
     assert payload['items'][0]['subItems'][0]['name'] == 'spicy mayo'
+    
+    # Check that PLU codes were cleaned (###PRNT removed)
+    assert payload['items'][0]['plu'] == 'cal_roll_1'  # Should be cleaned from "cal_roll_1###PRNT"
+    assert payload['items'][0]['subItems'][0]['plu'] == 'SPICY-MAYO'  # Should be cleaned from "SPICY-MAYO###PRNT"
+    assert payload['items'][1]['plu'] == 'miso_soup_1'  # This one was already clean
     
     # Check tax calculation
     sales_tax = 0.06
