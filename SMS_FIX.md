@@ -1,5 +1,22 @@
 # SMS Functionality Documentation
 
+## Latest Updates (April 2025)
+
+### Environment-specific Phone Numbers
+
+The application now supports different phone numbers for different environments:
+
+- Added environment variables for better control:
+  - `OWNER_PHONE_NUMBER`: Owner's phone for notifications
+  - `CUSTOMER_SERVICE_NUMBER`: Customer-facing phone number
+  - `STAGING_OWNER_PHONE`: Owner's phone for staging environment
+  - `TEST_PHONE_NUMBER`: Number for testing SMS functionality
+
+- Created a helper function `format_phone_display()` for consistent phone number formatting
+- Eliminated all hardcoded phone numbers to use environment variables
+- Added environment detection to automatically use staging numbers in staging environment
+- Fixed SMS delivery issues with invalid recipient numbers
+
 This document provides comprehensive information about the SMS functionality in the Red Bar Sushi AI system, including recent enhancements, configuration details, and testing procedures.
 
 ## Recent Updates
