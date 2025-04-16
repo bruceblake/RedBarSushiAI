@@ -1215,10 +1215,8 @@ def order_status():
     
     # Update order in database with comprehensive status information
     try:
-        # We've already imported these at the top of the file, but double-check here
-        # to ensure we have them in this scope
-        if 'Order' not in globals():
-            from app.models import Order
+        # Make sure all necessary imports are in scope
+        # The Order model should already be imported at the top of the file
         if 'text' not in globals():
             from sqlalchemy import text
         
