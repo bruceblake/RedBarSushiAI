@@ -154,10 +154,6 @@ def _recursively_find_products(data, result, max_depth=10, current_depth=0):
     if current_depth >= max_depth:
         return
         
-    # Skip adding category items when running in test mode
-    import sys
-    is_test = 'pytest' in sys.modules
-        
     if isinstance(data, dict):
         # Check if this could be a product
         if "name" in data and ("price" in data or "id" in data):
@@ -302,6 +298,7 @@ def ensure_deliverect_token(location_id=None):
     Args:
         location_id: Optional location ID
     """
+    # Use the module-level dictionaries - these variables are assigned to
     global deliverect_tokens, token_expiries
     
     # Get token key for this location
@@ -310,9 +307,11 @@ def ensure_deliverect_token(location_id=None):
     # Check if token exists and is valid
     if token_key not in token_expiries or time.time() >= token_expiries.get(token_key, 0):
         logger.info(f"Deliverect token for {token_key} expired or not found, refreshing...")
-        deliverect_tokens[token_key] = get_deliverect_token(location_id)
+        token_data = get_deliverect_token(location_id)
+        # Store the token
+        deliverect_tokens[token_key] = token_data
         # Store expiry time (subtract 5 minutes for safety margin)
-        expires_in = deliverect_tokens[token_key].get('expires_in', 3600)
+        expires_in = token_data.get('expires_in', 3600)
         token_expiries[token_key] = time.time() + expires_in - 300
         
         # Log expiry time for debugging

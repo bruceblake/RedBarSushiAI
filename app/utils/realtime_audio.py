@@ -7,10 +7,12 @@ import traceback
 from typing import Dict, Any, Optional, List, Generator, AsyncGenerator
 import base64
 
-# Import OpenAI
+# Import required modules
 import openai
 from openai import OpenAI
 import os
+import tempfile
+from flask import session
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO)
