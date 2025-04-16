@@ -71,12 +71,6 @@ jobs:
         curl -X POST "${{ secrets.RENDER_PROD_DEPLOY_HOOK }}" \
           -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
           -H "Content-Type: application/json" | tee render-deploy-log.txt
-    - name: Upload deployment logs
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: render-deploy-log
-        path: render-deploy-log.txt
     - name: Skip Render deployment
       if: env.HAS_RENDER_SECRETS != 'true'
       run: |
