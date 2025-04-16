@@ -701,3 +701,299 @@ def sync_reference_handlers(source_location_id=None, target_location_id=None):
         "total_source_items": len(source_menu.get("items", [])),
         "total_target_items": len(target_menu.get("items", []))
     }
+
+def validate_modifier_constraints(order_items):
+    """
+    Validate that order items meet the modifier constraints defined in the menu.
+    
+    Args:
+        order_items: List of order items with their modifiers
+        
+    Returns:
+        tuple: (is_valid, error_message) 
+               Where is_valid is a boolean indicating if the order is valid,
+               and error_message is a string explaining the issue (if any)
+    """
+    menu_data = load_menu_data()
+    modifier_groups = {mg.get('name'): mg for mg in menu_data.get('modifierGroups', [])}
+    
+    for item in order_items:
+        item_name = item.get('name')
+        modifiers = item.get('modifier', [])
+        
+        # Find the menu item to get its associated modifier groups
+        menu_item = None
+        for mi in menu_data.get('items', []):
+            if mi.get('name') == item_name:
+                menu_item = mi
+                break
+                
+        if not menu_item:
+            continue  # Skip validation if item not found in menu
+            
+        # Get modifier groups for this item
+        item_mod_groups = menu_item.get('modifierGroups', [])
+        
+        # Check each modifier group
+        for group_name in item_mod_groups:
+            group = modifier_groups.get(group_name)
+            if not group:
+                continue
+                
+            # Get min/max constraints
+            min_allowed = group.get('minAllowed', 0)
+            max_allowed = group.get('maxAllowed', 999)
+            
+            # Count modifiers from this group
+            group_mods = group.get('modifiers', [])
+            mod_count = 0
+            
+            for mod in modifiers:
+                mod_ref = mod.get('reference_handler')
+                if mod_ref in group_mods:
+                    mod_count += mod.get('quantity', 1)
+            
+            # Check constraints
+            if mod_count < min_allowed:
+                return False, f"Item '{item_name}' requires at least {min_allowed} modifiers from group {group_name}"
+                
+            if mod_count > max_allowed:
+                return False, f"Item '{item_name}' allows at most {max_allowed} modifiers from group {group_name}"
+    
+    return True, ""
+
+def process_deliverect_menu(data, location_id=None):
+    """
+    Process a Deliverect menu data payload for a specific location.
+    
+    Args:
+        data: The menu data from Deliverect
+        location_id: Optional location ID
+        
+    Returns:
+        dict: Processed menu data in the standard internal format
+    """
+    # Import here to avoid circular imports
+    from app.utils.deliverect import process_deliverect_menu as process_menu
+    
+    # Process the menu data
+    processed_data = process_menu(data)
+    
+    # Add location-specific information
+    if location_id:
+        for item in processed_data.get('items', []):
+            item['location_id'] = location_id
+    
+    return processed_data
+
+def process_product_changes(product_id, data, location_id=None):
+    """
+    Process changes to a product (menu item) from Deliverect.
+    
+    Args:
+        product_id: The ID of the product to update
+        data: The updated product data
+        location_id: Optional location ID
+        
+    Returns:
+        bool: Success status
+    """
+    # Load menu data for this location
+    menu_data = load_menu_data(location_id=location_id)
+    
+    # Find the item by product ID (reference_handler)
+    found = False
+    for item in menu_data.get('items', []):
+        if item.get('reference_handler') == product_id:
+            # Update item properties
+            if 'name' in data:
+                item['name'] = data['name']
+            if 'price' in data:
+                # Convert price to dollars if needed (Deliverect uses cents)
+                price = data['price']
+                if price > 100:  # Assume it's in cents if > 100
+                    price = price / 100
+                item['price'] = price
+            if 'description' in data:
+                item['description'] = data['description']
+            if 'available' in data:
+                item['available'] = data['available']
+            if 'snoozed' in data:
+                item['snoozed'] = data['snoozed']
+            if 'category' in data:
+                item['category'] = data['category']
+                
+            found = True
+            break
+    
+    if found:
+        # Save updated menu
+        write_menu_file(menu_data, location_id=location_id)
+        return True
+    
+    return False
+
+def process_modifier_group_changes(group_id, data):
+    """
+    Process changes to a modifier group from Deliverect.
+    
+    Args:
+        group_id: The ID of the modifier group to update
+        data: The updated group data
+        
+    Returns:
+        bool: Success status
+    """
+    # Load menu data
+    menu_data = load_menu_data()
+    
+    # Find the modifier group by ID
+    found = False
+    for group in menu_data.get('modifierGroups', []):
+        if group.get('id') == group_id:
+            # Update group properties
+            if 'name' in data:
+                group['name'] = data['name']
+            if 'minAllowed' in data:
+                group['minAllowed'] = data['minAllowed']
+            if 'maxAllowed' in data:
+                group['maxAllowed'] = data['maxAllowed']
+            if 'modifiers' in data and isinstance(data['modifiers'], list):
+                group['modifiers'] = data['modifiers']
+                
+            found = True
+            break
+    
+    if found:
+        # Save updated menu
+        write_menu_file(menu_data)
+        return True
+    
+    return False
+
+def process_modifier_changes(modifier_id, data):
+    """
+    Process changes to a modifier from Deliverect.
+    
+    Args:
+        modifier_id: The ID of the modifier to update
+        data: The updated modifier data
+        
+    Returns:
+        bool: Success status
+    """
+    # Load menu data
+    menu_data = load_menu_data()
+    
+    # Find the modifier by ID
+    found = False
+    for modifier in menu_data.get('modifiers', []):
+        if modifier.get('reference_handler') == modifier_id:
+            # Update modifier properties
+            if 'name' in data:
+                modifier['name'] = data['name']
+            if 'price' in data:
+                # Convert price to dollars if needed (Deliverect uses cents)
+                price = data['price']
+                if price > 100:  # Assume it's in cents if > 100
+                    price = price / 100
+                modifier['price'] = price
+            if 'available' in data:
+                modifier['available'] = data['available']
+                
+            found = True
+            break
+    
+    if found:
+        # Save updated menu
+        write_menu_file(menu_data)
+        return True
+    
+    return False
+
+def update_menu_ordering(data, location_id=None):
+    """
+    Update the ordering of menu items based on Deliverect data.
+    
+    Args:
+        data: The ordering data
+        location_id: Optional location ID
+        
+    Returns:
+        bool: Success status
+    """
+    # Load menu data for this location
+    menu_data = load_menu_data(location_id=location_id)
+    
+    # Check if we have valid ordering data
+    if not isinstance(data, dict) or 'categories' not in data:
+        return False
+    
+    # Extract category ordering
+    categories = data.get('categories', [])
+    if not isinstance(categories, list):
+        return False
+    
+    # Create a mapping of category ID to ordering
+    category_order = {}
+    for idx, category in enumerate(categories):
+        cat_id = category.get('id')
+        if cat_id:
+            category_order[cat_id] = idx
+            
+            # Also process product ordering within category
+            products = category.get('products', [])
+            if isinstance(products, list):
+                for prod_idx, product in enumerate(products):
+                    prod_id = product.get('id')
+                    if prod_id:
+                        # Find the corresponding item and update its ordering
+                        for item in menu_data.get('items', []):
+                            if item.get('reference_handler') == prod_id:
+                                item['ordering'] = prod_idx
+                                item['category_ordering'] = idx
+    
+    # Save the updated menu data
+    write_menu_file(menu_data, location_id=location_id)
+    return True
+
+def process_meal_deal(meal_deal_item, selections=None):
+    """
+    Process a meal deal selection, handling child products and modifiers.
+    
+    Args:
+        meal_deal_item: The meal deal menu item
+        selections: Dictionary of child product selections
+        
+    Returns:
+        dict: Processed meal deal item with child items
+    """
+    if not selections:
+        selections = {}
+    
+    # Create the base item
+    result = {
+        "name": meal_deal_item.get("name", "Meal Deal"),
+        "reference_handler": meal_deal_item.get("reference_handler", ""),
+        "price": meal_deal_item.get("price", 0.0),
+        "quantity": 1,
+        "modifier": [],
+        "childItems": []
+    }
+    
+    # Process each child product
+    for child in meal_deal_item.get("childProducts", []):
+        child_id = child.get("id")
+        selection = selections.get(child_id, {})
+        
+        child_item = {
+            "name": child.get("name"),
+            "reference_handler": child_id,
+            "price": 0.0,  # Price is included in the meal deal
+            "quantity": 1,
+            "modifier": selection.get("modifier", [])
+        }
+        
+        result["childItems"].append(child_item)
+    
+    return result
