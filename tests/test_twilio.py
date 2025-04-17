@@ -30,7 +30,7 @@ def test_send_sms(phone_number='+15555555555'):
             from_=TWILIO_NUMBER,
             to=phone_number
         )
-        print(f"✓ Message sent\! SID: {message.sid}, Status: {message.status}")
+        print(f"✓ Message sent! SID: {message.sid}, Status: {message.status}")
         return True
     except Exception as e:
         print(f"✗ SMS sending error: {e}")
