@@ -3,11 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Environment variable files
+.env
+.env.*
 # Virtual environment
 venv/
 env/
 ENV/
-.env/
 .venv/
 
 # Distribution / packaging
