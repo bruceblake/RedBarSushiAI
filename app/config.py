@@ -3,7 +3,10 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
+# Load environment variables from .env file if it exists
 load_dotenv()
+# Also load .env.test (if present) to override defaults in testing environments
+load_dotenv('.env.test', override=True)
 
 # ------------------------------
 # General Application Settings
@@ -19,7 +22,8 @@ default_uri = 'mysql+pymysql://pegasus:Redbar2024!!@pegasus.mysql.pythonanywhere
 pythonanyhere_uri = os.getenv("PYTHONANYHERE_DB_URI")
 
 # First try to use a fully formed URI from the environment
-SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI")
+# Prefer DATABASE_URL (e.g., in CI/test), fallback to SQLALCHEMY_DATABASE_URI
+SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URI")
 
 # If that's not available, check for component parts to build a PostgreSQL URI
 if not SQLALCHEMY_DATABASE_URI:
