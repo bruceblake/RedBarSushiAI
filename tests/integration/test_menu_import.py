@@ -8,11 +8,9 @@ from app.utils.menu_utils import process_deliverect_menu, write_menu_file
 
 def test_menu_import():
     """Test importing menu from test Deliverect payload"""
-    # Load test data
-    test_file_path = 'testing_data/test_deliverect_payload.json'
-    if not os.path.exists(test_file_path):
-        test_file_path = '../' + test_file_path
-        
+    # Load test data from project root testing_data
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    test_file_path = os.path.join(root, 'testing_data', 'test_deliverect_payload.json')
     with open(test_file_path, 'r') as f:
         data = json.load(f)
     

@@ -17,12 +17,9 @@ def test_menu_endpoint():
     app.config['TESTING'] = True
     app.config['MENU_FILE_PATH'] = 'testing_data/test_menu_output.json'
     
-    # Load test data
-    # Allow for running test from project root or from tests directory
-    test_file_path = 'testing_data/test_deliverect_payload.json'
-    if not os.path.exists(test_file_path):
-        test_file_path = '../' + test_file_path
-    
+    # Load test data from project root testing_data
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    test_file_path = os.path.join(root, 'testing_data', 'test_deliverect_payload.json')
     with open(test_file_path, 'r') as f:
         data = json.load(f)
     
