@@ -27,12 +27,12 @@ jobs:
         run: |
           python -m pytest -v --cov=app \
             -k "not test_sms_endpoint and not test_webhook_config and not test_twilio_webhook and not test_order_status_endpoint and not test_deliverect_deep_scan and not test_menu_variant_matching" \
-            tests/ \
-            --ignore=tests/e2e/
+            $(find tests -type d -name "e2e" -prune -o -type d -name "[!.]*" -print)
       
       - name: Generate coverage report
         run: |
-          python -m pytest --cov=app --cov-report=xml --ignore=tests/e2e/ tests/
+          python -m pytest --cov=app --cov-report=xml \
+            $(find tests -type d -name "e2e" -prune -o -type d -name "[!.]*" -print)
       
       - name: Upload coverage report
         uses: actions/upload-artifact@v1
