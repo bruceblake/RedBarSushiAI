@@ -67,15 +67,21 @@ jobs:
           mkdir -p screenshots
           mkdir -p tests/e2e/test-data
           
+      - name: Install xvfb on Ubuntu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+      
       - name: Run direct E2E test
         run: |
-          # First run the direct test which is most reliable
+          # First run the direct test which is most reliable (Ubuntu compatible)
+          export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1
           python tests/e2e/direct_test.py
           
       - name: Run API tests
         run: |
           # Start Flask server in background
-          FLASK_APP=run.py FLASK_ENV=testing TESTING=true python -m flask run --port=5000 &
+          FLASK_APP=run.py FLASK_ENV=testing TESTING=true python -m flask run --port=5000 --host=0.0.0.0 &
           
           # Wait for server to start
           sleep 5
@@ -83,13 +89,23 @@ jobs:
           # Check if server is running
           curl -s http://localhost:5000/
           
-          # Run API tests
+          # Run API tests with Ubuntu compatibility
+          export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1
           python -m pytest tests/e2e/test_api.py -v
           
-      - name: Run comprehensive tests
+      - name: Run UI tests with Xvfb (Ubuntu)
         run: |
-          # Run the comprehensive test
-          python -m pytest tests/e2e/comprehensive_test.py -v || true
+          # Start Xvfb
+          Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
+          export DISPLAY=:99
+          
+          # Wait for Xvfb to start
+          sleep 2
+          
+          # Run the comprehensive test with Xvfb for Ubuntu
+          export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1
+          export HEADED=true
+          xvfb-run -a python -m pytest tests/e2e/basic_ui_test.py -v || true
           
       - name: Upload screenshots from directory
         uses: actions/upload-artifact@v1

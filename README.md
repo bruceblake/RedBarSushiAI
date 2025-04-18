@@ -111,7 +111,8 @@
   ./view-test-logs.sh list
   ./view-test-logs.sh latest
   ```
-- See [ARCH_LINUX_TESTING.md](ARCH_LINUX_TESTING.md) for more details on E2E testing
+- See [ARCH_LINUX_TESTING.md](ARCH_LINUX_TESTING.md) for Arch Linux testing
+- See [GITHUB_ACTIONS_TESTING.md](GITHUB_ACTIONS_TESTING.md) for CI/CD testing
 
 ## 🧹 Code Quality
 

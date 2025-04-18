@@ -45,23 +45,24 @@ def start_flask_server():
     print("Waiting for Flask server to start...")
     for _ in range(20):  # Try for 10 seconds
         try:
-            # Use subprocess to check if the server is responding
-            check_process = subprocess.run(
-                ["curl", "-s", f"http://localhost:{PORT}/"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=1
-            )
-            if check_process.returncode == 0:
+            # Platform-independent way to check if server is running
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            result = sock.connect_ex(('127.0.0.1', PORT))
+            sock.close()
+            
+            if result == 0:
                 print(f"Flask server started successfully on port {PORT}")
                 return True
-        except (subprocess.SubprocessError, subprocess.TimeoutExpired):
+                
+        except Exception as e:
+            print(f"Error checking server: {e}")
             pass
         
         time.sleep(0.5)
     
     # Check if process is still running
-    if flask_process.poll() is None:
+    if flask_process and flask_process.poll() is None:
         # Process is running but we couldn't connect
         print("Flask server seems to be running but we couldn't connect to it")
         
@@ -74,10 +75,11 @@ def start_flask_server():
     else:
         print("Flask server failed to start")
         
-        # Dump any stderr output to help diagnose
-        stderr_data = flask_process.stderr.read().decode('utf-8', errors='ignore')
-        print("Flask server stderr output:")
-        print(stderr_data)
+        if flask_process:
+            # Dump any stderr output to help diagnose
+            stderr_data = flask_process.stderr.read().decode('utf-8', errors='ignore')
+            print("Flask server stderr output:")
+            print(stderr_data)
         
         return False
 
