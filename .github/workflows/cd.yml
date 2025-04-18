@@ -1,16 +1,35 @@
 name: CD - Production Deployment
 
+# This workflow is kept for reference but its automatic triggering has been disabled.
+# Production deployment should now happen through the promote-to-main workflow
+# which merges staging into main first.
+
 on:
-  workflow_run:
-    workflows: ["CI"]
-    branches: [main]
-    types: [completed]
+  # Only run manually now
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm direct production deployment (not recommended)'
+        required: true
+        default: 'no'
 
 jobs:
+  validate:
+    name: Validate Direct Deployment Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        if: github.event.inputs.confirm != 'yes'
+        run: |
+          echo "⚠️ WARNING: Direct deployment to production is not recommended! ⚠️"
+          echo "You should use the 'Promote to Main' workflow instead which merges staging into main first."
+          echo "If you still want to proceed, type 'yes' in the confirmation field."
+          exit 1
+
   deploy:
     name: Deploy to Production
+    needs: validate
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     # Production deployment job
     steps:
     - name: Checkout code

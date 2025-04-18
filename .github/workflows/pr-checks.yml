@@ -4,7 +4,32 @@ on:
   pull_request:
     branches: [ main, staging, development ]
     
+  # Add workflow_dispatch to allow manual triggering
+  workflow_dispatch:
+    
 jobs:
+  branch-protection:
+    name: Branch Protection Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check PR target branch
+        run: |
+          # Get the base and head branches from GitHub context
+          TARGET_BRANCH="${{ github.base_ref }}"
+          SOURCE_BRANCH="${{ github.head_ref }}"
+          
+          echo "Pull request from $SOURCE_BRANCH to $TARGET_BRANCH"
+          
+          # Check if trying to merge directly to main (not from staging)
+          if [[ "$TARGET_BRANCH" == "main" && "$SOURCE_BRANCH" != "staging" ]]; then
+            echo "⛔ ERROR: Pull requests to main branch must come from staging branch!"
+            echo "Please redirect your PR to the staging branch first."
+            exit 1
+          fi
+          
+          echo "✅ Branch flow check passed"
+  
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest

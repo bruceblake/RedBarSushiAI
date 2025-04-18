@@ -1,0 +1,87 @@
+name: Promote to Main
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm merging staging into main'
+        required: true
+        default: 'no'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        if: github.event.inputs.confirm != 'yes'
+        run: |
+          echo "You must type 'yes' to confirm merging staging into main"
+          exit 1
+
+  promote:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          
+      - name: Ensure main branch is up to date
+        run: |
+          git checkout main
+          git pull origin main
+          
+      - name: Get staging branch
+        run: |
+          git checkout staging
+          git pull origin staging
+          
+      - name: Check for changes
+        id: check_changes
+        run: |
+          DIFF_COUNT=$(git rev-list --count main..staging)
+          if [ "$DIFF_COUNT" -eq "0" ]; then
+            echo "No changes to merge from staging to main"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found $DIFF_COUNT commits to merge from staging to main"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create merge commit
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          # Switch to main branch
+          git checkout main
+          
+          # Merge staging into main with a descriptive commit message
+          # This creates a merge commit even if fast-forward is possible
+          git merge --no-ff staging -m "Merge staging into main via promotion workflow"
+          
+          # Push changes to main
+          git push origin main
+          
+      - name: Skip merge
+        if: steps.check_changes.outputs.has_changes != 'true'
+        run: echo "No changes to merge, skipping promotion"
+
+  deploy-production:
+    needs: promote
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger production deployment
+        run: |
+          # Use the production webhook URL
+          curl -X POST "https://api.render.com/deploy/srv-cvp8clje5dus73ccccqg?key=e9_Cf__iVrM"
+          echo "Triggered Render production deployment"
+      
+      - name: Production deployment notification
+        run: |
+          echo "Changes from staging have been promoted to main and deployed to production"
