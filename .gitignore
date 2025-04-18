@@ -29,3 +29,27 @@ Thumbs.db
 
 # Python files
 config.py
+
+# Test artifacts
+*.png
+*.mp3
+*.wav
+test-data/*.json
+!tests/e2e/test-data/*.json
+
+# Node modules
+node_modules/
+
+# Temporary files
+*.tmp
+*.temp
+simple-workflow-test.sh
+update-readme.md
+
+# Logs
+logs/
+*.log
+
+# Directories with nested git repos
+/aur-install/
+/bin/
