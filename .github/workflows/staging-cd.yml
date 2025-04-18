@@ -42,24 +42,37 @@ jobs:
         
     - name: Check for Render secrets
       run: |
-        if [[ -n "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}" && -n "${{ secrets.RENDER_API_KEY }}" ]]; then
+        # Check for both new style webhook secret and old style hooks+API key
+        if [[ -n "${{ secrets.RENDER_STAGING_WEBHOOK_SECRET }}" ]]; then
           echo "HAS_RENDER_SECRETS=true" >> $GITHUB_ENV
+          echo "USING_WEBHOOK_SECRET=true" >> $GITHUB_ENV
+        elif [[ -n "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}" && -n "${{ secrets.RENDER_API_KEY }}" ]]; then
+          echo "HAS_RENDER_SECRETS=true" >> $GITHUB_ENV
+          echo "USING_WEBHOOK_SECRET=false" >> $GITHUB_ENV
         else
           echo "HAS_RENDER_SECRETS=false" >> $GITHUB_ENV
+          echo "USING_WEBHOOK_SECRET=false" >> $GITHUB_ENV
         fi
-
-    - name: Trigger Render deployment
-      if: env.HAS_RENDER_SECRETS == 'true'
+          
+    - name: Trigger Render deployment (webhook secret)
+      if: env.HAS_RENDER_SECRETS == 'true' && env.USING_WEBHOOK_SECRET == 'true'
+      run: |
+        curl -X POST "https://api.render.com/deploy/${{ secrets.RENDER_STAGING_WEBHOOK_SECRET }}?branch=staging" | tee render-deploy-log.txt
+        echo "Triggered Render staging deployment using webhook secret"
+        
+    - name: Trigger Render deployment (legacy)
+      if: env.HAS_RENDER_SECRETS == 'true' && env.USING_WEBHOOK_SECRET == 'false'
       run: |
         curl -X POST "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}" \
           -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-          -H "Content-Type: application/json"
+          -H "Content-Type: application/json" | tee render-deploy-log.txt
+        echo "Triggered Render staging deployment using legacy method"
           
     - name: Skip Render deployment
       if: env.HAS_RENDER_SECRETS != 'true'
       run: |
         echo "Skipping Render deployment - missing required secrets"
-        echo "To enable automatic deployments, set RENDER_STAGING_DEPLOY_HOOK and RENDER_API_KEY secrets in your repository"
+        echo "To enable automatic deployments, set RENDER_STAGING_WEBHOOK_SECRET or both RENDER_STAGING_DEPLOY_HOOK and RENDER_API_KEY secrets in your repository"
           
     - name: Check for Slack webhook
       run: |

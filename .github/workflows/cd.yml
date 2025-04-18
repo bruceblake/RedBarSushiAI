@@ -60,9 +60,16 @@ jobs:
     - name: Check for Render secrets
       run: |
         # Check for both new style webhook secret and old style hooks+API key
-        if [[ -n "${{ secrets.RENDER_WEBHOOK_SECRET }}" ]]; then
+        if [[ -n "${{ secrets.RENDER_PROD_WEBHOOK_SECRET }}" ]]; then
           echo "HAS_RENDER_SECRETS=true" >> $GITHUB_ENV
           echo "USING_WEBHOOK_SECRET=true" >> $GITHUB_ENV
+          echo "WEBHOOK_SECRET_NAME=RENDER_PROD_WEBHOOK_SECRET" >> $GITHUB_ENV
+        # For backward compatibility, check old secret name too
+        elif [[ -n "${{ secrets.RENDER_WEBHOOK_SECRET }}" ]]; then 
+          echo "HAS_RENDER_SECRETS=true" >> $GITHUB_ENV
+          echo "USING_WEBHOOK_SECRET=true" >> $GITHUB_ENV
+          echo "WEBHOOK_SECRET_NAME=RENDER_WEBHOOK_SECRET" >> $GITHUB_ENV
+          echo "WARNING: Using deprecated secret name RENDER_WEBHOOK_SECRET. Please update to RENDER_PROD_WEBHOOK_SECRET."
         elif [[ -n "${{ secrets.RENDER_PROD_DEPLOY_HOOK }}" && -n "${{ secrets.RENDER_API_KEY }}" ]]; then
           echo "HAS_RENDER_SECRETS=true" >> $GITHUB_ENV
           echo "USING_WEBHOOK_SECRET=false" >> $GITHUB_ENV
@@ -71,11 +78,17 @@ jobs:
           echo "USING_WEBHOOK_SECRET=false" >> $GITHUB_ENV
         fi
           
-    - name: Trigger Render deployment (webhook secret)
-      if: env.HAS_RENDER_SECRETS == 'true' && env.USING_WEBHOOK_SECRET == 'true'
+    - name: Trigger Render deployment (webhook secret - new format)
+      if: env.HAS_RENDER_SECRETS == 'true' && env.USING_WEBHOOK_SECRET == 'true' && env.WEBHOOK_SECRET_NAME == 'RENDER_PROD_WEBHOOK_SECRET'
+      run: |
+        curl -X POST "https://api.render.com/deploy/${{ secrets.RENDER_PROD_WEBHOOK_SECRET }}?branch=main" | tee render-deploy-log.txt
+        echo "Triggered Render production deployment using webhook secret"
+        
+    - name: Trigger Render deployment (webhook secret - legacy format)
+      if: env.HAS_RENDER_SECRETS == 'true' && env.USING_WEBHOOK_SECRET == 'true' && env.WEBHOOK_SECRET_NAME == 'RENDER_WEBHOOK_SECRET'
       run: |
         curl -X POST "https://api.render.com/deploy/${{ secrets.RENDER_WEBHOOK_SECRET }}?branch=main" | tee render-deploy-log.txt
-        echo "Triggered Render deployment using webhook secret"
+        echo "Triggered Render production deployment using legacy webhook secret"
         
     - name: Trigger Render deployment (legacy)
       if: env.HAS_RENDER_SECRETS == 'true' && env.USING_WEBHOOK_SECRET == 'false'
@@ -88,6 +101,7 @@ jobs:
       if: env.HAS_RENDER_SECRETS != 'true'
       run: |
         echo "Skipping Render deployment - missing required secrets"
+        echo "To enable automatic deployments, set RENDER_PROD_WEBHOOK_SECRET or both RENDER_PROD_DEPLOY_HOOK and RENDER_API_KEY secrets in your repository"
 
     # Skip CodeQL for now as it's causing issues
     - name: Skip CodeQL
