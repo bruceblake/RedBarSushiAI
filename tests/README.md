@@ -33,6 +33,10 @@ We've created tooling to help set up a proper test environment for both local de
 
 2. Run the tests:
    ```bash
+   # Run tests in test mode with external services disabled (recommended for CI)
+   TESTING=True DISABLE_OPENAI=True pytest
+
+   # Or run tests normally if you have API keys configured
    pytest
    ```
 
@@ -45,6 +49,10 @@ We've created tooling to help set up a proper test environment for both local de
 
 2. Run the tests:
    ```bash
+   # Run tests in test mode with external services disabled (recommended for CI)
+   TESTING=True DISABLE_OPENAI=True pytest
+
+   # Or run tests normally if you have API keys configured
    pytest
    ```
 
@@ -104,29 +112,31 @@ You can run specific test files or directories:
 
 ```bash
 # Run all unit tests (excluding integration and load tests)
-python -m pytest -m "not integration and not load"
+TESTING=True DISABLE_OPENAI=True python -m pytest -m "not integration and not load"
 
 # Run integration tests only 
-python -m pytest -m "integration"
+TESTING=True DISABLE_OPENAI=True python -m pytest -m "integration"
 
 # Run load tests only
-python -m pytest -m "load"
+TESTING=True DISABLE_OPENAI=True python -m pytest -m "load"
 
 # Run all tests
-python -m pytest
+TESTING=True DISABLE_OPENAI=True python -m pytest
 
 # Run a specific test file
-pytest tests/test_ai_agent.py
+TESTING=True DISABLE_OPENAI=True pytest tests/test_ai_agent.py
 
 # Run tests with a specific name pattern
-pytest -k "menu"
+TESTING=True DISABLE_OPENAI=True pytest -k "menu"
 
 # Run tests with verbose output
-pytest -v
+TESTING=True DISABLE_OPENAI=True pytest -v
 
 # Run tests with coverage report
-pytest --cov=app
+TESTING=True DISABLE_OPENAI=True pytest --cov=app --cov-report=xml --cov-report=html
 ```
+
+> **Note:** Setting `TESTING=True` and `DISABLE_OPENAI=True` environment variables allows the tests to run without requiring real API keys, which is essential for CI environments.
 
 ## Continuous Integration
 

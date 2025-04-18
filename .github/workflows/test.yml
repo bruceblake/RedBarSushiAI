@@ -16,7 +16,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.11'
         
     - name: Install dependencies
       run: |
@@ -38,6 +38,9 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
         
     - name: Run unit tests
+      env:
+        TESTING: "True"
+        DISABLE_OPENAI: "True"
       run: |
         pytest -m "not integration and not load" -v
         
@@ -54,7 +57,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.11'
         
     - name: Install dependencies
       run: |
@@ -68,5 +71,8 @@ jobs:
         python -c "import os; f=open('.env.test', 'w'); f.write('DATABASE_URL=sqlite:///:memory:\nFLASK_ENV=testing\nTESTING=true\nLOG_LEVEL=DEBUG\nSQLALCHEMY_TRACK_MODIFICATIONS=false'); f.close()"
         
     - name: Run integration tests
+      env:
+        TESTING: "True"
+        DISABLE_OPENAI: "True"
       run: |
         pytest -m "integration" -v
