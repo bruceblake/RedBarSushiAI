@@ -1,0 +1,10 @@
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+-P ubuntu-20.04=catthehacker/ubuntu:act-20.04
+--env-file=.env.test
+-s GITHUB_TOKEN=fake-token
+-s OPENAI_API_KEY=sk-fake-key
+-s TWILIO_ACCOUNT_SID=fake-sid
+-s TWILIO_AUTH_TOKEN=fake-token
+-s TWILIO_NUMBER=+12345678901
+-s TESTING=true
+-s DISABLE_OPENAI=true

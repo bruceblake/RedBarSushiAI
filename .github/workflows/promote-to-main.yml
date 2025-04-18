@@ -148,6 +148,38 @@ jobs:
             exit 1
           fi
           
+          # 6. Setup Node.js
+          echo "Setting up Node.js for E2E tests..."
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm install 18 || echo "Failed to install Node.js with nvm, trying apt..."
+          
+          # Try to install Node.js with apt if nvm fails
+          if ! command -v node &> /dev/null; then
+            echo "Installing Node.js with apt..."
+            curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash - || echo "Failed to setup Node.js repository"
+            sudo apt-get install -y nodejs || echo "Failed to install Node.js with apt"
+          fi
+          
+          # 7. Run critical E2E tests if Node.js is available
+          if command -v node &> /dev/null; then
+            echo "Node.js $(node -v) installed, setting up Playwright..."
+            
+            # Install dependencies and Playwright
+            npm ci || npm install || echo "Failed to install npm dependencies"
+            npx playwright install --with-deps chromium || echo "Failed to install Playwright dependencies"
+            
+            # Run only the smoke tests
+            echo "Running E2E smoke tests..."
+            npx playwright test tests/e2e/example.spec.js --project=chromium || {
+              echo "E2E smoke tests failed"
+              echo "status=failed" >> $GITHUB_OUTPUT
+              exit 1
+            }
+          else
+            echo "Node.js not available, skipping E2E tests"
+          fi
+          
           # All tests passed successfully
           echo "Critical verification tests passed"
           echo "status=success" >> $GITHUB_OUTPUT

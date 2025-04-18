@@ -25,11 +25,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install playwright pytest pytest-playwright python-dotenv requests
+          pip install pytest pytest-playwright python-dotenv requests
+          # Install Playwright explicitly
+          pip install playwright==1.41.2
           
-      - name: Install Playwright browsers
+      - name: Install Playwright browsers and system dependencies
         run: |
+          # Install Playwright browsers
           python -m playwright install chromium
+          # Install Playwright system dependencies
+          python -m playwright install-deps chromium
           
       - name: Create test env file with real API keys
         env:
@@ -67,10 +72,11 @@ jobs:
           mkdir -p screenshots
           mkdir -p tests/e2e/test-data
           
-      - name: Install xvfb on Ubuntu
+      - name: Install Playwright dependencies for Ubuntu
         run: |
+          # Install system dependencies
           sudo apt-get update
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb libgbm1 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm-dev libasound2
       
       - name: Run direct E2E test
         run: |
