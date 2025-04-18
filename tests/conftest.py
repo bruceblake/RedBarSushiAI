@@ -147,8 +147,13 @@ def mock_openai(monkeypatch):
             
             return mock_thread
             
-    # Setup the Agent mock
-    monkeypatch.setattr("openai.agent.Agent", MockAgent)
+    # Only mock openai.agent.Agent if the module exists
+    try:
+        import openai.agent
+        monkeypatch.setattr("openai.agent.Agent", MockAgent)
+    except (ImportError, AttributeError):
+        # If openai.agent doesn't exist, we'll patch the agent_utils module directly
+        monkeypatch.setattr("app.utils.agent_utils.Agent", MockAgent)
     
     return MockOpenAI()
 
@@ -176,11 +181,25 @@ def mock_deliverect(monkeypatch):
     """Mock Deliverect API client for testing."""
     class MockDeliverect:
         def get_token(self, *args, **kwargs):
-            return "mock_token_12345"
+            # Return a proper token structure
+            return {
+                "access_token": "mock_token",
+                "token_type": "bearer",
+                "expires_in": 3600
+            }
             
         def get_channels(self, *args, **kwargs):
             return ["channel1", "channel2"]
-            
+    
+    # Add monkeypatch for app.utils.deliverect.get_deliverect_token
+    def mock_get_deliverect_token(*args, **kwargs):
+        return {
+            "access_token": "mock_token",
+            "token_type": "bearer",
+            "expires_in": 3600
+        }
+        
+    monkeypatch.setattr("app.utils.deliverect.get_deliverect_token", mock_get_deliverect_token)
     return MockDeliverect()
 
 @pytest.fixture
@@ -310,19 +329,44 @@ def mock_menu_data():
 def app_with_locations(app):
     """Set up app with sample locations in the database."""
     with app.app_context():
-        # Clean up any existing records
-        Location.query.delete()
-        db.session.commit()
+        # Clean up any existing records - use delete all with a truncate to completely reset the table
+        try:
+            # First check if locations already exist
+            existing_locations = Location.query.filter(Location.id.in_(["downtown", "uptown"])).all()
+            if existing_locations:
+                # If they exist, delete them specifically
+                for loc in existing_locations:
+                    db.session.delete(loc)
+            else:
+                # Otherwise just clean the whole table
+                Location.query.delete()
+            db.session.commit()
+        except Exception as e:
+            # If there was an error (like transaction aborted), reset the session
+            db.session.rollback()
+            # Force clean the table with raw SQL
+            db.session.execute("DELETE FROM location WHERE id IN ('downtown', 'uptown')")
+            db.session.commit()
         
-        # Add new location records
-        locations = [
-            Location(id="downtown", name="Downtown Location", status="active",
-                     webhook_base="https://example.com/downtown"),
-            Location(id="uptown", name="Uptown Location", status="registered",
+        # Add new location records one by one to handle any issues
+        try:
+            downtown = Location(id="downtown", name="Downtown Location", status="active",
+                     webhook_base="https://example.com/downtown")
+            db.session.add(downtown)
+            db.session.commit()
+            
+            uptown = Location(id="uptown", name="Uptown Location", status="registered",
                      webhook_base="https://example.com/uptown")
-        ]
-        for loc in locations:
-            db.session.add(loc)
-        db.session.commit()
+            db.session.add(uptown)
+            db.session.commit()
+        except Exception as e:
+            # If any error occurred, log it and rollback
+            print(f"Error adding locations: {str(e)}")
+            db.session.rollback()
+            # Try one more approach - delete and insert via raw SQL
+            db.session.execute("DELETE FROM location WHERE id IN ('downtown', 'uptown')")
+            db.session.execute("INSERT INTO location (id, name, status, webhook_base) VALUES ('downtown', 'Downtown Location', 'active', 'https://example.com/downtown')")
+            db.session.execute("INSERT INTO location (id, name, status, webhook_base) VALUES ('uptown', 'Uptown Location', 'registered', 'https://example.com/uptown')")
+            db.session.commit()
     
     return app

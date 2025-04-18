@@ -62,9 +62,10 @@ sys.modules['openai.agent.types'] = MagicMock()
 from app.utils.agent_utils import analyze_user_input, get_order_modifications, OrderParsingAgent
 
 @pytest.fixture
-def mock_openai_agent():
-    with patch('app.utils.agent_utils.Agent', MockAgent):
-        yield
+def mock_openai_agent(monkeypatch):
+    """Mock the OpenAI agent for testing."""
+    monkeypatch.setattr('app.utils.agent_utils.Agent', MockAgent)
+    yield
 
 
 def test_analyze_user_input(mock_openai_agent):

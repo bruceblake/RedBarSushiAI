@@ -1,101 +1,95 @@
 {
-  "id": "test-integration-payload-1",
-  "type": "menu",
-  "timestamp": "2025-04-17T12:34:56Z",
+  "id": "test-event-123",
+  "type": "menu.updated",
+  "timestamp": "2025-04-16T12:00:00Z",
   "data": {
-    "accountId": "test-account",
-    "channelId": "test-channel",
-    "menus": [
-      {
-        "id": "test-menu-1",
-        "name": "Test Menu",
-        "categories": [
-          {
-            "id": "cat-1",
-            "name": "Rolls",
-            "products": [
-              {
-                "id": "prod-1",
-                "name": "California Roll",
-                "description": "Crab, avocado, and cucumber",
-                "price": 7.95,
-                "available": true,
-                "modifierGroups": [
-                  {
-                    "id": "mod-group-1",
-                    "name": "Add Extras",
-                    "modifiers": [
-                      {
-                        "id": "mod-1",
-                        "name": "Extra Wasabi",
-                        "price": 0.5
-                      },
-                      {
-                        "id": "mod-2",
-                        "name": "Extra Ginger",
-                        "price": 0.5
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "id": "prod-2",
-                "name": "Spicy Tuna Roll",
-                "description": "Fresh tuna with spicy mayo",
-                "price": 8.95,
-                "available": true,
-                "modifierGroups": [
-                  {
-                    "id": "mod-group-1",
-                    "name": "Add Extras",
-                    "modifiers": [
-                      {
-                        "id": "mod-1",
-                        "name": "Extra Wasabi",
-                        "price": 0.5
-                      },
-                      {
-                        "id": "mod-2",
-                        "name": "Extra Ginger",
-                        "price": 0.5
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "id": "cat-2",
-            "name": "Appetizers",
-            "products": [
-              {
-                "id": "prod-3",
-                "name": "Edamame",
-                "description": "Steamed soybeans with sea salt",
-                "price": 5.95,
-                "available": true,
-                "modifierGroups": []
-              }
-            ]
-          },
-          {
-            "id": "cat-3",
-            "name": "Nigiri",
-            "products": [
-              {
-                "id": "prod-4",
-                "name": "Salmon Nigiri",
-                "description": "Fresh salmon over rice",
-                "price": 6.95,
-                "available": false,
-                "modifierGroups": []
-              }
-            ]
-          }
-        ]
-      }
-    ]
+    "account": "test-account",
+    "menu": {
+      "id": "test-menu-123",
+      "name": "Test Menu",
+      "version": 1,
+      "categories": [
+        {
+          "id": "extras",
+          "name": "Add Extras", 
+          "products": [
+            {
+              "id": "wasabi-extra",
+              "name": "Extra Wasabi",
+              "description": "Additional wasabi on the side",
+              "price": 0.50,
+              "available": true
+            },
+            {
+              "id": "ginger-extra",
+              "name": "Extra Ginger",
+              "description": "Additional ginger on the side",
+              "price": 0.50,
+              "available": true
+            }
+          ]
+        },
+        {
+          "id": "appetizers",
+          "name": "Appetizers",
+          "products": [
+            {
+              "id": "edamame",
+              "name": "Edamame",
+              "description": "Steamed soybeans with sea salt",
+              "price": 5.95,
+              "available": true
+            },
+            {
+              "id": "miso-soup",
+              "name": "Miso Soup",
+              "description": "Traditional Japanese soup with tofu and seaweed",
+              "price": 3.95,
+              "available": true
+            }
+          ]
+        },
+        {
+          "id": "rolls",
+          "name": "Sushi Rolls",
+          "products": [
+            {
+              "id": "cal-roll",
+              "name": "California Roll",
+              "description": "Crab, avocado, and cucumber",
+              "price": 7.95,
+              "available": true
+            },
+            {
+              "id": "spicy-tuna",
+              "name": "Spicy Tuna Roll",
+              "description": "Fresh tuna with spicy mayo",
+              "price": 8.95,
+              "available": true
+            },
+            {
+              "id": "rainbow-roll",
+              "name": "Rainbow Roll",
+              "description": "California roll topped with assorted fish",
+              "price": 12.95,
+              "available": true
+            }
+          ]
+        },
+        {
+          "id": "nigiri",
+          "name": "Nigiri",
+          "products": [
+            {
+              "id": "salmon-nigiri",
+              "name": "Salmon Nigiri",
+              "description": "Fresh salmon over rice",
+              "price": 6.95,
+              "available": false
+            }
+          ]
+        }
+      ]
+    }
   }
 }
