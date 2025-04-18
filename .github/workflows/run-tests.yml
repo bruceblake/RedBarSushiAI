@@ -35,7 +35,7 @@ jobs:
           python -m pytest --cov=app --cov-report=xml --ignore=tests/e2e/ tests/
       
       - name: Upload coverage report
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v1
         with:
           name: coverage-report
           path: coverage.xml

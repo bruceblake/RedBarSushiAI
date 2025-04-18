@@ -1,10 +1,14 @@
 name: E2E Tests with Real APIs
 
 on:
-  push:
-    branches: [ main, staging ]
-  pull_request:
-    branches: [ main ]
+  # Manually triggered workflow
+  workflow_dispatch:
+  
+  # Uncomment when ready to run on push and PRs
+  # push:
+  #   branches: [ main, staging ]
+  # pull_request:
+  #   branches: [ main ]
 
 jobs:
   e2e-tests:
@@ -87,14 +91,19 @@ jobs:
           # Run the comprehensive test
           python -m pytest tests/e2e/comprehensive_test.py -v || true
           
-      - name: Upload screenshots
-        uses: actions/upload-artifact@v2
+      - name: Upload screenshots from directory
+        uses: actions/upload-artifact@v1
         if: always()
         with:
-          name: test-screenshots
-          path: |
-            *.png
-            screenshots/*.png
+          name: test-screenshots-dir
+          path: screenshots
+          
+      - name: Upload screenshots from root
+        uses: actions/upload-artifact@v1
+        if: always()
+        with:
+          name: test-screenshots-root
+          path: homepage.png
           
       - name: Check for test failures
         run: |
