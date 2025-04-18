@@ -196,8 +196,16 @@ from app.utils.agent_utils import OPENAI_API_KEY, log_openai_request, log_openai
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-# Create OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
+# Create OpenAI client if we have an API key and we're not in testing mode
+import os
+if os.environ.get('TESTING') == 'True' or os.environ.get('DISABLE_OPENAI') == 'True':
+    client = None
+else:
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+    except Exception as e:
+        logger.error(f"Error initializing OpenAI client: {e}")
+        client = None
 
 # Modified implementation for headless environments
 class BasicAudioProcessor:
@@ -209,6 +217,8 @@ class BasicAudioProcessor:
     def __init__(self):
         """Initialize the basic audio processor."""
         self.openai_client = client
+        if self.openai_client is None and (os.environ.get('TESTING') == 'True' or os.environ.get('DISABLE_OPENAI') == 'True'):
+            logger.info("Running in test mode with OpenAI disabled")
     
     async def process_audio(self, audio_data: bytes, content_type: str = "audio/webm") -> Dict[str, Any]:
         """
@@ -221,6 +231,16 @@ class BasicAudioProcessor:
         Returns:
             Dict containing the transcript
         """
+        # In test mode, just return a mock response
+        if self.openai_client is None and (os.environ.get('TESTING') == 'True' or os.environ.get('DISABLE_OPENAI') == 'True'):
+            logger.info("Returning mock audio transcription in test mode")
+            return {
+                "type": "transcript_complete",
+                "text": "Mock transcription for testing",
+                "final": True,
+                "timestamp": time.time()
+            }
+            
         try:
             logger.info(f"Processing audio with content type: {content_type}")
             
@@ -262,6 +282,11 @@ class BasicAudioProcessor:
         Returns:
             Audio data as bytes
         """
+        # In test mode, just return empty bytes
+        if self.openai_client is None and (os.environ.get('TESTING') == 'True' or os.environ.get('DISABLE_OPENAI') == 'True'):
+            logger.info("Returning mock audio in test mode")
+            return b'MOCK_AUDIO_DATA_FOR_TESTING'
+            
         try:
             logger.info(f"Generating speech for text: '{text[:50]}...' using voice: {voice}")
             
@@ -806,15 +831,25 @@ def get_audio_processor():
     Get the appropriate audio processor based on what's available.
     
     Selection process:
-    1. DirectRealtimeAudioProcessor first (using either websockets or aiohttp)
-    2. HeadlessAudioProcessor for headless environments with no GUI dependencies 
-    3. BasicAudioProcessor as standard fallback
-    4. MinimalAudioProcessor as absolute last resort for maximum compatibility
+    1. In test mode, use BasicAudioProcessor with mocked responses
+    2. DirectRealtimeAudioProcessor first (using either websockets or aiohttp)
+    3. HeadlessAudioProcessor for headless environments with no GUI dependencies 
+    4. BasicAudioProcessor as standard fallback
+    5. MinimalAudioProcessor as absolute last resort for maximum compatibility
     
     Returns:
         An audio processor instance based on availability
     """
     processor = None
+    
+    # Check if we're in test mode
+    if os.environ.get('TESTING') == 'True' or os.environ.get('DISABLE_OPENAI') == 'True':
+        logger.info("Running in test mode, using BasicAudioProcessor with mocks")
+        try:
+            processor = BasicAudioProcessor()
+            return processor
+        except Exception as e:
+            logger.error(f"Error initializing BasicAudioProcessor in test mode: {e}")
     
     # First try - use the direct implementation with websockets or aiohttp and no X11 dependencies
     if WEBSOCKETS_AVAILABLE or AIOHTTP_AVAILABLE:
@@ -875,8 +910,22 @@ def get_audio_processor():
             def __init__(self):
                 self.openai_client = client
                 logger.warning("Using MinimalAudioProcessor as last resort")
+                # Check if we're in test mode
+                self.test_mode = os.environ.get('TESTING') == 'True' or os.environ.get('DISABLE_OPENAI') == 'True'
+                if self.test_mode:
+                    logger.info("MinimalAudioProcessor running in test mode")
             
             async def process_audio(self, audio_data, content_type="audio/webm"):
+                # In test mode, return mock response
+                if self.test_mode:
+                    logger.info("MinimalAudioProcessor returning mock transcription in test mode")
+                    return {
+                        "type": "transcript_complete", 
+                        "text": "Mock transcription for testing", 
+                        "final": True, 
+                        "timestamp": time.time()
+                    }
+                
                 # Try to use OpenAI's whisper API directly
                 try:
                     import tempfile
@@ -911,6 +960,12 @@ def get_audio_processor():
                     yield {"type": "error", "error": "Failed to process audio", "timestamp": time.time()}
             
             async def generate_speech(self, text, voice="alloy"):
+                # In test mode, return mock audio
+                if self.test_mode:
+                    logger.info("MinimalAudioProcessor returning mock audio in test mode")
+                    yield b'MOCK_AUDIO_DATA_FOR_TESTING'
+                    return
+                
                 # Simple direct TTS
                 try:
                     response = self.openai_client.audio.speech.create(
@@ -921,6 +976,29 @@ def get_audio_processor():
                     yield b''
             
             async def process_conversation(self, transcript, conversation_history=None):
+                # In test mode, return mock conversation
+                if self.test_mode:
+                    logger.info("MinimalAudioProcessor returning mock conversation in test mode")
+                    # First yield a token stream
+                    mock_response = "Thank you for your message. This is a mock response for testing."
+                    for word in mock_response.split():
+                        yield {
+                            "type": "message",
+                            "text": word + " ",
+                            "complete": False,
+                            "timestamp": time.time()
+                        }
+                        await asyncio.sleep(0.01)  # Small delay to simulate streaming
+                    
+                    # Then yield the complete message
+                    yield {
+                        "type": "message_complete",
+                        "text": mock_response,
+                        "complete": True,
+                        "timestamp": time.time()
+                    }
+                    return
+                
                 # Simple direct chat completion
                 try:
                     if conversation_history is None:
