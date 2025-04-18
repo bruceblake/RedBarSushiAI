@@ -1,0 +1,33 @@
+name: Simple Test Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  simple-test:
+    name: Simple Test for Local Act
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Echo hello
+        run: echo "Hello, this is a simple test workflow!"
+      
+      - name: Display environment variables
+        run: |
+          echo "TESTING=$TESTING"
+          echo "DISABLE_OPENAI=$DISABLE_OPENAI"
+          echo "GitHub Actor: $GITHUB_ACTOR"
+      
+      - name: Setup Node.js
+        run: |
+          echo "Setting up Node.js..."
+          node --version || echo "Node.js not available"
+          
+      - name: Run a simple test
+        run: |
+          echo "Running a simple test..."
+          mkdir -p test-results
+          echo "Test passed" > test-results/output.txt
+          cat test-results/output.txt

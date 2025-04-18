@@ -83,6 +83,7 @@
 
 ## 🧪 Testing
 
+### Unit and Integration Tests
 - Run all tests:
   ```sh
   pytest
@@ -95,6 +96,23 @@
   ```sh
   TESTING=True DISABLE_OPENAI=True pytest
   ```
+
+### End-to-End Tests
+- For most systems:
+  ```sh
+  ./run-full-e2e-tests.sh
+  ```
+- For Arch Linux:
+  ```sh
+  ./run-e2e-tests-arch.sh
+  ```
+- View test logs:
+  ```sh
+  ./view-test-logs.sh list
+  ./view-test-logs.sh latest
+  ```
+- See [ARCH_LINUX_TESTING.md](ARCH_LINUX_TESTING.md) for Arch Linux testing
+- See [GITHUB_ACTIONS_TESTING.md](GITHUB_ACTIONS_TESTING.md) for CI/CD testing
 
 ## 🧹 Code Quality
 
@@ -133,9 +151,12 @@
 ## 🚦 CI/CD Pipeline
 
 - Automated tests and checks on every push and pull request
+- E2E tests can be run manually via GitHub Actions workflow
 - Deploys to staging from `staging` branch
 - Deploys to production from `main` branch
-- See `.github/workflows/` for details
+- See `.github/workflows/` for details:
+  - `run-tests.yml`: Regular unit and integration tests
+  - `e2e-tests.yml`: End-to-end tests with real APIs (manual trigger)
 
 ---
 

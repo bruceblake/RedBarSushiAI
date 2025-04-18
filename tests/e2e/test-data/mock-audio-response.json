@@ -1,0 +1,20 @@
+{
+  "text": "I'd like to order two California rolls and one spicy tuna roll please.",
+  "segments": [
+    {
+      "id": 0,
+      "seek": 0,
+      "start": 0.0,
+      "end": 5.0,
+      "text": " I'd like to order two California rolls and one spicy tuna roll please.",
+      "tokens": [
+        50364, 402, 478, 304, 2613, 510, 6273, 9033, 8461, 290, 309, 1243, 6273, 16055, 1215, 6607, 13
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.5555694444444445,
+      "compression_ratio": 1.5384615384615385,
+      "no_speech_prob": 0.10070517659187317
+    }
+  ],
+  "language": "en"
+}
