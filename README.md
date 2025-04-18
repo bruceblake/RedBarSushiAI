@@ -98,6 +98,22 @@
   ```
 
 ### End-to-End Tests
+
+#### New Simplified Approach (Recommended)
+- Install and verify Playwright:
+  ```sh
+  ./setup-playwright.sh  # Cross-platform for both Arch Linux and Ubuntu
+  ```
+- Run the most reliable direct test:
+  ```sh
+  python tests/e2e/direct_test.py
+  ```
+- Verify Playwright installation:
+  ```sh
+  python verify-playwright.py
+  ```
+
+#### Legacy Approach
 - For most systems:
   ```sh
   ./run-full-e2e-tests.sh
@@ -111,8 +127,10 @@
   ./view-test-logs.sh list
   ./view-test-logs.sh latest
   ```
-- See [ARCH_LINUX_TESTING.md](ARCH_LINUX_TESTING.md) for Arch Linux testing
-- See [GITHUB_ACTIONS_TESTING.md](GITHUB_ACTIONS_TESTING.md) for CI/CD testing
+  
+#### Documentation
+- See [tests/e2e/README.md](tests/e2e/README.md) for detailed E2E testing docs
+- See [GITHUB_ACTIONS_TESTING.md](GITHUB_ACTIONS_TESTING.md) for GitHub Actions integration
 
 ## 🧹 Code Quality
 
@@ -156,6 +174,7 @@
 - Deploys to production from `main` branch
 - See `.github/workflows/` for details:
   - `run-tests.yml`: Regular unit and integration tests
+  - `verify-playwright.yml`: Simple verification of Playwright installation
   - `e2e-tests.yml`: End-to-end tests with real APIs (manual trigger)
 
 ---
@@ -276,6 +295,16 @@ Our CI/CD pipeline automatically:
 2. Checks code quality and security
 3. Deploys to staging environment from staging branch
 4. Deploys to production environment from main branch
+
+#### GitHub Actions Workflows
+
+- **run-tests.yml**: Regular unit and integration tests
+- **verify-playwright.yml**: Simple verification of Playwright installation
+  - Use this to quickly check if the Playwright environment is correctly set up
+  - Runs automatically on branches with `e2e-testing` or `playwright` in the name
+- **e2e-tests.yml**: End-to-end tests with real APIs (manual trigger)
+  - Comprehensive tests with real external APIs
+  - Uses GitHub Secrets for API keys
 
 ## Testing
 
