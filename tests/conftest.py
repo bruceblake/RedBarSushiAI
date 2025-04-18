@@ -46,18 +46,110 @@ def mock_openai(monkeypatch):
         def json(self):
             return self.json_data
     
+    class MockMessage:
+        def __init__(self, content):
+            self.content = content
+    
+    class MockChoice:
+        def __init__(self, message):
+            self.message = message
+            
+    class MockCompletions:
+        def create(self, *args, **kwargs):
+            # Determine which response to provide based on the messages in kwargs
+            messages = kwargs.get('messages', [])
+            response_format = kwargs.get('response_format', None)
+            
+            # Create a mock response with the appropriate structure
+            if any("modification request" in msg.get('content', '') for msg in messages if isinstance(msg, dict)):
+                # For order modification requests
+                message_content = json.dumps({
+                    "additions": [{"name": "Spicy Tuna Roll", "quantity": 1, "price": 8.95, "reference_handler": "spicy-tuna-1", "modifier": []}],
+                    "removals": []
+                })
+            else:
+                # For regular order parsing
+                message_content = json.dumps({
+                    "intent": "order_food",
+                    "items": [{"name": "California Roll", "quantity": 2, "price": 7.95, "reference_handler": "cal-roll-1"}]
+                })
+            
+            # Create a properly structured mock result object
+            mock_result = type('MockCreateResult', (object,), {})
+            mock_result.choices = [MockChoice(MockMessage(message_content))]
+            
+            # Add other expected properties
+            mock_result.model = kwargs.get('model', 'gpt-4.1-mini')
+            mock_result.id = "chatcmpl-123456789"
+            mock_result.created = 1716038000
+            
+            return mock_result
+    
+    class MockChat:
+        def __init__(self):
+            self.completions = MockCompletions()
+    
     class MockOpenAI:
         def __init__(self, *args, **kwargs):
-            pass
-            
-        def chat_completions_create(self, *args, **kwargs):
-            return {"choices": [{"message": {"content": json.dumps({
-                "intent": "order",
-                "items": [{"name": "California Roll", "quantity": 2}],
-                "modifications": []
-            })}}]}
-            
+            self.chat = MockChat()
+    
+    # Mock the OpenAI client
     monkeypatch.setattr("openai.OpenAI", MockOpenAI)
+    
+    # We also need to mock the Agent API if it's being imported
+    # Create a mock Agent class that mimics the one in test_agent.py
+    class MockAgent:
+        def __init__(self, *args, **kwargs):
+            self.tools = type('obj', (object,), {
+                'search_menu': lambda query: {"found": True, "items": []},
+                'get_details': lambda item_name: {"found": True, "item": {}},
+                'get_menu_categories': lambda: ["Rolls", "Appetizers", "Nigiri"],
+                'get_items_by_category': lambda category: []
+            })
+            self.instructions = kwargs.get('instructions', '')
+            
+        def create_thread(self):
+            mock_thread = type('obj', (object,), {})
+            
+            # Add the messages method
+            mock_message = type('obj', (object,), {
+                'id': 'msg_123',
+                'content': [type('obj', (object,), {'text': type('obj', (object,), {})})],
+            })
+            
+            # Set appropriate response based on agent type
+            if "modify existing food orders" in self.instructions:
+                mock_message.content[0].text.value = json.dumps({
+                    "additions": [{"name": "Spicy Tuna Roll", "quantity": 1, "price": 8.95, "reference_handler": "spicy-tuna-1", "modifier": []}],
+                    "removals": []
+                })
+            else:
+                mock_message.content[0].text.value = json.dumps({
+                    "items": [{"name": "California Roll", "quantity": 1, "price": 7.95, "reference_handler": "cal-roll-1", "modifier": []}]
+                })
+            
+            # Create mock messages class with create and list methods
+            mock_messages = type('obj', (object,), {
+                'create': lambda role, content: mock_message,
+                'list': lambda after: [mock_message]
+            })
+            
+            # Create mock runs class with create and wait methods
+            mock_run = type('obj', (object,), {'status': 'completed'})
+            mock_runs = type('obj', (object,), {
+                'create': lambda: mock_run,
+                'wait': lambda run_id: mock_run
+            })
+            
+            # Add messages and runs to thread
+            mock_thread.messages = mock_messages
+            mock_thread.runs = mock_runs
+            
+            return mock_thread
+            
+    # Setup the Agent mock
+    monkeypatch.setattr("openai.agent.Agent", MockAgent)
+    
     return MockOpenAI()
 
 @pytest.fixture
