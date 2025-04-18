@@ -164,13 +164,15 @@ jobs:
     - name: Run Playwright tests
       run: npx playwright test --project=chromium
     
-    - name: Upload Playwright report
+    - name: Check for report
       if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
+      run: |
+        if [ -d "playwright-report" ]; then
+          echo "✅ Playwright tests generated reports"
+          ls -la playwright-report/
+        else
+          echo "⚠️ No Playwright report was generated"
+        fi
   
   build:
     runs-on: ubuntu-latest
