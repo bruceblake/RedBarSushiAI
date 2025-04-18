@@ -1,0 +1,72 @@
+name: Test and Lint
+
+on:
+  push:
+    branches: [ main, staging ]
+  pull_request:
+    branches: [ main, staging ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+        python -m pip install -r requirements.ci.txt
+        
+    - name: Set up test environment
+      run: |
+        # Create test config file
+        cp .env.test.example .env.test || true
+        python -c "import os; f=open('.env.test', 'w'); f.write('DATABASE_URL=sqlite:///:memory:\nFLASK_ENV=testing\nTESTING=true\nLOG_LEVEL=DEBUG\nDISABLE_OPENAI=true\nDISABLE_TWILIO=true\nDISABLE_DELIVERECT=true\nSQLALCHEMY_TRACK_MODIFICATIONS=false'); f.close()"
+        
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        
+    - name: Run unit tests
+      run: |
+        pytest -m "not integration and not load" -v
+        
+  integration-test:
+    runs-on: ubuntu-latest
+    # Only run integration tests on main and staging branches 
+    # and only if explicitly triggered or on a scheduled run
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-integration]')
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+        python -m pip install -r requirements.ci.txt
+        
+    - name: Set up test environment
+      run: |
+        cp .env.test.example .env.test || true
+        python -c "import os; f=open('.env.test', 'w'); f.write('DATABASE_URL=sqlite:///:memory:\nFLASK_ENV=testing\nTESTING=true\nLOG_LEVEL=DEBUG\nSQLALCHEMY_TRACK_MODIFICATIONS=false'); f.close()"
+        
+    - name: Run integration tests
+      run: |
+        pytest -m "integration" -v

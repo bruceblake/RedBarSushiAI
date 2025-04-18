@@ -3,10 +3,26 @@ from app import create_app
 from flask import Flask
 from unittest.mock import patch, MagicMock
 
+# Mark the entire module as integration tests
+pytestmark = pytest.mark.integration
+
 @pytest.fixture
 def app():
-    app = create_app()
-    app.config['TESTING'] = True
+    # Use in-memory SQLite for these tests
+    app = create_app({
+        'TESTING': True,
+        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+        'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+        'SQLALCHEMY_ENGINE_OPTIONS': {
+            'connect_args': {'check_same_thread': False}
+        }
+    })
+    
+    # Create tables
+    with app.app_context():
+        from app import db
+        db.create_all()
+        
     return app
 
 @pytest.fixture

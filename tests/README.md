@@ -103,8 +103,17 @@ Tests for system performance under multiple concurrent users.
 You can run specific test files or directories:
 
 ```bash
+# Run all unit tests (excluding integration and load tests)
+python -m pytest -m "not integration and not load"
+
+# Run integration tests only 
+python -m pytest -m "integration"
+
+# Run load tests only
+python -m pytest -m "load"
+
 # Run all tests
-pytest
+python -m pytest
 
 # Run a specific test file
 pytest tests/test_ai_agent.py

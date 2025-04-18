@@ -1,9 +1,34 @@
 import os
 import pytest
 import json
+import sys
+from pathlib import Path
 from flask import Flask
 from app import create_app, db
 from app.models import Location, Order
+
+# Auto-mark all tests in the integration directory with the integration marker
+def pytest_configure(config):
+    """Configure pytest - mark all tests in the integration directory"""
+    # Get the integration tests directory path
+    integration_path = Path(__file__).parent / 'integration'
+    
+    # If tests are being collected from the integration directory, mark them
+    if integration_path.exists():
+        for item in os.listdir(integration_path):
+            if item.startswith('test_') and item.endswith('.py'):
+                # Add the module to the mark
+                module = f"tests.integration.{item[:-3]}"
+                config.addinivalue_line("markers", f"{module}: integration test")
+                
+    # Also mark the load tests
+    load_path = Path(__file__).parent / 'load'
+    if load_path.exists():
+        for item in os.listdir(load_path):
+            if item.startswith('test_') and item.endswith('.py'):
+                # Add the module to the mark
+                module = f"tests.load.{item[:-3]}"
+                config.addinivalue_line("markers", f"{module}: load test")
 
 @pytest.fixture(scope='session')
 def app():
