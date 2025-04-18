@@ -1,12 +1,26 @@
 #!/bin/bash
 # Script to install and set up act for testing GitHub Actions locally
 
-echo "Installing dependencies..."
-sudo apt-get update
-sudo apt-get install -y curl docker.io
+echo "Installing act locally instead of globally..."
 
-echo "Downloading nektos/act..."
-curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+# Create local bin directory
+mkdir -p bin
+
+echo "Downloading act binary..."
+# Directly download the latest release binary
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
+
+if [[ "$ARCH" == "x86_64" ]]; then
+  ARCH="amd64"
+elif [[ "$ARCH" == "aarch64" ]]; then
+  ARCH="arm64"
+fi
+
+# Install act locally 
+curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh > bin/install-act.sh
+chmod +x bin/install-act.sh
+(cd bin && ./install-act.sh)
 
 echo "Creating .actrc file..."
 cat > .actrc << 'ACTRC'
@@ -34,23 +48,19 @@ TWILIO_AUTH_TOKEN=fake-token
 TWILIO_NUMBER=+12345678901
 ENVTEST
 
-# Make sure Docker is running
-echo "Making sure Docker service is running..."
-sudo systemctl start docker || echo "Failed to start Docker, please start it manually"
-
-echo -e "\nInstallation complete!\n"
+echo -e "\nSetup complete!\n"
 echo "Usage examples:"
 echo "---------------"
 echo "Test production verification job:"
-echo "  act -j production-verification -W .github/workflows/promote-to-main.yml"
+echo "  ./bin/act -j production-verification -W .github/workflows/promote-to-main.yml"
 echo ""
 echo "Test CI jobs:"
-echo "  act -j test -W .github/workflows/ci.yml"
-echo "  act -j lint -W .github/workflows/ci.yml"
-echo "  act -j e2e-tests -W .github/workflows/ci.yml"
+echo "  ./bin/act -j test -W .github/workflows/ci.yml"
+echo "  ./bin/act -j lint -W .github/workflows/ci.yml"
+echo "  ./bin/act -j e2e-tests -W .github/workflows/ci.yml"
 echo ""
 echo "Test a specific event:"
-echo "  act push"
-echo "  act pull_request"
+echo "  ./bin/act push"
+echo "  ./bin/act pull_request"
 echo ""
-echo "Note: You may need to run 'sudo act' depending on your Docker configuration"
+echo "Note: Docker must be running to use act"

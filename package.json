@@ -10,10 +10,10 @@
     "lint": "black app tests",
     "lint:check": "black --check app tests",
     "act:install": "./act-install.sh",
-    "act:verify": "act -j production-verification -W .github/workflows/promote-to-main.yml",
-    "act:ci": "act -j test -W .github/workflows/ci.yml",
-    "act:push": "act push",
-    "act:pr": "act pull_request"
+    "act:verify": "./bin/act -j production-verification -W .github/workflows/promote-to-main.yml",
+    "act:ci": "./bin/act -j test -W .github/workflows/ci.yml",
+    "act:push": "./bin/act push",
+    "act:pr": "./bin/act pull_request"
   },
   "keywords": [
     "ai",
@@ -26,5 +26,7 @@
   "private": true,
   "devDependencies": {
     "@playwright/test": "^1.41.2"
+  },
+  "dependencies": {
   }
 }
