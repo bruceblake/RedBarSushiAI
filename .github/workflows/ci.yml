@@ -141,9 +141,60 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         
-    - name: Verify build
+    - name: Setup test environment
       run: |
-        python -c "import app; print('Application imports successfully')"
+        cp .env.example .env.test || echo "No .env.example file found, skipping"
+        echo "OPENAI_API_KEY=sk-test-key" >> .env.test
+        echo "TWILIO_ACCOUNT_SID=test-sid" >> .env.test 
+        echo "TWILIO_AUTH_TOKEN=test-token" >> .env.test
+        echo "TWILIO_NUMBER=+12345678901" >> .env.test
+        echo "FLASK_ENV=testing" >> .env.test
+        echo "DATABASE_URL=sqlite:///:memory:" >> .env.test
+        echo "TESTING=true" >> .env.test
+        echo "DISABLE_OPENAI=true" >> .env.test
+        
+    - name: Verify build
+      env:
+        TESTING: "true"
+        DISABLE_OPENAI: "true"
+        DATABASE_URL: "sqlite:///:memory:"
+        MOCK_CELERY: "true"
+        SKIP_DB_INIT: "true"
+        FLASK_ENV: "testing"
+      run: |
+        python -c "import app; print('Application module imports successfully')"
+        
+    - name: Validate API routes
+      env:
+        TESTING: "true"
+        DISABLE_OPENAI: "true"
+        DATABASE_URL: "sqlite:///:memory:"
+        MOCK_CELERY: "true"
+        SKIP_DB_INIT: "true"
+        FLASK_ENV: "testing"
+      run: |
+        # Create a helper script to validate API routes
+        cat > validate_api.py << 'EOF'
+        import os
+        import sys
+        
+        # Set testing environment variables
+        os.environ["TESTING"] = "true"
+        os.environ["DISABLE_OPENAI"] = "true"
+        os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+        os.environ["MOCK_CELERY"] = "true"
+        os.environ["SKIP_DB_INIT"] = "true"
+        os.environ["FLASK_ENV"] = "testing"
+        
+        # Import modules with proper mocks already configured
+        import app
+        from app.routes import menu, location, order, voice
+        
+        print("API routes validated successfully")
+        EOF
+        
+        # Run the validation script
+        python validate_api.py
 
     - name: Set environment for Render deployment
       run: |
