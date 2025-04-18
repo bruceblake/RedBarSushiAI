@@ -268,6 +268,33 @@ Run a specific test:
 pytest tests/test_file.py::test_function
 ```
 
+### Testing GitHub Actions Locally
+
+To test GitHub Actions workflows locally, you can use [nektos/act](https://github.com/nektos/act). We've provided a setup script:
+
+1. Run the installation script:
+```bash
+./act-install.sh
+```
+
+2. Test a specific job in a workflow:
+```bash
+# Test the production verification job
+act -j production-verification -W .github/workflows/promote-to-main.yml
+
+# Test the CI workflow
+act -j test -W .github/workflows/ci.yml
+```
+
+3. Test a workflow on a specific event:
+```bash
+# Test on push
+act push
+
+# Test on pull request
+act pull_request
+```
+
 ## Docker Deployment
 
 ```bash

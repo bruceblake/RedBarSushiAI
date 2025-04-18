@@ -1,0 +1,30 @@
+{
+  "name": "redbarsushiai",
+  "version": "1.0.0",
+  "description": "AI voice ordering system for Red Bar Sushi restaurant",
+  "scripts": {
+    "test": "pytest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "install:playwright": "npx playwright install --with-deps",
+    "lint": "black app tests",
+    "lint:check": "black --check app tests",
+    "act:install": "./act-install.sh",
+    "act:verify": "act -j production-verification -W .github/workflows/promote-to-main.yml",
+    "act:ci": "act -j test -W .github/workflows/ci.yml",
+    "act:push": "act push",
+    "act:pr": "act pull_request"
+  },
+  "keywords": [
+    "ai",
+    "voice",
+    "restaurant",
+    "ordering"
+  ],
+  "author": "Red Bar Sushi",
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.41.2"
+  }
+}
