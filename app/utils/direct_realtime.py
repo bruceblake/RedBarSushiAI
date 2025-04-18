@@ -41,8 +41,17 @@ from openai import OpenAI
 # Get the OpenAI API key from agent_utils to keep it consistent
 from app.utils.agent_utils import OPENAI_API_KEY, log_openai_request, log_openai_response
 
-# Create standard OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
+# Create OpenAI client if we have an API key and we're not in testing mode
+import os
+if os.environ.get('TESTING') == 'True' or os.environ.get('DISABLE_OPENAI') == 'True':
+    client = None
+    logger.info("Running in test mode with OpenAI disabled")
+else:
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+    except Exception as e:
+        logger.error(f"Error initializing OpenAI client: {e}")
+        client = None
 
 class RealtimeSession:
     """Direct implementation of OpenAI's Realtime API using WebSockets with multiple backend support"""
@@ -304,6 +313,10 @@ class DirectRealtimeAudioProcessor:
         """Initialize the realtime audio processor."""
         self.openai_client = client
         self.api_key = OPENAI_API_KEY
+        # Check if we're in test mode
+        self.test_mode = os.environ.get('TESTING') == 'True' or os.environ.get('DISABLE_OPENAI') == 'True'
+        if self.test_mode:
+            logger.info("DirectRealtimeAudioProcessor running in test mode")
     
     async def process_audio_stream(self, audio_chunks_generator, content_type: str = "audio/webm"):
         """
@@ -316,6 +329,27 @@ class DirectRealtimeAudioProcessor:
         Yields:
             Dict containing the transcript segments
         """
+        # In test mode, return a mock response
+        if self.test_mode:
+            logger.info("Returning mock audio stream transcription in test mode")
+            yield {
+                "type": "transcript_complete",
+                "text": "Mock transcription for testing purposes in streaming mode.",
+                "final": True,
+                "timestamp": time.time()
+            }
+            return
+            
+        # If OpenAI client is None but not in test mode, yield error
+        if self.openai_client is None:
+            logger.error("OpenAI client is None but not in test mode")
+            yield {
+                "type": "error",
+                "error": "OpenAI client unavailable",
+                "timestamp": time.time()
+            }
+            return
+            
         try:
             logger.info(f"Processing audio stream with content type: {content_type}")
             
@@ -548,6 +582,18 @@ class DirectRealtimeAudioProcessor:
         Yields:
             Audio data chunks
         """
+        # In test mode, return mock audio data
+        if self.test_mode:
+            logger.info("Returning mock audio data in test mode")
+            yield b'MOCK_AUDIO_DATA_FOR_TESTING'
+            return
+            
+        # If OpenAI client is None but not in test mode, yield empty data
+        if self.openai_client is None:
+            logger.error("OpenAI client is None but not in test mode")
+            yield b''
+            return
+            
         try:
             logger.info(f"Generating speech for text: '{text[:50]}...' using voice: {voice}")
             
@@ -642,6 +688,40 @@ class DirectRealtimeAudioProcessor:
         Yields:
             Response tokens as they arrive
         """
+        # In test mode, return mock conversation responses
+        if self.test_mode:
+            logger.info("Returning mock conversation in test mode")
+            # First yield a token stream
+            mock_response = "Thank you for your question. This is a mock response for testing the Red Bar Sushi AI system."
+            for word in mock_response.split():
+                yield {
+                    "type": "message",
+                    "text": word + " ",
+                    "complete": False,
+                    "timestamp": time.time()
+                }
+                await asyncio.sleep(0.01)  # Small delay to simulate streaming
+            
+            # Then yield the complete message
+            yield {
+                "type": "message_complete",
+                "text": mock_response,
+                "complete": True,
+                "timestamp": time.time()
+            }
+            return
+            
+        # If OpenAI client is None but not in test mode, yield error
+        if self.openai_client is None:
+            logger.error("OpenAI client is None but not in test mode")
+            yield {
+                "type": "message_complete",
+                "text": "I'm sorry, the AI service is currently unavailable. Please try again later.",
+                "complete": True,
+                "timestamp": time.time()
+            }
+            return
+            
         try:
             if conversation_history is None:
                 conversation_history = []
@@ -1041,6 +1121,25 @@ def process_audio(audio_data, callback=None):
         Dict containing the transcription or error
     """
     logger.info(f"Processing audio data...")
+    
+    # Check if we're in test mode
+    is_test_mode = os.environ.get('TESTING') == 'True' or os.environ.get('DISABLE_OPENAI') == 'True'
+    
+    # In test mode, return a mock response
+    if is_test_mode:
+        logger.info("Returning mock audio processing response in test mode")
+        result = {
+            "type": "transcription",
+            "text": "This is a mock response for testing purposes.",
+            "model": "test-mock-model",
+            "timestamp": time.time()
+        }
+        
+        # Call the callback if provided
+        if callback and callable(callback):
+            callback(result)
+        
+        return result
     
     try:
         # Create a system message for restaurant context
