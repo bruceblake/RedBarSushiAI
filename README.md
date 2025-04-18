@@ -91,6 +91,29 @@
   ```sh
   pytest tests/test_file.py::test_function
   ```
+- Run tests in CI mode (without external API dependencies):
+  ```sh
+  TESTING=True DISABLE_OPENAI=True pytest
+  ```
+
+## 🧹 Code Quality
+
+- Format Python code with Black:
+  ```sh
+  black app tests
+  ```
+- Check code formatting without making changes:
+  ```sh
+  black --check app tests
+  ```
+- Lint code with Ruff:
+  ```sh
+  ruff check app tests
+  ```
+- Fix auto-fixable linting issues:
+  ```sh
+  ruff check --fix app tests
+  ```
 
 ---
 

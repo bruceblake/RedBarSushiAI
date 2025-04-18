@@ -6,28 +6,37 @@ import json
 import asyncio
 import time
 import os
-from functools import wraps
 import traceback
 import uuid
 
 # Import WebSocket handler from Flask-Sock
 from app import sock
 
-# Try to import from the original module first 
+# Try to import from the original module first
 try:
-    from app.utils.agent_utils import analyze_user_input, get_order_modifications, OrderParsingAgent
+    from app.utils.agent_utils import (
+        analyze_user_input,
+        get_order_modifications,
+        OrderParsingAgent,
+    )
+
     logger = logging.getLogger(__name__)
     logger.info("Successfully imported OpenAI agent utilities")
 except ImportError:
     # If that fails, use our simplified implementation
-    from app.utils.agent_utils_simple import analyze_user_input, get_order_modifications, OrderParsingAgent
+    from app.utils.agent_utils_simple import (
+        analyze_user_input,
+        get_order_modifications,
+        OrderParsingAgent,
+    )
+
     logger = logging.getLogger(__name__)
     logger.warning("Using simplified agent utilities (OpenAI not available)")
 
 # Import real-time audio processing utilities
 from app.utils.realtime_audio import get_audio_processor
 
-voice_bp = Blueprint('voice', __name__)
+voice_bp = Blueprint("voice", __name__)
 logger = logging.getLogger(__name__)
 
 # Import channel_status from order.py
@@ -38,7 +47,7 @@ from app.routes.order import channel_status
 conversation_sessions = {}
 
 
-@voice_bp.route('/', methods=['GET', 'POST'])
+@voice_bp.route("/", methods=["GET", "POST"])
 def receive_call():
     # Log extensive details about the request to diagnose routing issues
     logger.info("==== INCOMING CALL RECEIVED ====")
@@ -49,180 +58,206 @@ def receive_call():
     logger.info(f"Base URL: {request.base_url}")
     logger.info(f"Request method: {request.method}")
     logger.info(f"Environment: {os.environ.get('FLASK_ENV', 'undefined')}")
-    logger.info(f"Is this staging?: {os.environ.get('IS_STAGING', 'No, not explicitly marked as staging')}")
+    logger.info(
+        f"Is this staging?: {os.environ.get('IS_STAGING', 'No, not explicitly marked as staging')}"
+    )
     logger.info(f"Current working directory: {os.getcwd()}")
     logger.info(f"From number: {request.values.get('From', 'Not provided')}")
     logger.info("==== END CALL DETAILS ====")
-    
+
     # Set initial session variables
     from app.config import DEFAULT_TEST_CUSTOMER_NUMBER
-    
+
     # Get the caller's phone number
-    caller_number = request.values.get('From', '')
-    
+    caller_number = request.values.get("From", "")
+
     # In staging environment, use a default test number to ensure SMS deliverability
-    is_staging = os.environ.get('IS_STAGING') or os.environ.get('FLASK_ENV') == 'staging'
+    is_staging = (
+        os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging"
+    )
     if is_staging and DEFAULT_TEST_CUSTOMER_NUMBER:
-        logger.info(f"STAGING ENV: Using default test number instead of {caller_number}")
-        session['sender'] = DEFAULT_TEST_CUSTOMER_NUMBER
+        logger.info(
+            f"STAGING ENV: Using default test number instead of {caller_number}"
+        )
+        session["sender"] = DEFAULT_TEST_CUSTOMER_NUMBER
     else:
-        session['sender'] = caller_number
-        
-    session['order_message'] = ""
-    session['total_price'] = 0
-    session['modification_in_progress'] = False
-    session['caller_name'] = "Valued Customer"
-    session['ordering_in_progress'] = False
+        session["sender"] = caller_number
+
+    session["order_message"] = ""
+    session["total_price"] = 0
+    session["modification_in_progress"] = False
+    session["caller_name"] = "Valued Customer"
+    session["ordering_in_progress"] = False
 
     response = VoiceResponse()
-    
+
     # Add an environment identifier to make it clear which environment is responding
-    env_name = "STAGING" if os.environ.get('IS_STAGING') or os.environ.get('FLASK_ENV') == 'staging' else "PRODUCTION"
-    
+    env_name = (
+        "STAGING"
+        if os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging"
+        else "PRODUCTION"
+    )
+
     with response.gather(
-        input='speech',
-        action='/take_name',
+        input="speech",
+        action="/take_name",
         enhanced=True,
         speech_model="phone_call",
         language="en-US",
-        speech_timeout="auto"
+        speech_timeout="auto",
     ) as g:
-        g.say(f"Hello! This is the {env_name} environment. Thank you for calling Red Bar Sushi. May I have your name, please?")
+        g.say(
+            f"Hello! This is the {env_name} environment. Thank you for calling Red Bar Sushi. May I have your name, please?"
+        )
     return Response(str(response), mimetype="text/xml")
 
 
-@voice_bp.route('/take_name', methods=['POST'])
+@voice_bp.route("/take_name", methods=["POST"])
 def take_name():
-    full_speech = request.form.get('SpeechResult', '').strip()
-    
+    full_speech = request.form.get("SpeechResult", "").strip()
+
     # Check if speech is empty, which means the user was silent
     if not full_speech:
         # Track how many silence retries we've done
-        silence_retry_count = session.get('silence_retry_count', 0)
-        session['silence_retry_count'] = silence_retry_count + 1
-        
+        silence_retry_count = session.get("silence_retry_count", 0)
+        session["silence_retry_count"] = silence_retry_count + 1
+
         response = VoiceResponse()
-        
+
         # Vary the message based on how many times we've tried
         if silence_retry_count >= 2:
             # After multiple silent attempts, give a more directive prompt
             g = response.gather(
-                input='speech dtmf',
-                action='/take_name',
+                input="speech dtmf",
+                action="/take_name",
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
                 speech_timeout="auto",
-                timeout=7  # Give more time
+                timeout=7,  # Give more time
             )
-            g.say("I need your name to continue. Please say your name or press any key to continue.")
-            
+            g.say(
+                "I need your name to continue. Please say your name or press any key to continue."
+            )
+
             # Add a fallback to continue even without a name after too many silent attempts
-            response.redirect('/main_menu_fallback')
+            response.redirect("/main_menu_fallback")
         else:
             # Normal prompt for the first retry
             g = response.gather(
-                input='speech',
-                action='/take_name',
+                input="speech",
+                action="/take_name",
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
                 speech_timeout="auto",
-                timeout=7  # Give more time
+                timeout=7,  # Give more time
             )
-            g.say("I'm waiting for your name. Please tell me your name so I can help you with your order.")
-        
+            g.say(
+                "I'm waiting for your name. Please tell me your name so I can help you with your order."
+            )
+
         return Response(str(response), mimetype="text/xml")
-    
+
     # Reset silence counter when we get speech
-    session['silence_retry_count'] = 0
-    
+    session["silence_retry_count"] = 0
+
     # Use the enhanced AI agent to extract the name
     caller_name = extract_name_with_agent(full_speech)
-    
+
     if caller_name:
         # Store name in session temporarily before confirmation
-        session['temp_caller_name'] = caller_name
-        
+        session["temp_caller_name"] = caller_name
+
         # Create a name confirmation response that spells out the name
         response = VoiceResponse()
-        
+
         # Spell out the name for confirmation
         spelled_name = " ".join(list(caller_name))
-        
+
         with response.gather(
-            input='speech dtmf',
-            action='/confirm_name',
+            input="speech dtmf",
+            action="/confirm_name",
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
             timeout=5,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say(f"I heard {caller_name}, spelled {spelled_name}. Is that correct? Say yes or press 1 for yes, or say no or press 2 to correct it.")
-        
+            g.say(
+                f"I heard {caller_name}, spelled {spelled_name}. Is that correct? Say yes or press 1 for yes, or say no or press 2 to correct it."
+            )
+
         return Response(str(response), mimetype="text/xml")
     else:
         # Try again with a more specific prompt if we couldn't get the name
         response = VoiceResponse()
         with response.gather(
-            input='speech dtmf',
-            action='/take_name',
+            input="speech dtmf",
+            action="/take_name",
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
-            timeout=7  # Give more time
+            timeout=7,  # Give more time
         ) as g:
-            g.say("I didn't catch your name. Please say just your first name clearly, or press any key to continue.")
+            g.say(
+                "I didn't catch your name. Please say just your first name clearly, or press any key to continue."
+            )
         return Response(str(response), mimetype="text/xml")
 
 
-@voice_bp.route('/confirm_name', methods=['POST'])
+@voice_bp.route("/confirm_name", methods=["POST"])
 def confirm_name():
     # Get the response from the user
-    user_resp = (request.form.get('SpeechResult', '') or "").lower()
-    dtmf_input = request.form.get('Digits', '')
-    
+    user_resp = (request.form.get("SpeechResult", "") or "").lower()
+    dtmf_input = request.form.get("Digits", "")
+
     # Determine if the user confirmed the name
     confirmed = False
-    if dtmf_input == '1' or 'yes' in user_resp or 'correct' in user_resp or 'right' in user_resp or 'that\'s it' in user_resp:
+    if (
+        dtmf_input == "1"
+        or "yes" in user_resp
+        or "correct" in user_resp
+        or "right" in user_resp
+        or "that's it" in user_resp
+    ):
         confirmed = True
-    
+
     # Get the temporary name from session
-    temp_name = session.get('temp_caller_name', 'Valued Customer')
-    
+    temp_name = session.get("temp_caller_name", "Valued Customer")
+
     response = VoiceResponse()
-    
+
     if confirmed:
         # Set the confirmed name and move to main menu
-        session['caller_name'] = temp_name
+        session["caller_name"] = temp_name
         menu_prompt = f"Thanks, {session['caller_name']}! Press or say 1 to order, 2 for menu questions, 3 for a real person."
-        
+
         with response.gather(
-            input='speech dtmf',
-            action='/main_menu',
+            input="speech dtmf",
+            action="/main_menu",
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
-            num_digits=1
+            num_digits=1,
         ) as g:
             g.say(menu_prompt)
     else:
         # User said the name was incorrect, ask for name again
         with response.gather(
-            input='speech',
-            action='/take_name',
+            input="speech",
+            action="/take_name",
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
-            timeout=7  # Give more time
+            timeout=7,  # Give more time
         ) as g:
             g.say("I apologize for getting that wrong. Please tell me your name again.")
-    
+
     return Response(str(response), mimetype="text/xml")
 
 
@@ -230,51 +265,65 @@ def extract_name_with_agent(speech_text):
     """
     Use the AI agent to extract a name from speech text.
     Falls back to regex-based extraction if agent isn't available.
-    
+
     Args:
         speech_text: The raw speech text from the user
-        
+
     Returns:
         str: The extracted name, or empty string if no name found
     """
     logger.info(f"Extracting name from: '{speech_text}'")
-    
+
     # Check if OpenAI is available
     try:
-        from app.utils.agent_utils import OPENAI_API_KEY, log_openai_request, log_openai_response
-        
+        from app.utils.agent_utils import (
+            OPENAI_API_KEY,
+            log_openai_request,
+            log_openai_response,
+        )
+
         if OPENAI_API_KEY:
             logger.info("Using OpenAI for name extraction")
-            
+
             # Prepare system message with instruction
             messages = [
-                {"role": "system", "content": "You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY the name, nothing else."},
-                {"role": "user", "content": f"Extract the person's name from: '{speech_text}'. Respond with just the name, properly capitalized."}
+                {
+                    "role": "system",
+                    "content": "You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY the name, nothing else.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Extract the person's name from: '{speech_text}'. Respond with just the name, properly capitalized.",
+                },
             ]
-            
+
             # Log the request
             log_openai_request("gpt-4.1-mini", messages, "extract_name")
-            
+
             try:
                 import openai
+
                 response = openai.chat.completions.create(
                     model="gpt-4.1-mini",
                     messages=messages,
                     max_tokens=20,  # Short response for just the name
-                    temperature=0  # Deterministic response
+                    temperature=0,  # Deterministic response
                 )
-                
+
                 # Log the response
                 log_openai_response(response, "extract_name")
-                
+
                 # Extract the name
                 if response and response.choices and response.choices[0].message:
                     name = response.choices[0].message.content.strip()
-                    
+
                     # Basic validation of returned name
                     if name and len(name) > 1:
                         # Make sure it's not an explanation
-                        if len(name.split()) <= 3 and not any(word in name.lower() for word in ["sorry", "couldn't", "extract", "doesn't"]):
+                        if len(name.split()) <= 3 and not any(
+                            word in name.lower()
+                            for word in ["sorry", "couldn't", "extract", "doesn't"]
+                        ):
                             logger.info(f"Successfully extracted name: {name}")
                             return name
                         else:
@@ -285,7 +334,7 @@ def extract_name_with_agent(speech_text):
                 logger.error(f"Error using OpenAI for name extraction: {e}")
     except ImportError:
         logger.warning("OpenAI module not available for name extraction")
-    
+
     # Fall back to regex-based extraction
     logger.info("Falling back to regex-based name extraction")
     return extract_name_from_speech(speech_text)
@@ -294,16 +343,16 @@ def extract_name_with_agent(speech_text):
 def extract_name_from_speech(speech_text):
     """
     Intelligently extract a name from speech text using regex patterns.
-    
+
     Args:
         speech_text: The raw speech text from the user
-        
+
     Returns:
         str: The extracted name, or empty string if no name found
     """
     if not speech_text:
         return ""
-        
+
     # Common name introduction patterns
     name_patterns = [
         # "My name is John"
@@ -314,103 +363,130 @@ def extract_name_from_speech(speech_text):
         r"(?:i'm called|i am called|i go by|people call me)\s+([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
         r"(?:the name's|names|my name's)\s+([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
     ]
-    
+
     # Normalize the text
-    text = speech_text.lower().strip().replace(".", "").replace("?", "").replace("!", "")
-    
+    text = (
+        speech_text.lower().strip().replace(".", "").replace("?", "").replace("!", "")
+    )
+
     # Try each pattern
     for pattern in name_patterns:
         import re
+
         matches = re.search(pattern, text, re.IGNORECASE)
         if matches:
             name = matches.group(1).strip()
             # Capitalize each part of the name
             return " ".join(part.capitalize() for part in name.split())
-    
+
     # If no pattern matches, just return the first 2-3 words if they look like a name
     words = text.split()
     if len(words) <= 3:
         return " ".join(word.capitalize() for word in words)
     else:
         # Take the first two words if they seem like a name (not common speech fillers)
-        common_fillers = ["um", "uh", "so", "well", "like", "yes", "no", "yeah", "hi", "hello", "hey", 
-                         "this", "the", "a", "an", "what", "where", "when", "who", "why", "how"]
+        common_fillers = [
+            "um",
+            "uh",
+            "so",
+            "well",
+            "like",
+            "yes",
+            "no",
+            "yeah",
+            "hi",
+            "hello",
+            "hey",
+            "this",
+            "the",
+            "a",
+            "an",
+            "what",
+            "where",
+            "when",
+            "who",
+            "why",
+            "how",
+        ]
         potential_name = []
-        
+
         for word in words[:3]:  # Look at first 3 words at most
             if word not in common_fillers and len(word) > 1:
                 potential_name.append(word.capitalize())
             if len(potential_name) >= 2:  # Stop at first and last name
                 break
-                
+
         if potential_name:
             return " ".join(potential_name)
-    
+
     # If everything else fails, return the raw text (limited to first few words)
     words = speech_text.split()
     if words:
         return " ".join(words[:2]).capitalize()
-        
+
     # No name found
     return ""
 
 
-@voice_bp.route('/main_menu_fallback', methods=['POST', 'GET'])
+@voice_bp.route("/main_menu_fallback", methods=["POST", "GET"])
 def main_menu_fallback():
     """
     Fallback for when we can't get a name or other input.
     Simply set a default name and continue with DTMF-focused options.
     """
     # Set a generic name if we don't have one
-    if 'caller_name' not in session or not session['caller_name']:
-        session['caller_name'] = "Valued Customer"
-    
+    if "caller_name" not in session or not session["caller_name"]:
+        session["caller_name"] = "Valued Customer"
+
     # Reset all retry counters
-    session['silence_retry_count'] = 0
-    session['menu_silence_retry_count'] = 0
-    session['menu_question_silence'] = 0
-    session['order_silence_retry'] = 0
-    session['understand_retry'] = 0
-    session['modify_silence_retry'] = 0
-    
+    session["silence_retry_count"] = 0
+    session["menu_silence_retry_count"] = 0
+    session["menu_question_silence"] = 0
+    session["order_silence_retry"] = 0
+    session["understand_retry"] = 0
+    session["modify_silence_retry"] = 0
+
     logger.info("Entering main_menu_fallback - all silence counters reset")
-    
+
     # Create voice response focused on DTMF input
     response = VoiceResponse()
     with response.gather(
-        input='dtmf speech',  # Allow both but emphasize DTMF in the prompt
-        action='/main_menu',
+        input="dtmf speech",  # Allow both but emphasize DTMF in the prompt
+        action="/main_menu",
         num_digits=1,
         timeout=20,  # Extended timeout to give plenty of time
-        speech_timeout=15
+        speech_timeout=15,
     ) as g:
         g.say(
-            f"Welcome to Red Bar Sushi! We may be having trouble hearing you. Please use your phone keypad. Press 1 to order, press 2 for menu questions, or press 3 to speak with a person.")
+            "Welcome to Red Bar Sushi! We may be having trouble hearing you. Please use your phone keypad. Press 1 to order, press 2 for menu questions, or press 3 to speak with a person."
+        )
         # Add a brief pause to give them time to process
         g.pause(length=1)
         g.say("Again, press 1 to order, 2 for menu, or 3 for help.")
-    
-    # Add fallback if we still get nothing - in the worst case, don't hang up
-    response.redirect('/main_menu_dtmf_only')
-    
-    return Response(str(response), mimetype='text/xml')
 
-@voice_bp.route('/main_menu_dtmf_only', methods=['POST', 'GET'])
+    # Add fallback if we still get nothing - in the worst case, don't hang up
+    response.redirect("/main_menu_dtmf_only")
+
+    return Response(str(response), mimetype="text/xml")
+
+
+@voice_bp.route("/main_menu_dtmf_only", methods=["POST", "GET"])
 def main_menu_dtmf_only():
     """
     Last resort fallback that only accepts DTMF input.
     """
     logger.warning("Entering DTMF-only mode - audio quality may be very poor")
-    
+
     response = VoiceResponse()
     with response.gather(
-        input='dtmf',  # DTMF only
-        action='/main_menu',
+        input="dtmf",  # DTMF only
+        action="/main_menu",
         num_digits=1,
-        timeout=30  # Very long timeout
+        timeout=30,  # Very long timeout
     ) as g:
         g.say(
-            "We're having trouble with the audio connection. Please use your phone keypad only.")
+            "We're having trouble with the audio connection. Please use your phone keypad only."
+        )
         g.pause(length=1)
         g.say("Press 1 to place an order.")
         g.pause(length=1)
@@ -419,204 +495,221 @@ def main_menu_dtmf_only():
         g.say("Press 3 to speak with a staff member.")
         g.pause(length=3)
         g.say("Press any key now to continue.")
-    
-    # If we still don't get any input, provide a friendly message and end the call
-    response.say("We apologize for the technical difficulties. Please call back or visit our website at redbar sushi dot com. Thank you for your patience.")
-    
-    return Response(str(response), mimetype='text/xml')
 
-@voice_bp.route('/main_menu', methods=['POST'])
+    # If we still don't get any input, provide a friendly message and end the call
+    response.say(
+        "We apologize for the technical difficulties. Please call back or visit our website at redbar sushi dot com. Thank you for your patience."
+    )
+
+    return Response(str(response), mimetype="text/xml")
+
+
+@voice_bp.route("/main_menu", methods=["POST"])
 def main_menu():
-    user_resp = (request.form.get('SpeechResult', '') or "").lower()
-    dtmf_input = request.form.get('Digits', '')
-    
+    user_resp = (request.form.get("SpeechResult", "") or "").lower()
+    dtmf_input = request.form.get("Digits", "")
+
     # Track silence for retries
     silence = not user_resp and not dtmf_input
-    silence_retry_count = session.get('menu_silence_retry_count', 0)
-    
+    silence_retry_count = session.get("menu_silence_retry_count", 0)
+
     choice = None
-    if dtmf_input == '1':
-        choice = 'order'
-    elif dtmf_input == '2':
-        choice = 'ask_menu'
-    elif dtmf_input == '3':
-        choice = 'real_person'
+    if dtmf_input == "1":
+        choice = "order"
+    elif dtmf_input == "2":
+        choice = "ask_menu"
+    elif dtmf_input == "3":
+        choice = "real_person"
     else:
         if "1" in user_resp or "order" in user_resp:
-            choice = 'order'
+            choice = "order"
         elif "2" in user_resp or "menu" in user_resp or "question" in user_resp:
-            choice = 'ask_menu'
+            choice = "ask_menu"
         elif "3" in user_resp or "person" in user_resp or "human" in user_resp:
-            choice = 'real_person'
-    
+            choice = "real_person"
+
     response = VoiceResponse()
-    
+
     # Handle silence by incrementing counter and giving appropriate prompts
     if silence:
-        session['menu_silence_retry_count'] = silence_retry_count + 1
+        session["menu_silence_retry_count"] = silence_retry_count + 1
         logger.info(f"Menu silence detected. Retry count: {silence_retry_count+1}")
-        
+
         # After multiple silences, give clearer instructions with progressively more help
         if silence_retry_count >= 3:
             # Too many silent attempts, use a super clear message with long timeout
-            logger.warning("Multiple silences detected in main menu, going to DTMF-only mode")
+            logger.warning(
+                "Multiple silences detected in main menu, going to DTMF-only mode"
+            )
             with response.gather(
-                input='dtmf speech',
-                action='/main_menu',
+                input="dtmf speech",
+                action="/main_menu",
                 num_digits=1,
                 timeout=15,
-                speech_timeout=15  # Much longer timeout
+                speech_timeout=15,  # Much longer timeout
             ) as g:
                 g.say(
-                    "I can't hear you clearly. Please press 1 on your keypad to order, press 2 for menu questions, or press 3 to speak with a person. You can also try speaking louder.")
-                
+                    "I can't hear you clearly. Please press 1 on your keypad to order, press 2 for menu questions, or press 3 to speak with a person. You can also try speaking louder."
+                )
+
             # If we still get nothing, redirect to a basic menu that doesn't require speech
-            response.redirect('/main_menu_fallback')
-            return Response(str(response), mimetype='text/xml')
+            response.redirect("/main_menu_fallback")
+            return Response(str(response), mimetype="text/xml")
         elif silence_retry_count >= 1:
             # First retry with better guidance and speech + DTMF
             with response.gather(
-                input='dtmf speech',
-                action='/main_menu',
+                input="dtmf speech",
+                action="/main_menu",
                 num_digits=1,
                 timeout=12,
-                speech_timeout=12
+                speech_timeout=12,
             ) as g:
                 g.say(
-                    "I'm having trouble hearing you. Please press 1 to order, 2 for menu questions, or 3 for a real person. Or you can speak your choice clearly.")
-            
+                    "I'm having trouble hearing you. Please press 1 to order, 2 for menu questions, or 3 for a real person. Or you can speak your choice clearly."
+                )
+
             # If still nothing, we'll redirect to handle that case
-            response.redirect('/main_menu')
-            return Response(str(response), mimetype='text/xml')
+            response.redirect("/main_menu")
+            return Response(str(response), mimetype="text/xml")
     else:
         # Reset counter when we get input
-        session['menu_silence_retry_count'] = 0
-    
-    if choice == 'order' and channel_status == 1:
-        session['ordering_in_progress'] = True
+        session["menu_silence_retry_count"] = 0
+
+    if choice == "order" and channel_status == 1:
+        session["ordering_in_progress"] = True
         with response.gather(
-            input='speech',
-            action='/take_order',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=7  # Give more time
-        ) as g:
-            g.say("Please tell me what you would like to order.")
-    elif choice == 'ask_menu':
-        with response.gather(
-            input='speech',
-            action='/handle_menu_questions',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=7  # Give more time
-        ) as g:
-            g.say(
-                "You can ask for the menu, prices, descriptions, or say what you'd like to order.")
-    elif choice == 'real_person':
-        response.say("Please hold, transferring to a real person.")
-        response.hangup()
-    else:
-        with response.gather(
-            input='speech dtmf',
-            action='/main_menu',
+            input="speech",
+            action="/take_order",
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
             timeout=7,  # Give more time
-            num_digits=1
+        ) as g:
+            g.say("Please tell me what you would like to order.")
+    elif choice == "ask_menu":
+        with response.gather(
+            input="speech",
+            action="/handle_menu_questions",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            timeout=7,  # Give more time
         ) as g:
             g.say(
-                "I didn't understand. Press 1 to order, 2 for menu questions, 3 for a real person.")
-    return Response(str(response), mimetype='text/xml')
+                "You can ask for the menu, prices, descriptions, or say what you'd like to order."
+            )
+    elif choice == "real_person":
+        response.say("Please hold, transferring to a real person.")
+        response.hangup()
+    else:
+        with response.gather(
+            input="speech dtmf",
+            action="/main_menu",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            timeout=7,  # Give more time
+            num_digits=1,
+        ) as g:
+            g.say(
+                "I didn't understand. Press 1 to order, 2 for menu questions, 3 for a real person."
+            )
+    return Response(str(response), mimetype="text/xml")
 
 
-@voice_bp.route('/handle_menu_questions', methods=['POST'])
+@voice_bp.route("/handle_menu_questions", methods=["POST"])
 def handle_menu_questions():
     """Handle menu-related questions from the caller."""
-    user_input = request.form.get('SpeechResult', '').lower()
-    
+    user_input = request.form.get("SpeechResult", "").lower()
+
     # Check for silence
     if not user_input:
-        menu_silence_retry = session.get('menu_question_silence', 0)
-        session['menu_question_silence'] = menu_silence_retry + 1
-        
+        menu_silence_retry = session.get("menu_question_silence", 0)
+        session["menu_question_silence"] = menu_silence_retry + 1
+
         response = VoiceResponse()
         if menu_silence_retry >= 3:
             # After too many silences, redirect to fallback mode
-            logger.warning("Too many silences in menu questions, redirecting to fallback")
-            response.redirect('/main_menu_fallback')
-            return Response(str(response), mimetype='text/xml')
+            logger.warning(
+                "Too many silences in menu questions, redirecting to fallback"
+            )
+            response.redirect("/main_menu_fallback")
+            return Response(str(response), mimetype="text/xml")
         elif menu_silence_retry >= 1:
             # After first or second attempt, provide more options with both speech and DTMF
             with response.gather(
-                input='speech dtmf',
-                action='/handle_menu_questions',
+                input="speech dtmf",
+                action="/handle_menu_questions",
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
                 speech_timeout=12,
                 timeout=15,
                 num_digits=1,
-                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls" # Help Twilio recognize common items
+                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls",  # Help Twilio recognize common items
             ) as g:
-                g.say("I'm having trouble hearing you. You can ask about our menu items by speaking clearly, or press 1 to hear our most popular items, press 2 to return to the main menu.")
-            
+                g.say(
+                    "I'm having trouble hearing you. You can ask about our menu items by speaking clearly, or press 1 to hear our most popular items, press 2 to return to the main menu."
+                )
+
             # Provide a fallback if gather fails
-            response.redirect('/main_menu')
-            return Response(str(response), mimetype='text/xml')
+            response.redirect("/main_menu")
+            return Response(str(response), mimetype="text/xml")
         else:
             # First retry with a prompt
             with response.gather(
-                input='speech',
-                action='/handle_menu_questions',
+                input="speech",
+                action="/handle_menu_questions",
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
-                speech_timeout=10, # Use fixed timeout
+                speech_timeout=10,  # Use fixed timeout
                 timeout=12,  # Give more time
-                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls" # Help Twilio recognize common items
+                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls",  # Help Twilio recognize common items
             ) as g:
-                g.say("I didn't hear your question. You can ask about our menu items, prices, or special rolls. What would you like to know?")
-            
+                g.say(
+                    "I didn't hear your question. You can ask about our menu items, prices, or special rolls. What would you like to know?"
+                )
+
             # Add fallback in case this gather fails too
-            response.redirect('/handle_menu_questions')
-            return Response(str(response), mimetype='text/xml')
-    
+            response.redirect("/handle_menu_questions")
+            return Response(str(response), mimetype="text/xml")
+
     # Reset silence counter when we get speech
-    session['menu_question_silence'] = 0
-    
+    session["menu_question_silence"] = 0
+
     # Use the new agent-based analysis
     analysis = analyze_user_input(user_input)
-    intent = analysis.get('intent', 'other')
-    
+    intent = analysis.get("intent", "other")
+
     response = VoiceResponse()
-    
-    if intent == 'order_food':
+
+    if intent == "order_food":
         # User decided to order instead of asking questions
-        session['ordering_in_progress'] = True
+        session["ordering_in_progress"] = True
         with response.gather(
-            input='speech',
-            action='/take_order',
+            input="speech",
+            action="/take_order",
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto"
+            speech_timeout="auto",
         ) as g:
-            g.say("I'll take your order now. Please tell me what you would like to order.")
-    elif intent == 'ask_menu':
+            g.say(
+                "I'll take your order now. Please tell me what you would like to order."
+            )
+    elif intent == "ask_menu":
         # Generic menu information
         with response.gather(
-            input='speech',
-            action='/handle_menu_questions',
+            input="speech",
+            action="/handle_menu_questions",
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto"
+            speech_timeout="auto",
         ) as g:
             # Use agent.menu_tool to get categories for more accurate information
             menu_categories = []
@@ -626,39 +719,49 @@ def handle_menu_questions():
                 cat_text = ", ".join(menu_categories[:5]) + " and more"
             except:
                 cat_text = "sushi rolls, nigiri, sashimi, and special rolls"
-                
-            g.say(f"Our menu features a variety of {cat_text}. " +
-                  "We have popular items like California Roll, Spicy Tuna Roll, Dragon Roll, and more. " +
-                  "Would you like to know about specific items, prices, or would you like to place an order now?")
-    elif intent == 'get_menu_item_price' or intent == 'describe_menu_item':
+
+            g.say(
+                f"Our menu features a variety of {cat_text}. "
+                + "We have popular items like California Roll, Spicy Tuna Roll, Dragon Roll, and more. "
+                + "Would you like to know about specific items, prices, or would you like to place an order now?"
+            )
+    elif intent == "get_menu_item_price" or intent == "describe_menu_item":
         # Look up the specific item using agent
         agent = OrderParsingAgent()
         item_name = ""
-        if 'menu_items' in analysis and analysis['menu_items']:
-            item_name = analysis['menu_items'][0]['name']
-        
+        if "menu_items" in analysis and analysis["menu_items"]:
+            item_name = analysis["menu_items"][0]["name"]
+
         logger.info(f"Looking up menu item details for: '{item_name}'")
-        
+
         # Get item details from menu with enhanced logging
         result = agent.menu_tool.get_details(item_name)
         logger.info(f"Menu lookup result: {result.get('found', False)}")
-        
+
         if result.get("found"):
             item = result.get("item", {})
             # Check if item is available
             if item.get("available", True) and not item.get("snoozed", False):
-                description = f"The {item.get('name')} costs ${item.get('price', 0):.2f}."
-                if intent == 'describe_menu_item':
-                    description += f" {item.get('description', 'It is one of our popular items.')}"
-                
+                description = (
+                    f"The {item.get('name')} costs ${item.get('price', 0):.2f}."
+                )
+                if intent == "describe_menu_item":
+                    description += (
+                        f" {item.get('description', 'It is one of our popular items.')}"
+                    )
+
                 # Add modifier info if available
-                if result.get("modifiers") and intent == 'describe_menu_item':
+                if result.get("modifiers") and intent == "describe_menu_item":
                     mod_groups = result.get("modifiers", [])
                     if mod_groups:
                         mod_info = " Available add-ons include: "
                         mod_list = []
-                        for group in mod_groups[:2]:  # Limit to first 2 groups for brevity
-                            for mod in group.get("modifiers", [])[:3]:  # Limit to first 3 modifiers per group
+                        for group in mod_groups[
+                            :2
+                        ]:  # Limit to first 2 groups for brevity
+                            for mod in group.get("modifiers", [])[
+                                :3
+                            ]:  # Limit to first 3 modifiers per group
                                 mod_name = mod.get("name", "")
                                 mod_price = mod.get("price", 0)
                                 if mod_price > 0:
@@ -670,91 +773,106 @@ def handle_menu_questions():
             else:
                 # Item exists but is unavailable
                 if item.get("snoozed", False):
-                    description = f"I'm sorry, the {item.get('name')} is temporarily unavailable."
+                    description = (
+                        f"I'm sorry, the {item.get('name')} is temporarily unavailable."
+                    )
                 else:
-                    description = f"I'm sorry, the {item.get('name')} is not currently available."
+                    description = (
+                        f"I'm sorry, the {item.get('name')} is not currently available."
+                    )
         else:
             # Try to suggest alternatives if item not found
             from app.utils.menu_utils import get_popular_menu_items
+
             try:
                 popular_items = get_popular_menu_items(3)
                 if popular_items:
-                    items_text = ", ".join([f"{item['name']} (${item['price']:.2f})" for item in popular_items])
+                    items_text = ", ".join(
+                        [
+                            f"{item['name']} (${item['price']:.2f})"
+                            for item in popular_items
+                        ]
+                    )
                     description = f"I'm sorry, I couldn't find '{item_name}' on our menu. You might be interested in: {items_text}."
                 else:
                     description = "I'm sorry, I couldn't find that item on our menu."
             except Exception as e:
                 logger.error(f"Error getting popular items: {e}")
                 description = "I'm sorry, I couldn't find that item on our menu."
-            
+
         with response.gather(
-            input='speech',
-            action='/handle_menu_questions',
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto"
-        ) as g:
-            g.say(description + " Is there anything else you'd like to know about our menu?")
-    else:
-        # Default response for other intents
-        with response.gather(
-            input='speech dtmf',
-            action='/main_menu',
+            input="speech",
+            action="/handle_menu_questions",
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
-            num_digits=1
         ) as g:
-            g.say("I'm not sure I understood your question. " +
-                  "Press 1 to order, 2 to ask another menu question, or 3 to speak to a person.")
-    
-    return Response(str(response), mimetype='text/xml')
+            g.say(
+                description
+                + " Is there anything else you'd like to know about our menu?"
+            )
+    else:
+        # Default response for other intents
+        with response.gather(
+            input="speech dtmf",
+            action="/main_menu",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            num_digits=1,
+        ) as g:
+            g.say(
+                "I'm not sure I understood your question. "
+                + "Press 1 to order, 2 to ask another menu question, or 3 to speak to a person."
+            )
+
+    return Response(str(response), mimetype="text/xml")
 
 
-@voice_bp.route('/api/analyze', methods=['POST'])
+@voice_bp.route("/api/analyze", methods=["POST"])
 def analyze():
     """
     API endpoint to analyze user input using our AI agent.
     """
     try:
         data = request.get_json()
-        if not data or 'text' not in data:
+        if not data or "text" not in data:
             return jsonify({"error": "Missing 'text' field in request"}), 400
-            
-        text = data['text']
+
+        text = data["text"]
         agent = OrderParsingAgent()
         order = agent.parse_order(text)
-        
+
         return jsonify(order), 200
     except Exception as e:
         logger.error(f"Error in analyze API: {e}")
         return jsonify({"error": str(e)}), 500
 
 
-@voice_bp.route('/api/modify', methods=['POST'])
+@voice_bp.route("/api/modify", methods=["POST"])
 def modify():
     """
     API endpoint to modify an existing order based on user input.
     """
     try:
         data = request.get_json()
-        if not data or 'text' not in data or 'current_order' not in data:
+        if not data or "text" not in data or "current_order" not in data:
             return jsonify({"error": "Missing required fields in request"}), 400
-            
-        text = data['text']
-        current_order = data['current_order']
-        
-        modifications = get_order_modifications(text, current_order['items'])
-        
+
+        text = data["text"]
+        current_order = data["current_order"]
+
+        modifications = get_order_modifications(text, current_order["items"])
+
         return jsonify(modifications), 200
     except Exception as e:
         logger.error(f"Error in modify API: {e}")
         return jsonify({"error": str(e)}), 500
-        
 
-@voice_bp.route('/healthcheck', methods=['GET'])
+
+@voice_bp.route("/healthcheck", methods=["GET"])
 def healthcheck():
     """
     Simple health check endpoint for the voice service.
@@ -764,12 +882,13 @@ def healthcheck():
 
 # --------------------- WebSocket Routes for Real-Time Audio ---------------------
 
+
 def get_session_id():
     """Generate a unique session ID for tracking conversation state."""
     return str(uuid.uuid4())
 
 
-@sock.route('/api/ws/speech-to-text')
+@sock.route("/api/ws/speech-to-text")
 async def speech_to_text(ws):
     """
     WebSocket endpoint for real-time speech-to-text processing.
@@ -778,19 +897,25 @@ async def speech_to_text(ws):
     try:
         # Get the audio processor
         audio_processor = get_audio_processor()
-        logger.info(f"Initializing speech-to-text WebSocket with processor type: {type(audio_processor).__name__}")
-        
+        logger.info(
+            f"Initializing speech-to-text WebSocket with processor type: {type(audio_processor).__name__}"
+        )
+
         # Generate a session ID for this conversation
         session_id = get_session_id()
         logger.info(f"New speech-to-text session started: {session_id}")
-        
+
         # Send initial message to client
-        await ws.send(json.dumps({
-            "type": "connection_established",
-            "session_id": session_id,
-            "message": "Ready to receive audio"
-        }))
-        
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "connection_established",
+                    "session_id": session_id,
+                    "message": "Ready to receive audio",
+                }
+            )
+        )
+
         # Define an async generator to receive audio chunks
         async def receive_audio_stream():
             while True:
@@ -804,57 +929,66 @@ async def speech_to_text(ws):
                         try:
                             data = json.loads(message)
                             if data.get("type") == "end":
-                                logger.info(f"End of audio stream for session {session_id}")
+                                logger.info(
+                                    f"End of audio stream for session {session_id}"
+                                )
                                 break
                         except json.JSONDecodeError:
-                            logger.warning(f"Received non-JSON text message on WebSocket: {message[:50]}...")
+                            logger.warning(
+                                f"Received non-JSON text message on WebSocket: {message[:50]}..."
+                            )
                             continue
                 except Exception as e:
                     logger.error(f"Error receiving WebSocket message: {e}")
                     break
-        
+
         # Process the audio stream in real-time
         # Check if we have the real-time processor or the basic one
-        if hasattr(audio_processor, 'process_audio_stream'):
+        if hasattr(audio_processor, "process_audio_stream"):
             # Real-time processing
             content_type = "audio/webm"  # Default, client can override
-            
+
             # Process audio stream and send transcript segments as they arrive
-            async for segment in audio_processor.process_audio_stream(receive_audio_stream(), content_type):
+            async for segment in audio_processor.process_audio_stream(
+                receive_audio_stream(), content_type
+            ):
                 await ws.send(json.dumps(segment))
         else:
             # Basic processing (not real-time)
-            logger.warning("Real-time audio processing not available, using basic processing")
-            
+            logger.warning(
+                "Real-time audio processing not available, using basic processing"
+            )
+
             # Collect all audio data
             all_audio = bytes()
             async for chunk in receive_audio_stream():
                 all_audio += chunk
-            
+
             # Process the complete audio
             result = await audio_processor.process_audio(all_audio)
             await ws.send(json.dumps(result))
-        
+
         # Final message
-        await ws.send(json.dumps({
-            "type": "session_complete",
-            "session_id": session_id,
-            "message": "Processing complete"
-        }))
-        
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "session_complete",
+                    "session_id": session_id,
+                    "message": "Processing complete",
+                }
+            )
+        )
+
     except Exception as e:
         logger.error(f"WebSocket error in speech-to-text: {str(e)}")
         logger.error(traceback.format_exc())
         try:
-            await ws.send(json.dumps({
-                "type": "error",
-                "error": str(e)
-            }))
+            await ws.send(json.dumps({"type": "error", "error": str(e)}))
         except:
             pass
 
 
-@sock.route('/api/ws/conversation')
+@sock.route("/api/ws/conversation")
 async def conversation(ws):
     """
     WebSocket endpoint for real-time conversation with the AI.
@@ -863,24 +997,32 @@ async def conversation(ws):
     try:
         # Get the audio processor
         audio_processor = get_audio_processor()
-        logger.info(f"Initializing conversation WebSocket with processor type: {type(audio_processor).__name__}")
-        
+        logger.info(
+            f"Initializing conversation WebSocket with processor type: {type(audio_processor).__name__}"
+        )
+
         # Generate or retrieve session ID for this conversation
         session_id = get_session_id()
-        
+
         # Initialize or retrieve conversation history
         if session_id not in conversation_sessions:
             conversation_sessions[session_id] = []
-        
-        logger.info(f"Conversation session active: {session_id} with {len(conversation_sessions[session_id])} previous messages")
-        
+
+        logger.info(
+            f"Conversation session active: {session_id} with {len(conversation_sessions[session_id])} previous messages"
+        )
+
         # Send initial message to client
-        await ws.send(json.dumps({
-            "type": "connection_established",
-            "session_id": session_id,
-            "message": "Ready to receive audio or text"
-        }))
-        
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "connection_established",
+                    "session_id": session_id,
+                    "message": "Ready to receive audio or text",
+                }
+            )
+        )
+
         # Define an async generator to receive audio chunks
         async def receive_audio_stream():
             all_audio = bytes()
@@ -888,7 +1030,7 @@ async def conversation(ws):
                 try:
                     # Receive data from WebSocket
                     message = await ws.receive()
-                    
+
                     if isinstance(message, bytes):
                         # Audio data
                         all_audio += message
@@ -897,152 +1039,198 @@ async def conversation(ws):
                         # Control message or text input
                         try:
                             data = json.loads(message)
-                            
+
                             # Check message type
                             if data.get("type") == "end":
-                                logger.info(f"End of audio stream for session {session_id}")
+                                logger.info(
+                                    f"End of audio stream for session {session_id}"
+                                )
                                 break
                             elif data.get("type") == "text":
                                 # Direct text input instead of audio
-                                logger.info(f"Received direct text input: {data.get('text', '')[:50]}...")
-                                
+                                logger.info(
+                                    f"Received direct text input: {data.get('text', '')[:50]}..."
+                                )
+
                                 # Process the text directly
                                 text_input = data.get("text", "")
-                                
+
                                 # Process the conversation with the text input
-                                async for response in audio_processor.process_conversation(
-                                    text_input, 
-                                    conversation_sessions[session_id]
+                                async for (
+                                    response
+                                ) in audio_processor.process_conversation(
+                                    text_input, conversation_sessions[session_id]
                                 ):
                                     await ws.send(json.dumps(response))
-                                
+
                                 # Add the message to conversation history
-                                conversation_sessions[session_id].append({"role": "user", "content": text_input})
-                                
+                                conversation_sessions[session_id].append(
+                                    {"role": "user", "content": text_input}
+                                )
+
                                 # Send a signal that we're done processing this text message
-                                await ws.send(json.dumps({
-                                    "type": "text_processing_complete",
-                                    "timestamp": time.time()
-                                }))
-                                
+                                await ws.send(
+                                    json.dumps(
+                                        {
+                                            "type": "text_processing_complete",
+                                            "timestamp": time.time(),
+                                        }
+                                    )
+                                )
+
                                 # Reset to receive new input
                                 all_audio = bytes()
                                 return
                         except json.JSONDecodeError:
-                            logger.warning(f"Received non-JSON text message: {message[:50]}...")
+                            logger.warning(
+                                f"Received non-JSON text message: {message[:50]}..."
+                            )
                             continue
                 except Exception as e:
                     logger.error(f"Error receiving WebSocket message: {e}")
                     break
-            
+
             # If we received audio but no text message processed it
             if all_audio:
                 # Process the complete audio with basic processor if real-time not available
-                if not hasattr(audio_processor, 'process_audio_stream'):
+                if not hasattr(audio_processor, "process_audio_stream"):
                     result = await audio_processor.process_audio(all_audio)
                     text_input = result.get("text", "")
-                    
+
                     # Send the transcript to the client
-                    await ws.send(json.dumps({
-                        "type": "transcript_complete",
-                        "text": text_input,
-                        "timestamp": time.time()
-                    }))
-                    
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "transcript_complete",
+                                "text": text_input,
+                                "timestamp": time.time(),
+                            }
+                        )
+                    )
+
                     # Process the conversation with the text input
                     async for response in audio_processor.process_conversation(
-                        text_input, 
-                        conversation_sessions[session_id]
+                        text_input, conversation_sessions[session_id]
                     ):
                         await ws.send(json.dumps(response))
-                    
+
                     # Add the message to conversation history
-                    conversation_sessions[session_id].append({"role": "user", "content": text_input})
-        
+                    conversation_sessions[session_id].append(
+                        {"role": "user", "content": text_input}
+                    )
+
         # Real-time or basic processing based on available implementation
-        if hasattr(audio_processor, 'process_audio_stream'):
+        if hasattr(audio_processor, "process_audio_stream"):
             # Content type for audio (client can specify in headers)
             content_type = "audio/webm"
-            
+
             # Process audio stream and collect transcript
             full_transcript = ""
-            
+
             # Start audio processing
-            async for segment in audio_processor.process_audio_stream(receive_audio_stream(), content_type):
+            async for segment in audio_processor.process_audio_stream(
+                receive_audio_stream(), content_type
+            ):
                 # Send transcript segments to client
                 await ws.send(json.dumps(segment))
-                
+
                 # If this is the final transcript, process it for conversation
                 if segment.get("type") == "transcript_complete":
                     full_transcript = segment.get("text", "")
-                    
+
                     # Now process the conversation with the transcript
-                    logger.info(f"Processing conversation with transcript: {full_transcript[:50]}...")
-                    
+                    logger.info(
+                        f"Processing conversation with transcript: {full_transcript[:50]}..."
+                    )
+
                     # Get AI response
                     async for response in audio_processor.process_conversation(
-                        full_transcript, 
-                        conversation_sessions[session_id]
+                        full_transcript, conversation_sessions[session_id]
                     ):
                         await ws.send(json.dumps(response))
-                        
+
                         # If this is the complete message, save it to history
                         if response.get("type") == "message_complete":
-                            conversation_sessions[session_id].append({"role": "user", "content": full_transcript})
-                            conversation_sessions[session_id].append({"role": "assistant", "content": response.get("text", "")})
-                            
+                            conversation_sessions[session_id].append(
+                                {"role": "user", "content": full_transcript}
+                            )
+                            conversation_sessions[session_id].append(
+                                {
+                                    "role": "assistant",
+                                    "content": response.get("text", ""),
+                                }
+                            )
+
                             # Generate speech from the response if real-time TTS is available
-                            if hasattr(audio_processor, 'generate_speech'):
-                                await ws.send(json.dumps({
-                                    "type": "speech_starting",
-                                    "timestamp": time.time()
-                                }))
-                                
+                            if hasattr(audio_processor, "generate_speech"):
+                                await ws.send(
+                                    json.dumps(
+                                        {
+                                            "type": "speech_starting",
+                                            "timestamp": time.time(),
+                                        }
+                                    )
+                                )
+
                                 # Stream the speech chunks
-                                async for speech_chunk in audio_processor.generate_speech(response.get("text", "")):
+                                async for (
+                                    speech_chunk
+                                ) in audio_processor.generate_speech(
+                                    response.get("text", "")
+                                ):
                                     await ws.send(speech_chunk)
-                                
-                                await ws.send(json.dumps({
-                                    "type": "speech_complete",
-                                    "timestamp": time.time()
-                                }))
+
+                                await ws.send(
+                                    json.dumps(
+                                        {
+                                            "type": "speech_complete",
+                                            "timestamp": time.time(),
+                                        }
+                                    )
+                                )
         else:
             # Basic processor - already handled in receive_audio_stream
             await receive_audio_stream()
-        
+
         # Clean up sessions over a certain size to prevent memory issues
         if len(conversation_sessions[session_id]) > 20:
             # Keep only the system message and last 10 exchanges (20 messages)
             system_message = None
-            if conversation_sessions[session_id] and conversation_sessions[session_id][0].get("role") == "system":
+            if (
+                conversation_sessions[session_id]
+                and conversation_sessions[session_id][0].get("role") == "system"
+            ):
                 system_message = conversation_sessions[session_id][0]
-            
+
             conversation_sessions[session_id] = conversation_sessions[session_id][-20:]
-            
-            if system_message and (not conversation_sessions[session_id] or 
-                                  conversation_sessions[session_id][0].get("role") != "system"):
+
+            if system_message and (
+                not conversation_sessions[session_id]
+                or conversation_sessions[session_id][0].get("role") != "system"
+            ):
                 conversation_sessions[session_id].insert(0, system_message)
-        
+
         # Final message
-        await ws.send(json.dumps({
-            "type": "session_complete",
-            "session_id": session_id,
-            "message": "Processing complete"
-        }))
-        
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "session_complete",
+                    "session_id": session_id,
+                    "message": "Processing complete",
+                }
+            )
+        )
+
     except Exception as e:
         logger.error(f"WebSocket error in conversation: {str(e)}")
         logger.error(traceback.format_exc())
         try:
-            await ws.send(json.dumps({
-                "type": "error",
-                "error": str(e)
-            }))
+            await ws.send(json.dumps({"type": "error", "error": str(e)}))
         except:
             pass
 
 
-@sock.route('/api/ws/text-to-speech')
+@sock.route("/api/ws/text-to-speech")
 async def text_to_speech(ws):
     """
     WebSocket endpoint for real-time text-to-speech.
@@ -1051,44 +1239,55 @@ async def text_to_speech(ws):
     try:
         # Get the audio processor
         audio_processor = get_audio_processor()
-        logger.info(f"Initializing text-to-speech WebSocket with processor type: {type(audio_processor).__name__}")
-        
+        logger.info(
+            f"Initializing text-to-speech WebSocket with processor type: {type(audio_processor).__name__}"
+        )
+
         # Send initial message to client
-        await ws.send(json.dumps({
-            "type": "connection_established",
-            "message": "Ready to receive text for speech synthesis"
-        }))
-        
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "connection_established",
+                    "message": "Ready to receive text for speech synthesis",
+                }
+            )
+        )
+
         while True:
             # Receive text from WebSocket
             message = await ws.receive()
-            
+
             # Only process string messages
             if not isinstance(message, str):
                 continue
-                
+
             try:
                 data = json.loads(message)
-                
+
                 # Check for end or text message
                 if data.get("type") == "end":
                     logger.info("End of text-to-speech session")
                     break
-                
+
                 if data.get("type") == "text":
                     text = data.get("text", "")
                     voice = data.get("voice", "alloy")
-                    
-                    logger.info(f"Synthesizing speech for: '{text[:50]}...' with voice: {voice}")
-                    
+
+                    logger.info(
+                        f"Synthesizing speech for: '{text[:50]}...' with voice: {voice}"
+                    )
+
                     # Notify client that speech generation is starting
-                    await ws.send(json.dumps({
-                        "type": "speech_starting",
-                        "timestamp": time.time()
-                    }))
-                    
+                    await ws.send(
+                        json.dumps(
+                            {"type": "speech_starting", "timestamp": time.time()}
+                        )
+                    )
+
                     # Stream the speech if real-time TTS is available
-                    if hasattr(audio_processor, 'generate_speech') and asyncio.iscoroutinefunction(audio_processor.generate_speech):
+                    if hasattr(
+                        audio_processor, "generate_speech"
+                    ) and asyncio.iscoroutinefunction(audio_processor.generate_speech):
                         # Real-time streaming
                         async for chunk in audio_processor.generate_speech(text, voice):
                             await ws.send(chunk)
@@ -1096,59 +1295,59 @@ async def text_to_speech(ws):
                         # Basic non-streaming TTS
                         audio_data = audio_processor.generate_speech(text, voice)
                         await ws.send(audio_data)
-                    
+
                     # Notify client that speech generation is complete
-                    await ws.send(json.dumps({
-                        "type": "speech_complete",
-                        "timestamp": time.time()
-                    }))
+                    await ws.send(
+                        json.dumps(
+                            {"type": "speech_complete", "timestamp": time.time()}
+                        )
+                    )
             except json.JSONDecodeError:
                 logger.warning(f"Received non-JSON text message: {message[:50]}...")
                 continue
             except Exception as e:
                 logger.error(f"Error processing TTS request: {e}")
                 logger.error(traceback.format_exc())
-                await ws.send(json.dumps({
-                    "type": "error",
-                    "error": str(e)
-                }))
-        
+                await ws.send(json.dumps({"type": "error", "error": str(e)}))
+
         # Final message
-        await ws.send(json.dumps({
-            "type": "session_complete",
-            "message": "Text-to-speech session complete"
-        }))
-        
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "session_complete",
+                    "message": "Text-to-speech session complete",
+                }
+            )
+        )
+
     except Exception as e:
         logger.error(f"WebSocket error in text-to-speech: {str(e)}")
         logger.error(traceback.format_exc())
         try:
-            await ws.send(json.dumps({
-                "type": "error",
-                "error": str(e)
-            }))
+            await ws.send(json.dumps({"type": "error", "error": str(e)}))
         except:
             pass
 
 
-@voice_bp.route('/api/ws/capabilities', methods=['GET'])
+@voice_bp.route("/api/ws/capabilities", methods=["GET"])
 def websocket_capabilities():
     """
     API endpoint to check WebSocket capabilities of the server.
     """
     # Get the audio processor to check what capabilities are available
     audio_processor = get_audio_processor()
-    
+
     # Get more detailed information about the audio processor
     processor_type = type(audio_processor).__name__
     backend_info = ""
-    if hasattr(audio_processor, 'backend'):
+    if hasattr(audio_processor, "backend"):
         backend_info = audio_processor.backend
-    
+
     capabilities = {
         "websockets_available": True,
-        "real_time_stt": hasattr(audio_processor, 'process_audio_stream'),
-        "real_time_tts": hasattr(audio_processor, 'generate_speech') and asyncio.iscoroutinefunction(audio_processor.generate_speech),
+        "real_time_stt": hasattr(audio_processor, "process_audio_stream"),
+        "real_time_tts": hasattr(audio_processor, "generate_speech")
+        and asyncio.iscoroutinefunction(audio_processor.generate_speech),
         "conversation": True,
         "processor_type": processor_type,
         "backend": backend_info or "standard",
@@ -1158,17 +1357,18 @@ def websocket_capabilities():
         "endpoints": {
             "speech_to_text": "/api/ws/speech-to-text",
             "text_to_speech": "/api/ws/text-to-speech",
-            "conversation": "/api/ws/conversation"
-        }
+            "conversation": "/api/ws/conversation",
+        },
     }
-    
+
     return jsonify(capabilities)
 
 
-@voice_bp.route('/demo', methods=['GET'])
+@voice_bp.route("/demo", methods=["GET"])
 def realtime_demo():
     """
     Serve the real-time voice demo page.
     """
     from flask import send_from_directory
-    return send_from_directory('app/static', 'realtime_demo.html')
+
+    return send_from_directory("app/static", "realtime_demo.html")

@@ -105,6 +105,23 @@ Tests for system performance under multiple concurrent users.
 2. **Use Fixtures**: Use pytest fixtures for common test data and setup
 3. **Clean Up**: Ensure tests clean up after themselves (database, files)
 4. **Environment Variables**: Use temporary environment variables for testing
+5. **Code Formatting**: Use Black to ensure consistent code formatting
+6. **Linting**: Use Ruff to check for common code issues and enforce style
+
+### Code Quality
+
+Maintain code quality by using these tools before committing:
+
+```bash
+# Format code with Black
+black app tests
+
+# Check for linting issues
+ruff check app tests
+
+# Fix auto-fixable linting issues
+ruff check --fix app tests
+```
 
 ## Running Specific Tests
 
@@ -142,6 +159,14 @@ TESTING=True DISABLE_OPENAI=True pytest --cov=app --cov-report=xml --cov-report=
 
 We use GitHub Actions to automatically run tests on every push and pull request.
 See the workflow configuration in `.github/workflows/test.yml`.
+
+The CI pipeline:
+1. Runs code formatting checks with Black
+2. Runs linting with Ruff and flake8
+3. Runs unit tests with pytest
+4. Generates test coverage reports
+
+The environment variables `TESTING=True` and `DISABLE_OPENAI=True` are automatically set in the CI environment to ensure tests can run without requiring real API keys.
 
 ## Staging Environment
 

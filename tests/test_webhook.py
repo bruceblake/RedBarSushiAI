@@ -19,11 +19,24 @@ from urllib.parse import urljoin
 if __name__ == "__main__":
     # Create an argument parser
     parser = argparse.ArgumentParser(description="Test Render webhook functionality")
-    parser.add_argument("--url", default="http://localhost:5000", help="Base URL of the application")
-    parser.add_argument("--event", default="deploy_ended", choices=["deploy_started", "deploy_ended", "build_ended"], 
-                        help="Event type to simulate")
-    parser.add_argument("--secret", help="Webhook signing secret (if not provided, will check RENDER_WEBHOOK_SECRET env var)")
-    parser.add_argument("--test", action="store_true", help="Just test the webhook endpoint without sending an event")
+    parser.add_argument(
+        "--url", default="http://localhost:5000", help="Base URL of the application"
+    )
+    parser.add_argument(
+        "--event",
+        default="deploy_ended",
+        choices=["deploy_started", "deploy_ended", "build_ended"],
+        help="Event type to simulate",
+    )
+    parser.add_argument(
+        "--secret",
+        help="Webhook signing secret (if not provided, will check RENDER_WEBHOOK_SECRET env var)",
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Just test the webhook endpoint without sending an event",
+    )
     args = parser.parse_args()
 else:
     # Define a dummy args object for when imported by pytest
@@ -32,16 +45,21 @@ else:
         event = "deploy_ended"
         secret = None
         test = False
+
     args = Args()
 
 # Get the webhook secret
 webhook_secret = args.secret or os.environ.get("RENDER_WEBHOOK_SECRET")
 if not webhook_secret and not args.test:
     if __name__ == "__main__":
-        print("Error: No webhook secret provided. Use --secret or set RENDER_WEBHOOK_SECRET environment variable.")
+        print(
+            "Error: No webhook secret provided. Use --secret or set RENDER_WEBHOOK_SECRET environment variable."
+        )
         sys.exit(1)
     else:
-        print("Warning: No webhook secret provided. Tests using this module may not function correctly.")
+        print(
+            "Warning: No webhook secret provided. Tests using this module may not function correctly."
+        )
         webhook_secret = "dummy_secret_for_testing"
 
 # Base URL
@@ -53,11 +71,11 @@ if __name__ == "__main__":
         # Just test the webhook endpoint
         test_url = urljoin(base_url + "/", "webhooks/test")
         print(f"Testing webhook endpoint at {test_url}...")
-        
+
         try:
             response = requests.get(test_url)
             response.raise_for_status()
-            
+
             print("\n✅ Webhook endpoint test successful!")
             print(f"Status Code: {response.status_code}")
             print("\nResponse:")
@@ -78,10 +96,7 @@ if __name__ == "__main__":
     webhook_payload = {
         "type": args.event,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.%fZ", time.gmtime()),
-        "data": {
-            "id": event_id,
-            "serviceId": service_id
-        }
+        "data": {"id": event_id, "serviceId": service_id},
     }
 
     # Convert payload to JSON
@@ -95,7 +110,7 @@ if __name__ == "__main__":
     signature = hmac.new(
         webhook_secret.encode("utf-8"),
         message.encode("utf-8"),
-        digestmod=hashlib.sha256
+        digestmod=hashlib.sha256,
     ).digest()
     signature_b64 = base64.b64encode(signature).decode("utf-8")
 
@@ -104,7 +119,7 @@ if __name__ == "__main__":
         "Content-Type": "application/json",
         "webhook-id": event_id,
         "webhook-timestamp": timestamp,
-        "webhook-signature": f"v1,{signature_b64}"
+        "webhook-signature": f"v1,{signature_b64}",
     }
 
     # URL for the webhook
@@ -117,7 +132,7 @@ if __name__ == "__main__":
     try:
         response = requests.post(webhook_url, headers=headers, data=payload_json)
         response.raise_for_status()
-        
+
         print("\n✅ Webhook sent successfully!")
         print(f"Status Code: {response.status_code}")
         print("\nResponse:")
