@@ -7,8 +7,23 @@ from app.models import Location, Order
 
 @pytest.fixture(scope='session')
 def app():
-    # Create Flask app in testing mode
-    app = create_app({'TESTING': True})
+    # Load test environment variables
+    from dotenv import load_dotenv
+    load_dotenv('.env.test', override=True)
+    
+    # Create Flask app in testing mode with SQLite in-memory database
+    test_config = {
+        'TESTING': True,
+        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+        'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+        # Configure optimized SQLite connection for testing
+        'SQLALCHEMY_ENGINE_OPTIONS': {
+            'poolclass': None,  # Disable connection pooling for in-memory db
+            'connect_args': {'check_same_thread': False}  # Allow multi-threaded access
+        }
+    }
+    
+    app = create_app(test_config)
     
     # Create all database tables
     with app.app_context():
@@ -147,13 +162,25 @@ def mock_openai(monkeypatch):
             
             return mock_thread
             
-    # Only mock openai.agent.Agent if the module exists
-    try:
-        import openai.agent
-        monkeypatch.setattr("openai.agent.Agent", MockAgent)
-    except (ImportError, AttributeError):
-        # If openai.agent doesn't exist, we'll patch the agent_utils module directly
-        monkeypatch.setattr("app.utils.agent_utils.Agent", MockAgent)
+    # Just patch the OrderParsingAgent and OrderModificationAgent instead of 
+    # trying to patch the Agent class directly
+    monkeypatch.setattr("app.utils.agent_utils_simple.OrderParsingAgent", MockAgent)
+    
+    # Also patch the analyze_user_input and get_order_modifications functions
+    def mock_analyze_user_input(text):
+        return {
+            "intent": "order_food",
+            "menu_items": [{"name": "California Roll", "quantity": 2, "price": 7.95, "reference_handler": "cal-roll-1"}]
+        }
+    
+    def mock_get_order_modifications(text, current_items=None):
+        return {
+            "additions": [{"name": "Spicy Tuna Roll", "quantity": 1, "price": 8.95, "reference_handler": "spicy-tuna-1", "modifier": []}],
+            "removals": []
+        }
+    
+    monkeypatch.setattr("app.utils.agent_utils_simple.analyze_user_input", mock_analyze_user_input)
+    monkeypatch.setattr("app.utils.agent_utils_simple.get_order_modifications", mock_get_order_modifications)
     
     return MockOpenAI()
 
@@ -329,44 +356,39 @@ def mock_menu_data():
 def app_with_locations(app):
     """Set up app with sample locations in the database."""
     with app.app_context():
-        # Clean up any existing records - use delete all with a truncate to completely reset the table
-        try:
-            # First check if locations already exist
-            existing_locations = Location.query.filter(Location.id.in_(["downtown", "uptown"])).all()
-            if existing_locations:
-                # If they exist, delete them specifically
-                for loc in existing_locations:
-                    db.session.delete(loc)
-            else:
-                # Otherwise just clean the whole table
-                Location.query.delete()
-            db.session.commit()
-        except Exception as e:
-            # If there was an error (like transaction aborted), reset the session
-            db.session.rollback()
-            # Force clean the table with raw SQL
-            db.session.execute("DELETE FROM location WHERE id IN ('downtown', 'uptown')")
-            db.session.commit()
+        # First, make sure the table exists and is empty
+        db.create_all()
         
-        # Add new location records one by one to handle any issues
+        # Clean up the entire location table to avoid any integrity errors
+        db.session.query(Location).delete()
+        db.session.commit()
+        
+        # Create test locations with the ORM
         try:
-            downtown = Location(id="downtown", name="Downtown Location", status="active",
-                     webhook_base="https://example.com/downtown")
+            # Add downtown location
+            downtown = Location(
+                id="downtown", 
+                name="Downtown Location", 
+                status="active",
+                webhook_base="https://example.com/downtown"
+            )
             db.session.add(downtown)
             db.session.commit()
             
-            uptown = Location(id="uptown", name="Uptown Location", status="registered",
-                     webhook_base="https://example.com/uptown")
+            # Add uptown location
+            uptown = Location(
+                id="uptown", 
+                name="Uptown Location", 
+                status="registered",
+                webhook_base="https://example.com/uptown"
+            )
             db.session.add(uptown)
             db.session.commit()
+            
+            print("Successfully added test locations")
         except Exception as e:
-            # If any error occurred, log it and rollback
-            print(f"Error adding locations: {str(e)}")
             db.session.rollback()
-            # Try one more approach - delete and insert via raw SQL
-            db.session.execute("DELETE FROM location WHERE id IN ('downtown', 'uptown')")
-            db.session.execute("INSERT INTO location (id, name, status, webhook_base) VALUES ('downtown', 'Downtown Location', 'active', 'https://example.com/downtown')")
-            db.session.execute("INSERT INTO location (id, name, status, webhook_base) VALUES ('uptown', 'Uptown Location', 'registered', 'https://example.com/uptown')")
-            db.session.commit()
+            print(f"Error adding locations: {str(e)}")
+            raise  # Re-raise to fail the test explicitly
     
     return app
