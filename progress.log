@@ -25423,3 +25423,1134 @@ IndexError: list index out of range
 
 2025-04-17 23:28:10,903 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
 2025-04-17 23:28:10,903 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:34:31,625 - INFO - root - Application starting in development mode
+2025-04-17 23:34:31,625 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-17 23:34:31,630 - INFO - app.routes.voice - Extracting name from: 'John Doe'
+2025-04-17 23:34:31,630 - INFO - app.routes.voice - Using OpenAI for name extraction
+2025-04-17 23:34:31,630 - INFO - app.utils.agent_utils - [OPENAI-REQUEST] Function: extract_name, Model: gpt-4.1-mini
+2025-04-17 23:34:31,630 - INFO - app.utils.agent_utils - [OPENAI-MESSAGES] system: You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY...; user: Extract the person's name from: 'John Doe'. Respond with just the name, properly capitalized.
+2025-04-17 23:34:31,643 - DEBUG - openai._base_client - Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': "You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY the name, nothing else."}, {'role': 'user', 'content': "Extract the person's name from: 'John Doe'. Respond with just the name, properly capitalized."}], 'model': 'gpt-4.1-mini', 'max_tokens': 20, 'temperature': 0}}
+2025-04-17 23:34:31,644 - DEBUG - openai._base_client - Sending HTTP Request: POST https://api.openai.com/v1/chat/completions
+2025-04-17 23:34:31,644 - DEBUG - httpcore.connection - connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+2025-04-17 23:34:31,778 - DEBUG - httpcore.connection - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fa048553a10>
+2025-04-17 23:34:31,778 - DEBUG - httpcore.connection - start_tls.started ssl_context=<ssl.SSLContext object at 0x7fa0487c9c70> server_hostname='api.openai.com' timeout=5.0
+2025-04-17 23:34:31,816 - DEBUG - httpcore.connection - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fa0487e0690>
+2025-04-17 23:34:31,816 - DEBUG - httpcore.http11 - send_request_headers.started request=<Request [b'POST']>
+2025-04-17 23:34:31,816 - DEBUG - httpcore.http11 - send_request_headers.complete
+2025-04-17 23:34:31,816 - DEBUG - httpcore.http11 - send_request_body.started request=<Request [b'POST']>
+2025-04-17 23:34:31,816 - DEBUG - httpcore.http11 - send_request_body.complete
+2025-04-17 23:34:31,816 - DEBUG - httpcore.http11 - receive_response_headers.started request=<Request [b'POST']>
+2025-04-17 23:34:32,368 - DEBUG - httpcore.http11 - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Fri, 18 Apr 2025 03:34:32 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-expose-headers', b'X-Request-ID'), (b'openai-organization', b'red-bar-sushi'), (b'openai-processing-ms', b'388'), (b'openai-version', b'2020-10-01'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'4000000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'3999942'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'0s'), (b'x-request-id', b'req_0da37060f864b8cd871cd095752bfad1'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=yyRjmQ4.KFkZVCz.fNJKllljSycyGq7Bz7bsaIX7rSA-1744947272-1.0.1.1-f6dunPGqQY_lTVc.FXtu1cdcxJ.2J6szMHaotjZN6_OTiD3Wvo9ZZSrz_TDOc5TAIN5Xl86MeFvtrRJR8rUej8NX.8ZoJlpJv73TqY4CXUo; path=/; expires=Fri, 18-Apr-25 04:04:32 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'X-Content-Type-Options', b'nosniff'), (b'Set-Cookie', b'_cfuvid=840fYaad5zBojRqogdjbRZoCGFnitPi6K2xVqxs9icE-1744947272206-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'93211b60293abfe0-ATL'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2025-04-17 23:34:32,369 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-04-17 23:34:32,369 - DEBUG - httpcore.http11 - receive_response_body.started request=<Request [b'POST']>
+2025-04-17 23:34:32,370 - DEBUG - httpcore.http11 - receive_response_body.complete
+2025-04-17 23:34:32,370 - DEBUG - httpcore.http11 - response_closed.started
+2025-04-17 23:34:32,370 - DEBUG - httpcore.http11 - response_closed.complete
+2025-04-17 23:34:32,370 - DEBUG - openai._base_client - HTTP Response: POST https://api.openai.com/v1/chat/completions "200 OK" Headers([('date', 'Fri, 18 Apr 2025 03:34:32 GMT'), ('content-type', 'application/json'), ('transfer-encoding', 'chunked'), ('connection', 'keep-alive'), ('access-control-expose-headers', 'X-Request-ID'), ('openai-organization', 'red-bar-sushi'), ('openai-processing-ms', '388'), ('openai-version', '2020-10-01'), ('x-ratelimit-limit-requests', '5000'), ('x-ratelimit-limit-tokens', '4000000'), ('x-ratelimit-remaining-requests', '4999'), ('x-ratelimit-remaining-tokens', '3999942'), ('x-ratelimit-reset-requests', '12ms'), ('x-ratelimit-reset-tokens', '0s'), ('x-request-id', 'req_0da37060f864b8cd871cd095752bfad1'), ('strict-transport-security', 'max-age=31536000; includeSubDomains; preload'), ('cf-cache-status', 'DYNAMIC'), ('set-cookie', '__cf_bm=yyRjmQ4.KFkZVCz.fNJKllljSycyGq7Bz7bsaIX7rSA-1744947272-1.0.1.1-f6dunPGqQY_lTVc.FXtu1cdcxJ.2J6szMHaotjZN6_OTiD3Wvo9ZZSrz_TDOc5TAIN5Xl86MeFvtrRJR8rUej8NX.8ZoJlpJv73TqY4CXUo; path=/; expires=Fri, 18-Apr-25 04:04:32 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), ('x-content-type-options', 'nosniff'), ('set-cookie', '_cfuvid=840fYaad5zBojRqogdjbRZoCGFnitPi6K2xVqxs9icE-1744947272206-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), ('server', 'cloudflare'), ('cf-ray', '93211b60293abfe0-ATL'), ('content-encoding', 'gzip'), ('alt-svc', 'h3=":443"; ma=86400')])
+2025-04-17 23:34:32,370 - DEBUG - openai._base_client - request_id: req_0da37060f864b8cd871cd095752bfad1
+2025-04-17 23:34:32,373 - INFO - app.utils.agent_utils - [OPENAI-RESPONSE] Function: extract_name
+2025-04-17 23:34:32,373 - INFO - app.utils.agent_utils - [OPENAI-CONTENT] John Doe...
+2025-04-17 23:34:32,373 - INFO - app.utils.agent_utils - [OPENAI-FULL] ChatCompletion(id='chatcmpl-BNWmlV98Wt5rmdJpwvzZtXQNnwYV6', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='John Doe', refusal=None, role='assistant', annotations=[], audio=None, function_call=None, tool_calls=None))], created=1744947271, model='gpt-4.1-mini-2025-04-14', object='chat.completion', service_tier='default', system_fingerprint='fp_38647f5e19', usage=CompletionUsage(completion_tokens=3, prompt_tokens=54, total_tokens=57, completion_...
+2025-04-17 23:34:32,373 - INFO - app.routes.voice - Successfully extracted name: John Doe
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - ==== INCOMING CALL RECEIVED ====
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - Request came from: 127.0.0.1
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - User agent: Werkzeug/3.1.3
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - Host header: localhost
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - URL: http://localhost/
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - Base URL: http://localhost/
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - Request method: POST
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - Environment: testing
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - Is this staging?: false
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - Current working directory: /home/proxyie/MySoftware/RedBarSushiAI
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - From number: +1234567890
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - ==== END CALL DETAILS ====
+2025-04-17 23:34:32,379 - INFO - app.routes.voice - STAGING ENV: Using default test number instead of +1234567890
+2025-04-17 23:34:32,381 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'i want to order a california roll'
+2025-04-17 23:34:32,381 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'i want to order a california roll'
+2025-04-17 23:34:32,384 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140326385036192'>
+2025-04-17 23:34:32,384 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140326385037200'>
+2025-04-17 23:34:32,384 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140326398585424'>
+2025-04-17 23:34:32,385 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:34:32,385 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:34:32,385 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:34:32,385 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:34:32,387 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'tell me about your menu'
+2025-04-17 23:34:32,387 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'tell me about your menu'
+2025-04-17 23:34:32,387 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140326385036192'>
+2025-04-17 23:34:32,387 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140326385037200'>
+2025-04-17 23:34:32,387 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140326398585424'>
+2025-04-17 23:34:32,387 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:34:32,388 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:34:32,388 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:34:32,388 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:34:32,389 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'how much is a california roll?'
+2025-04-17 23:34:32,389 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'how much is a california roll?'
+2025-04-17 23:34:32,389 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140326385036192'>
+2025-04-17 23:34:32,389 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140326385037200'>
+2025-04-17 23:34:32,390 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140326398585424'>
+2025-04-17 23:34:32,390 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:34:32,390 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:34:32,390 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:34:32,390 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:34:32,391 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'something unrelated'
+2025-04-17 23:34:32,391 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'something unrelated'
+2025-04-17 23:34:32,392 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140326385036192'>
+2025-04-17 23:34:32,392 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140326385037200'>
+2025-04-17 23:34:32,392 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140326398585424'>
+2025-04-17 23:34:32,392 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:34:32,392 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:34:32,392 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:34:32,392 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:34:40,433 - INFO - root - Application starting in development mode
+2025-04-17 23:34:40,433 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-17 23:34:40,436 - INFO - root - Received registration request: {"status": "register"}
+2025-04-17 23:34:40,437 - INFO - root - Channel registered with Deliverect: None (ID: None)
+2025-04-17 23:34:40,437 - INFO - root - Registered webhooks with base URL: http://localhost:5000
+2025-04-17 23:34:40,437 - INFO - root - Response: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-17 23:34:40,437 - INFO - root - Received registration request: {"status": "active"}
+2025-04-17 23:34:40,437 - INFO - root - Channel activated with Deliverect: None (ID: None)
+2025-04-17 23:34:40,437 - INFO - root - Registered webhooks with base URL: http://localhost:5000
+2025-04-17 23:34:40,437 - INFO - root - Response: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-17 23:34:40,437 - INFO - root - Received registration request: {"status": "inactive"}
+2025-04-17 23:34:40,437 - INFO - root - Channel deactivated with Deliverect: None (ID: None)
+2025-04-17 23:34:40,438 - INFO - root - Registered webhooks with base URL: http://localhost:5000
+2025-04-17 23:34:40,438 - INFO - root - Response: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-17 23:34:40,438 - INFO - root - Received registration request: {"status": "invalid"}
+2025-04-17 23:34:40,439 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-17 23:34:40,439 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-17 23:34:40,440 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,440 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-17 23:34:40,440 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,440 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-17 23:34:40,441 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,441 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-17 23:34:40,441 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,441 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-17 23:34:40,442 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,442 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-17 23:34:40,442 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,442 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-17 23:34:40,442 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,442 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-17 23:34:40,443 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,443 - INFO - app.utils.deliverect - Processed Deliverect menu: found 5 items
+2025-04-17 23:34:40,443 - INFO - app.utils.deliverect - Registering location test_location with name 'Test Location'
+2025-04-17 23:34:40,447 - INFO - app.utils.deliverect - Creating new location test_location
+2025-04-17 23:34:40,448 - INFO - app.utils.deliverect - Location test_location registered successfully
+2025-04-17 23:34:40,449 - INFO - app.utils.deliverect - Registering location test_location with name 'Updated Test Location'
+2025-04-17 23:34:40,449 - INFO - app.utils.deliverect - Updating existing location test_location
+2025-04-17 23:34:40,450 - INFO - app.utils.deliverect - Location test_location registered successfully
+2025-04-17 23:34:40,452 - INFO - app.utils.deliverect - Updating location downtown status to 'inactive'
+2025-04-17 23:34:40,453 - INFO - app.utils.deliverect - Location downtown status updated to 'inactive'
+2025-04-17 23:34:40,453 - INFO - app.utils.deliverect - Updating location nonexistent status to 'active'
+2025-04-17 23:34:40,453 - WARNING - app.utils.deliverect - Location nonexistent not found, cannot update status
+2025-04-17 23:34:40,455 - INFO - app.utils.deliverect - Generating webhook URLs for location downtown with BASE_URL: http://localhost:5000
+2025-04-17 23:34:40,455 - INFO - app.utils.deliverect - Generated location-specific webhook URLs: {"statusUpdateURL": "http://localhost:5000/location/downtown/order_status", "menuUpdateURL": "http://localhost:5000/location/downtown/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/location/downtown/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/location/downtown/busy_mode", "updatePrepTimeURL": "http://localhost:5000/location/downtown/updatePrepTime", "courierUpdateURL": "http://localhost:5000/location/downtown/courierUpdate", "paymentUpdateURL": "http://localhost:5000/location/downtown/payment_update"}
+2025-04-17 23:34:40,455 - INFO - app.utils.deliverect - Generating webhook URLs for location nonexistent with BASE_URL: http://localhost:5000
+2025-04-17 23:34:40,456 - INFO - app.utils.deliverect - Generated standard webhook URLs: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-17 23:34:40,458 - INFO - app.utils.deliverect - Registering location new_loc with name 'New Test Location'
+2025-04-17 23:34:40,459 - INFO - app.utils.deliverect - Creating new location new_loc
+2025-04-17 23:34:40,459 - INFO - app.utils.deliverect - Location new_loc registered successfully
+2025-04-17 23:34:40,459 - INFO - app.utils.deliverect - Updating location new_loc status to 'registered'
+2025-04-17 23:34:40,460 - INFO - app.utils.deliverect - Location new_loc status updated to 'registered'
+2025-04-17 23:34:40,460 - INFO - root - Location new_loc registered with Deliverect
+2025-04-17 23:34:40,460 - INFO - app.utils.deliverect - Generating webhook URLs for location new_loc with BASE_URL: http://localhost:5000
+2025-04-17 23:34:40,460 - INFO - app.utils.deliverect - Generated location-specific webhook URLs: {"statusUpdateURL": "http://localhost:5000/location/new_loc/order_status", "menuUpdateURL": "http://localhost:5000/location/new_loc/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/location/new_loc/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/location/new_loc/busy_mode", "updatePrepTimeURL": "http://localhost:5000/location/new_loc/updatePrepTime", "courierUpdateURL": "http://localhost:5000/location/new_loc/courierUpdate", "paymentUpdateURL": "http://localhost:5000/location/new_loc/payment_update"}
+2025-04-17 23:34:40,461 - INFO - app.utils.deliverect - Registering location new_loc with name 'New Test Location'
+2025-04-17 23:34:40,461 - INFO - app.utils.deliverect - Updating existing location new_loc
+2025-04-17 23:34:40,461 - INFO - app.utils.deliverect - Location new_loc registered successfully
+2025-04-17 23:34:40,463 - INFO - root - Received menu update data for location downtown: {'categories': [{'id': 'sushi', 'name': 'Sushi', 'products': [{'id': 'california_roll', 'name': 'California Roll', 'price': 995}]}]}
+2025-04-17 23:34:40,463 - INFO - root - Processing Deliverect menu format for location downtown
+2025-04-17 23:34:40,464 - WARNING - app.utils.menu_validator - [MENU-FIX] modifiers is not a valid list: <class 'NoneType'>
+2025-04-17 23:34:40,464 - WARNING - app.utils.menu_validator - [MENU-FIX] modifierGroups is not a valid list: <class 'NoneType'>
+2025-04-17 23:34:40,464 - WARNING - app.utils.menu_validator - [MENU-FIX] name_variants is not a valid dictionary: <class 'NoneType'>
+2025-04-17 23:34:40,464 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:40,464 - INFO - root - [MENU-LOAD] Using 7 name variants from menu data
+2025-04-17 23:34:40,464 - INFO - root - [MENU-PRICES] Loaded 7 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:40,464 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-17 23:34:40,464 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item California Roll has no PLU! Using synthetic reference: CaliforniaRoll. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-17 23:34:40,464 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for California Roll: CaliforniaRoll
+2025-04-17 23:34:40,464 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-17 23:34:40,464 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-17 23:34:40,464 - INFO - app.utils.menu_utils - Location-specific menu not found, using default: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:40,464 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:40,464 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:40,464 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-17 23:34:40,464 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-17 23:34:40,464 - DEBUG - app.utils.menu_utils - Sample item: Kids Burger - 6.95
+2025-04-17 23:34:40,464 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-17 23:34:40,464 - INFO - root - Menu updated successfully for location downtown
+2025-04-17 23:34:40,466 - INFO - root - Product california_roll updated successfully for location downtown
+2025-04-17 23:34:40,478 - INFO - app.utils.menu_utils - Using Flask-configured menu file path: /tmp/pytest-of-proxyie/pytest-29/test_write_menu_file0/test_menu.json
+2025-04-17 23:34:40,478 - INFO - app.utils.menu_utils - Successfully wrote menu data with 1 items to /tmp/pytest-of-proxyie/pytest-29/test_write_menu_file0/test_menu.json
+2025-04-17 23:34:40,478 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-17 23:34:40,482 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,482 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,482 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,482 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,482 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-17 23:34:40,482 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,482 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,482 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,482 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,482 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-17 23:34:40,483 - WARNING - app.utils.menu_utils - Test file not found or invalid: /tmp/pytest-of-proxyie/pytest-29/test_load_menu_data_file_not_f0/nonexistent_file.json. Creating an empty menu.
+2025-04-17 23:34:40,483 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-17 23:34:40,483 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:40,484 - INFO - app.utils.menu_utils - Loading menu data from /tmp/pytest-of-proxyie/pytest-29/test_load_menu_data_invalid_js0/invalid_menu.json
+2025-04-17 23:34:40,484 - ERROR - app.utils.menu_utils - Invalid JSON in menu file /tmp/pytest-of-proxyie/pytest-29/test_load_menu_data_invalid_js0/invalid_menu.json
+2025-04-17 23:34:40,484 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-17 23:34:40,484 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:40,485 - ERROR - app.utils.menu_utils - Failed to parse timestamp: not a timestamp
+2025-04-17 23:34:40,485 - ERROR - app.utils.menu_utils - Failed to parse timestamp: invalid
+2025-04-17 23:34:40,485 - ERROR - app.utils.menu_utils - Failed to parse timestamp: also invalid
+2025-04-17 23:34:40,486 - ERROR - app.utils.menu_utils - Invalid time format in availability: invalid - also invalid
+2025-04-17 23:34:40,487 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-17 23:34:40,487 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-17 23:34:40,487 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-17 23:34:40,487 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-17 23:34:40,487 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250417_233440.json
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 83 bytes
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Top-level keys in data: ['categories']
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Found standard Deliverect format with categories: 1
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-17 23:34:40,488 - WARNING - app.utils.menu_validator - [MENU-FIX] modifiers is not a valid list: <class 'NoneType'>
+2025-04-17 23:34:40,488 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:40,488 - INFO - root - [MENU-LOAD] Using 7 name variants from menu data
+2025-04-17 23:34:40,488 - INFO - root - [MENU-PRICES] Loaded 7 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:40,488 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-17 23:34:40,488 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item Test Item has no PLU! Using synthetic reference: TestItem. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-17 23:34:40,488 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Test Item: TestItem
+2025-04-17 23:34:40,488 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Test Item has missing or invalid price, setting default to 7.5
+2025-04-17 23:34:40,488 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-17 23:34:40,488 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] All 1 items have valid PLUs for Deliverect integration.
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 1 items, 0 modifiers, 0 groups
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Test Item -> PLU: TestItem | Reference: TestItem
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250417_233440.json
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 1 items
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Preserving existing name variants
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 1 items, 0 modifiers, 0 groups
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Generating name variants for menu items
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Generated 6 name variants
+2025-04-17 23:34:40,488 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu with name variants
+2025-04-17 23:34:40,490 - INFO - app.routes.menu - Received snooze/unsnooze data: {'operations': [{'action': 'snooze', 'item': 'California Roll'}]}
+2025-04-17 23:34:40,490 - INFO - app.routes.menu - Processed snooze/unsnooze operations.
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Hamburger'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'hamburger'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'hamburger' → 'Classic Burger'
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Classic Burger
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Fries'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'fries'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'fries' → 'French Fries'
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: French Fries
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Coke'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'coke'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'coke' → 'Coca Cola'
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Coca Cola
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Soda'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'soda'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'soda' → 'Coca Cola'
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Coca Cola
+2025-04-17 23:34:40,491 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Pizza'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'pizza'
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:40,491 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:40,492 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'Pizza'
+2025-04-17 23:34:40,492 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,492 - INFO - app.utils.deliverect - Processed Deliverect menu: found 6 items
+2025-04-17 23:34:40,493 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,493 - INFO - app.utils.deliverect - Processed Deliverect menu: found 0 items
+2025-04-17 23:34:40,493 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,493 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-17 23:34:40,493 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:40,493 - INFO - app.utils.deliverect - Processed Deliverect menu: found 0 items
+2025-04-17 23:34:40,495 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,495 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,495 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,495 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,495 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,495 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,495 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:40,495 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:40,496 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-17 23:34:40,496 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-17 23:34:40,496 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:40,496 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:40,496 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-17 23:34:40,496 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-17 23:34:40,498 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,498 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,498 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,498 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,498 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,498 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,498 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:40,498 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:40,498 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-17 23:34:40,498 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-17 23:34:40,498 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:40,498 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:40,498 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-17 23:34:40,498 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-17 23:34:40,501 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,501 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,501 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,501 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,501 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,501 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,501 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:40,501 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:40,501 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-17 23:34:40,501 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-17 23:34:40,501 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:40,501 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:40,501 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-17 23:34:40,501 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-17 23:34:40,502 - INFO - app.routes.order - Menu data loaded: 0 items found
+2025-04-17 23:34:40,502 - INFO - app.routes.order - Available (not snoozed) items: 0
+2025-04-17 23:34:40,502 - WARNING - app.routes.order - No available items found - creating empty menu structure
+2025-04-17 23:34:40,502 - INFO - app.routes.order - Using default menu with 0 items
+2025-04-17 23:34:40,504 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,504 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,504 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,504 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,504 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,504 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,504 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:40,504 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:40,506 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,506 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,506 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,506 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,506 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,506 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,506 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:40,506 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:40,506 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Nonexistent Roll'
+2025-04-17 23:34:40,506 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'nonexistent roll'
+2025-04-17 23:34:40,506 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:40,506 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:40,506 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'Nonexistent Roll'
+2025-04-17 23:34:40,508 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,508 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,508 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,508 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,508 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,508 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,508 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:40,508 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:40,509 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Dragon Roll'
+2025-04-17 23:34:40,509 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'dragon roll'
+2025-04-17 23:34:40,509 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:40,509 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:40,509 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'Dragon Roll'
+2025-04-17 23:34:40,511 - INFO - root - Order confirmation: Speech='yes, that is correct', DTMF=''
+2025-04-17 23:34:40,511 - INFO - root - User confirmation interpreted as: yes
+2025-04-17 23:34:40,511 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,511 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,511 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,511 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,511 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,511 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,511 - INFO - root - Order test-123 saved successfully.
+2025-04-17 23:34:40,511 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,512 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,512 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,512 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,512 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,512 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,512 - WARNING - app.utils.snooze_validator - [AVAILABILITY] Item 'Salmon Nigiri' is marked as unavailable
+2025-04-17 23:34:40,512 - INFO - app.utils.order_utils - [ORDER-VALIDATE] Found 3/4 available menu items
+2025-04-17 23:34:40,512 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'California Roll' with reference 'cal_roll_1' not found in menu
+2025-04-17 23:34:40,512 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] No valid items in order after validation
+2025-04-17 23:34:40,512 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Unavailable items: California Roll
+2025-04-17 23:34:40,512 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,512 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,512 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,512 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,512 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,512 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,512 - INFO - root - No valid items with reference handlers in order, cannot submit to Deliverect
+2025-04-17 23:34:40,512 - INFO - root - Attempting to send SMS confirmation task directly for order test-123
+2025-04-17 23:34:40,512 - INFO - root - SMS confirmation task executed successfully for order test-123
+2025-04-17 23:34:40,514 - INFO - root - Order confirmation: Speech='no, i need to make changes', DTMF=''
+2025-04-17 23:34:40,514 - INFO - root - User confirmation interpreted as: no
+2025-04-17 23:34:40,516 - INFO - root - User requested order modification: Add a spicy tuna roll
+2025-04-17 23:34:40,516 - INFO - app.routes.order - [ORDER-MODIFY] Processing modifications: {"additions": [{"name": "Spicy Tuna Roll", "quantity": 1, "modifier": []}], "removals": []}
+2025-04-17 23:34:40,516 - INFO - app.routes.order - [ORDER-MODIFY] Current order: [{"name": "California Roll", "quantity": 2, "price": 9.95, "reference_handler": "cal_roll_1"}]
+2025-04-17 23:34:40,516 - INFO - app.routes.order - [ORDER-MODIFY] Processed additions: [{"name": "Spicy Tuna Roll", "quantity": 1, "modifier": []}]
+2025-04-17 23:34:40,516 - INFO - app.routes.order - [ORDER-MODIFY] Processed removals: []
+2025-04-17 23:34:40,516 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'spicy tuna roll'
+2025-04-17 23:34:40,516 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'spicy tuna roll'
+2025-04-17 23:34:40,516 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:40,516 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:40,516 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'spicy tuna roll' → 'Spicy Tuna Roll'
+2025-04-17 23:34:40,516 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Spicy Tuna Roll
+2025-04-17 23:34:40,516 - INFO - root - Order updated after modification: [{'name': 'California Roll', 'quantity': 2, 'price': 9.95, 'reference_handler': 'cal_roll_1'}, {'name': 'Spicy Tuna Roll', 'quantity': 1, 'modifier': [], 'price': 8.95, 'reference_handler': 'spicy-tuna-1'}]
+2025-04-17 23:34:40,521 - INFO - root - Final confirmation after modification: Speech='yes, that is correct', DTMF=''
+2025-04-17 23:34:40,521 - INFO - root - User final decision: yes
+2025-04-17 23:34:40,521 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,521 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,521 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,521 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,521 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,521 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,522 - INFO - root - Order test-456 saved successfully.
+2025-04-17 23:34:40,522 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,522 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,522 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,522 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,522 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,522 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,522 - WARNING - app.utils.snooze_validator - [AVAILABILITY] Item 'Salmon Nigiri' is marked as unavailable
+2025-04-17 23:34:40,522 - INFO - app.utils.order_utils - [ORDER-VALIDATE] Found 3/4 available menu items
+2025-04-17 23:34:40,522 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'California Roll' with reference 'cal_roll_1' not found in menu
+2025-04-17 23:34:40,522 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'Spicy Tuna Roll' with reference 'spicy_tuna_1' not found in menu
+2025-04-17 23:34:40,522 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] No valid items in order after validation
+2025-04-17 23:34:40,522 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Unavailable items: California Roll, Spicy Tuna Roll
+2025-04-17 23:34:40,522 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,522 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:40,522 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:40,522 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:40,522 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:40,522 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:40,522 - INFO - root - No valid items with reference handlers in order, cannot submit to Deliverect
+2025-04-17 23:34:40,522 - INFO - root - Attempting to send SMS confirmation task directly for order test-456
+2025-04-17 23:34:40,522 - INFO - root - SMS confirmation task executed successfully for order test-456
+2025-04-17 23:34:40,524 - INFO - root - Final confirmation after modification: Speech='no, i need to make more changes', DTMF=''
+2025-04-17 23:34:40,524 - INFO - root - User final decision: no
+2025-04-17 23:34:40,529 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Modifier with reference 'MOD-UNAVAIL' not found in menu or unavailable: Unavailable Mod
+2025-04-17 23:34:40,529 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Modifier not found in menu: Not In Menu Mod
+2025-04-17 23:34:40,529 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Removed 2 invalid modifiers from item Delicious Steak Frites
+2025-04-17 23:34:40,532 - INFO - app.utils.realtime_audio - Running in test mode, using BasicAudioProcessor with mocks
+2025-04-17 23:34:40,532 - INFO - app.utils.realtime_audio - Running in test mode with OpenAI disabled
+2025-04-17 23:34:40,536 - INFO - tests.test_sms - Created test order for status check: test-89510
+2025-04-17 23:34:40,537 - INFO - root - Received SMS from +15555555555: 'status'
+2025-04-17 23:34:40,537 - INFO - root - SMS request headers: {"User-Agent": "Werkzeug/3.1.3", "Host": "localhost", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": "31"}
+2025-04-17 23:34:40,537 - INFO - root - SMS request form data: {"From": "+15555555555", "Body": "status"}
+2025-04-17 23:34:40,537 - INFO - root - SMS COMMAND DEBUG - Message: 'status'
+2025-04-17 23:34:40,537 - INFO - root - SMS COMMAND DEBUG - Exact match 'help': False
+2025-04-17 23:34:40,537 - INFO - root - SMS COMMAND DEBUG - Keyword match: False
+2025-04-17 23:34:40,538 - INFO - root - Sent enhanced status update via SMS to +15555555555
+2025-04-17 23:34:40,540 - INFO - root - Received SMS from +15555555555: 'help'
+2025-04-17 23:34:40,540 - INFO - root - SMS request headers: {"User-Agent": "Werkzeug/3.1.3", "Host": "localhost", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": "29"}
+2025-04-17 23:34:40,540 - INFO - root - SMS request form data: {"From": "+15555555555", "Body": "help"}
+2025-04-17 23:34:40,540 - INFO - root - SMS COMMAND DEBUG - Message: 'help'
+2025-04-17 23:34:40,540 - INFO - root - SMS COMMAND DEBUG - Exact match 'help': True
+2025-04-17 23:34:40,540 - INFO - root - SMS COMMAND DEBUG - Keyword match: True
+2025-04-17 23:34:40,540 - INFO - root - Sent help info via SMS to +15555555555
+2025-04-17 23:34:40,541 - INFO - root - Received SMS from +15555555555: 'menu'
+2025-04-17 23:34:40,541 - INFO - root - SMS request headers: {"User-Agent": "Werkzeug/3.1.3", "Host": "localhost", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": "29"}
+2025-04-17 23:34:40,541 - INFO - root - SMS request form data: {"From": "+15555555555", "Body": "menu"}
+2025-04-17 23:34:40,541 - INFO - root - SMS COMMAND DEBUG - Message: 'menu'
+2025-04-17 23:34:40,541 - INFO - root - SMS COMMAND DEBUG - Exact match 'help': False
+2025-04-17 23:34:40,541 - INFO - root - SMS COMMAND DEBUG - Keyword match: False
+2025-04-17 23:34:40,541 - INFO - root - Sent menu info via SMS to +15555555555
+2025-04-17 23:34:40,545 - INFO - root - Webhook test endpoint called - BASE_URL: http://localhost:5000
+2025-04-17 23:34:40,546 - ERROR - tests.test_sms - Error testing migration script: No module named 'migrate_sms_tracking'
+2025-04-17 23:34:40,576 - INFO - twilio.http_client - -- BEGIN Twilio API Request --
+2025-04-17 23:34:40,576 - INFO - twilio.http_client - GET Request: https://api.twilio.com/2010-04-01/Accounts.json
+2025-04-17 23:34:40,576 - INFO - twilio.http_client - Headers:
+2025-04-17 23:34:40,576 - INFO - twilio.http_client - Content-Type : application/x-www-form-urlencoded
+2025-04-17 23:34:40,576 - INFO - twilio.http_client - Accept : application/json
+2025-04-17 23:34:40,576 - INFO - twilio.http_client - User-Agent : twilio-python/9.5.2 (Linux x86_64) Python/3.13.2
+2025-04-17 23:34:40,576 - INFO - twilio.http_client - X-Twilio-Client : python-9.5.2
+2025-04-17 23:34:40,576 - INFO - twilio.http_client - Accept-Charset : utf-8
+2025-04-17 23:34:40,576 - INFO - twilio.http_client - -- END Twilio API Request --
+2025-04-17 23:34:40,576 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): api.twilio.com:443
+2025-04-17 23:34:40,811 - DEBUG - urllib3.connectionpool - https://api.twilio.com:443 "GET /2010-04-01/Accounts.json HTTP/1.1" 401 107
+2025-04-17 23:34:40,811 - INFO - twilio.http_client - Response Status Code: 401
+2025-04-17 23:34:40,812 - INFO - twilio.http_client - Response Headers: {'Content-Type': 'application/json', 'Content-Length': '107', 'Connection': 'keep-alive', 'Date': 'Fri, 18 Apr 2025 03:34:40 GMT', 'X-Twilio-Error-Code': '20003', 'Twilio-Request-Id': 'RQ857bd93ed3edd0d02ff0f89aefcd49ee', 'Twilio-Request-Duration': '0.016', 'X-Home-Region': 'us1', 'X-API-Domain': 'api.twilio.com', 'Strict-Transport-Security': 'max-age=31536000', 'WWW-Authenticate': 'Basic realm="Twilio API"', 'X-Cache': 'Error from cloudfront', 'Via': '1.1 5773488fa7f7d9241649f80a1e77c716.cloudfront.net (CloudFront)', 'X-Amz-Cf-Pop': 'ATL59-P3', 'X-Amz-Cf-Id': 'tNpR4KPkKcLsS6RI6vAqZaBcuSknPH7nJjkIOAaABFuGKmjaEB-IdA==', 'X-Powered-By': 'AT-5000', 'X-Shenanigans': 'none', 'Vary': 'Origin'}
+2025-04-17 23:34:40,813 - INFO - twilio.http_client - -- BEGIN Twilio API Request --
+2025-04-17 23:34:40,814 - INFO - twilio.http_client - POST Request: https://api.twilio.com/2010-04-01/Accounts/ACb8391ed8d92871d85180ca9adea481b6/Messages.json
+2025-04-17 23:34:40,814 - INFO - twilio.http_client - Headers:
+2025-04-17 23:34:40,814 - INFO - twilio.http_client - Content-Type : application/x-www-form-urlencoded
+2025-04-17 23:34:40,814 - INFO - twilio.http_client - Accept : application/json
+2025-04-17 23:34:40,814 - INFO - twilio.http_client - User-Agent : twilio-python/9.5.2 (Linux x86_64) Python/3.13.2
+2025-04-17 23:34:40,814 - INFO - twilio.http_client - X-Twilio-Client : python-9.5.2
+2025-04-17 23:34:40,814 - INFO - twilio.http_client - Accept-Charset : utf-8
+2025-04-17 23:34:40,814 - INFO - twilio.http_client - -- END Twilio API Request --
+2025-04-17 23:34:40,885 - DEBUG - urllib3.connectionpool - https://api.twilio.com:443 "POST /2010-04-01/Accounts/ACb8391ed8d92871d85180ca9adea481b6/Messages.json HTTP/1.1" 401 107
+2025-04-17 23:34:40,886 - INFO - twilio.http_client - Response Status Code: 401
+2025-04-17 23:34:40,886 - INFO - twilio.http_client - Response Headers: {'Content-Type': 'application/json', 'Content-Length': '107', 'Connection': 'keep-alive', 'Date': 'Fri, 18 Apr 2025 03:34:40 GMT', 'X-Powered-By': 'AT-5000', 'X-Twilio-Error-Code': '20003', 'Twilio-Request-Id': 'RQ838f07d572c54f5f5fc1cc9d7126faa6', 'Twilio-Request-Duration': '0.013', 'X-Home-Region': 'us1', 'X-Api-Domain': 'api.twilio.com', 'Strict-Transport-Security': 'max-age=31536000', 'Www-Authenticate': 'Basic realm="Twilio API"', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type, If-Match, If-Modified-Since, If-None-Match, If-Unmodified-Since, Idempotency-Key, X-Pre-Auth-Context, X-Target-Region', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS', 'Access-Control-Expose-Headers': 'ETag, Twilio-Request-Id', 'Access-Control-Allow-Credentials': 'true', 'X-Shenanigans': 'none', 'X-Cache': 'Error from cloudfront', 'Via': '1.1 5773488fa7f7d9241649f80a1e77c716.cloudfront.net (CloudFront)', 'X-Amz-Cf-Pop': 'ATL59-P3', 'X-Amz-Cf-Id': 'Wqft5yLRP-7d5tJ_9_QClHzqUNq8SW60A4jf621h-6S8xTN0vz6_PQ=='}
+2025-04-17 23:34:40,888 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-17 23:34:41,100 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "GET / HTTP/1.1" 200 None
+2025-04-17 23:34:41,105 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-17 23:34:41,235 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "GET /environment HTTP/1.1" 500 None
+2025-04-17 23:34:41,238 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-17 23:34:41,394 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "POST /staging-test HTTP/1.1" 404 None
+2025-04-17 23:34:41,397 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-17 23:34:41,549 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "POST /voice HTTP/1.1" 404 None
+2025-04-17 23:34:41,567 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-17 23:34:42,569 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-17 23:34:43,569 - ERROR - root - Commit attempt 2 failed: DB Error
+2025-04-17 23:34:43,581 - INFO - app.routes.voice - Extracting name from: 'John Doe'
+2025-04-17 23:34:43,581 - INFO - app.routes.voice - Using OpenAI for name extraction
+2025-04-17 23:34:43,581 - INFO - app.utils.agent_utils - [OPENAI-REQUEST] Function: extract_name, Model: gpt-4.1-mini
+2025-04-17 23:34:43,582 - INFO - app.utils.agent_utils - [OPENAI-MESSAGES] system: You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY...; user: Extract the person's name from: 'John Doe'. Respond with just the name, properly capitalized.
+2025-04-17 23:34:43,584 - DEBUG - openai._base_client - Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': "You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY the name, nothing else."}, {'role': 'user', 'content': "Extract the person's name from: 'John Doe'. Respond with just the name, properly capitalized."}], 'model': 'gpt-4.1-mini', 'max_tokens': 20, 'temperature': 0}}
+2025-04-17 23:34:43,585 - DEBUG - openai._base_client - Sending HTTP Request: POST https://api.openai.com/v1/chat/completions
+2025-04-17 23:34:43,585 - DEBUG - httpcore.connection - connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+2025-04-17 23:34:43,705 - DEBUG - httpcore.connection - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f40b2cb1400>
+2025-04-17 23:34:43,705 - DEBUG - httpcore.connection - start_tls.started ssl_context=<ssl.SSLContext object at 0x7f40b31b5eb0> server_hostname='api.openai.com' timeout=5.0
+2025-04-17 23:34:43,743 - DEBUG - httpcore.connection - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f40b2e0d810>
+2025-04-17 23:34:43,743 - DEBUG - httpcore.http11 - send_request_headers.started request=<Request [b'POST']>
+2025-04-17 23:34:43,744 - DEBUG - httpcore.http11 - send_request_headers.complete
+2025-04-17 23:34:43,744 - DEBUG - httpcore.http11 - send_request_body.started request=<Request [b'POST']>
+2025-04-17 23:34:43,744 - DEBUG - httpcore.http11 - send_request_body.complete
+2025-04-17 23:34:43,744 - DEBUG - httpcore.http11 - receive_response_headers.started request=<Request [b'POST']>
+2025-04-17 23:34:44,164 - DEBUG - httpcore.http11 - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Fri, 18 Apr 2025 03:34:44 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-expose-headers', b'X-Request-ID'), (b'openai-organization', b'red-bar-sushi'), (b'openai-processing-ms', b'236'), (b'openai-version', b'2020-10-01'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'4000000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'3999941'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'0s'), (b'x-request-id', b'req_a2dd92a457b4a7333ca4c995b9946416'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=_bHLBFUfQAx1fzNu1ocYOO0ELYFD4wSHT5gfC.SnfzY-1744947284-1.0.1.1-.B84qywUZPef3BMcoLzLK16XP21l.zYYZrRkl1xYACWl4Q0ikrTp9tV0MG3m3Ulpqb1jnKpKaEIwSurHmIrnqo6ueBt5f_SNlfPwxW3Vwj4; path=/; expires=Fri, 18-Apr-25 04:04:44 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'X-Content-Type-Options', b'nosniff'), (b'Set-Cookie', b'_cfuvid=CcC5a2R8rw66m_Q3Sa555csZ1i4JhWwwSkuMbOCU4aE-1744947284062-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'93211bab1880c013-ATL'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2025-04-17 23:34:44,164 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-04-17 23:34:44,165 - DEBUG - httpcore.http11 - receive_response_body.started request=<Request [b'POST']>
+2025-04-17 23:34:44,165 - DEBUG - httpcore.http11 - receive_response_body.complete
+2025-04-17 23:34:44,165 - DEBUG - httpcore.http11 - response_closed.started
+2025-04-17 23:34:44,165 - DEBUG - httpcore.http11 - response_closed.complete
+2025-04-17 23:34:44,165 - DEBUG - openai._base_client - HTTP Response: POST https://api.openai.com/v1/chat/completions "200 OK" Headers([('date', 'Fri, 18 Apr 2025 03:34:44 GMT'), ('content-type', 'application/json'), ('transfer-encoding', 'chunked'), ('connection', 'keep-alive'), ('access-control-expose-headers', 'X-Request-ID'), ('openai-organization', 'red-bar-sushi'), ('openai-processing-ms', '236'), ('openai-version', '2020-10-01'), ('x-ratelimit-limit-requests', '5000'), ('x-ratelimit-limit-tokens', '4000000'), ('x-ratelimit-remaining-requests', '4999'), ('x-ratelimit-remaining-tokens', '3999941'), ('x-ratelimit-reset-requests', '12ms'), ('x-ratelimit-reset-tokens', '0s'), ('x-request-id', 'req_a2dd92a457b4a7333ca4c995b9946416'), ('strict-transport-security', 'max-age=31536000; includeSubDomains; preload'), ('cf-cache-status', 'DYNAMIC'), ('set-cookie', '__cf_bm=_bHLBFUfQAx1fzNu1ocYOO0ELYFD4wSHT5gfC.SnfzY-1744947284-1.0.1.1-.B84qywUZPef3BMcoLzLK16XP21l.zYYZrRkl1xYACWl4Q0ikrTp9tV0MG3m3Ulpqb1jnKpKaEIwSurHmIrnqo6ueBt5f_SNlfPwxW3Vwj4; path=/; expires=Fri, 18-Apr-25 04:04:44 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), ('x-content-type-options', 'nosniff'), ('set-cookie', '_cfuvid=CcC5a2R8rw66m_Q3Sa555csZ1i4JhWwwSkuMbOCU4aE-1744947284062-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), ('server', 'cloudflare'), ('cf-ray', '93211bab1880c013-ATL'), ('content-encoding', 'gzip'), ('alt-svc', 'h3=":443"; ma=86400')])
+2025-04-17 23:34:44,165 - DEBUG - openai._base_client - request_id: req_a2dd92a457b4a7333ca4c995b9946416
+2025-04-17 23:34:44,167 - INFO - app.utils.agent_utils - [OPENAI-RESPONSE] Function: extract_name
+2025-04-17 23:34:44,167 - INFO - app.utils.agent_utils - [OPENAI-CONTENT] John Doe...
+2025-04-17 23:34:44,167 - INFO - app.utils.agent_utils - [OPENAI-FULL] ChatCompletion(id='chatcmpl-BNWmxI6ckLzNuzxUBwcuG1lRcLgmT', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='John Doe', refusal=None, role='assistant', annotations=[], audio=None, function_call=None, tool_calls=None))], created=1744947283, model='gpt-4.1-mini-2025-04-14', object='chat.completion', service_tier='default', system_fingerprint='fp_38647f5e19', usage=CompletionUsage(completion_tokens=3, prompt_tokens=54, total_tokens=57, completion_...
+2025-04-17 23:34:44,167 - INFO - app.routes.voice - Successfully extracted name: John Doe
+2025-04-17 23:34:44,172 - INFO - app.routes.voice - ==== INCOMING CALL RECEIVED ====
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - Request came from: 127.0.0.1
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - User agent: Werkzeug/3.1.3
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - Host header: localhost
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - URL: http://localhost/
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - Base URL: http://localhost/
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - Request method: POST
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - Environment: testing
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - Is this staging?: false
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - Current working directory: /home/proxyie/MySoftware/RedBarSushiAI
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - From number: +1234567890
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - ==== END CALL DETAILS ====
+2025-04-17 23:34:44,173 - INFO - app.routes.voice - STAGING ENV: Using default test number instead of +1234567890
+2025-04-17 23:34:44,175 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'i want to order a california roll'
+2025-04-17 23:34:44,175 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'i want to order a california roll'
+2025-04-17 23:34:44,175 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='139915854294592'>
+2025-04-17 23:34:44,176 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='139915854296272'>
+2025-04-17 23:34:44,176 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='139915855672192'>
+2025-04-17 23:34:44,176 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:34:44,177 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:34:44,177 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:34:44,177 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:34:44,178 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'tell me about your menu'
+2025-04-17 23:34:44,178 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'tell me about your menu'
+2025-04-17 23:34:44,178 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='139915854294592'>
+2025-04-17 23:34:44,178 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='139915854296272'>
+2025-04-17 23:34:44,179 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='139915855672192'>
+2025-04-17 23:34:44,179 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:34:44,179 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:34:44,179 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:34:44,179 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:34:44,180 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'how much is a california roll?'
+2025-04-17 23:34:44,180 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'how much is a california roll?'
+2025-04-17 23:34:44,180 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='139915854294592'>
+2025-04-17 23:34:44,180 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='139915854296272'>
+2025-04-17 23:34:44,180 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='139915855672192'>
+2025-04-17 23:34:44,180 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:34:44,181 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:34:44,181 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:34:44,181 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:34:44,182 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'something unrelated'
+2025-04-17 23:34:44,182 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'something unrelated'
+2025-04-17 23:34:44,182 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='139915854294592'>
+2025-04-17 23:34:44,182 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='139915854296272'>
+2025-04-17 23:34:44,182 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='139915855672192'>
+2025-04-17 23:34:44,182 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:34:44,182 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:34:44,183 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:34:44,183 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:34:58,449 - INFO - root - Application starting in development mode
+2025-04-17 23:34:58,449 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-17 23:34:58,455 - INFO - root - Received registration request: {"status": "register"}
+2025-04-17 23:34:58,455 - INFO - root - Channel registered with Deliverect: None (ID: None)
+2025-04-17 23:34:58,455 - INFO - root - Registered webhooks with base URL: http://localhost:5000
+2025-04-17 23:34:58,455 - INFO - root - Response: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-17 23:34:58,456 - INFO - root - Received registration request: {"status": "active"}
+2025-04-17 23:34:58,456 - INFO - root - Channel activated with Deliverect: None (ID: None)
+2025-04-17 23:34:58,456 - INFO - root - Registered webhooks with base URL: http://localhost:5000
+2025-04-17 23:34:58,456 - INFO - root - Response: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-17 23:34:58,457 - INFO - root - Received registration request: {"status": "inactive"}
+2025-04-17 23:34:58,457 - INFO - root - Channel deactivated with Deliverect: None (ID: None)
+2025-04-17 23:34:58,457 - INFO - root - Registered webhooks with base URL: http://localhost:5000
+2025-04-17 23:34:58,457 - INFO - root - Response: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-17 23:34:58,457 - INFO - root - Received registration request: {"status": "invalid"}
+2025-04-17 23:34:58,459 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-17 23:34:58,460 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-17 23:34:58,461 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,461 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-17 23:34:58,461 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,462 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-17 23:34:58,462 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,462 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-17 23:34:58,463 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,463 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-17 23:34:58,464 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,464 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-17 23:34:58,465 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,465 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-17 23:34:58,466 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,466 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-17 23:34:58,467 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,467 - INFO - app.utils.deliverect - Processed Deliverect menu: found 5 items
+2025-04-17 23:34:58,468 - INFO - app.utils.deliverect - Registering location test_location with name 'Test Location'
+2025-04-17 23:34:58,475 - INFO - app.utils.deliverect - Creating new location test_location
+2025-04-17 23:34:58,477 - INFO - app.utils.deliverect - Location test_location registered successfully
+2025-04-17 23:34:58,478 - INFO - app.utils.deliverect - Registering location test_location with name 'Updated Test Location'
+2025-04-17 23:34:58,479 - INFO - app.utils.deliverect - Updating existing location test_location
+2025-04-17 23:34:58,480 - INFO - app.utils.deliverect - Location test_location registered successfully
+2025-04-17 23:34:58,484 - INFO - app.utils.deliverect - Updating location downtown status to 'inactive'
+2025-04-17 23:34:58,485 - INFO - app.utils.deliverect - Location downtown status updated to 'inactive'
+2025-04-17 23:34:58,486 - INFO - app.utils.deliverect - Updating location nonexistent status to 'active'
+2025-04-17 23:34:58,486 - WARNING - app.utils.deliverect - Location nonexistent not found, cannot update status
+2025-04-17 23:34:58,489 - INFO - app.utils.deliverect - Generating webhook URLs for location downtown with BASE_URL: http://localhost:5000
+2025-04-17 23:34:58,490 - INFO - app.utils.deliverect - Generated location-specific webhook URLs: {"statusUpdateURL": "http://localhost:5000/location/downtown/order_status", "menuUpdateURL": "http://localhost:5000/location/downtown/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/location/downtown/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/location/downtown/busy_mode", "updatePrepTimeURL": "http://localhost:5000/location/downtown/updatePrepTime", "courierUpdateURL": "http://localhost:5000/location/downtown/courierUpdate", "paymentUpdateURL": "http://localhost:5000/location/downtown/payment_update"}
+2025-04-17 23:34:58,490 - INFO - app.utils.deliverect - Generating webhook URLs for location nonexistent with BASE_URL: http://localhost:5000
+2025-04-17 23:34:58,490 - INFO - app.utils.deliverect - Generated standard webhook URLs: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-17 23:34:58,495 - INFO - app.utils.deliverect - Registering location new_loc with name 'New Test Location'
+2025-04-17 23:34:58,495 - INFO - app.utils.deliverect - Creating new location new_loc
+2025-04-17 23:34:58,496 - INFO - app.utils.deliverect - Location new_loc registered successfully
+2025-04-17 23:34:58,496 - INFO - app.utils.deliverect - Updating location new_loc status to 'registered'
+2025-04-17 23:34:58,497 - INFO - app.utils.deliverect - Location new_loc status updated to 'registered'
+2025-04-17 23:34:58,497 - INFO - root - Location new_loc registered with Deliverect
+2025-04-17 23:34:58,497 - INFO - app.utils.deliverect - Generating webhook URLs for location new_loc with BASE_URL: http://localhost:5000
+2025-04-17 23:34:58,498 - INFO - app.utils.deliverect - Generated location-specific webhook URLs: {"statusUpdateURL": "http://localhost:5000/location/new_loc/order_status", "menuUpdateURL": "http://localhost:5000/location/new_loc/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/location/new_loc/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/location/new_loc/busy_mode", "updatePrepTimeURL": "http://localhost:5000/location/new_loc/updatePrepTime", "courierUpdateURL": "http://localhost:5000/location/new_loc/courierUpdate", "paymentUpdateURL": "http://localhost:5000/location/new_loc/payment_update"}
+2025-04-17 23:34:58,499 - INFO - app.utils.deliverect - Registering location new_loc with name 'New Test Location'
+2025-04-17 23:34:58,499 - INFO - app.utils.deliverect - Updating existing location new_loc
+2025-04-17 23:34:58,500 - INFO - app.utils.deliverect - Location new_loc registered successfully
+2025-04-17 23:34:58,504 - INFO - root - Received menu update data for location downtown: {'categories': [{'id': 'sushi', 'name': 'Sushi', 'products': [{'id': 'california_roll', 'name': 'California Roll', 'price': 995}]}]}
+2025-04-17 23:34:58,504 - INFO - root - Processing Deliverect menu format for location downtown
+2025-04-17 23:34:58,504 - WARNING - app.utils.menu_validator - [MENU-FIX] modifiers is not a valid list: <class 'NoneType'>
+2025-04-17 23:34:58,504 - WARNING - app.utils.menu_validator - [MENU-FIX] modifierGroups is not a valid list: <class 'NoneType'>
+2025-04-17 23:34:58,505 - WARNING - app.utils.menu_validator - [MENU-FIX] name_variants is not a valid dictionary: <class 'NoneType'>
+2025-04-17 23:34:58,505 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:58,505 - INFO - root - [MENU-LOAD] Using 7 name variants from menu data
+2025-04-17 23:34:58,505 - INFO - root - [MENU-PRICES] Loaded 7 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:58,505 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-17 23:34:58,505 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item California Roll has no PLU! Using synthetic reference: CaliforniaRoll. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-17 23:34:58,505 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for California Roll: CaliforniaRoll
+2025-04-17 23:34:58,505 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-17 23:34:58,505 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-17 23:34:58,506 - INFO - app.utils.menu_utils - Location-specific menu not found, using default: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:58,506 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:58,506 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:58,506 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-17 23:34:58,506 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-17 23:34:58,507 - DEBUG - app.utils.menu_utils - Sample item: Kids Burger - 6.95
+2025-04-17 23:34:58,507 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-17 23:34:58,507 - INFO - root - Menu updated successfully for location downtown
+2025-04-17 23:34:58,511 - INFO - root - Product california_roll updated successfully for location downtown
+2025-04-17 23:34:58,534 - INFO - app.utils.menu_utils - Using Flask-configured menu file path: /tmp/pytest-of-proxyie/pytest-30/test_write_menu_file0/test_menu.json
+2025-04-17 23:34:58,534 - INFO - app.utils.menu_utils - Successfully wrote menu data with 1 items to /tmp/pytest-of-proxyie/pytest-30/test_write_menu_file0/test_menu.json
+2025-04-17 23:34:58,534 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-17 23:34:58,540 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,540 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,540 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,540 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,541 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-17 23:34:58,541 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,541 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,541 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,541 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,541 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-17 23:34:58,542 - WARNING - app.utils.menu_utils - Test file not found or invalid: /tmp/pytest-of-proxyie/pytest-30/test_load_menu_data_file_not_f0/nonexistent_file.json. Creating an empty menu.
+2025-04-17 23:34:58,542 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-17 23:34:58,542 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:58,544 - INFO - app.utils.menu_utils - Loading menu data from /tmp/pytest-of-proxyie/pytest-30/test_load_menu_data_invalid_js0/invalid_menu.json
+2025-04-17 23:34:58,544 - ERROR - app.utils.menu_utils - Invalid JSON in menu file /tmp/pytest-of-proxyie/pytest-30/test_load_menu_data_invalid_js0/invalid_menu.json
+2025-04-17 23:34:58,544 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-17 23:34:58,544 - INFO - app.utils.menu_utils - Running in standard environment, menu will be stored at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:58,545 - ERROR - app.utils.menu_utils - Failed to parse timestamp: not a timestamp
+2025-04-17 23:34:58,546 - ERROR - app.utils.menu_utils - Failed to parse timestamp: invalid
+2025-04-17 23:34:58,546 - ERROR - app.utils.menu_utils - Failed to parse timestamp: also invalid
+2025-04-17 23:34:58,548 - ERROR - app.utils.menu_utils - Invalid time format in availability: invalid - also invalid
+2025-04-17 23:34:58,550 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-17 23:34:58,550 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250417_233458.json
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 83 bytes
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Top-level keys in data: ['categories']
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Found standard Deliverect format with categories: 1
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-17 23:34:58,551 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-17 23:34:58,551 - WARNING - app.utils.menu_validator - [MENU-FIX] modifiers is not a valid list: <class 'NoneType'>
+2025-04-17 23:34:58,552 - INFO - root - [MENU-LOAD] Loading menu from: /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:58,552 - INFO - root - [MENU-LOAD] Using 7 name variants from menu data
+2025-04-17 23:34:58,552 - INFO - root - [MENU-PRICES] Loaded 7 price entries from menu data at /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:34:58,552 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-17 23:34:58,552 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item Test Item has no PLU! Using synthetic reference: TestItem. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-17 23:34:58,552 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Test Item: TestItem
+2025-04-17 23:34:58,552 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Test Item has missing or invalid price, setting default to 7.5
+2025-04-17 23:34:58,552 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-17 23:34:58,553 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-17 23:34:58,553 - INFO - app.routes.menu - [MENU-UPDATE] All 1 items have valid PLUs for Deliverect integration.
+2025-04-17 23:34:58,553 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 1 items, 0 modifiers, 0 groups
+2025-04-17 23:34:58,553 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Test Item -> PLU: TestItem | Reference: TestItem
+2025-04-17 23:34:58,553 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250417_233458.json
+2025-04-17 23:34:58,553 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 1 items
+2025-04-17 23:34:58,553 - INFO - app.routes.menu - [MENU-UPDATE] Preserving existing name variants
+2025-04-17 23:34:58,553 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 1 items, 0 modifiers, 0 groups
+2025-04-17 23:34:58,553 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-17 23:34:58,554 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-17 23:34:58,554 - INFO - app.routes.menu - [MENU-UPDATE] Generating name variants for menu items
+2025-04-17 23:34:58,554 - INFO - app.routes.menu - [MENU-UPDATE] Generated 6 name variants
+2025-04-17 23:34:58,554 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu with name variants
+2025-04-17 23:34:58,556 - INFO - app.routes.menu - Received snooze/unsnooze data: {'operations': [{'action': 'snooze', 'item': 'California Roll'}]}
+2025-04-17 23:34:58,556 - INFO - app.routes.menu - Processed snooze/unsnooze operations.
+2025-04-17 23:34:58,558 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Hamburger'
+2025-04-17 23:34:58,558 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'hamburger'
+2025-04-17 23:34:58,558 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:58,558 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:58,558 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'hamburger' → 'Classic Burger'
+2025-04-17 23:34:58,558 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Classic Burger
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Fries'
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'fries'
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'fries' → 'French Fries'
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: French Fries
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Coke'
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'coke'
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'coke' → 'Coca Cola'
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Coca Cola
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Soda'
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'soda'
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'soda' → 'Coca Cola'
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Coca Cola
+2025-04-17 23:34:58,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Pizza'
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'pizza'
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-17 23:34:58,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-17 23:34:58,559 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'Pizza'
+2025-04-17 23:34:58,560 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,560 - INFO - app.utils.deliverect - Processed Deliverect menu: found 6 items
+2025-04-17 23:34:58,561 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,561 - INFO - app.utils.deliverect - Processed Deliverect menu: found 0 items
+2025-04-17 23:34:58,562 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,562 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-17 23:34:58,563 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-17 23:34:58,563 - INFO - app.utils.deliverect - Processed Deliverect menu: found 0 items
+2025-04-17 23:34:58,567 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,567 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,567 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,567 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,567 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,567 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,567 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:58,567 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:58,567 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-17 23:34:58,567 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-17 23:34:58,567 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:58,568 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:58,568 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-17 23:34:58,568 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-17 23:34:58,571 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,572 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,572 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,572 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,572 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,572 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,572 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:58,572 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:58,572 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-17 23:34:58,572 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-17 23:34:58,572 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:58,572 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:58,572 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-17 23:34:58,572 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-17 23:34:58,577 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,577 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,577 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,577 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,577 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,577 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,577 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:58,577 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:58,578 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-17 23:34:58,578 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-17 23:34:58,578 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:58,578 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:58,578 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-17 23:34:58,578 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-17 23:34:58,580 - INFO - app.routes.order - Menu data loaded: 0 items found
+2025-04-17 23:34:58,581 - INFO - app.routes.order - Available (not snoozed) items: 0
+2025-04-17 23:34:58,581 - WARNING - app.routes.order - No available items found - creating empty menu structure
+2025-04-17 23:34:58,581 - INFO - app.routes.order - Using default menu with 0 items
+2025-04-17 23:34:58,583 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,584 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,584 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,584 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,584 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,584 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,584 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:58,584 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:58,587 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,587 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,587 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,587 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,587 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,587 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,587 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:58,587 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:58,588 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Nonexistent Roll'
+2025-04-17 23:34:58,588 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'nonexistent roll'
+2025-04-17 23:34:58,588 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:58,588 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:58,588 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'Nonexistent Roll'
+2025-04-17 23:34:58,591 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,591 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,591 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,591 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,591 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,591 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,591 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-17 23:34:58,591 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-17 23:34:58,591 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Dragon Roll'
+2025-04-17 23:34:58,591 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'dragon roll'
+2025-04-17 23:34:58,591 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:58,591 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:58,591 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'Dragon Roll'
+2025-04-17 23:34:58,596 - INFO - root - Order confirmation: Speech='yes, that is correct', DTMF=''
+2025-04-17 23:34:58,596 - INFO - root - User confirmation interpreted as: yes
+2025-04-17 23:34:58,596 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,596 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,596 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,596 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,596 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,596 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,597 - INFO - root - Order test-123 saved successfully.
+2025-04-17 23:34:58,597 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,597 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,597 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,597 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,597 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,597 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,597 - WARNING - app.utils.snooze_validator - [AVAILABILITY] Item 'Salmon Nigiri' is marked as unavailable
+2025-04-17 23:34:58,597 - INFO - app.utils.order_utils - [ORDER-VALIDATE] Found 3/4 available menu items
+2025-04-17 23:34:58,597 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'California Roll' with reference 'cal_roll_1' not found in menu
+2025-04-17 23:34:58,597 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] No valid items in order after validation
+2025-04-17 23:34:58,597 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Unavailable items: California Roll
+2025-04-17 23:34:58,597 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,598 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,598 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,598 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,598 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,598 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,598 - INFO - root - No valid items with reference handlers in order, cannot submit to Deliverect
+2025-04-17 23:34:58,598 - INFO - root - Attempting to send SMS confirmation task directly for order test-123
+2025-04-17 23:34:58,598 - INFO - root - SMS confirmation task executed successfully for order test-123
+2025-04-17 23:34:58,601 - INFO - root - Order confirmation: Speech='no, i need to make changes', DTMF=''
+2025-04-17 23:34:58,601 - INFO - root - User confirmation interpreted as: no
+2025-04-17 23:34:58,605 - INFO - root - User requested order modification: Add a spicy tuna roll
+2025-04-17 23:34:58,605 - INFO - app.routes.order - [ORDER-MODIFY] Processing modifications: {"additions": [{"name": "Spicy Tuna Roll", "quantity": 1, "modifier": []}], "removals": []}
+2025-04-17 23:34:58,605 - INFO - app.routes.order - [ORDER-MODIFY] Current order: [{"name": "California Roll", "quantity": 2, "price": 9.95, "reference_handler": "cal_roll_1"}]
+2025-04-17 23:34:58,606 - INFO - app.routes.order - [ORDER-MODIFY] Processed additions: [{"name": "Spicy Tuna Roll", "quantity": 1, "modifier": []}]
+2025-04-17 23:34:58,606 - INFO - app.routes.order - [ORDER-MODIFY] Processed removals: []
+2025-04-17 23:34:58,606 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'spicy tuna roll'
+2025-04-17 23:34:58,606 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'spicy tuna roll'
+2025-04-17 23:34:58,606 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-17 23:34:58,606 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-17 23:34:58,606 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'spicy tuna roll' → 'Spicy Tuna Roll'
+2025-04-17 23:34:58,606 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Spicy Tuna Roll
+2025-04-17 23:34:58,606 - INFO - root - Order updated after modification: [{'name': 'California Roll', 'quantity': 2, 'price': 9.95, 'reference_handler': 'cal_roll_1'}, {'name': 'Spicy Tuna Roll', 'quantity': 1, 'modifier': [], 'price': 8.95, 'reference_handler': 'spicy-tuna-1'}]
+2025-04-17 23:34:58,615 - INFO - root - Final confirmation after modification: Speech='yes, that is correct', DTMF=''
+2025-04-17 23:34:58,615 - INFO - root - User final decision: yes
+2025-04-17 23:34:58,615 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,615 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,615 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,616 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,616 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,616 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,616 - INFO - root - Order test-456 saved successfully.
+2025-04-17 23:34:58,616 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,616 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,616 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,616 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,616 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,616 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,616 - WARNING - app.utils.snooze_validator - [AVAILABILITY] Item 'Salmon Nigiri' is marked as unavailable
+2025-04-17 23:34:58,616 - INFO - app.utils.order_utils - [ORDER-VALIDATE] Found 3/4 available menu items
+2025-04-17 23:34:58,616 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'California Roll' with reference 'cal_roll_1' not found in menu
+2025-04-17 23:34:58,616 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'Spicy Tuna Roll' with reference 'spicy_tuna_1' not found in menu
+2025-04-17 23:34:58,616 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] No valid items in order after validation
+2025-04-17 23:34:58,616 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Unavailable items: California Roll, Spicy Tuna Roll
+2025-04-17 23:34:58,617 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,617 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/tests/../test_menu_data.json
+2025-04-17 23:34:58,617 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-17 23:34:58,617 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-17 23:34:58,617 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-17 23:34:58,617 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-17 23:34:58,617 - INFO - root - No valid items with reference handlers in order, cannot submit to Deliverect
+2025-04-17 23:34:58,617 - INFO - root - Attempting to send SMS confirmation task directly for order test-456
+2025-04-17 23:34:58,617 - INFO - root - SMS confirmation task executed successfully for order test-456
+2025-04-17 23:34:58,620 - INFO - root - Final confirmation after modification: Speech='no, i need to make more changes', DTMF=''
+2025-04-17 23:34:58,620 - INFO - root - User final decision: no
+2025-04-17 23:34:58,630 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Modifier with reference 'MOD-UNAVAIL' not found in menu or unavailable: Unavailable Mod
+2025-04-17 23:34:58,630 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Modifier not found in menu: Not In Menu Mod
+2025-04-17 23:34:58,630 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Removed 2 invalid modifiers from item Delicious Steak Frites
+2025-04-17 23:34:58,636 - INFO - app.utils.realtime_audio - Running in test mode, using BasicAudioProcessor with mocks
+2025-04-17 23:34:58,636 - INFO - app.utils.realtime_audio - Running in test mode with OpenAI disabled
+2025-04-17 23:34:58,643 - INFO - tests.test_sms - Created test order for status check: test-76144
+2025-04-17 23:34:58,644 - INFO - root - Received SMS from +15555555555: 'status'
+2025-04-17 23:34:58,645 - INFO - root - SMS request headers: {"User-Agent": "Werkzeug/3.1.3", "Host": "localhost", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": "31"}
+2025-04-17 23:34:58,645 - INFO - root - SMS request form data: {"From": "+15555555555", "Body": "status"}
+2025-04-17 23:34:58,645 - INFO - root - SMS COMMAND DEBUG - Message: 'status'
+2025-04-17 23:34:58,645 - INFO - root - SMS COMMAND DEBUG - Exact match 'help': False
+2025-04-17 23:34:58,645 - INFO - root - SMS COMMAND DEBUG - Keyword match: False
+2025-04-17 23:34:58,646 - INFO - root - Sent enhanced status update via SMS to +15555555555
+2025-04-17 23:34:58,648 - INFO - root - Received SMS from +15555555555: 'help'
+2025-04-17 23:34:58,649 - INFO - root - SMS request headers: {"User-Agent": "Werkzeug/3.1.3", "Host": "localhost", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": "29"}
+2025-04-17 23:34:58,649 - INFO - root - SMS request form data: {"From": "+15555555555", "Body": "help"}
+2025-04-17 23:34:58,649 - INFO - root - SMS COMMAND DEBUG - Message: 'help'
+2025-04-17 23:34:58,649 - INFO - root - SMS COMMAND DEBUG - Exact match 'help': True
+2025-04-17 23:34:58,649 - INFO - root - SMS COMMAND DEBUG - Keyword match: True
+2025-04-17 23:34:58,649 - INFO - root - Sent help info via SMS to +15555555555
+2025-04-17 23:34:58,651 - INFO - root - Received SMS from +15555555555: 'menu'
+2025-04-17 23:34:58,651 - INFO - root - SMS request headers: {"User-Agent": "Werkzeug/3.1.3", "Host": "localhost", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": "29"}
+2025-04-17 23:34:58,651 - INFO - root - SMS request form data: {"From": "+15555555555", "Body": "menu"}
+2025-04-17 23:34:58,651 - INFO - root - SMS COMMAND DEBUG - Message: 'menu'
+2025-04-17 23:34:58,651 - INFO - root - SMS COMMAND DEBUG - Exact match 'help': False
+2025-04-17 23:34:58,651 - INFO - root - SMS COMMAND DEBUG - Keyword match: False
+2025-04-17 23:34:58,651 - INFO - root - Sent menu info via SMS to +15555555555
+2025-04-17 23:34:58,658 - INFO - root - Webhook test endpoint called - BASE_URL: http://localhost:5000
+2025-04-17 23:34:58,660 - ERROR - tests.test_sms - Error testing migration script: No module named 'migrate_sms_tracking'
+2025-04-17 23:34:58,706 - INFO - twilio.http_client - -- BEGIN Twilio API Request --
+2025-04-17 23:34:58,706 - INFO - twilio.http_client - GET Request: https://api.twilio.com/2010-04-01/Accounts.json
+2025-04-17 23:34:58,706 - INFO - twilio.http_client - Headers:
+2025-04-17 23:34:58,707 - INFO - twilio.http_client - Content-Type : application/x-www-form-urlencoded
+2025-04-17 23:34:58,707 - INFO - twilio.http_client - Accept : application/json
+2025-04-17 23:34:58,707 - INFO - twilio.http_client - User-Agent : twilio-python/9.5.2 (Linux x86_64) Python/3.13.2
+2025-04-17 23:34:58,707 - INFO - twilio.http_client - X-Twilio-Client : python-9.5.2
+2025-04-17 23:34:58,707 - INFO - twilio.http_client - Accept-Charset : utf-8
+2025-04-17 23:34:58,707 - INFO - twilio.http_client - -- END Twilio API Request --
+2025-04-17 23:34:58,708 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): api.twilio.com:443
+2025-04-17 23:34:58,915 - DEBUG - urllib3.connectionpool - https://api.twilio.com:443 "GET /2010-04-01/Accounts.json HTTP/1.1" 401 107
+2025-04-17 23:34:58,916 - INFO - twilio.http_client - Response Status Code: 401
+2025-04-17 23:34:58,916 - INFO - twilio.http_client - Response Headers: {'Content-Type': 'application/json', 'Content-Length': '107', 'Connection': 'keep-alive', 'Date': 'Fri, 18 Apr 2025 03:34:58 GMT', 'X-Twilio-Error-Code': '20003', 'Twilio-Request-Id': 'RQ139680a5ff23979c03814ca52f68d28f', 'Twilio-Request-Duration': '0.005', 'X-Home-Region': 'us1', 'X-API-Domain': 'api.twilio.com', 'Strict-Transport-Security': 'max-age=31536000', 'WWW-Authenticate': 'Basic realm="Twilio API"', 'X-Cache': 'Error from cloudfront', 'Via': '1.1 26b12020e819f8ec63c8747ee42971f8.cloudfront.net (CloudFront)', 'X-Amz-Cf-Pop': 'ATL59-P3', 'X-Amz-Cf-Id': '1qbRKwJl_rmkDjH67V_ZiSE59fQQNYNZON1yFgsRepsa83clJGKIAw==', 'X-Powered-By': 'AT-5000', 'X-Shenanigans': 'none', 'Vary': 'Origin'}
+2025-04-17 23:34:58,918 - INFO - twilio.http_client - -- BEGIN Twilio API Request --
+2025-04-17 23:34:58,918 - INFO - twilio.http_client - POST Request: https://api.twilio.com/2010-04-01/Accounts/ACb8391ed8d92871d85180ca9adea481b6/Messages.json
+2025-04-17 23:34:58,918 - INFO - twilio.http_client - Headers:
+2025-04-17 23:34:58,919 - INFO - twilio.http_client - Content-Type : application/x-www-form-urlencoded
+2025-04-17 23:34:58,919 - INFO - twilio.http_client - Accept : application/json
+2025-04-17 23:34:58,919 - INFO - twilio.http_client - User-Agent : twilio-python/9.5.2 (Linux x86_64) Python/3.13.2
+2025-04-17 23:34:58,919 - INFO - twilio.http_client - X-Twilio-Client : python-9.5.2
+2025-04-17 23:34:58,919 - INFO - twilio.http_client - Accept-Charset : utf-8
+2025-04-17 23:34:58,919 - INFO - twilio.http_client - -- END Twilio API Request --
+2025-04-17 23:34:58,989 - DEBUG - urllib3.connectionpool - https://api.twilio.com:443 "POST /2010-04-01/Accounts/ACb8391ed8d92871d85180ca9adea481b6/Messages.json HTTP/1.1" 401 107
+2025-04-17 23:34:58,989 - INFO - twilio.http_client - Response Status Code: 401
+2025-04-17 23:34:58,990 - INFO - twilio.http_client - Response Headers: {'Content-Type': 'application/json', 'Content-Length': '107', 'Connection': 'keep-alive', 'Date': 'Fri, 18 Apr 2025 03:34:58 GMT', 'X-Powered-By': 'AT-5000', 'X-Twilio-Error-Code': '20003', 'Twilio-Request-Id': 'RQb7fee21093d782f114ad796205c2cbd5', 'Twilio-Request-Duration': '0.007', 'X-Home-Region': 'us1', 'X-Api-Domain': 'api.twilio.com', 'Strict-Transport-Security': 'max-age=31536000', 'Www-Authenticate': 'Basic realm="Twilio API"', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type, If-Match, If-Modified-Since, If-None-Match, If-Unmodified-Since, Idempotency-Key, X-Pre-Auth-Context, X-Target-Region', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS', 'Access-Control-Expose-Headers': 'ETag, Twilio-Request-Id', 'Access-Control-Allow-Credentials': 'true', 'X-Shenanigans': 'none', 'X-Cache': 'Error from cloudfront', 'Via': '1.1 26b12020e819f8ec63c8747ee42971f8.cloudfront.net (CloudFront)', 'X-Amz-Cf-Pop': 'ATL59-P3', 'X-Amz-Cf-Id': 'aq5-ds920dVkwLJMabznxPl_PHnDkKxM4DQPsKzxlPBYLMyJnuCsjw=='}
+2025-04-17 23:34:58,993 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-17 23:34:59,237 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "GET / HTTP/1.1" 200 None
+2025-04-17 23:34:59,241 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-17 23:34:59,453 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "GET /environment HTTP/1.1" 500 None
+2025-04-17 23:34:59,457 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-17 23:34:59,681 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "POST /staging-test HTTP/1.1" 404 None
+2025-04-17 23:34:59,685 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-17 23:34:59,844 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "POST /voice HTTP/1.1" 404 None
+2025-04-17 23:34:59,866 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-17 23:35:00,872 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-17 23:35:01,877 - ERROR - root - Commit attempt 2 failed: DB Error
+2025-04-17 23:35:01,898 - INFO - app.routes.voice - Extracting name from: 'John Doe'
+2025-04-17 23:35:01,898 - INFO - app.routes.voice - Using OpenAI for name extraction
+2025-04-17 23:35:01,898 - INFO - app.utils.agent_utils - [OPENAI-REQUEST] Function: extract_name, Model: gpt-4.1-mini
+2025-04-17 23:35:01,898 - INFO - app.utils.agent_utils - [OPENAI-MESSAGES] system: You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY...; user: Extract the person's name from: 'John Doe'. Respond with just the name, properly capitalized.
+2025-04-17 23:35:01,901 - DEBUG - openai._base_client - Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': "You are a name extraction specialist. Extract the person's name from their introduction. Return ONLY the name, nothing else."}, {'role': 'user', 'content': "Extract the person's name from: 'John Doe'. Respond with just the name, properly capitalized."}], 'model': 'gpt-4.1-mini', 'max_tokens': 20, 'temperature': 0}}
+2025-04-17 23:35:01,902 - DEBUG - openai._base_client - Sending HTTP Request: POST https://api.openai.com/v1/chat/completions
+2025-04-17 23:35:01,902 - DEBUG - httpcore.connection - connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+2025-04-17 23:35:02,018 - DEBUG - httpcore.connection - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f63bfc72120>
+2025-04-17 23:35:02,018 - DEBUG - httpcore.connection - start_tls.started ssl_context=<ssl.SSLContext object at 0x7f63c00f3380> server_hostname='api.openai.com' timeout=5.0
+2025-04-17 23:35:02,058 - DEBUG - httpcore.connection - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f63bfdbb890>
+2025-04-17 23:35:02,059 - DEBUG - httpcore.http11 - send_request_headers.started request=<Request [b'POST']>
+2025-04-17 23:35:02,059 - DEBUG - httpcore.http11 - send_request_headers.complete
+2025-04-17 23:35:02,059 - DEBUG - httpcore.http11 - send_request_body.started request=<Request [b'POST']>
+2025-04-17 23:35:02,060 - DEBUG - httpcore.http11 - send_request_body.complete
+2025-04-17 23:35:02,060 - DEBUG - httpcore.http11 - receive_response_headers.started request=<Request [b'POST']>
+2025-04-17 23:35:02,454 - DEBUG - httpcore.http11 - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Fri, 18 Apr 2025 03:35:02 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-expose-headers', b'X-Request-ID'), (b'openai-organization', b'red-bar-sushi'), (b'openai-processing-ms', b'253'), (b'openai-version', b'2020-10-01'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'4000000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'3999941'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'0s'), (b'x-request-id', b'req_c2e73aa762a2114ba691ee43f78aa83b'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=7xyvUnRBUv5vSuyVc4y4OlWIplnYCerxNCeiiLJPaao-1744947302-1.0.1.1-OfNaU24oTZANht1xEN5zcrHVSCwkoN0jDUCZTeTm8Enz6PkiTbcJlyV8TkFvNGt5QiHDwN1R4UMywM.O6ne2pdElTs8IL0tzLT9XaLAJb5g; path=/; expires=Fri, 18-Apr-25 04:05:02 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'X-Content-Type-Options', b'nosniff'), (b'Set-Cookie', b'_cfuvid=9T6vUDuXgq1XQZ2YGMDXZSGn4cIIG.17s84y8vjRCm8-1744947302292-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'93211c1d1f1153ce-ATL'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2025-04-17 23:35:02,457 - INFO - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-04-17 23:35:02,458 - DEBUG - httpcore.http11 - receive_response_body.started request=<Request [b'POST']>
+2025-04-17 23:35:02,458 - DEBUG - httpcore.http11 - receive_response_body.complete
+2025-04-17 23:35:02,458 - DEBUG - httpcore.http11 - response_closed.started
+2025-04-17 23:35:02,458 - DEBUG - httpcore.http11 - response_closed.complete
+2025-04-17 23:35:02,458 - DEBUG - openai._base_client - HTTP Response: POST https://api.openai.com/v1/chat/completions "200 OK" Headers([('date', 'Fri, 18 Apr 2025 03:35:02 GMT'), ('content-type', 'application/json'), ('transfer-encoding', 'chunked'), ('connection', 'keep-alive'), ('access-control-expose-headers', 'X-Request-ID'), ('openai-organization', 'red-bar-sushi'), ('openai-processing-ms', '253'), ('openai-version', '2020-10-01'), ('x-ratelimit-limit-requests', '5000'), ('x-ratelimit-limit-tokens', '4000000'), ('x-ratelimit-remaining-requests', '4999'), ('x-ratelimit-remaining-tokens', '3999941'), ('x-ratelimit-reset-requests', '12ms'), ('x-ratelimit-reset-tokens', '0s'), ('x-request-id', 'req_c2e73aa762a2114ba691ee43f78aa83b'), ('strict-transport-security', 'max-age=31536000; includeSubDomains; preload'), ('cf-cache-status', 'DYNAMIC'), ('set-cookie', '__cf_bm=7xyvUnRBUv5vSuyVc4y4OlWIplnYCerxNCeiiLJPaao-1744947302-1.0.1.1-OfNaU24oTZANht1xEN5zcrHVSCwkoN0jDUCZTeTm8Enz6PkiTbcJlyV8TkFvNGt5QiHDwN1R4UMywM.O6ne2pdElTs8IL0tzLT9XaLAJb5g; path=/; expires=Fri, 18-Apr-25 04:05:02 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), ('x-content-type-options', 'nosniff'), ('set-cookie', '_cfuvid=9T6vUDuXgq1XQZ2YGMDXZSGn4cIIG.17s84y8vjRCm8-1744947302292-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), ('server', 'cloudflare'), ('cf-ray', '93211c1d1f1153ce-ATL'), ('content-encoding', 'gzip'), ('alt-svc', 'h3=":443"; ma=86400')])
+2025-04-17 23:35:02,459 - DEBUG - openai._base_client - request_id: req_c2e73aa762a2114ba691ee43f78aa83b
+2025-04-17 23:35:02,464 - INFO - app.utils.agent_utils - [OPENAI-RESPONSE] Function: extract_name
+2025-04-17 23:35:02,464 - INFO - app.utils.agent_utils - [OPENAI-CONTENT] John Doe...
+2025-04-17 23:35:02,464 - INFO - app.utils.agent_utils - [OPENAI-FULL] ChatCompletion(id='chatcmpl-BNWnGPiSFd5jP0RV6DZlK47rQfV0V', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='John Doe', refusal=None, role='assistant', annotations=[], audio=None, function_call=None, tool_calls=None))], created=1744947302, model='gpt-4.1-mini-2025-04-14', object='chat.completion', service_tier='default', system_fingerprint='fp_38647f5e19', usage=CompletionUsage(completion_tokens=3, prompt_tokens=54, total_tokens=57, completion_...
+2025-04-17 23:35:02,464 - INFO - app.routes.voice - Successfully extracted name: John Doe
+2025-04-17 23:35:02,473 - INFO - app.routes.voice - ==== INCOMING CALL RECEIVED ====
+2025-04-17 23:35:02,473 - INFO - app.routes.voice - Request came from: 127.0.0.1
+2025-04-17 23:35:02,473 - INFO - app.routes.voice - User agent: Werkzeug/3.1.3
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - Host header: localhost
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - URL: http://localhost/
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - Base URL: http://localhost/
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - Request method: POST
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - Environment: testing
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - Is this staging?: false
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - Current working directory: /home/proxyie/MySoftware/RedBarSushiAI
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - From number: +1234567890
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - ==== END CALL DETAILS ====
+2025-04-17 23:35:02,474 - INFO - app.routes.voice - STAGING ENV: Using default test number instead of +1234567890
+2025-04-17 23:35:02,477 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'i want to order a california roll'
+2025-04-17 23:35:02,478 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'i want to order a california roll'
+2025-04-17 23:35:02,478 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140066395984224'>
+2025-04-17 23:35:02,479 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140066395986576'>
+2025-04-17 23:35:02,479 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140066395986240'>
+2025-04-17 23:35:02,480 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:35:02,481 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:35:02,481 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:35:02,481 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:35:02,483 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'tell me about your menu'
+2025-04-17 23:35:02,483 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'tell me about your menu'
+2025-04-17 23:35:02,483 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140066395984224'>
+2025-04-17 23:35:02,483 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140066395986576'>
+2025-04-17 23:35:02,483 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140066395986240'>
+2025-04-17 23:35:02,484 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:35:02,484 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:35:02,484 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:35:02,484 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:35:02,486 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'how much is a california roll?'
+2025-04-17 23:35:02,486 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'how much is a california roll?'
+2025-04-17 23:35:02,487 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140066395984224'>
+2025-04-17 23:35:02,487 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140066395986576'>
+2025-04-17 23:35:02,487 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140066395986240'>
+2025-04-17 23:35:02,487 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:35:02,487 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:35:02,487 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:35:02,487 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:35:02,490 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'something unrelated'
+2025-04-17 23:35:02,490 - INFO - app.utils.agent_utils - [AGENT-ORDER] Initializing order parsing agent for: 'something unrelated'
+2025-04-17 23:35:02,490 - INFO - app.utils.agent_utils - [AGENT-MESSAGE] Created message with ID: <MagicMock name='mock.Agent().create_thread().messages.create().id' id='140066395984224'>
+2025-04-17 23:35:02,490 - INFO - app.utils.agent_utils - [AGENT-RUN] Created run with ID: <MagicMock name='mock.Agent().create_thread().runs.create().id' id='140066395986576'>
+2025-04-17 23:35:02,490 - INFO - app.utils.agent_utils - [AGENT-COMPLETE] Run completed with status: <MagicMock name='mock.Agent().create_thread().runs.wait().status' id='140066395986240'>
+2025-04-17 23:35:02,490 - ERROR - app.utils.agent_utils - [AGENT-ERROR] Error in parse_order: list index out of range
+2025-04-17 23:35:02,490 - ERROR - app.utils.agent_utils - [AGENT-TRACEBACK] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/app/utils/agent_utils.py", line 432, in parse_order
+    response = list(messages)[0].content[0].text.value
+               ~~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+2025-04-17 23:35:02,490 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'error': 'list index out of range'}
+2025-04-17 23:35:02,491 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:35:20,179 - INFO - root - Application starting in development mode
+2025-04-17 23:35:20,179 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-17 23:35:20,185 - INFO - app.routes.voice - Extracting name from: 'John Doe'
+2025-04-17 23:35:20,185 - INFO - app.routes.voice - Falling back to regex-based name extraction
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - ==== INCOMING CALL RECEIVED ====
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - Request came from: 127.0.0.1
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - User agent: Werkzeug/3.1.3
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - Host header: localhost
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - URL: http://localhost/
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - Base URL: http://localhost/
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - Request method: POST
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - Environment: testing
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - Is this staging?: false
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - Current working directory: /home/proxyie/MySoftware/RedBarSushiAI
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - From number: +1234567890
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - ==== END CALL DETAILS ====
+2025-04-17 23:35:20,191 - INFO - app.routes.voice - STAGING ENV: Using default test number instead of +1234567890
+2025-04-17 23:35:20,193 - INFO - app.utils.menu_utils - Loading menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:35:20,193 - INFO - app.utils.menu_utils - Successfully loaded menu data from /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+2025-04-17 23:35:20,194 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-17 23:35:20,194 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-17 23:35:20,194 - DEBUG - app.utils.menu_utils - Sample item: Kids Burger - 6.95
+2025-04-17 23:35:20,194 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-17 23:35:20,194 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'i want to order a california roll'
+2025-04-17 23:35:20,194 - WARNING - app.utils.agent_utils - No OpenAI API key available - using simple keyword matching
+2025-04-17 23:35:20,194 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 0 potential items
+2025-04-17 23:35:20,194 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 0/0 items verified (0%)
+2025-04-17 23:35:20,194 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'intent': 'other'}
+2025-04-17 23:35:20,194 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:35:20,195 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'tell me about your menu'
+2025-04-17 23:35:20,195 - WARNING - app.utils.agent_utils - No OpenAI API key available - using simple keyword matching
+2025-04-17 23:35:20,195 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 0 potential items
+2025-04-17 23:35:20,195 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 0/0 items verified (0%)
+2025-04-17 23:35:20,195 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'intent': 'other'}
+2025-04-17 23:35:20,195 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:35:20,197 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'how much is a california roll?'
+2025-04-17 23:35:20,197 - WARNING - app.utils.agent_utils - No OpenAI API key available - using simple keyword matching
+2025-04-17 23:35:20,197 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 0 potential items
+2025-04-17 23:35:20,197 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 0/0 items verified (0%)
+2025-04-17 23:35:20,197 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'intent': 'other'}
+2025-04-17 23:35:20,197 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-17 23:35:20,198 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'something unrelated'
+2025-04-17 23:35:20,198 - WARNING - app.utils.agent_utils - No OpenAI API key available - using simple keyword matching
+2025-04-17 23:35:20,198 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 0 potential items
+2025-04-17 23:35:20,198 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 0/0 items verified (0%)
+2025-04-17 23:35:20,198 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'intent': 'other'}
+2025-04-17 23:35:20,198 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
