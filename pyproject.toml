@@ -1,0 +1,64 @@
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "W",  # pycodestyle warnings
+    "I",  # isort
+]
+ignore = [
+    "E402",  # module level import not at top of file (many of these in tests)
+    "F403",  # 'from module import *' used (we use this in app/__init__.py)
+    "F405",  # name may be undefined from star imports
+    "E722",  # bare except (a few of these exist)
+    "F841",  # local variable is assigned but never used
+]
+
+[tool.ruff.isort]
+known-third-party = ["flask", "sqlalchemy", "openai", "twilio", "pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests that require external services (deselect with '-m \"not integration\"')",
+    "unit: marks tests as unit tests",
+    "audio: marks tests requiring audio functionality",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:.*twilio.*",
+    "ignore::DeprecationWarning:tests.*",
+    "ignore::pytest.PytestConfigWarning:.*asyncio_mode.*",
+    "ignore::pytest.PytestConfigWarning:.*asyncio_default_fixture_loop_scope.*",
+    "ignore::pytest.PytestDeprecationWarning:.*asyncio_default_fixture_loop_scope.*",
+    "ignore::sqlalchemy.exc.SAWarning:.*",
+    "ignore::RuntimeWarning:.*",
+    "ignore::DeprecationWarning:.*socket.*",
+    "ignore::DeprecationWarning:.*ssl.*",
+    "ignore::DeprecationWarning:.*pkg_resources.*",
+    "ignore::pytest.PytestUnknownMarkWarning:.*asyncio.*",
+    "ignore::pytest.PytestReturnNotNoneWarning:.*",
+    "ignore::pytest.PytestUnhandledCoroutineWarning:.*",
+]

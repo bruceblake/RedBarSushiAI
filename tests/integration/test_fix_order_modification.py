@@ -3,28 +3,28 @@
 Script to fix the order modification bug in the order.py file
 """
 import re
-import os
+
 
 def fix_order_modification_bug():
     """Fix the bug in the apply_modifications function"""
     # Path to the order.py file
     order_file_path = "app/routes/order.py"
-    
+
     # Read the current content
-    with open(order_file_path, 'r') as f:
+    with open(order_file_path, "r") as f:
         content = f.read()
-    
+
     # Find the apply_modifications function
-    apply_mods_pattern = r'def apply_modifications\(current_items, modifications\):.*?return updated_items'
+    apply_mods_pattern = r"def apply_modifications\(current_items, modifications\):.*?return updated_items"
     apply_mods_match = re.search(apply_mods_pattern, content, re.DOTALL)
-    
+
     if not apply_mods_match:
         print("Could not find apply_modifications function")
         return False
-    
+
     # Extract the function
     current_function = apply_mods_match.group(0)
-    
+
     # Create the fixed version - parse string items into dictionaries
     fixed_function = """def apply_modifications(current_items, modifications):
     \"\"\"Apply the specified modifications to the current order\"\"\"
@@ -100,27 +100,32 @@ def fix_order_modification_bug():
             updated_items.append(new_item)
     
     return updated_items"""
-    
+
     # Replace the old function with the fixed one
     updated_content = content.replace(current_function, fixed_function)
-    
+
     # Also ensure find_menu_item_by_name is imported
     if "from app.utils.menu_utils import find_menu_item_by_name" not in updated_content:
         # Add import after the existing imports
         import_pattern = r"import.*?\n\n"
-        last_import_match = list(re.finditer(import_pattern, updated_content, re.DOTALL))[-1]
+        last_import_match = list(
+            re.finditer(import_pattern, updated_content, re.DOTALL)
+        )[-1]
         import_end = last_import_match.end()
-        
-        updated_content = (updated_content[:import_end] + 
-                          "from app.utils.menu_utils import find_menu_item_by_name\n\n" + 
-                          updated_content[import_end:])
-    
+
+        updated_content = (
+            updated_content[:import_end]
+            + "from app.utils.menu_utils import find_menu_item_by_name\n\n"
+            + updated_content[import_end:]
+        )
+
     # Write the updated file
-    with open(order_file_path, 'w') as f:
+    with open(order_file_path, "w") as f:
         f.write(updated_content)
-    
+
     print(f"Updated {order_file_path} with fixed apply_modifications function")
     return True
+
 
 if __name__ == "__main__":
     fix_order_modification_bug()

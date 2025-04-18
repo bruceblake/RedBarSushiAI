@@ -23,6 +23,7 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install -r requirements.txt
         python -m pip install -r requirements.ci.txt
+        python -m pip install black ruff
         
     - name: Set up test environment
       run: |
@@ -30,12 +31,19 @@ jobs:
         cp .env.test.example .env.test || true
         python -c "import os; f=open('.env.test', 'w'); f.write('DATABASE_URL=sqlite:///:memory:\nFLASK_ENV=testing\nTESTING=true\nLOG_LEVEL=DEBUG\nDISABLE_OPENAI=true\nDISABLE_TWILIO=true\nDISABLE_DELIVERECT=true\nSQLALCHEMY_TRACK_MODIFICATIONS=false'); f.close()"
         
-    - name: Lint with flake8
+    - name: Check code formatting with Black
+      run: |
+        # Check if files are formatted properly, but don't fail the build
+        black --check app tests || echo "Black formatting issues found, please run 'black app tests' locally"
+        
+    - name: Lint with flake8 and ruff
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        # Run ruff for additional checks but don't fail the build
+        ruff check app tests --exit-zero || echo "Ruff linting issues found"
         
     - name: Run unit tests
       env:

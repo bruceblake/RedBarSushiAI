@@ -86,6 +86,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install -r requirements.ci.txt
         pip install pytest-cov
         
     - name: Setup test environment
@@ -99,18 +100,28 @@ jobs:
         echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/testdb" >> .env.test
         echo "REDIS_URL=redis://localhost:6379/0" >> .env.test
         echo "TESTING=true" >> .env.test
+        echo "DISABLE_OPENAI=true" >> .env.test
         
-    - name: Run tests
+    - name: Check code formatting with Black
       run: |
-        python -m pytest -v --cov=app -k "not test_sms_endpoint and not test_webhook_config and not test_twilio_webhook and not test_order_status_endpoint and not test_deliverect_deep_scan and not test_menu_variant_matching" tests/
-
-    - name: Run linting
+        # Check if files are formatted properly, but don't fail the build
+        black --check app tests || echo "Black formatting issues found, please run 'black app tests' locally"
+        
+    - name: Run linting with flake8 and ruff
       run: |
-        pip install flake8
-        # Check for critical errors
+        # Check for critical errors with flake8
         flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
         # Run a second pass with only functional errors (ignoring style issues)
         flake8 app/ --count --select=F --ignore=F401,F403,F405,F541,F901 --statistics || true
+        # Run ruff for additional checks but don't fail the build
+        ruff check app tests --exit-zero || echo "Ruff linting issues found"
+        
+    - name: Run tests
+      env:
+        TESTING: "True"
+        DISABLE_OPENAI: "True"
+      run: |
+        python -m pytest -v --cov=app -k "not test_sms_endpoint and not test_webhook_config and not test_twilio_webhook and not test_order_status_endpoint and not test_deliverect_deep_scan and not test_menu_variant_matching" tests/
         
   build:
     runs-on: ubuntu-latest
