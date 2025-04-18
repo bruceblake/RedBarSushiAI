@@ -16,6 +16,11 @@ CI tests and GitHub Actions were failing because they require a valid OpenAI API
   - Implemented mock responses for all audio processing methods
   - Modified the client initialization to be conditional
 
+- Updated `app/utils/realtime_audio.py` to properly handle test mode:
+  - Added test mode detection in process_chunk function
+  - Implemented mock responses for audio processing
+  - Fixed the callback handling in test mode
+
 - Updated tests to properly use test mode:
   - Modified `tests/test_ai_agent.py` to use environment variables
   - Refactored tests to work with both mock and real implementations
