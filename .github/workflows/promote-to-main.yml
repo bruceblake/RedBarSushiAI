@@ -21,6 +21,8 @@ jobs:
   promote:
     needs: validate
     runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -72,9 +74,93 @@ jobs:
         if: steps.check_changes.outputs.has_changes != 'true'
         run: echo "No changes to merge, skipping promotion"
 
-  deploy-production:
+  production-verification:
     needs: promote
     runs-on: ubuntu-latest
+    # Skip this job if there were no changes to merge
+    if: needs.promote.outputs.has_changes == 'true'
+    outputs:
+      verification_success: ${{ steps.verification_status.outputs.status }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: main
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.ci.txt
+          # Install test requirements
+          pip install pytest pytest-flask
+      
+      - name: Set up test environment
+        run: |
+          echo "TESTING=true" >> $GITHUB_ENV
+          echo "DISABLE_OPENAI=true" >> $GITHUB_ENV
+          echo "SKIP_DB_INIT=true" >> $GITHUB_ENV
+          echo "DATABASE_URL=sqlite:///:memory:" >> $GITHUB_ENV
+          echo "FLASK_ENV=testing" >> $GITHUB_ENV
+      
+      - name: Run critical verification tests
+        id: verification_status
+        run: |
+          # Run key tests to ensure core functionality works
+          set +e  # Don't exit on error so we can capture the result
+          
+          # 1. Check code formatting
+          black --check app --quiet || echo "Code formatting issues found, but continuing"
+          
+          # 2. Application import check
+          python -c "import app; print('Application imports successfully')"
+          if [ $? -ne 0 ]; then
+            echo "Application import failed"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # 3. Run database connection test to verify DB connectivity
+          python -m pytest tests/integration/test_db.py -v
+          if [ $? -ne 0 ]; then
+            echo "Database connection test failed"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # 4. Run API endpoint test to verify API works
+          python -m pytest tests/integration/test_endpoint.py -v
+          if [ $? -ne 0 ]; then
+            echo "API endpoint test failed"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # 5. Run menu functionality test to verify core operations
+          python -m pytest tests/test_menu.py::test_load_menu_data -v
+          if [ $? -ne 0 ]; then
+            echo "Menu functionality test failed"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # All tests passed successfully
+          echo "Critical verification tests passed"
+          echo "status=success" >> $GITHUB_OUTPUT
+  
+  deploy-production:
+    needs: [promote, production-verification]
+    runs-on: ubuntu-latest
+    # Skip this job if there were no changes to merge or verification failed
+    if: >
+      always() && 
+      needs.promote.outputs.has_changes == 'true' && 
+      needs.production-verification.result == 'success' && 
+      needs.production-verification.outputs.verification_success == 'success'
     steps:
       - name: Trigger production deployment
         run: |
@@ -85,3 +171,17 @@ jobs:
       - name: Production deployment notification
         run: |
           echo "Changes from staging have been promoted to main and deployed to production"
+    
+  deployment-failure:
+    needs: [promote, production-verification]
+    runs-on: ubuntu-latest
+    if: >
+      always() && 
+      needs.promote.outputs.has_changes == 'true' && 
+      (needs.production-verification.result != 'success' || needs.production-verification.outputs.verification_success != 'success')
+    steps:
+      - name: Deployment blocked
+        run: |
+          echo "⚠️ Production deployment was blocked because verification tests failed"
+          echo "Please fix the issues in the staging branch before promoting to production"
+          exit 1
