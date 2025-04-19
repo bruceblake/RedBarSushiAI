@@ -8,6 +8,7 @@ import time
 import os
 import traceback
 import uuid
+import openai
 
 # Import WebSocket handler from Flask-Sock
 from app import sock
@@ -649,7 +650,6 @@ def handle_menu_questions():
                 speech_timeout=12,
                 timeout=15,
                 num_digits=1,
-                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls",  # Help Twilio recognize common items
             ) as g:
                 g.say(
                     "I'm having trouble hearing you. You can ask about our menu items by speaking clearly, or press 1 to hear our most popular items, press 2 to return to the main menu."
@@ -670,7 +670,7 @@ def handle_menu_questions():
                 timeout=12,  # Give more time
             ) as g:
                 g.say(
-                    "I didn't hear your question. You can ask about our menu items, prices, or special rolls. What would you like to know?"
+                    "I didn't hear your question. What would you like to know?"
                 )
 
             # Add fallback in case this gather fails too
@@ -701,49 +701,33 @@ def handle_menu_questions():
                 "I'll take your order now. Please tell me what you would like to order."
             )
     elif intent == "ask_menu":
-        # Dynamic menu information based on actual menu data
-        # Attempt to retrieve categories and items via the agent
-        items_text = ""
-        try:
-            agent = OrderParsingAgent()
-            # Get up to 3 categories
-            categories = agent.menu_tool.get_menu_categories() or []
-            parts = []
-            for cat in categories[:3]:
-                # For each category, list up to 2 items with prices
-                items = agent.menu_tool.get_items_by_category(cat) or []
-                name_parts = []
-                for it in items[:2]:
-                    name = it.get("name", "")
-                    price = it.get("price")
-                    if name:
-                        if price is not None:
-                            name_parts.append(f"{name} at ${price:.2f}")
-                        else:
-                            name_parts.append(name)
-                if name_parts:
-                    parts.append(f"{cat}: " + ", ".join(name_parts))
-            if parts:
-                items_text = "; ".join(parts)
-        except Exception:
-            # Fallback to a generic prompt if dynamic retrieval fails
-            items_text = "a selection of sushi rolls, nigiri, and appetizers"
-        # Construct the prompt
-        prompt = (
-            "Our menu includes: "
-            + items_text
-            + ". Would you like to know about another item, or place an order now?"
-        )
-        with response.gather(
-            input="speech",
-            action="/handle_menu_questions",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=7,
-        ) as g:
-            g.say(prompt)
+        # Use AI agent to answer any menu question; fallback on error
+        # Check if OpenAI usage is disabled
+        if os.environ.get("DISABLE_OPENAI", "false").lower() in ("true", "1"):
+            reply = "Sorry, menu retrieval is currently unavailable."
+        else:
+            try:
+                # Create OpenAI client and send system+user messages
+                client = openai.OpenAI()
+                system_msg = (
+                    "You are a knowledgeable assistant for Red Bar Sushi. "
+                    "You know the full menu, ingredients, prices, and descriptions. "
+                    "Answer the customer's question concisely."
+                )
+                result = client.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_input},
+                    ],
+                )
+                reply = result.choices[0].message.content.strip()
+            except Exception:
+                reply = "Sorry, menu retrieval failed."
+        # Say the reply and end the conversation loop
+        voice_resp = VoiceResponse()
+        voice_resp.say(reply)
+        return Response(str(voice_resp), mimetype="text/xml")
     elif intent == "get_menu_item_price" or intent == "describe_menu_item":
         # Look up the specific item using agent
         agent = OrderParsingAgent()
