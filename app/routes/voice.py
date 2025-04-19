@@ -668,7 +668,6 @@ def handle_menu_questions():
                 language="en-US",
                 speech_timeout=10,  # Use fixed timeout
                 timeout=12,  # Give more time
-                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls",  # Help Twilio recognize common items
             ) as g:
                 g.say(
                     "I didn't hear your question. You can ask about our menu items, prices, or special rolls. What would you like to know?"
@@ -702,7 +701,39 @@ def handle_menu_questions():
                 "I'll take your order now. Please tell me what you would like to order."
             )
     elif intent == "ask_menu":
-        # Generic menu information
+        # Dynamic menu information based on actual menu data
+        # Attempt to retrieve categories and items via the agent
+        items_text = ""
+        try:
+            agent = OrderParsingAgent()
+            # Get up to 3 categories
+            categories = agent.menu_tool.get_menu_categories() or []
+            parts = []
+            for cat in categories[:3]:
+                # For each category, list up to 2 items with prices
+                items = agent.menu_tool.get_items_by_category(cat) or []
+                name_parts = []
+                for it in items[:2]:
+                    name = it.get("name", "")
+                    price = it.get("price")
+                    if name:
+                        if price is not None:
+                            name_parts.append(f"{name} at ${price:.2f}")
+                        else:
+                            name_parts.append(name)
+                if name_parts:
+                    parts.append(f"{cat}: " + ", ".join(name_parts))
+            if parts:
+                items_text = "; ".join(parts)
+        except Exception:
+            # Fallback to a generic prompt if dynamic retrieval fails
+            items_text = "a selection of sushi rolls, nigiri, and appetizers"
+        # Construct the prompt
+        prompt = (
+            "Our menu includes: "
+            + items_text
+            + ". Would you like to know about another item, or place an order now?"
+        )
         with response.gather(
             input="speech",
             action="/handle_menu_questions",
@@ -710,21 +741,9 @@ def handle_menu_questions():
             speech_model="phone_call",
             language="en-US",
             speech_timeout="auto",
+            timeout=7,
         ) as g:
-            # Use agent.menu_tool to get categories for more accurate information
-            menu_categories = []
-            try:
-                agent = OrderParsingAgent()
-                menu_categories = agent.menu_tool.get_menu_categories()
-                cat_text = ", ".join(menu_categories[:5]) + " and more"
-            except:
-                cat_text = "sushi rolls, nigiri, sashimi, and special rolls"
-
-            g.say(
-                f"Our menu features a variety of {cat_text}. "
-                + "We have popular items like California Roll, Spicy Tuna Roll, Dragon Roll, and more. "
-                + "Would you like to know about specific items, prices, or would you like to place an order now?"
-            )
+            g.say(prompt)
     elif intent == "get_menu_item_price" or intent == "describe_menu_item":
         # Look up the specific item using agent
         agent = OrderParsingAgent()

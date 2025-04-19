@@ -8,6 +8,7 @@ import os
 import time
 import logging
 import shutil
+from app.utils.deliverect import process_deliverect_menu
 
 # Path used only for type hints - can be removed for linting
 from typing import Dict, Any, Optional  # List and Union used in other modules
@@ -1146,6 +1147,14 @@ def get_popular_menu_items(count=5):
         )
 
     return result
+ 
+# Expose Deliverect menu processing via menu_utils for test compatibility
+def process_deliverect_menu(menu_data):
+    """
+    Wrapper to import and invoke process_deliverect_menu from deliverect module.
+    """
+    from app.utils.deliverect import process_deliverect_menu as _process
+    return _process(menu_data)
 
 
 def sync_reference_handlers(source_location_id=None, target_location_id=None):
