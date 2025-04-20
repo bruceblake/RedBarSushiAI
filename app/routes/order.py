@@ -29,19 +29,11 @@ from app.models import Order
 from app import db
 
 # Try to import from the original module first
-try:
-    from app.utils.agent_utils import analyze_user_input, get_order_modifications
+from app.utils.agent_utils import analyze_user_input, get_order_modifications
 
-    logger = logging.getLogger(__name__)
-    logger.info("Successfully imported OpenAI agent utilities in order routes")
-except ImportError:
-    # If that fails, use our simplified implementation
-    from app.utils.agent_utils_simple import analyze_user_input, get_order_modifications
+logger = logging.getLogger(__name__)
+logger.info("Successfully imported OpenAI agent utilities in order routes")
 
-    logger = logging.getLogger(__name__)
-    logger.warning(
-        "Using simplified agent utilities in order routes (OpenAI not available)"
-    )
 from app import twilio_client
 from app.config import TWILIO_NUMBER as TWILIO_PHONE_NUMBER
 

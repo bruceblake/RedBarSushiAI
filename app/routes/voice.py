@@ -14,25 +14,14 @@ import openai
 from app import sock
 
 # Try to import from the original module first
-try:
-    from app.utils.agent_utils import (
-        analyze_user_input,
-        get_order_modifications,
-        OrderParsingAgent,
-    )
+from app.utils.agent_utils import (
+    analyze_user_input,
+    get_order_modifications,
+    OrderParsingAgent,
+)
 
-    logger = logging.getLogger(__name__)
-    logger.info("Successfully imported OpenAI agent utilities")
-except ImportError:
-    # If that fails, use our simplified implementation
-    from app.utils.agent_utils_simple import (
-        analyze_user_input,
-        get_order_modifications,
-        OrderParsingAgent,
-    )
-
-    logger = logging.getLogger(__name__)
-    logger.warning("Using simplified agent utilities (OpenAI not available)")
+logger = logging.getLogger(__name__)
+logger.info("Successfully imported OpenAI agent utilities")
 
 # Import real-time audio processing utilities
 from app.utils.realtime_audio import get_audio_processor
