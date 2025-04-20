@@ -602,10 +602,6 @@ def handle_menu_questions():
     elif intent == "ask_menu":
         # Use AI agent to answer any menu question; fallback on error
         # Check if OpenAI usage is disabled
-        if os.environ.get("DISABLE_OPENAI", "false").lower() in ("true", "1"):
-            reply = "Sorry, menu retrieval is currently unavailable."
-        else:
-            try:
                 # First, get actual menu data to provide context
                 agent = OrderParsingAgent()
                 menu_tool = agent.menu_tool
@@ -660,10 +656,6 @@ def handle_menu_questions():
                     ],
                 )
                 reply = result.choices[0].message.content.strip()
-            except Exception as e:
-                logger.error(f"Menu question error: {str(e)}")
-                logger.error(traceback.format_exc())
-                reply = "Sorry, menu retrieval failed."
         
         # Say the reply and offer to continue the conversation
         response = VoiceResponse()
