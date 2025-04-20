@@ -669,9 +669,7 @@ def handle_menu_questions():
                 speech_timeout=10,  # Use fixed timeout
                 timeout=12,  # Give more time
             ) as g:
-                g.say(
-                    "I didn't hear your question. What would you like to know?"
-                )
+                g.say("I didn't hear your question. What would you like to know?")
 
             # Add fallback in case this gather fails too
             response.redirect("/handle_menu_questions")

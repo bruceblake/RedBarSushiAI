@@ -135,9 +135,11 @@ def test_register_channel_per_location(client, app_with_locations):
     }
 
     # Mock Deliverect API response
-    with patch("app.utils.deliverect.register_new_location", return_value=True), patch(
-        "app.utils.deliverect.update_location_status", return_value=True
-    ), patch("app.utils.deliverect.get_location_webhook_urls") as mock_urls:
+    with (
+        patch("app.utils.deliverect.register_new_location", return_value=True),
+        patch("app.utils.deliverect.update_location_status", return_value=True),
+        patch("app.utils.deliverect.get_location_webhook_urls") as mock_urls,
+    ):
 
         mock_urls.return_value = {
             "statusUpdateURL": "https://example.com/newloc/location/new_loc/order_status",
@@ -172,9 +174,10 @@ def test_menu_update_per_location(client, app_with_locations):
     }
 
     # Mock the menu processing functions
-    with patch("app.routes.location.process_deliverect_menu") as mock_process, patch(
-        "app.utils.menu_utils.write_menu_file"
-    ) as mock_write:
+    with (
+        patch("app.routes.location.process_deliverect_menu") as mock_process,
+        patch("app.utils.menu_utils.write_menu_file") as mock_write,
+    ):
 
         mock_process.return_value = {
             "items": [{"name": "California Roll", "price": 9.95}]
@@ -230,9 +233,10 @@ def test_snooze_unsnooze_per_location(client, app_with_locations):
     # Mock menu data and functions
     menu_data = {"items": [{"name": "California Roll", "price": 9.95}]}
 
-    with patch("app.routes.location.load_menu_data", return_value=menu_data), patch(
-        "app.utils.menu_utils.write_menu_file"
-    ) as mock_write:
+    with (
+        patch("app.routes.location.load_menu_data", return_value=menu_data),
+        patch("app.utils.menu_utils.write_menu_file") as mock_write,
+    ):
 
         response = client.post("/location/downtown/snoozeUnsnooze", json=snooze_data)
 

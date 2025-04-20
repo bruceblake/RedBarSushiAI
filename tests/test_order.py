@@ -8,14 +8,16 @@ from unittest.mock import patch, MagicMock
 
 from app.utils.order_utils import user_said_yes, user_said_no, dtmf_yes_no
 
+
 # Create a mock for the tasks module
 class MockTasks:
     @staticmethod
     def send_confirmation_sms_task(*args, **kwargs):
         return None
 
+
 # Add the mock to sys.modules before tests
-sys.modules['tasks'] = MockTasks()
+sys.modules["tasks"] = MockTasks()
 
 
 def test_take_order(client, app, mock_openai, setup_test_menu):
@@ -301,11 +303,12 @@ def test_confirm_order_from_initial_yes(client, app, mock_twilio):
             session["order_id"] = "test-123"
 
         # Mock all the required dependencies
-        with patch("app.routes.order.db.session.add"), patch(
-            "app.routes.order.commit_with_retry", return_value=True
-        ), patch("app.routes.order.can_process_action", return_value=True), patch(
-            "requests.post"
-        ) as mock_requests:
+        with (
+            patch("app.routes.order.db.session.add"),
+            patch("app.routes.order.commit_with_retry", return_value=True),
+            patch("app.routes.order.can_process_action", return_value=True),
+            patch("requests.post") as mock_requests,
+        ):
 
             # Configure the mock response
             mock_response = MagicMock()
@@ -584,10 +587,10 @@ def test_confirm_order_after_modification_yes(client, app, mock_twilio):
             session["modification_in_progress"] = True
 
         # Mock all the required dependencies
-        with patch("app.routes.order.db.session.add"), patch(
-            "app.routes.order.commit_with_retry", return_value=True
-        ), patch(
-            "app.utils.menu_utils.is_item_snoozed_timebased", return_value=False
+        with (
+            patch("app.routes.order.db.session.add"),
+            patch("app.routes.order.commit_with_retry", return_value=True),
+            patch("app.utils.menu_utils.is_item_snoozed_timebased", return_value=False),
         ):
 
             # Call endpoint with 'yes' response

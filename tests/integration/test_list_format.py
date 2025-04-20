@@ -53,9 +53,10 @@ def test_menu_update_list_format(client):
     ]
 
     # Mock write_menu_file to avoid actual file writes during test
-    with patch("app.routes.menu.write_menu_file") as mock_write, patch(
-        "app.routes.menu.load_menu_data"
-    ) as mock_load:
+    with (
+        patch("app.routes.menu.write_menu_file") as mock_write,
+        patch("app.routes.menu.load_menu_data") as mock_load,
+    ):
 
         # Configure mocks
         mock_write.return_value = True
@@ -123,9 +124,10 @@ def test_menu_update_nested_format(client):
     ]
 
     # Mock write_menu_file to avoid actual file writes during test
-    with patch("app.routes.menu.write_menu_file") as mock_write, patch(
-        "app.routes.menu.load_menu_data"
-    ) as mock_load:
+    with (
+        patch("app.routes.menu.write_menu_file") as mock_write,
+        patch("app.routes.menu.load_menu_data") as mock_load,
+    ):
 
         # Configure mocks
         mock_write.return_value = True
@@ -194,9 +196,10 @@ def test_menu_update_complex_structure(client):
     ]
 
     # Mock write_menu_file to avoid actual file writes during test
-    with patch("app.routes.menu.write_menu_file") as mock_write, patch(
-        "app.routes.menu.load_menu_data"
-    ) as mock_load:
+    with (
+        patch("app.routes.menu.write_menu_file") as mock_write,
+        patch("app.routes.menu.load_menu_data") as mock_load,
+    ):
 
         # Configure mocks
         mock_write.return_value = True

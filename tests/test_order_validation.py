@@ -156,11 +156,10 @@ def test_validate_modifiers():
 def test_prepare_order_for_deliverect():
     """Test full order preparation."""
     # Mock both validation functions
-    with patch(
-        "app.utils.order_utils.validate_order_items"
-    ) as mock_validate_items, patch(
-        "app.utils.order_utils.validate_modifiers"
-    ) as mock_validate_modifiers:
+    with (
+        patch("app.utils.order_utils.validate_order_items") as mock_validate_items,
+        patch("app.utils.order_utils.validate_modifiers") as mock_validate_modifiers,
+    ):
 
         # Configure mocks
         order_items = [{"name": "Test Item"}]

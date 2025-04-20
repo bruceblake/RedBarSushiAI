@@ -92,9 +92,7 @@ def fallback_analyze_user_input(text: str) -> dict:
     ):
         menu_item = find_menu_item_by_name("chicken sate")
         if menu_item:
-            logging.info(
-                "[OPENAI-SHIM] Found 'Chicken Sate' via special case handling"
-            )
+            logging.info("[OPENAI-SHIM] Found 'Chicken Sate' via special case handling")
             return {
                 "intent": "order_food",
                 "items": [

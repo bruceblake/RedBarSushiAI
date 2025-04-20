@@ -1147,13 +1147,15 @@ def get_popular_menu_items(count=5):
         )
 
     return result
- 
+
+
 # Expose Deliverect menu processing via menu_utils for test compatibility
 def process_deliverect_menu(menu_data):
     """
     Wrapper to import and invoke process_deliverect_menu from deliverect module.
     """
     from app.utils.deliverect import process_deliverect_menu as _process
+
     return _process(menu_data)
 
 
