@@ -97,7 +97,8 @@ jobs:
         bandit -r app/ -f json -o bandit-results.json -s B104,B110,B404,B603 || true
     - name: Check for security vulnerabilities
       run: |
-        safety check -r requirements.txt --full-report
+        # Use new safety scan command instead of deprecated check
+        safety scan -r requirements.txt --full-report
         
   api-schema-check:
     name: API Schema Check
