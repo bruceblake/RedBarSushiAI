@@ -330,94 +330,6 @@ def extract_name_with_agent(speech_text):
     return extract_name_from_speech(speech_text)
 
 
-def extract_name_from_speech(speech_text):
-    """
-    Intelligently extract a name from speech text using regex patterns.
-
-    Args:
-        speech_text: The raw speech text from the user
-
-    Returns:
-        str: The extracted name, or empty string if no name found
-    """
-    if not speech_text:
-        return ""
-
-    # Common name introduction patterns
-    name_patterns = [
-        # "My name is John"
-        r"(?:my|this is|it'?s|the|i'm|i am|is|they call me|call me|you can call me)\s+(?:name\s+is\s+)?([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
-        # Just the name alone "John Smith"
-        r"^([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})$",
-        # Patterns for different cultures and formats
-        r"(?:i'm called|i am called|i go by|people call me)\s+([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
-        r"(?:the name's|names|my name's)\s+([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
-    ]
-
-    # Normalize the text
-    text = (
-        speech_text.lower().strip().replace(".", "").replace("?", "").replace("!", "")
-    )
-
-    # Try each pattern
-    for pattern in name_patterns:
-        import re
-
-        matches = re.search(pattern, text, re.IGNORECASE)
-        if matches:
-            name = matches.group(1).strip()
-            # Capitalize each part of the name
-            return " ".join(part.capitalize() for part in name.split())
-
-    # If no pattern matches, just return the first 2-3 words if they look like a name
-    words = text.split()
-    if len(words) <= 3:
-        return " ".join(word.capitalize() for word in words)
-    else:
-        # Take the first two words if they seem like a name (not common speech fillers)
-        common_fillers = [
-            "um",
-            "uh",
-            "so",
-            "well",
-            "like",
-            "yes",
-            "no",
-            "yeah",
-            "hi",
-            "hello",
-            "hey",
-            "this",
-            "the",
-            "a",
-            "an",
-            "what",
-            "where",
-            "when",
-            "who",
-            "why",
-            "how",
-        ]
-        potential_name = []
-
-        for word in words[:3]:  # Look at first 3 words at most
-            if word not in common_fillers and len(word) > 1:
-                potential_name.append(word.capitalize())
-            if len(potential_name) >= 2:  # Stop at first and last name
-                break
-
-        if potential_name:
-            return " ".join(potential_name)
-
-    # If everything else fails, return the raw text (limited to first few words)
-    words = speech_text.split()
-    if words:
-        return " ".join(words[:2]).capitalize()
-
-    # No name found
-    return ""
-
-
 @voice_bp.route("/main_menu_fallback", methods=["POST", "GET"])
 def main_menu_fallback():
     """
@@ -694,27 +606,81 @@ def handle_menu_questions():
             reply = "Sorry, menu retrieval is currently unavailable."
         else:
             try:
-                # Create OpenAI client and send system+user messages
+                # First, get actual menu data to provide context
+                agent = OrderParsingAgent()
+                menu_tool = agent.menu_tool
+                
+                # Get menu data based on the query
+                search_results = []
+                menu_query = user_input.strip()
+                
+                # Use the search_results from the analysis if available
+                if "search_results" in analysis and analysis["search_results"]:
+                    search_results = analysis["search_results"]
+                else:
+                    # Otherwise perform a search
+                    search_results = menu_tool.search_menu(menu_query)
+                
+                # Format menu items for context
+                menu_context = ""
+                if search_results:
+                    menu_context = "Here are relevant menu items:\n"
+                    for item in search_results[:5]:  # Limit to 5 items for context
+                        price_str = f"${item.get('price', 0):.2f}"
+                        desc = item.get('description', 'No description available')
+                        menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
+                else:
+                    # If no specific items found, include popular items
+                    from app.utils.menu_utils import get_popular_menu_items
+                    popular_items = get_popular_menu_items(5)
+                    if popular_items:
+                        menu_context = "Here are our popular menu items:\n"
+                        for item in popular_items:
+                            price_str = f"${item.get('price', 0):.2f}"
+                            desc = item.get('description', 'No description available')
+                            menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
+                
+                # Create OpenAI client and send system+user messages with actual menu data
                 client = openai.OpenAI()
                 system_msg = (
                     "You are a knowledgeable assistant for Red Bar Sushi. "
-                    "You know the full menu, ingredients, prices, and descriptions. "
-                    "Answer the customer's question concisely."
+                    "Answer the customer's question concisely using the menu information provided. "
+                    "If the menu information doesn't contain what the customer is asking about, "
+                    "politely explain that you don't have that specific information."
                 )
+                
+                # Log the menu context being used
+                logger.info(f"Menu context for query '{menu_query}': {menu_context[:200]}...")
+                
                 result = client.chat.completions.create(
                     model="gpt-4.1-mini",
                     messages=[
                         {"role": "system", "content": system_msg},
-                        {"role": "user", "content": user_input},
+                        {"role": "user", "content": f"Menu information:\n{menu_context}\n\nCustomer question: {user_input}"}
                     ],
                 )
                 reply = result.choices[0].message.content.strip()
-            except Exception:
+            except Exception as e:
+                logger.error(f"Menu question error: {str(e)}")
+                logger.error(traceback.format_exc())
                 reply = "Sorry, menu retrieval failed."
-        # Say the reply and end the conversation loop
-        voice_resp = VoiceResponse()
-        voice_resp.say(reply)
-        return Response(str(voice_resp), mimetype="text/xml")
+        
+        # Say the reply and offer to continue the conversation
+        response = VoiceResponse()
+        response.say(reply)
+        
+        # Add a gather to continue the conversation
+        with response.gather(
+            input="speech",
+            action="/handle_menu_questions",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto"
+        ) as g:
+            g.say("Is there anything else you'd like to know about our menu?")
+            
+        return Response(str(response), mimetype="text/xml")
     elif intent == "get_menu_item_price" or intent == "describe_menu_item":
         # Look up the specific item using agent
         agent = OrderParsingAgent()
