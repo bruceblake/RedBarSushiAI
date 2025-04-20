@@ -52232,3 +52232,1195 @@ IndexError: list index out of range
 2025-04-19 02:26:56,985 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 0/0 items verified (0%)
 2025-04-19 02:26:56,985 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'intent': 'other'}
 2025-04-19 02:26:56,985 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-20 20:37:08,894 - INFO - root - Application starting in development mode
+2025-04-20 20:37:08,894 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-20 20:37:08,903 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:08,903 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:08,903 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:08,903 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:08,903 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,904 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,904 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:08,904 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:08,904 - DEBUG - app.utils.menu_utils - Sample item: Kids Burger - 6.95
+2025-04-20 20:37:08,904 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-20 20:37:08,904 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203708.json
+2025-04-20 20:37:08,904 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 491 bytes
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Found callback URL: https://api.staging.deliverect.com/channelName/menuStatus/1234567890
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Found stores: ['store1']
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Found 1 menus in async format
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Using first menu for processing
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Top-level keys in data: ['categories']
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Found standard Deliverect format with categories: 1
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:08,905 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:08,905 - INFO - app.utils.deliverect - Processed Deliverect menu: found 3 items
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:08,905 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:08,905 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:08,905 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:08,905 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for California Roll: CAL-ROLL
+2025-04-20 20:37:08,905 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-20 20:37:08,905 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Spicy Tuna Roll: SPICY-TUNA
+2025-04-20 20:37:08,905 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 2 is missing ID, setting to: ITEM-0002
+2025-04-20 20:37:08,905 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Sushi Rolls: cat1
+2025-04-20 20:37:08,905 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Sushi Rolls has missing or invalid price, setting default to 7.5
+2025-04-20 20:37:08,905 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 3 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:08,905 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 3 items
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] All 3 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 3 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: California Roll -> PLU: CAL-ROLL | Reference: CAL-ROLL
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Spicy Tuna Roll -> PLU: SPICY-TUNA | Reference: SPICY-TUNA
+2025-04-20 20:37:08,905 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 3: Sushi Rolls -> PLU: cat1 | Reference: cat1
+2025-04-20 20:37:08,906 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203708.json
+2025-04-20 20:37:08,906 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 4 items
+2025-04-20 20:37:08,906 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 3 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,907 - INFO - app.utils.menu_utils - Created backup at /app/backups/menu_backup_20250420203708.json
+2025-04-20 20:37:08,908 - INFO - app.utils.menu_utils - Successfully wrote menu data with 3 items to /app/redbar_menu_data.json
+2025-04-20 20:37:08,908 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-20 20:37:08,908 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:08,908 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,908 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,908 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-20 20:37:08,908 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 12.95
+2025-04-20 20:37:08,908 - DEBUG - app.utils.menu_utils - Sample item: Sushi Rolls - 7.5
+2025-04-20 20:37:08,908 - INFO - app.utils.menu_utils - Loaded 3 total items, 3 currently available
+2025-04-20 20:37:08,908 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 3 items
+2025-04-20 20:37:08,908 - INFO - app.routes.menu - [MENU-UPDATE] Callback response: 200
+2025-04-20 20:37:08,908 - INFO - app.routes.menu - [MENU-UPDATE] Menu already has 11 name variants
+2025-04-20 20:37:08,922 - INFO - root - Application starting in development mode
+2025-04-20 20:37:08,922 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-20 20:37:08,925 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:08,925 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:08,925 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:08,925 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:08,926 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,926 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,926 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 9.95
+2025-04-20 20:37:08,926 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 12.95
+2025-04-20 20:37:08,926 - DEBUG - app.utils.menu_utils - Sample item: Sushi Rolls - 7.5
+2025-04-20 20:37:08,926 - INFO - app.utils.menu_utils - Loaded 3 total items, 3 currently available
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203708.json
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 200 bytes
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Found callback URL: https://api.staging.deliverect.com/channelName/menuStatus/1234567890
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Found stores: ['store1']
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Found 1 menus in async format
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Using first menu for processing
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Top-level keys in data: ['categories']
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Found standard Deliverect format with categories: 1
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:08,926 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:08,926 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-20 20:37:08,926 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:08,926 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:08,926 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:08,927 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:08,927 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Sushi Rolls: cat1
+2025-04-20 20:37:08,927 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Sushi Rolls has missing or invalid price, setting default to 7.5
+2025-04-20 20:37:08,927 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:08,927 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-20 20:37:08,927 - INFO - app.routes.menu - [MENU-UPDATE] All 1 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:08,927 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 1 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,927 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Sushi Rolls -> PLU: cat1 | Reference: cat1
+2025-04-20 20:37:08,927 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203708.json
+2025-04-20 20:37:08,927 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 3 items
+2025-04-20 20:37:08,927 - WARNING - app.routes.menu - [MENU-UPDATE] Potential partial update detected: 1 items vs 3 current items
+2025-04-20 20:37:08,927 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 1 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,927 - INFO - app.utils.menu_utils - Created backup at /app/backups/menu_backup_20250420203708.json
+2025-04-20 20:37:08,927 - INFO - app.utils.menu_utils - Successfully wrote menu data with 1 items to /app/redbar_menu_data.json
+2025-04-20 20:37:08,927 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-20 20:37:08,927 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:08,927 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,928 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,928 - DEBUG - app.utils.menu_utils - Sample item: Sushi Rolls - 7.5
+2025-04-20 20:37:08,928 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-20 20:37:08,928 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-20 20:37:08,928 - INFO - app.routes.menu - [MENU-UPDATE] Callback response: 200
+2025-04-20 20:37:08,928 - INFO - app.routes.menu - [MENU-UPDATE] Menu already has 3 name variants
+2025-04-20 20:37:08,941 - INFO - root - Application starting in development mode
+2025-04-20 20:37:08,941 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-20 20:37:08,943 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:08,943 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:08,944 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:08,944 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:08,944 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,944 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,944 - DEBUG - app.utils.menu_utils - Sample item: Sushi Rolls - 7.5
+2025-04-20 20:37:08,944 - INFO - app.utils.menu_utils - Loaded 1 total items, 1 currently available
+2025-04-20 20:37:08,944 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203708.json
+2025-04-20 20:37:08,944 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 415 bytes
+2025-04-20 20:37:08,944 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-20 20:37:08,944 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:08,944 - INFO - app.routes.menu - [MENU-UPDATE] Received array data with 1 elements
+2025-04-20 20:37:08,944 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:08,944 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:08,944 - INFO - app.utils.deliverect - Processed Deliverect menu: found 3 items
+2025-04-20 20:37:08,944 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:08,944 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:08,944 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:08,944 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:08,944 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Cheeseburger: BURG-CHEESE
+2025-04-20 20:37:08,944 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-20 20:37:08,944 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Veggie Burger: BURG-VEGGIE
+2025-04-20 20:37:08,944 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 2 is missing ID, setting to: ITEM-0002
+2025-04-20 20:37:08,945 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Burgers: cat1
+2025-04-20 20:37:08,945 - INFO - app.utils.menu_validator - [MENU-FIX] Set price for Burgers to common price: 8.0
+2025-04-20 20:37:08,945 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 3 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:08,945 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 3 items
+2025-04-20 20:37:08,945 - INFO - app.routes.menu - [MENU-UPDATE] All 3 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:08,945 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 3 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,945 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Cheeseburger -> PLU: BURG-CHEESE | Reference: BURG-CHEESE
+2025-04-20 20:37:08,945 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Veggie Burger -> PLU: BURG-VEGGIE | Reference: BURG-VEGGIE
+2025-04-20 20:37:08,945 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 3: Burgers -> PLU: cat1 | Reference: cat1
+2025-04-20 20:37:08,945 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203708.json
+2025-04-20 20:37:08,945 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 1 items
+2025-04-20 20:37:08,945 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 3 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,945 - INFO - app.utils.menu_utils - Created backup at /app/backups/menu_backup_20250420203708.json
+2025-04-20 20:37:08,946 - INFO - app.utils.menu_utils - Successfully wrote menu data with 3 items to /app/redbar_menu_data.json
+2025-04-20 20:37:08,946 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-20 20:37:08,946 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:08,946 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,946 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,946 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:08,946 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:08,946 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 8.0
+2025-04-20 20:37:08,946 - INFO - app.utils.menu_utils - Loaded 3 total items, 3 currently available
+2025-04-20 20:37:08,946 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 3 items
+2025-04-20 20:37:08,946 - INFO - app.routes.menu - [MENU-UPDATE] Menu already has 5 name variants
+2025-04-20 20:37:08,946 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,946 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,946 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:08,946 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:08,946 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 8.0
+2025-04-20 20:37:08,946 - INFO - app.utils.menu_utils - Loaded 3 total items, 3 currently available
+2025-04-20 20:37:08,960 - INFO - root - Application starting in development mode
+2025-04-20 20:37:08,960 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-20 20:37:08,963 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:08,963 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:08,963 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:08,963 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:08,963 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,963 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,963 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:08,963 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:08,963 - DEBUG - app.utils.menu_utils - Sample item: Burgers - 8.0
+2025-04-20 20:37:08,963 - INFO - app.utils.menu_utils - Loaded 3 total items, 3 currently available
+2025-04-20 20:37:08,963 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203708.json
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 333 bytes
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Received array data with 1 elements
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:08,964 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:08,964 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:08,964 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:08,964 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:08,964 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:08,964 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Cheeseburger: BURG-CHEESE
+2025-04-20 20:37:08,964 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-20 20:37:08,964 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Veggie Burger: BURG-VEGGIE
+2025-04-20 20:37:08,964 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:08,964 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] All 2 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 2 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Cheeseburger -> PLU: BURG-CHEESE | Reference: BURG-CHEESE
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Veggie Burger -> PLU: BURG-VEGGIE | Reference: BURG-VEGGIE
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203708.json
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 3 items
+2025-04-20 20:37:08,964 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 2 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,965 - INFO - app.utils.menu_utils - Created backup at /app/backups/menu_backup_20250420203708.json
+2025-04-20 20:37:08,965 - INFO - app.utils.menu_utils - Successfully wrote menu data with 2 items to /app/redbar_menu_data.json
+2025-04-20 20:37:08,965 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-20 20:37:08,965 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:08,965 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,965 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,965 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:08,965 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:08,965 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-20 20:37:08,965 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 2 items
+2025-04-20 20:37:08,965 - INFO - app.routes.menu - [MENU-UPDATE] Menu already has 4 name variants
+2025-04-20 20:37:08,966 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,966 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,966 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:08,966 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:08,966 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-20 20:37:08,979 - INFO - root - Application starting in development mode
+2025-04-20 20:37:08,979 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:08,982 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,982 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,982 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:08,982 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:08,982 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203708.json
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 305 bytes
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Received array data with 2 elements
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:08,982 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:08,982 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-20 20:37:08,982 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:08,982 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:08,982 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:08,983 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:08,983 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Cheeseburger: CHEESEBURGER
+2025-04-20 20:37:08,983 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-20 20:37:08,983 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Veggie Burger: VEGGIE-BURGER
+2025-04-20 20:37:08,983 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:08,983 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items
+2025-04-20 20:37:08,983 - INFO - app.routes.menu - [MENU-UPDATE] All 2 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:08,983 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 2 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,983 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Cheeseburger -> PLU: CHEESEBURGER | Reference: CHEESEBURGER
+2025-04-20 20:37:08,983 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Veggie Burger -> PLU: VEGGIE-BURGER | Reference: VEGGIE-BURGER
+2025-04-20 20:37:08,983 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203708.json
+2025-04-20 20:37:08,983 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 2 items
+2025-04-20 20:37:08,983 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 2 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,983 - INFO - app.utils.menu_utils - Created backup at /app/backups/menu_backup_20250420203708.json
+2025-04-20 20:37:08,983 - INFO - app.utils.menu_utils - Successfully wrote menu data with 2 items to /app/redbar_menu_data.json
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-20 20:37:08,984 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,984 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:08,984 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-20 20:37:08,984 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 2 items
+2025-04-20 20:37:08,984 - INFO - app.routes.menu - [MENU-UPDATE] Menu already has 4 name variants
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:08,984 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:08,984 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Cheeseburger'
+2025-04-20 20:37:08,984 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cheeseburger'
+2025-04-20 20:37:08,984 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 4 name variants
+2025-04-20 20:37:08,984 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger']...
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cheeseburger' → 'Cheeseburger'
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Cheeseburger
+2025-04-20 20:37:08,984 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'cheeseburger'
+2025-04-20 20:37:08,984 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cheeseburger'
+2025-04-20 20:37:08,984 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 4 name variants
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger']...
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cheeseburger' → 'Cheeseburger'
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Cheeseburger
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'burger'
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'burger'
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 4 name variants
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger']...
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'burger' → 'Veggie Burger'
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Veggie Burger'
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'veggie burger'
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 4 name variants
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger']...
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'veggie burger' → 'Veggie Burger'
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'veggie'
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'veggie'
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 4 name variants
+2025-04-20 20:37:08,985 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger']...
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'veggie' → 'Veggie Burger'
+2025-04-20 20:37:08,985 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-20 20:37:08,993 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:08,993 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:08,993 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:08,993 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:08,994 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203708.json
+2025-04-20 20:37:08,994 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 203 bytes
+2025-04-20 20:37:08,994 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-20 20:37:08,994 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:08,994 - INFO - app.routes.menu - [MENU-UPDATE] Received array data with 1 elements
+2025-04-20 20:37:08,994 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:08,994 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:08,994 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-20 20:37:08,994 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:08,994 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:08,994 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:08,995 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:08,995 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for California Roll: CAL-ROLL
+2025-04-20 20:37:08,995 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-20 20:37:08,995 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Sushi: cat1
+2025-04-20 20:37:08,995 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Sushi has missing or invalid price, setting default to 7.5
+2025-04-20 20:37:08,995 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:08,995 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] All 2 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 2 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: California Roll -> PLU: CAL-ROLL | Reference: CAL-ROLL
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Sushi -> PLU: cat1 | Reference: cat1
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203708.json
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 1 items
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 2 items, 0 modifiers, 0 groups
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-20 20:37:08,995 - INFO - app.routes.menu - [MENU-UPDATE] Menu already has 4 name variants
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203709.json
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 254 bytes
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Received array data with 1 elements
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:09,001 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,001 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-20 20:37:09,001 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:09,001 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:09,001 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:09,001 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:09,001 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Cheeseburger: CHEESE-BURG
+2025-04-20 20:37:09,002 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-20 20:37:09,002 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Burgers: cat1
+2025-04-20 20:37:09,002 - INFO - app.utils.menu_validator - [MENU-FIX] Set price for Burgers to common price: 8.0
+2025-04-20 20:37:09,002 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:09,002 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 2 items
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] All 2 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 2 items, 0 modifiers, 0 groups
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Cheeseburger -> PLU: CHEESE-BURG | Reference: CHEESE-BURG
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Burgers -> PLU: cat1 | Reference: cat1
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203709.json
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 1 items
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 2 items, 0 modifiers, 0 groups
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-20 20:37:09,002 - INFO - app.routes.menu - [MENU-UPDATE] Menu already has 2 name variants
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203709.json
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 216 bytes
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type list
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] Received array data with 1 elements
+2025-04-20 20:37:09,008 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:09,008 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,009 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:09,009 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:09,009 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:09,009 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:09,009 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Edamame: EDAMAME
+2025-04-20 20:37:09,009 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:09,009 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] All 1 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 1 items, 0 modifiers, 0 groups
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Edamame -> PLU: EDAMAME | Reference: EDAMAME
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203709.json
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 1 items
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 1 items, 0 modifiers, 0 groups
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-20 20:37:09,009 - INFO - app.routes.menu - [MENU-UPDATE] Menu already has 1 name variants
+2025-04-20 20:37:09,011 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,011 - INFO - app.utils.deliverect - Processed Deliverect menu: found 13 items
+2025-04-20 20:37:09,025 - INFO - root - Application starting in development mode
+2025-04-20 20:37:09,025 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-20 20:37:09,028 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Cheeseburger'
+2025-04-20 20:37:09,028 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cheeseburger'
+2025-04-20 20:37:09,028 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 19 name variants
+2025-04-20 20:37:09,028 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'full:veggie burger', 'specific:veggie burger']...
+2025-04-20 20:37:09,028 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cheeseburger' → 'Cheeseburger'
+2025-04-20 20:37:09,028 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Cheeseburger
+2025-04-20 20:37:09,028 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'cheeseburger'
+2025-04-20 20:37:09,028 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cheeseburger'
+2025-04-20 20:37:09,028 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 19 name variants
+2025-04-20 20:37:09,028 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'full:veggie burger', 'specific:veggie burger']...
+2025-04-20 20:37:09,028 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cheeseburger' → 'Cheeseburger'
+2025-04-20 20:37:09,028 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Cheeseburger
+2025-04-20 20:37:09,028 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'burger'
+2025-04-20 20:37:09,028 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'burger'
+2025-04-20 20:37:09,028 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 19 name variants
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'full:veggie burger', 'specific:veggie burger']...
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'burger' → 'Veggie Burger'
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'veggie'
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'veggie'
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 19 name variants
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'full:veggie burger', 'specific:veggie burger']...
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'veggie' → 'Veggie Burger'
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Veggie Burger
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Spicy Tuna Roll'
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'spicy tuna roll'
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 19 name variants
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'full:veggie burger', 'specific:veggie burger']...
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'spicy tuna roll' → 'Spicy Tuna Roll'
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Spicy Tuna Roll
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'spicy'
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'spicy'
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 19 name variants
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'full:veggie burger', 'specific:veggie burger']...
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'spicy' → 'Spicy Tuna Roll'
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Spicy Tuna Roll
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'tuna roll'
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'tuna roll'
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 19 name variants
+2025-04-20 20:37:09,029 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'spicy tuna roll', 'full:veggie burger', 'specific:veggie burger']...
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'tuna roll' → 'Spicy Tuna Roll'
+2025-04-20 20:37:09,029 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Spicy Tuna Roll
+2025-04-20 20:37:09,044 - INFO - root - Application starting in development mode
+2025-04-20 20:37:09,044 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-20 20:37:09,046 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:09,046 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:09,046 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:09,046 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:09,046 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,047 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,047 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:09,047 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:09,047 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-20 20:37:09,047 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203709.json
+2025-04-20 20:37:09,047 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 441 bytes
+2025-04-20 20:37:09,047 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-20 20:37:09,047 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:09,047 - INFO - app.routes.menu - [MENU-UPDATE] Top-level keys in data: ['categories']
+2025-04-20 20:37:09,047 - INFO - app.routes.menu - [MENU-UPDATE] Found standard Deliverect format with categories: 1
+2025-04-20 20:37:09,047 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:09,047 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,047 - INFO - app.utils.deliverect - Processed Deliverect menu: found 4 items
+2025-04-20 20:37:09,047 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:09,047 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:09,047 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:09,047 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:09,047 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Cheeseburger: BURG-CHEESE
+2025-04-20 20:37:09,047 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 1 is missing ID, setting to: ITEM-0001
+2025-04-20 20:37:09,047 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Veggie Burger: prod2
+2025-04-20 20:37:09,047 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 2 is missing ID, setting to: ITEM-0002
+2025-04-20 20:37:09,047 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item Kids Burger has no PLU! Using synthetic reference: KidsBurger. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-20 20:37:09,047 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Kids Burger: KidsBurger
+2025-04-20 20:37:09,048 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 3 is missing ID, setting to: ITEM-0003
+2025-04-20 20:37:09,048 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Burgers: cat1
+2025-04-20 20:37:09,048 - INFO - app.utils.menu_validator - [MENU-FIX] Set price for Burgers to common price: 8.0
+2025-04-20 20:37:09,048 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 4 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:09,048 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 4 items
+2025-04-20 20:37:09,048 - INFO - app.routes.menu - [MENU-UPDATE] All 4 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:09,048 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 4 items, 0 modifiers, 0 groups
+2025-04-20 20:37:09,048 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Cheeseburger -> PLU: BURG-CHEESE | Reference: BURG-CHEESE
+2025-04-20 20:37:09,048 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 2: Veggie Burger -> PLU: prod2 | Reference: prod2
+2025-04-20 20:37:09,048 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 3: Kids Burger -> PLU: KidsBurger | Reference: KidsBurger
+2025-04-20 20:37:09,048 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203709.json
+2025-04-20 20:37:09,048 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 2 items
+2025-04-20 20:37:09,048 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 4 items, 0 modifiers, 0 groups
+2025-04-20 20:37:09,048 - INFO - app.utils.menu_utils - Created backup at /app/backups/menu_backup_20250420203709.json
+2025-04-20 20:37:09,048 - INFO - app.utils.menu_utils - Successfully wrote menu data with 4 items to /app/redbar_menu_data.json
+2025-04-20 20:37:09,048 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-20 20:37:09,049 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:09,049 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,049 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,049 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:09,049 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:09,049 - DEBUG - app.utils.menu_utils - Sample item: Kids Burger - 6.95
+2025-04-20 20:37:09,049 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-20 20:37:09,049 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 4 items
+2025-04-20 20:37:09,049 - INFO - app.routes.menu - [MENU-UPDATE] Menu already has 7 name variants
+2025-04-20 20:37:09,050 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,050 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,050 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:09,050 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:09,050 - DEBUG - app.utils.menu_utils - Sample item: Kids Burger - 6.95
+2025-04-20 20:37:09,050 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-20 20:37:09,052 - DEBUG - asyncio - Using selector: EpollSelector
+2025-04-20 20:37:09,052 - DEBUG - asyncio - Using selector: EpollSelector
+2025-04-20 20:37:09,381 - DEBUG - asyncio - Using selector: EpollSelector
+2025-04-20 20:37:09,391 - INFO - app.utils.agent_utils_simple - Processing order modification: Add a Spicy Tuna Roll
+2025-04-20 20:37:09,391 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'a Spicy Tuna Roll'
+2025-04-20 20:37:09,391 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'a spicy tuna roll'
+2025-04-20 20:37:09,391 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 7 name variants
+2025-04-20 20:37:09,391 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['cheeseburger', 'veggie burger', 'veggie', 'burger', 'kids burger']...
+2025-04-20 20:37:09,391 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'a Spicy Tuna Roll'
+2025-04-20 20:37:09,393 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-20 20:37:09,393 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:09,393 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,393 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,394 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:09,394 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:09,394 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'california roll'
+2025-04-20 20:37:09,394 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:09,394 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,394 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,394 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:09,394 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:09,395 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'cali roll'
+2025-04-20 20:37:09,395 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'cali roll'
+2025-04-20 20:37:09,395 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,395 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,395 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'cali roll' → 'California Roll'
+2025-04-20 20:37:09,395 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:09,395 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'california'
+2025-04-20 20:37:09,395 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california'
+2025-04-20 20:37:09,395 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,395 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,395 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california' → 'California Roll'
+2025-04-20 20:37:09,395 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:09,396 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Salmon Nigiri'
+2025-04-20 20:37:09,396 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'salmon nigiri'
+2025-04-20 20:37:09,396 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,396 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,396 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'salmon nigiri' → 'Salmon Nigiri'
+2025-04-20 20:37:09,396 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] Found match 'Salmon Nigiri' but item is unavailable/snoozed
+2025-04-20 20:37:09,396 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-20 20:37:09,396 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:09,396 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,396 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,396 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:09,396 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:09,398 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,398 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,398 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:09,398 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:09,398 - DEBUG - app.utils.menu_utils - Sample item: Kids Burger - 6.95
+2025-04-20 20:37:09,398 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-20 20:37:09,400 - INFO - app.routes.order - [ORDER-MODIFY] Processing modifications: {"additions": [{"name": "Spicy Tuna Roll", "quantity": 1}], "removals": []}
+2025-04-20 20:37:09,400 - INFO - app.routes.order - [ORDER-MODIFY] Current order: [{"name": "California Roll", "quantity": 1, "price": 7.95, "reference_handler": "cal-roll-1", "modifier": []}]
+2025-04-20 20:37:09,400 - INFO - app.routes.order - [ORDER-MODIFY] Processed additions: [{"name": "Spicy Tuna Roll", "quantity": 1}]
+2025-04-20 20:37:09,400 - INFO - app.routes.order - [ORDER-MODIFY] Processed removals: []
+2025-04-20 20:37:09,401 - INFO - app.routes.order - [ORDER-MODIFY] Processing modifications: {"additions": [], "removals": [{"name": "California Roll", "quantity": 1}]}
+2025-04-20 20:37:09,401 - INFO - app.routes.order - [ORDER-MODIFY] Current order: [{"name": "California Roll", "quantity": 1, "price": 7.95, "reference_handler": "cal-roll-1", "modifier": []}]
+2025-04-20 20:37:09,401 - INFO - app.routes.order - [ORDER-MODIFY] Processed additions: []
+2025-04-20 20:37:09,401 - INFO - app.routes.order - [ORDER-MODIFY] Processed removals: [{"name": "California Roll", "quantity": 1}]
+2025-04-20 20:37:09,401 - INFO - app.utils.realtime_audio - Processing chunk for session session123...
+2025-04-20 20:37:09,401 - INFO - app.utils.realtime_audio - Running in test mode, returning mock response
+2025-04-20 20:37:09,406 - INFO - app.utils.direct_realtime - Using websockets library for WebSocket communication
+2025-04-20 20:37:09,406 - INFO - app.utils.direct_realtime - aiohttp library available for WebSocket communication
+2025-04-20 20:37:09,406 - INFO - app.utils.direct_realtime - Running in test mode with OpenAI disabled
+2025-04-20 20:37:09,406 - INFO - app.utils.direct_realtime - Processing audio data...
+2025-04-20 20:37:09,406 - INFO - app.utils.direct_realtime - Returning mock audio processing response in test mode
+2025-04-20 20:37:09,407 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,407 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-20 20:37:09,408 - INFO - app.utils.deliverect - Fetching Deliverect token for location default...
+2025-04-20 20:37:09,408 - INFO - app.utils.deliverect - Deliverect token for location default fetched successfully.
+2025-04-20 20:37:09,409 - INFO - app.utils.deliverect - Fetching Deliverect token for location default...
+2025-04-20 20:37:09,409 - ERROR - app.utils.deliverect - Error fetching Deliverect token: API Error
+1970-01-01 00:33:20,000 - INFO - app.utils.deliverect - Deliverect token for default expired or not found, refreshing...
+1970-01-01 00:33:20,000 - INFO - app.utils.deliverect - Token for default will expire at 1970-01-01T01:28:20
+2025-04-20 20:37:09,412 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Cleaned PLU code: P-BURG-CHK###PRNT -> P-BURG-CHK
+2025-04-20 20:37:09,412 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Cleaned PLU code: ITEM-1234###PRNT -> ITEM-1234
+2025-04-20 20:37:09,413 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-20 20:37:09,413 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Cleaned PLU code: cal_roll_1###PRNT -> cal_roll_1
+2025-04-20 20:37:09,413 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Cleaned PLU code: SPICY-MAYO###PRNT -> SPICY-MAYO
+2025-04-20 20:37:09,413 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Product Chicken Tenders with PLU VAR-PROD-1 is a variant product
+2025-04-20 20:37:09,413 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Adding default variation sub item for variant product Chicken Tenders
+2025-04-20 20:37:09,426 - INFO - root - Application starting in development mode
+2025-04-20 20:37:09,426 - DEBUG - app - Application initialized with SQLAlchemy URI type: <class 'str'>
+2025-04-20 20:37:09,429 - INFO - root - Received registration request: {"status": "register"}
+2025-04-20 20:37:09,429 - INFO - root - Channel registered with Deliverect: None (ID: None)
+2025-04-20 20:37:09,429 - INFO - root - Registered webhooks with base URL: http://localhost:5000
+2025-04-20 20:37:09,429 - INFO - root - Response: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-20 20:37:09,430 - INFO - root - Received registration request: {"status": "active"}
+2025-04-20 20:37:09,430 - INFO - root - Channel activated with Deliverect: None (ID: None)
+2025-04-20 20:37:09,430 - INFO - root - Registered webhooks with base URL: http://localhost:5000
+2025-04-20 20:37:09,430 - INFO - root - Response: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-20 20:37:09,430 - INFO - root - Received registration request: {"status": "inactive"}
+2025-04-20 20:37:09,430 - INFO - root - Channel deactivated with Deliverect: None (ID: None)
+2025-04-20 20:37:09,430 - INFO - root - Registered webhooks with base URL: http://localhost:5000
+2025-04-20 20:37:09,430 - INFO - root - Response: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-20 20:37:09,431 - INFO - root - Received registration request: {"status": "invalid"}
+2025-04-20 20:37:09,432 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-20 20:37:09,432 - INFO - app.utils.deliverect - [DELIVERECT-ORDER] Skipping validation in test environment
+2025-04-20 20:37:09,433 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,433 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-20 20:37:09,433 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,433 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-20 20:37:09,434 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,434 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-20 20:37:09,434 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,435 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-20 20:37:09,435 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,435 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-20 20:37:09,436 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,436 - INFO - app.utils.deliverect - Processed Deliverect menu: found 2 items
+2025-04-20 20:37:09,436 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,436 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-20 20:37:09,437 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,437 - INFO - app.utils.deliverect - Processed Deliverect menu: found 5 items
+2025-04-20 20:37:09,437 - INFO - app.utils.deliverect - Registering location test_location with name 'Test Location'
+2025-04-20 20:37:09,441 - INFO - app.utils.deliverect - Creating new location test_location
+2025-04-20 20:37:09,442 - INFO - app.utils.deliverect - Location test_location registered successfully
+2025-04-20 20:37:09,443 - INFO - app.utils.deliverect - Registering location test_location with name 'Updated Test Location'
+2025-04-20 20:37:09,443 - INFO - app.utils.deliverect - Updating existing location test_location
+2025-04-20 20:37:09,444 - INFO - app.utils.deliverect - Location test_location registered successfully
+2025-04-20 20:37:09,447 - INFO - app.utils.deliverect - Updating location downtown status to 'inactive'
+2025-04-20 20:37:09,448 - INFO - app.utils.deliverect - Location downtown status updated to 'inactive'
+2025-04-20 20:37:09,448 - INFO - app.utils.deliverect - Updating location nonexistent status to 'active'
+2025-04-20 20:37:09,448 - WARNING - app.utils.deliverect - Location nonexistent not found, cannot update status
+2025-04-20 20:37:09,450 - INFO - app.utils.deliverect - Generating webhook URLs for location downtown with BASE_URL: http://localhost:5000
+2025-04-20 20:37:09,451 - INFO - app.utils.deliverect - Generated location-specific webhook URLs: {"statusUpdateURL": "http://localhost:5000/location/downtown/order_status", "menuUpdateURL": "http://localhost:5000/location/downtown/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/location/downtown/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/location/downtown/busy_mode", "updatePrepTimeURL": "http://localhost:5000/location/downtown/updatePrepTime", "courierUpdateURL": "http://localhost:5000/location/downtown/courierUpdate", "paymentUpdateURL": "http://localhost:5000/location/downtown/payment_update"}
+2025-04-20 20:37:09,451 - INFO - app.utils.deliverect - Generating webhook URLs for location nonexistent with BASE_URL: http://localhost:5000
+2025-04-20 20:37:09,451 - INFO - app.utils.deliverect - Generated standard webhook URLs: {"statusUpdateURL": "http://localhost:5000/order_status", "menuUpdateURL": "http://localhost:5000/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/busy_mode", "updatePrepTimeURL": "http://localhost:5000/updatePrepTime", "courierUpdateURL": "http://localhost:5000/courierUpdate", "paymentUpdateURL": "http://localhost:5000/payment_update"}
+2025-04-20 20:37:09,455 - INFO - app.utils.deliverect - Registering location new_loc with name 'New Test Location'
+2025-04-20 20:37:09,455 - INFO - app.utils.deliverect - Creating new location new_loc
+2025-04-20 20:37:09,456 - INFO - app.utils.deliverect - Location new_loc registered successfully
+2025-04-20 20:37:09,456 - INFO - app.utils.deliverect - Updating location new_loc status to 'registered'
+2025-04-20 20:37:09,457 - INFO - app.utils.deliverect - Location new_loc status updated to 'registered'
+2025-04-20 20:37:09,457 - INFO - root - Location new_loc registered with Deliverect
+2025-04-20 20:37:09,457 - INFO - app.utils.deliverect - Generating webhook URLs for location new_loc with BASE_URL: http://localhost:5000
+2025-04-20 20:37:09,457 - INFO - app.utils.deliverect - Generated location-specific webhook URLs: {"statusUpdateURL": "http://localhost:5000/location/new_loc/order_status", "menuUpdateURL": "http://localhost:5000/location/new_loc/menu_update", "snoozeUnsnoozeURL": "http://localhost:5000/location/new_loc/snoozeUnsnooze", "busyModeURL": "http://localhost:5000/location/new_loc/busy_mode", "updatePrepTimeURL": "http://localhost:5000/location/new_loc/updatePrepTime", "courierUpdateURL": "http://localhost:5000/location/new_loc/courierUpdate", "paymentUpdateURL": "http://localhost:5000/location/new_loc/payment_update"}
+2025-04-20 20:37:09,458 - INFO - app.utils.deliverect - Registering location new_loc with name 'New Test Location'
+2025-04-20 20:37:09,458 - INFO - app.utils.deliverect - Updating existing location new_loc
+2025-04-20 20:37:09,459 - INFO - app.utils.deliverect - Location new_loc registered successfully
+2025-04-20 20:37:09,462 - INFO - root - Received menu update data for location downtown: {'categories': [{'id': 'sushi', 'name': 'Sushi', 'products': [{'id': 'california_roll', 'name': 'California Roll', 'price': 995}]}]}
+2025-04-20 20:37:09,462 - INFO - root - Processing Deliverect menu format for location downtown
+2025-04-20 20:37:09,462 - WARNING - app.utils.menu_validator - [MENU-FIX] modifiers is not a valid list: <class 'NoneType'>
+2025-04-20 20:37:09,462 - WARNING - app.utils.menu_validator - [MENU-FIX] modifierGroups is not a valid list: <class 'NoneType'>
+2025-04-20 20:37:09,462 - WARNING - app.utils.menu_validator - [MENU-FIX] name_variants is not a valid dictionary: <class 'NoneType'>
+2025-04-20 20:37:09,462 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:09,462 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:09,462 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:09,462 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item California Roll has no PLU! Using synthetic reference: CaliforniaRoll. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-20 20:37:09,462 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for California Roll: CaliforniaRoll
+2025-04-20 20:37:09,463 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:09,463 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-20 20:37:09,463 - INFO - app.utils.menu_utils - Location-specific menu not found, using default: /app/redbar_menu_data.json
+2025-04-20 20:37:09,463 - INFO - app.utils.menu_utils - Loading menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,463 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/redbar_menu_data.json
+2025-04-20 20:37:09,463 - DEBUG - app.utils.menu_utils - Sample item: Cheeseburger - 10.95
+2025-04-20 20:37:09,463 - DEBUG - app.utils.menu_utils - Sample item: Veggie Burger - 9.95
+2025-04-20 20:37:09,463 - DEBUG - app.utils.menu_utils - Sample item: Kids Burger - 6.95
+2025-04-20 20:37:09,463 - INFO - app.utils.menu_utils - Loaded 4 total items, 4 currently available
+2025-04-20 20:37:09,463 - INFO - root - Menu updated successfully for location downtown
+2025-04-20 20:37:09,466 - INFO - root - Product california_roll updated successfully for location downtown
+2025-04-20 20:37:09,484 - INFO - app.utils.menu_utils - Using Flask-configured menu file path: /tmp/pytest-of-root/pytest-0/test_write_menu_file0/test_menu.json
+2025-04-20 20:37:09,485 - INFO - app.utils.menu_utils - Successfully wrote menu data with 1 items to /tmp/pytest-of-root/pytest-0/test_write_menu_file0/test_menu.json
+2025-04-20 20:37:09,485 - INFO - app.utils.menu_utils - Cleared cached menu data for menu_default
+2025-04-20 20:37:09,486 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,486 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,486 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,486 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,486 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-20 20:37:09,486 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,486 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,486 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,486 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,486 - INFO - app.utils.menu_utils - Loaded 2 total items, 2 currently available
+2025-04-20 20:37:09,488 - WARNING - app.utils.menu_utils - Test file not found or invalid: /tmp/pytest-of-root/pytest-0/test_load_menu_data_file_not_f0/nonexistent_file.json. Creating an empty menu.
+2025-04-20 20:37:09,488 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-20 20:37:09,488 - INFO - app.utils.menu_utils - Running in Docker environment, menu will be stored at /app/menu_data.json
+2025-04-20 20:37:09,490 - INFO - app.utils.menu_utils - Loading menu data from /tmp/pytest-of-root/pytest-0/test_load_menu_data_invalid_js0/invalid_menu.json
+2025-04-20 20:37:09,490 - ERROR - app.utils.menu_utils - Invalid JSON in menu file /tmp/pytest-of-root/pytest-0/test_load_menu_data_invalid_js0/invalid_menu.json
+2025-04-20 20:37:09,490 - WARNING - app.utils.menu_utils - Creating empty menu structure - NO DEFAULT ITEMS
+2025-04-20 20:37:09,490 - INFO - app.utils.menu_utils - Running in Docker environment, menu will be stored at /app/menu_data.json
+2025-04-20 20:37:09,497 - ERROR - app.utils.menu_utils - Failed to parse timestamp: not a timestamp
+2025-04-20 20:37:09,499 - ERROR - app.utils.menu_utils - Failed to parse timestamp: invalid
+2025-04-20 20:37:09,499 - ERROR - app.utils.menu_utils - Failed to parse timestamp: also invalid
+2025-04-20 20:37:09,500 - ERROR - app.utils.menu_utils - Invalid time format in availability: invalid - also invalid
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Processing menu update request from 127.0.0.1
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] User-Agent: Werkzeug/3.1.3
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Content-Type: application/json
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Is Deliverect update: True
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Created pre-update backup at /tmp/redbar_backups/menu_pre_update_20250420_203709.json
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Raw data length: 83 bytes
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Received data of type dict
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Processing Deliverect format menu data
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Top-level keys in data: ['categories']
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Found standard Deliverect format with categories: 1
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Running data through Deliverect processor
+2025-04-20 20:37:09,502 - INFO - app.routes.menu - [MENU-UPDATE] Validating and fixing menu data
+2025-04-20 20:37:09,502 - WARNING - app.utils.menu_validator - [MENU-FIX] modifiers is not a valid list: <class 'NoneType'>
+2025-04-20 20:37:09,502 - ERROR - root - [MENU-ERROR] Could not find valid menu file in any of these locations:
+ - app/menu_data.json
+ - app/menu_data.json
+ - app/redbar_menu_data.json
+ - menu_data.json
+ - /home/pegasus/mysite/RedBarSushiAI/menu_data.json
+ - /home/proxyie/MySoftware/RedBarSushiAI/menu_data.json
+ - /app/menu_data.json
+2025-04-20 20:37:09,502 - WARNING - root - [MENU-FALLBACK] Using hardcoded fallback prices - menu data unavailable
+2025-04-20 20:37:09,502 - WARNING - app.utils.menu_validator - [MENU-FIX] Item at index 0 is missing ID, setting to: ITEM-0000
+2025-04-20 20:37:09,502 - ERROR - app.utils.menu_validator - [MENU-FIX] CRITICAL ISSUE: Item Test Item has no PLU! Using synthetic reference: TestItem. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!
+2025-04-20 20:37:09,502 - INFO - app.utils.menu_validator - [MENU-FIX] Setting PLU to match reference_handler for Test Item: TestItem
+2025-04-20 20:37:09,503 - WARNING - app.utils.menu_validator - [MENU-FIX] Item Test Item has missing or invalid price, setting default to 7.5
+2025-04-20 20:37:09,503 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items, 0 modifier groups, and 0 modifiers
+2025-04-20 20:37:09,503 - INFO - app.utils.menu_validator - [MENU-FIX] Fixed 1 items
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] All 1 items have valid PLUs for Deliverect integration.
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Processed menu with 1 items, 0 modifiers, 0 groups
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Sample item 1: Test Item -> PLU: TestItem | Reference: TestItem
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Menu backup created at /tmp/redbar_backups/menu_backup_20250420_203709.json
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Current menu has 1 items
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Preserving existing name variants
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] About to write menu with 1 items, 0 modifiers, 0 groups
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu using write_menu_file
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Menu update successful with 1 items
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Generating name variants for menu items
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Generated 6 name variants
+2025-04-20 20:37:09,503 - INFO - app.routes.menu - [MENU-UPDATE] Successfully wrote menu with name variants
+2025-04-20 20:37:09,505 - INFO - app.routes.menu - Received snooze/unsnooze data: {'operations': [{'action': 'snooze', 'item': 'California Roll'}]}
+2025-04-20 20:37:09,505 - INFO - app.routes.menu - Processed snooze/unsnooze operations.
+2025-04-20 20:37:09,509 - INFO - app.routes.menu - Updated reference handler for Test Item from old to new
+2025-04-20 20:37:09,510 - INFO - app.routes.menu - Menu reference synchronization completed: {'count': 3}
+2025-04-20 20:37:09,510 - ERROR - app.routes.menu - Error synchronizing menu references: fail
+2025-04-20 20:37:09,511 - INFO - app.routes.menu - [GET-MENU] Returning menu with 1 items
+2025-04-20 20:37:09,511 - INFO - app.routes.menu - [GET-MENU] Item 1: ItemX -> No ref
+2025-04-20 20:37:09,512 - INFO - app.routes.menu - [GET-MENU] Returning menu with 1 items
+2025-04-20 20:37:09,512 - INFO - app.routes.menu - [GET-MENU] Item 1: ItemX -> No ref
+2025-04-20 20:37:09,512 - INFO - app.routes.menu - [CLEAR-CACHE] Reloaded menu with 1 items
+2025-04-20 20:37:09,512 - INFO - app.routes.menu - [CLEAR-CACHE] Item 1: ItemX -> No ref
+2025-04-20 20:37:09,514 - INFO - app.routes.menu - [DELETE-MENU] Created backup at /tmp/pytest-of-root/pytest-0/test_delete_menu0/menu_data.json.bak
+2025-04-20 20:37:09,514 - INFO - app.routes.menu - [DELETE-MENU] Deleted menu file at /tmp/pytest-of-root/pytest-0/test_delete_menu0/menu_data.json
+2025-04-20 20:37:09,514 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,514 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,514 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,514 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,514 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,514 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,515 - INFO - app.routes.menu - Toggling USE_REDBAR_MENU from False to True
+2025-04-20 20:37:09,520 - INFO - app.utils.menu_utils - Docker environment detected
+2025-04-20 20:37:09,520 - INFO - app.utils.menu_utils - Menu selection: Using redbar_menu_data.json
+2025-04-20 20:37:09,520 - INFO - app.utils.menu_utils - Using menu file path: /app/redbar_menu_data.json
+2025-04-20 20:37:09,520 - INFO - app.utils.menu_utils - Using backup folder: /app/backups
+2025-04-20 20:37:09,521 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,521 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,521 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,521 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,521 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,521 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,521 - INFO - app.routes.menu - Setting USE_REDBAR_MENU to True based on query parameter
+2025-04-20 20:37:09,525 - INFO - app.utils.menu_utils - Docker environment detected
+2025-04-20 20:37:09,526 - INFO - app.utils.menu_utils - Menu selection: Using redbar_menu_data.json
+2025-04-20 20:37:09,526 - INFO - app.utils.menu_utils - Using menu file path: /app/redbar_menu_data.json
+2025-04-20 20:37:09,526 - INFO - app.utils.menu_utils - Using backup folder: /app/backups
+2025-04-20 20:37:09,526 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,526 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,526 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,526 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,526 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,526 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,526 - INFO - app.routes.menu - Setting USE_REDBAR_MENU to False based on query parameter
+2025-04-20 20:37:09,531 - INFO - app.utils.menu_utils - Docker environment detected
+2025-04-20 20:37:09,531 - INFO - app.utils.menu_utils - Menu selection: Using menu_data.json
+2025-04-20 20:37:09,531 - INFO - app.utils.menu_utils - Using menu file path: /app/redbar_menu_data.json
+2025-04-20 20:37:09,531 - INFO - app.utils.menu_utils - Using backup folder: /app/backups
+2025-04-20 20:37:09,531 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,531 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,531 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,531 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,531 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,531 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,535 - INFO - app.routes.order - [ORDER-FIX] Copying 'item' to 'name' field in removal: {'item': 'Veggie Burger', 'quantity': 1, 'name': 'Veggie Burger'}
+2025-04-20 20:37:09,536 - INFO - app.routes.order - [ORDER-FIX] Copying 'item' to 'name' field in addition: {'item': 'Chicken Burger', 'quantity': 2, 'name': 'Chicken Burger'}
+2025-04-20 20:37:09,536 - INFO - app.routes.order - [ORDER-MODIFY] Processing modifications: {"additions": [{"item": "Chicken Burger", "quantity": 2, "name": "Chicken Burger"}, {"name": "Coca Cola Cola", "quantity": 1}], "removals": [{"item": "Veggie Burger", "quantity": 1, "name": "Veggie Burger"}]}
+2025-04-20 20:37:09,536 - INFO - app.routes.order - [ORDER-MODIFY] Current order: [{"name": "Veggie Burger", "price": 7.5, "reference_handler": "P-BURG-VEG", "quantity": 1, "modifier": []}]
+2025-04-20 20:37:09,536 - INFO - app.routes.order - [ORDER-MODIFY] Processed additions: [{"item": "Chicken Burger", "quantity": 2, "name": "Chicken Burger"}, {"name": "Coca Cola Cola", "quantity": 1}]
+2025-04-20 20:37:09,536 - INFO - app.routes.order - [ORDER-MODIFY] Processed removals: [{"item": "Veggie Burger", "quantity": 1, "name": "Veggie Burger"}]
+2025-04-20 20:37:09,536 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'chicken burger'
+2025-04-20 20:37:09,536 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'chicken burger'
+2025-04-20 20:37:09,536 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,536 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,536 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'chicken burger'
+2025-04-20 20:37:09,536 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'coca cola cola'
+2025-04-20 20:37:09,536 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'coca cola cola'
+2025-04-20 20:37:09,536 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,536 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,536 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'coca cola cola'
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Hamburger'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'hamburger'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'hamburger' → 'Classic Burger'
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Classic Burger
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Fries'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'fries'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'fries' → 'French Fries'
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: French Fries
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Coke'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'coke'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'coke' → 'Coca Cola'
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Coca Cola
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Soda'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'soda'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'soda' → 'Coca Cola'
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Coca Cola
+2025-04-20 20:37:09,538 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Pizza'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'pizza'
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 6 name variants
+2025-04-20 20:37:09,538 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['hamburger', 'burger', 'fries', 'coke', 'soda']...
+2025-04-20 20:37:09,538 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'Pizza'
+2025-04-20 20:37:09,539 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,539 - INFO - app.utils.deliverect - Processed Deliverect menu: found 6 items
+2025-04-20 20:37:09,540 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,540 - INFO - app.utils.deliverect - Processed Deliverect menu: found 0 items
+2025-04-20 20:37:09,541 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,541 - INFO - app.utils.deliverect - Processed Deliverect menu: found 1 items
+2025-04-20 20:37:09,542 - INFO - app.utils.deliverect - Processing Deliverect menu data
+2025-04-20 20:37:09,542 - INFO - app.utils.deliverect - Processed Deliverect menu: found 0 items
+2025-04-20 20:37:09,545 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,545 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,545 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,545 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,545 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,545 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,545 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-20 20:37:09,545 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-20 20:37:09,545 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-20 20:37:09,545 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:09,545 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,545 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,545 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:09,545 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:09,548 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,548 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,548 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,548 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,548 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,548 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,548 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-20 20:37:09,548 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-20 20:37:09,548 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-20 20:37:09,548 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:09,548 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,548 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,548 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:09,548 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:09,552 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,552 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,552 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,552 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,552 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,552 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,552 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-20 20:37:09,552 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-20 20:37:09,552 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-20 20:37:09,552 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:09,552 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,552 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,552 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:09,552 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:09,554 - INFO - app.routes.order - Menu data loaded: 0 items found
+2025-04-20 20:37:09,554 - INFO - app.routes.order - Available (not snoozed) items: 0
+2025-04-20 20:37:09,554 - WARNING - app.routes.order - No available items found - creating empty menu structure
+2025-04-20 20:37:09,554 - INFO - app.routes.order - Using default menu with 0 items
+2025-04-20 20:37:09,556 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,556 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,556 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,556 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,556 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,556 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,556 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-20 20:37:09,556 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-20 20:37:09,559 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,559 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,559 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,559 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,559 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,559 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,559 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-20 20:37:09,559 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-20 20:37:09,559 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Nonexistent Roll'
+2025-04-20 20:37:09,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'nonexistent roll'
+2025-04-20 20:37:09,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,559 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,559 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'Nonexistent Roll'
+2025-04-20 20:37:09,561 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,562 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,562 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,562 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,562 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,562 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,562 - INFO - app.routes.order - Menu data loaded: 4 items found
+2025-04-20 20:37:09,562 - INFO - app.routes.order - Available (not snoozed) items: 3
+2025-04-20 20:37:09,562 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'Dragon Roll'
+2025-04-20 20:37:09,562 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'dragon roll'
+2025-04-20 20:37:09,562 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,562 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,562 - WARNING - app.utils.menu_utils - [MENU-LOOKUP] No match found for 'Dragon Roll'
+2025-04-20 20:37:09,565 - INFO - root - Order confirmation: Speech='yes, that is correct', DTMF=''
+2025-04-20 20:37:09,565 - INFO - root - User confirmation interpreted as: yes
+2025-04-20 20:37:09,565 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,565 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,565 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,565 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,565 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,565 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,565 - INFO - root - Order test-123 saved successfully.
+2025-04-20 20:37:09,565 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,565 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,565 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,565 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,565 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,565 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,565 - WARNING - app.utils.snooze_validator - [AVAILABILITY] Item 'Salmon Nigiri' is marked as unavailable
+2025-04-20 20:37:09,566 - INFO - app.utils.order_utils - [ORDER-VALIDATE] Found 3/4 available menu items
+2025-04-20 20:37:09,566 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'California Roll' with reference 'cal_roll_1' not found in menu
+2025-04-20 20:37:09,566 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] No valid items in order after validation
+2025-04-20 20:37:09,566 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Unavailable items: California Roll
+2025-04-20 20:37:09,566 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,566 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,566 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,566 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,566 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,566 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,566 - INFO - root - No valid items with reference handlers in order, cannot submit to Deliverect
+2025-04-20 20:37:09,566 - INFO - root - Attempting to send SMS confirmation task directly for order test-123
+2025-04-20 20:37:09,566 - INFO - root - SMS confirmation task executed successfully for order test-123
+2025-04-20 20:37:09,568 - INFO - root - Order confirmation: Speech='no, i need to make changes', DTMF=''
+2025-04-20 20:37:09,568 - INFO - root - User confirmation interpreted as: no
+2025-04-20 20:37:09,571 - INFO - root - User requested order modification: Add a spicy tuna roll
+2025-04-20 20:37:09,571 - INFO - app.routes.order - [ORDER-MODIFY] Processing modifications: {"additions": [{"name": "Spicy Tuna Roll", "quantity": 1, "modifier": []}], "removals": []}
+2025-04-20 20:37:09,571 - INFO - app.routes.order - [ORDER-MODIFY] Current order: [{"name": "California Roll", "quantity": 2, "price": 9.95, "reference_handler": "cal_roll_1"}]
+2025-04-20 20:37:09,571 - INFO - app.routes.order - [ORDER-MODIFY] Processed additions: [{"name": "Spicy Tuna Roll", "quantity": 1, "modifier": []}]
+2025-04-20 20:37:09,571 - INFO - app.routes.order - [ORDER-MODIFY] Processed removals: []
+2025-04-20 20:37:09,571 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'spicy tuna roll'
+2025-04-20 20:37:09,571 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'spicy tuna roll'
+2025-04-20 20:37:09,571 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:09,571 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:09,571 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'spicy tuna roll' → 'Spicy Tuna Roll'
+2025-04-20 20:37:09,571 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: Spicy Tuna Roll
+2025-04-20 20:37:09,571 - INFO - root - Order updated after modification: [{'name': 'California Roll', 'quantity': 2, 'price': 9.95, 'reference_handler': 'cal_roll_1'}, {'name': 'Spicy Tuna Roll', 'quantity': 1, 'modifier': [], 'price': 8.95, 'reference_handler': 'spicy-tuna-1'}]
+2025-04-20 20:37:09,577 - INFO - root - Final confirmation after modification: Speech='yes, that is correct', DTMF=''
+2025-04-20 20:37:09,577 - INFO - root - User final decision: yes
+2025-04-20 20:37:09,577 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,578 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,578 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,578 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,578 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,578 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,578 - INFO - root - Order test-456 saved successfully.
+2025-04-20 20:37:09,578 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,578 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,578 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,578 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,578 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,578 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,578 - WARNING - app.utils.snooze_validator - [AVAILABILITY] Item 'Salmon Nigiri' is marked as unavailable
+2025-04-20 20:37:09,578 - INFO - app.utils.order_utils - [ORDER-VALIDATE] Found 3/4 available menu items
+2025-04-20 20:37:09,578 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'California Roll' with reference 'cal_roll_1' not found in menu
+2025-04-20 20:37:09,578 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Item 'Spicy Tuna Roll' with reference 'spicy_tuna_1' not found in menu
+2025-04-20 20:37:09,578 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] No valid items in order after validation
+2025-04-20 20:37:09,578 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Unavailable items: California Roll, Spicy Tuna Roll
+2025-04-20 20:37:09,578 - INFO - app.utils.menu_utils - Loading menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,578 - INFO - app.utils.menu_utils - Successfully loaded menu data from /app/tests/../test_menu_data.json
+2025-04-20 20:37:09,578 - DEBUG - app.utils.menu_utils - Sample item: California Roll - 7.95
+2025-04-20 20:37:09,578 - DEBUG - app.utils.menu_utils - Sample item: Spicy Tuna Roll - 8.95
+2025-04-20 20:37:09,578 - DEBUG - app.utils.menu_utils - Sample item: Edamame - 5.95
+2025-04-20 20:37:09,578 - INFO - app.utils.menu_utils - Loaded 4 total items, 3 currently available
+2025-04-20 20:37:09,578 - INFO - root - No valid items with reference handlers in order, cannot submit to Deliverect
+2025-04-20 20:37:09,578 - INFO - root - Attempting to send SMS confirmation task directly for order test-456
+2025-04-20 20:37:09,579 - INFO - root - SMS confirmation task executed successfully for order test-456
+2025-04-20 20:37:09,581 - INFO - root - Final confirmation after modification: Speech='no, i need to make more changes', DTMF=''
+2025-04-20 20:37:09,581 - INFO - root - User final decision: no
+2025-04-20 20:37:09,586 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Modifier with reference 'MOD-UNAVAIL' not found in menu or unavailable: Unavailable Mod
+2025-04-20 20:37:09,587 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Modifier not found in menu: Not In Menu Mod
+2025-04-20 20:37:09,587 - WARNING - app.utils.order_utils - [ORDER-VALIDATE] Removed 2 invalid modifiers from item Delicious Steak Frites
+2025-04-20 20:37:09,594 - INFO - app.utils.direct_realtime - DirectRealtimeAudioProcessor running in test mode
+2025-04-20 20:37:09,594 - INFO - app.utils.realtime_audio - Running in test mode, using BasicAudioProcessor with mocks
+2025-04-20 20:37:09,594 - INFO - app.utils.realtime_audio - Running in test mode with OpenAI disabled
+2025-04-20 20:37:09,599 - INFO - tests.test_sms - Created test order for status check: test-52038
+2025-04-20 20:37:09,600 - INFO - root - Received SMS from +15555555555: 'status'
+2025-04-20 20:37:09,600 - INFO - root - SMS request headers: {"User-Agent": "Werkzeug/3.1.3", "Host": "localhost", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": "31"}
+2025-04-20 20:37:09,600 - INFO - root - SMS request form data: {"From": "+15555555555", "Body": "status"}
+2025-04-20 20:37:09,600 - INFO - root - SMS COMMAND DEBUG - Message: 'status'
+2025-04-20 20:37:09,600 - INFO - root - SMS COMMAND DEBUG - Exact match 'help': False
+2025-04-20 20:37:09,600 - INFO - root - SMS COMMAND DEBUG - Keyword match: False
+2025-04-20 20:37:09,601 - INFO - root - Sent enhanced status update via SMS to +15555555555
+2025-04-20 20:37:09,603 - INFO - root - Received SMS from +15555555555: 'help'
+2025-04-20 20:37:09,603 - INFO - root - SMS request headers: {"User-Agent": "Werkzeug/3.1.3", "Host": "localhost", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": "29"}
+2025-04-20 20:37:09,603 - INFO - root - SMS request form data: {"From": "+15555555555", "Body": "help"}
+2025-04-20 20:37:09,603 - INFO - root - SMS COMMAND DEBUG - Message: 'help'
+2025-04-20 20:37:09,603 - INFO - root - SMS COMMAND DEBUG - Exact match 'help': True
+2025-04-20 20:37:09,603 - INFO - root - SMS COMMAND DEBUG - Keyword match: True
+2025-04-20 20:37:09,603 - INFO - root - Sent help info via SMS to +15555555555
+2025-04-20 20:37:09,604 - INFO - root - Received SMS from +15555555555: 'menu'
+2025-04-20 20:37:09,604 - INFO - root - SMS request headers: {"User-Agent": "Werkzeug/3.1.3", "Host": "localhost", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": "29"}
+2025-04-20 20:37:09,604 - INFO - root - SMS request form data: {"From": "+15555555555", "Body": "menu"}
+2025-04-20 20:37:09,604 - INFO - root - SMS COMMAND DEBUG - Message: 'menu'
+2025-04-20 20:37:09,604 - INFO - root - SMS COMMAND DEBUG - Exact match 'help': False
+2025-04-20 20:37:09,604 - INFO - root - SMS COMMAND DEBUG - Keyword match: False
+2025-04-20 20:37:09,604 - INFO - root - Sent menu info via SMS to +15555555555
+2025-04-20 20:37:09,608 - INFO - root - Webhook test endpoint called - BASE_URL: http://localhost:5000
+2025-04-20 20:37:09,610 - ERROR - tests.test_sms - Error testing migration script: No module named 'migrate_sms_tracking'
+2025-04-20 20:37:09,682 - INFO - twilio.http_client - -- BEGIN Twilio API Request --
+2025-04-20 20:37:09,682 - INFO - twilio.http_client - GET Request: https://api.twilio.com/2010-04-01/Accounts.json
+2025-04-20 20:37:09,682 - INFO - twilio.http_client - Headers:
+2025-04-20 20:37:09,682 - INFO - twilio.http_client - Content-Type : application/x-www-form-urlencoded
+2025-04-20 20:37:09,682 - INFO - twilio.http_client - Accept : application/json
+2025-04-20 20:37:09,682 - INFO - twilio.http_client - User-Agent : twilio-python/9.4.6 (Linux x86_64) Python/3.11.12
+2025-04-20 20:37:09,682 - INFO - twilio.http_client - X-Twilio-Client : python-9.4.6
+2025-04-20 20:37:09,682 - INFO - twilio.http_client - Accept-Charset : utf-8
+2025-04-20 20:37:09,682 - INFO - twilio.http_client - -- END Twilio API Request --
+2025-04-20 20:37:09,683 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): api.twilio.com:443
+2025-04-20 20:37:10,267 - DEBUG - urllib3.connectionpool - https://api.twilio.com:443 "GET /2010-04-01/Accounts.json HTTP/1.1" 401 107
+2025-04-20 20:37:10,267 - INFO - twilio.http_client - Response Status Code: 401
+2025-04-20 20:37:10,268 - INFO - twilio.http_client - Response Headers: {'Content-Type': 'application/json', 'Content-Length': '107', 'Connection': 'keep-alive', 'Date': 'Sun, 20 Apr 2025 20:37:10 GMT', 'X-Twilio-Error-Code': '20003', 'Twilio-Request-Id': 'RQ0ec0e2f54298fdf8c7f3092d36d07ebf', 'Twilio-Request-Duration': '0.024', 'X-Home-Region': 'us1', 'X-API-Domain': 'api.twilio.com', 'Strict-Transport-Security': 'max-age=31536000', 'WWW-Authenticate': 'Basic realm="Twilio API"', 'X-Cache': 'Error from cloudfront', 'Via': '1.1 be1c65ef44cd2c4cae9eeabb07ce35a4.cloudfront.net (CloudFront)', 'X-Amz-Cf-Pop': 'IAD55-P7', 'X-Amz-Cf-Id': 'Zz_pkmHOFVpNIAUKLCzd_YGcNIaAXrrwdAvcOkZbQRQAu3g-csX_rQ==', 'X-Powered-By': 'AT-5000', 'X-Shenanigans': 'none', 'Vary': 'Origin'}
+2025-04-20 20:37:10,269 - INFO - twilio.http_client - -- BEGIN Twilio API Request --
+2025-04-20 20:37:10,269 - INFO - twilio.http_client - POST Request: https://api.twilio.com/2010-04-01/Accounts/ACb8391ed8d92871d85180ca9adea481b6/Messages.json
+2025-04-20 20:37:10,269 - INFO - twilio.http_client - Headers:
+2025-04-20 20:37:10,269 - INFO - twilio.http_client - Content-Type : application/x-www-form-urlencoded
+2025-04-20 20:37:10,269 - INFO - twilio.http_client - Accept : application/json
+2025-04-20 20:37:10,270 - INFO - twilio.http_client - User-Agent : twilio-python/9.4.6 (Linux x86_64) Python/3.11.12
+2025-04-20 20:37:10,270 - INFO - twilio.http_client - X-Twilio-Client : python-9.4.6
+2025-04-20 20:37:10,270 - INFO - twilio.http_client - Accept-Charset : utf-8
+2025-04-20 20:37:10,270 - INFO - twilio.http_client - -- END Twilio API Request --
+2025-04-20 20:37:10,328 - DEBUG - urllib3.connectionpool - https://api.twilio.com:443 "POST /2010-04-01/Accounts/ACb8391ed8d92871d85180ca9adea481b6/Messages.json HTTP/1.1" 401 107
+2025-04-20 20:37:10,328 - INFO - twilio.http_client - Response Status Code: 401
+2025-04-20 20:37:10,328 - INFO - twilio.http_client - Response Headers: {'Content-Type': 'application/json', 'Content-Length': '107', 'Connection': 'keep-alive', 'Date': 'Sun, 20 Apr 2025 20:37:10 GMT', 'X-Powered-By': 'AT-5000', 'X-Twilio-Error-Code': '20003', 'Twilio-Request-Id': 'RQ822da6df277f0828f628da28fd9ef022', 'Twilio-Request-Duration': '0.020', 'X-Home-Region': 'us1', 'X-Api-Domain': 'api.twilio.com', 'Strict-Transport-Security': 'max-age=31536000', 'Www-Authenticate': 'Basic realm="Twilio API"', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type, If-Match, If-Modified-Since, If-None-Match, If-Unmodified-Since, Idempotency-Key, X-Pre-Auth-Context, X-Target-Region', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS', 'Access-Control-Expose-Headers': 'ETag, Twilio-Request-Id', 'Access-Control-Allow-Credentials': 'true', 'X-Shenanigans': 'none', 'X-Cache': 'Error from cloudfront', 'Via': '1.1 be1c65ef44cd2c4cae9eeabb07ce35a4.cloudfront.net (CloudFront)', 'X-Amz-Cf-Pop': 'IAD55-P7', 'X-Amz-Cf-Id': '6bZrKj0qQz7iL_wIFGnrWXx0CijTbgj4kKEciZHgWtnDEc04gbRcJw=='}
+2025-04-20 20:37:10,332 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-20 20:37:10,569 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "GET / HTTP/1.1" 200 None
+2025-04-20 20:37:10,575 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-20 20:37:10,693 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "GET /environment HTTP/1.1" 200 None
+2025-04-20 20:37:10,696 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-20 20:37:10,834 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "POST /staging-test HTTP/1.1" 404 None
+2025-04-20 20:37:10,836 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): redbarsushiai.onrender.com:443
+2025-04-20 20:37:10,935 - DEBUG - urllib3.connectionpool - https://redbarsushiai.onrender.com:443 "POST /voice HTTP/1.1" 404 None
+2025-04-20 20:37:10,948 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-20 20:37:11,950 - ERROR - root - Commit attempt 1 failed: DB Error
+2025-04-20 20:37:12,950 - ERROR - root - Commit attempt 2 failed: DB Error
+2025-04-20 20:37:12,962 - INFO - app.routes.voice - Extracting name from: 'John Doe'
+2025-04-20 20:37:12,962 - INFO - app.routes.voice - Falling back to regex-based name extraction
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - ==== INCOMING CALL RECEIVED ====
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - Request came from: 127.0.0.1
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - User agent: Werkzeug/3.1.3
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - Host header: localhost
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - URL: http://localhost/
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - Base URL: http://localhost/
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - Request method: POST
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - Environment: testing
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - Is this staging?: false
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - Current working directory: /app
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - From number: +1234567890
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - ==== END CALL DETAILS ====
+2025-04-20 20:37:12,970 - INFO - app.routes.voice - STAGING ENV: Using default test number instead of +1234567890
+2025-04-20 20:37:12,972 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'i want to order a california roll'
+2025-04-20 20:37:12,972 - WARNING - app.utils.agent_utils - No OpenAI API key available - using simple keyword matching
+2025-04-20 20:37:12,972 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 2 potential items
+2025-04-20 20:37:12,972 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1] Verifying item: 'California Roll' using search_menu
+2025-04-20 20:37:12,972 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-20 20:37:12,972 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:12,972 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:12,972 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:12,972 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:12,972 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:12,973 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1-SUCCESS] Found 'California Roll' as 'California Roll' ($7.95)
+2025-04-20 20:37:12,973 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1] Verifying item: 'California Roll' using search_menu
+2025-04-20 20:37:12,973 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-20 20:37:12,973 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:12,973 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:12,973 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:12,973 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:12,973 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:12,973 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1-SUCCESS] Found 'California Roll' as 'California Roll' ($7.95)
+2025-04-20 20:37:12,973 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 2/2 items verified (100%)
+2025-04-20 20:37:12,973 - INFO - app.utils.agent_utils - [ORDER-ITEM-VERIFIED] California Roll ($7.95)
+2025-04-20 20:37:12,973 - INFO - app.utils.agent_utils - [ORDER-ITEM-VERIFIED] California Roll ($7.95)
+2025-04-20 20:37:12,973 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [{'name': 'California Roll', 'price': 7.95, 'reference_handler': 'cal-roll-1', 'quantity': 1, 'modifier': []}, {'name': 'California Roll', 'price': 7.95, 'reference_handler': 'cal-roll-1', 'quantity': 1, 'modifier': []}], 'intent': 'order_food'}
+2025-04-20 20:37:12,973 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] Found 2 items, intent: 'order_food'
+2025-04-20 20:37:12,974 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'tell me about your menu'
+2025-04-20 20:37:12,974 - WARNING - app.utils.agent_utils - No OpenAI API key available - using simple keyword matching
+2025-04-20 20:37:12,974 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 0 potential items
+2025-04-20 20:37:12,974 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 0/0 items verified (0%)
+2025-04-20 20:37:12,974 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'intent': 'other'}
+2025-04-20 20:37:12,974 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'how much is a california roll?'
+2025-04-20 20:37:12,976 - WARNING - app.utils.agent_utils - No OpenAI API key available - using simple keyword matching
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 2 potential items
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1] Verifying item: 'California Roll' using search_menu
+2025-04-20 20:37:12,976 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-20 20:37:12,976 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:12,976 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:12,976 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:12,976 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:12,976 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1-SUCCESS] Found 'California Roll' as 'California Roll' ($7.95)
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1] Verifying item: 'California Roll' using search_menu
+2025-04-20 20:37:12,976 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Looking for item: 'California Roll'
+2025-04-20 20:37:12,976 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Normalized to: 'california roll'
+2025-04-20 20:37:12,976 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Checking against 8 name variants
+2025-04-20 20:37:12,976 - DEBUG - app.utils.menu_utils - [MENU-LOOKUP] Available variants: ['california roll', 'cali roll', 'california', 'spicy tuna', 'spicy tuna roll']...
+2025-04-20 20:37:12,976 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found direct name variant match: 'california roll' → 'California Roll'
+2025-04-20 20:37:12,976 - INFO - app.utils.menu_utils - [MENU-LOOKUP] Found matching menu item: California Roll
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ORDER-VERIFY-PASS1-SUCCESS] Found 'California Roll' as 'California Roll' ($7.95)
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 2/2 items verified (100%)
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ORDER-ITEM-VERIFIED] California Roll ($7.95)
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ORDER-ITEM-VERIFIED] California Roll ($7.95)
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [{'name': 'California Roll', 'price': 7.95, 'reference_handler': 'cal-roll-1', 'quantity': 1, 'modifier': []}, {'name': 'California Roll', 'price': 7.95, 'reference_handler': 'cal-roll-1', 'quantity': 1, 'modifier': []}], 'intent': 'order_food'}
+2025-04-20 20:37:12,976 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] Found 2 items, intent: 'order_food'
+2025-04-20 20:37:12,978 - INFO - app.utils.agent_utils - [ANALYZE-INPUT] Analyzing user input: 'something unrelated'
+2025-04-20 20:37:12,978 - WARNING - app.utils.agent_utils - No OpenAI API key available - using simple keyword matching
+2025-04-20 20:37:12,978 - INFO - app.utils.agent_utils - [ORDER-VERIFY] Starting menu item verification for 0 potential items
+2025-04-20 20:37:12,978 - INFO - app.utils.agent_utils - [ORDER-VERIFY-SUMMARY] Verification complete: 0/0 items verified (0%)
+2025-04-20 20:37:12,978 - INFO - app.utils.agent_utils - [PARSED-ORDER]: {'items': [], 'intent': 'other'}
+2025-04-20 20:37:12,978 - INFO - app.utils.agent_utils - [ANALYZE-RESULT] No items found, intent: 'other'

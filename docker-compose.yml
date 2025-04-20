@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   web:
@@ -91,20 +91,21 @@ services:
     image: redbar-sushi-test
     entrypoint: ["bash", "-lc"]
     env_file:
-      - .env.test.example
+      - .env.test
     volumes:
       - .:/app
     working_dir: /app
-    command: >
-      pip install --upgrade pip && \
-      pip install -r requirements.txt && \
-      pip install -r requirements.ci.txt && \
-      pip install black ruff && \
-      black --check app tests || true && \
-      flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics && \
-      flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics && \
-      ruff check app tests --exit-zero || true && \
-      pytest -m "not integration and not load" -v && \
+    # Execute CI-style steps in a single shell script
+    command: |
+      pip install --upgrade pip &&
+      pip install -r requirements.txt &&
+      pip install -r requirements.ci.txt &&
+      pip install black ruff &&
+      black --check app tests || true &&
+      flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics &&
+      flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics &&
+      ruff check app tests --exit-zero || true &&
+      pytest -m "not integration and not load" -v &&
       pytest -m "integration" -v
     depends_on:
       - redis

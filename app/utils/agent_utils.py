@@ -1199,31 +1199,97 @@ else:
 def analyze_user_input(input_text: str) -> Dict[str, Any]:
     """
     Analyze user input to determine intent and extract order items.
-
+    
+    Detects three main intents:
+    - order_food: Customer wants to place an order
+    - ask_menu: Customer is asking about menu items
+    - other: Other types of queries
+    
     Args:
         input_text: The user's input text
 
     Returns:
-        dict: The analysis results
+        dict: The analysis results with consistent structure across all intents
     """
-    # Create an order parsing agent
-    agent = OrderParsingAgent()
-
-    # Parse the input
-    logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{input_text}'")
-    parsed_order = agent.parse_order(input_text)
-    logger.info(f"[PARSED-ORDER]: {parsed_order}")
-
-    # Determine intent based on the parsed order
-    if parsed_order.get("items"):
-        logger.info(
-            f"[ANALYZE-RESULT] Found {len(parsed_order.get('items', []))} items, intent: 'order_food'"
-        )
-        return {"intent": "order_food", "menu_items": parsed_order.get("items", [])}
-
-    # Default to "other" intent if no clear intent is determined
-    logger.info("[ANALYZE-RESULT] No items found, intent: 'other'")
-    return {"intent": "other"}
+    # First, determine if this is a menu question using OpenAI if available
+    intent = "other"
+    menu_items = []
+    
+    try:
+        if OPENAI_API_KEY:
+            # Prepare messages for intent classification
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a restaurant AI assistant that classifies customer queries. Determine if the customer is placing an order or asking about the menu."
+                },
+                {
+                    "role": "user",
+                    "content": f"Classify this customer query: '{input_text}'\nRespond with JSON containing 'intent' which must be one of: 'order_food', 'ask_menu', or 'other'."
+                }
+            ]
+            
+            # Log the API request
+            log_openai_request("gpt-4.1-mini", messages, "intent_classification")
+            
+            try:
+                # Make the classification request
+                response = openai.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                )
+                
+                # Log the API response
+                log_openai_response(response, "intent_classification")
+                
+                # Extract the intent
+                classification = json.loads(response.choices[0].message.content)
+                intent = classification.get("intent", "other")
+                logger.info(f"[INTENT-CLASSIFICATION] Classified intent as: '{intent}'")
+                
+            except Exception as e:
+                logger.error(f"[INTENT-ERROR] OpenAI API error: {str(e)}")
+                logger.error(f"[INTENT-TRACEBACK] {traceback.format_exc()}")
+                # Fall back to order parsing
+        
+        # If intent is still "other" or "order_food", try parsing as an order
+        if intent in ["other", "order_food"]:
+            # Create an order parsing agent
+            agent = OrderParsingAgent()
+            
+            # Parse the input
+            logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{input_text}'")
+            parsed_order = agent.parse_order(input_text)
+            logger.info(f"[PARSED-ORDER]: {parsed_order}")
+            
+            # If we found menu items, this is likely an order
+            if parsed_order.get("items"):
+                menu_items = parsed_order.get("items", [])
+                intent = "order_food"
+                logger.info(f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'")
+    
+    except Exception as e:
+        logger.error(f"[ANALYZE-ERROR] Error in analyze_user_input: {str(e)}")
+        logger.error(f"[ANALYZE-TRACEBACK] {traceback.format_exc()}")
+    
+    # Return a consistent structure for all intents
+    result = {
+        "intent": intent,
+        "menu_items": menu_items
+    }
+    
+    # Add any intent-specific data
+    if intent == "ask_menu":
+        # Extract the menu query for ask_menu intent
+        menu_tool = SushiMenuTool()
+        query = input_text.strip()
+        search_result = menu_tool.search_menu(query)
+        result["menu_query"] = query
+        result["search_results"] = search_result
+    
+    logger.info(f"[ANALYZE-FINAL] Final intent: '{intent}' with {len(menu_items)} menu items")
+    return result
 
 
 def get_order_modifications(
