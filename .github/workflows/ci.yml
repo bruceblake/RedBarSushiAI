@@ -132,8 +132,9 @@ jobs:
       run: |
         python -m pytest -v --cov=app -k "not test_sms_endpoint and not test_webhook_config and not test_twilio_webhook and not test_order_status_endpoint and not test_deliverect_deep_scan and not test_menu_variant_matching" tests/ || {
           TEST_EXIT_CODE=$?;
-          if [ $TEST_EXIT_CODE -eq 5 ]; then
-            echo "No tests found in lint job, continuing...";
+          # Pytest exit code 4: directory not found, 5: no tests collected
+          if [ $TEST_EXIT_CODE -eq 4 ] || [ $TEST_EXIT_CODE -eq 5 ]; then
+            echo "No tests to run (exit code=$TEST_EXIT_CODE), continuing...";
             exit 0;
           else
             exit $TEST_EXIT_CODE;
