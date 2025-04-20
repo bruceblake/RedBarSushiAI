@@ -63,14 +63,26 @@ jobs:
     - name: Auto-format code with Black
       run: |
         # Automatically format code before checking
-        black app tests
+        if [ -d tests ]; then
+          black app tests
+        else
+          black app
+        fi
     - name: Check code style with Black
       run: |
-        black --check app tests
+        if [ -d tests ]; then
+          black --check app tests
+        else
+          black --check app
+        fi
         
     - name: Lint with flake8
       run: |
-        flake8 app/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        if [ -d tests ]; then
+          flake8 app/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        else
+          flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        fi
         
   security-scan:
     name: Security Scan
