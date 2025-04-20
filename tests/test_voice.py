@@ -5,7 +5,6 @@ test_voice.py - Tests for voice call handling
 import pytest
 
 
-
 def test_receive_call(client, app):
     """Test the initial call endpoint - supports both traditional Gather and streaming approaches."""
     # Skip this test for now as it requires a proper app setup

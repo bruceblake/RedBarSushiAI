@@ -67,9 +67,11 @@ def test_get_deliverect_token_error():
 def test_ensure_deliverect_token():
     """Test token refresh logic."""
     # First test with expired token
-    with patch("app.utils.deliverect.time.time", return_value=2000), patch(
-        "app.utils.deliverect.token_expiries", {"default": 1000}
-    ), patch("app.utils.deliverect.get_deliverect_token") as mock_get_token:
+    with (
+        patch("app.utils.deliverect.time.time", return_value=2000),
+        patch("app.utils.deliverect.token_expiries", {"default": 1000}),
+        patch("app.utils.deliverect.get_deliverect_token") as mock_get_token,
+    ):
 
         mock_token = {"access_token": "new_token", "expires_in": 3600}
         mock_get_token.return_value = mock_token
@@ -80,11 +82,14 @@ def test_ensure_deliverect_token():
         mock_get_token.assert_called_once()
 
     # Now test with valid token
-    with patch("app.utils.deliverect.time.time", return_value=2000), patch(
-        "app.utils.deliverect.token_expiries", {"default": 3000}
-    ), patch("app.utils.deliverect.get_deliverect_token") as mock_get_token, patch(
-        "app.utils.deliverect.deliverect_tokens",
-        {"default": {"access_token": "current_token"}},
+    with (
+        patch("app.utils.deliverect.time.time", return_value=2000),
+        patch("app.utils.deliverect.token_expiries", {"default": 3000}),
+        patch("app.utils.deliverect.get_deliverect_token") as mock_get_token,
+        patch(
+            "app.utils.deliverect.deliverect_tokens",
+            {"default": {"access_token": "current_token"}},
+        ),
     ):
 
         ensure_deliverect_token()
@@ -95,9 +100,12 @@ def test_ensure_deliverect_token():
 
 def test_get_deliverect_headers():
     """Test getting auth headers for Deliverect API."""
-    with patch("app.utils.deliverect.ensure_deliverect_token") as mock_ensure, patch(
-        "app.utils.deliverect.deliverect_tokens",
-        {"default": {"access_token": "test_token"}},
+    with (
+        patch("app.utils.deliverect.ensure_deliverect_token") as mock_ensure,
+        patch(
+            "app.utils.deliverect.deliverect_tokens",
+            {"default": {"access_token": "test_token"}},
+        ),
     ):
 
         headers = get_deliverect_headers()

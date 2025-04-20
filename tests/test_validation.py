@@ -385,9 +385,10 @@ def test_process_product_changes():
     }
 
     # Set up mock for load_menu_data and write_menu_file
-    with patch("app.utils.menu_utils.load_menu_data", return_value=menu_data), patch(
-        "app.utils.menu_utils.write_menu_file"
-    ) as mock_write:
+    with (
+        patch("app.utils.menu_utils.load_menu_data", return_value=menu_data),
+        patch("app.utils.menu_utils.write_menu_file") as mock_write,
+    ):
 
         # Test product name change
         changes = {
@@ -438,9 +439,10 @@ def test_process_modifier_group_changes():
     }
 
     # Set up mock for load_menu_data and write_menu_file
-    with patch("app.utils.menu_utils.load_menu_data", return_value=menu_data), patch(
-        "app.utils.menu_utils.write_menu_file"
-    ) as mock_write:
+    with (
+        patch("app.utils.menu_utils.load_menu_data", return_value=menu_data),
+        patch("app.utils.menu_utils.write_menu_file") as mock_write,
+    ):
 
         # Test modifier group changes
         changes = {"name": "Premium Sauces", "minAmount": 0, "maxAmount": 3}
@@ -484,9 +486,10 @@ def test_process_modifier_changes():
     }
 
     # Set up mock for load_menu_data and write_menu_file
-    with patch("app.utils.menu_utils.load_menu_data", return_value=menu_data), patch(
-        "app.utils.menu_utils.write_menu_file"
-    ) as mock_write:
+    with (
+        patch("app.utils.menu_utils.load_menu_data", return_value=menu_data),
+        patch("app.utils.menu_utils.write_menu_file") as mock_write,
+    ):
 
         # Test modifier changes
         changes = {"name": "Extra Spicy Mayo", "price": 75}  # cents
@@ -548,9 +551,10 @@ def test_update_menu_ordering():
     }
 
     # Set up mock for load_menu_data and write_menu_file
-    with patch("app.utils.menu_utils.load_menu_data", return_value=menu_data), patch(
-        "app.utils.menu_utils.write_menu_file"
-    ) as mock_write:
+    with (
+        patch("app.utils.menu_utils.load_menu_data", return_value=menu_data),
+        patch("app.utils.menu_utils.write_menu_file") as mock_write,
+    ):
 
         # Test updating ordering
         ordering_changes = {
