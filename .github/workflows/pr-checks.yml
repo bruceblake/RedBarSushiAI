@@ -98,7 +98,7 @@ jobs:
     - name: Check for security vulnerabilities (pip-audit)
       run: |
         # Use pip-audit for non-interactive vulnerability scan
-        pip-audit --fail-on high
+        pip-audit -r requirements.txt
         
   api-schema-check:
     name: API Schema Check
