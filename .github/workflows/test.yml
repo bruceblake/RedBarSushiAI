@@ -50,7 +50,7 @@ jobs:
         TESTING: "True"
         DISABLE_OPENAI: "True"
       run: |
-        pytest -m "not integration and not load" -v
+        pytest -m "not integration and not load" -v || { TEST_EXIT_CODE=$?; if [ $TEST_EXIT_CODE -eq 5 ]; then echo "No unit tests found, continuing..."; exit 0; else exit $TEST_EXIT_CODE; fi; }
         
   integration-test:
     runs-on: ubuntu-latest
@@ -83,4 +83,4 @@ jobs:
         TESTING: "True"
         DISABLE_OPENAI: "True"
       run: |
-        pytest -m "integration" -v
+        pytest -m "integration" -v || { TEST_EXIT_CODE=$?; if [ $TEST_EXIT_CODE -eq 5 ]; then echo "No integration tests found, continuing..."; exit 0; else exit $TEST_EXIT_CODE; fi; }
