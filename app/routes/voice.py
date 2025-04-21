@@ -20,6 +20,15 @@ from app.utils.agent_utils import (
     OrderParsingAgent,
 )
 
+# Import optimized menu handler
+try:
+    from app.utils.opt_menu_handler import handle_menu_query
+    OPTIMIZED_MENU_HANDLER = True
+    logger.info("Using optimized menu handler with caching")
+except ImportError:
+    OPTIMIZED_MENU_HANDLER = False
+    logger.warning("Optimized menu handler not available, using standard handler")
+
 logger = logging.getLogger(__name__)
 logger.info("Successfully imported OpenAI agent utilities")
 
@@ -517,11 +526,29 @@ def main_menu():
     return Response(str(response), mimetype="text/xml")
 
 
+# Cache for menu questions to avoid redundant API calls
+menu_questions_cache = {}
+menu_questions_cache_duration = 300  # 5 minutes
+
 @voice_bp.route("/handle_menu_questions", methods=["POST"])
 def handle_menu_questions():
     """Handle menu-related questions from the caller."""
     user_input = request.form.get("SpeechResult", "").lower()
-
+    
+    # For performance tracking
+    start_time = time.time()
+    
+    # Use optimized handler if available
+    if OPTIMIZED_MENU_HANDLER and user_input:
+        logger.info(f"Using optimized menu handler for: '{user_input[:30]}...'")
+        optimized_response = handle_menu_query(user_input)
+        if optimized_response:
+            logger.info(f"Optimized handler completed in {time.time() - start_time:.2f} seconds")
+            return Response(str(optimized_response), mimetype="text/xml")
+        else:
+            logger.info("Optimized handler returned None, falling back to standard handler")
+    
+    # Standard handler path
     # Check for silence
     if not user_input:
         menu_silence_retry = session.get("menu_question_silence", 0)
@@ -574,9 +601,23 @@ def handle_menu_questions():
     # Reset silence counter when we get speech
     session["menu_question_silence"] = 0
 
-    # Use the new agent-based analysis
+    # Check if we have a cached response for this query
+    cleaned_input = user_input.strip().lower()
+    
+    # Try to get cached full response first (fastest path)
+    cached_response = get_cached_response(cleaned_input, "question")
+    if cached_response:
+        logger.info(f"Using cached full response for '{cleaned_input[:30]}...'")
+        return Response(str(cached_response[0]), mimetype="text/xml")
+            return Response(str(cached_response), mimetype="text/xml")
+
+    # Start processing user input
+    # Use the agent-based analysis
+    start_time = time.time()
     analysis = analyze_user_input(user_input)
     intent = analysis.get("intent", "other")
+    analysis_time = time.time() - start_time
+    logger.info(f"Analysis completed in {analysis_time:.2f} seconds. Intent: {intent}")
 
     response = VoiceResponse()
 

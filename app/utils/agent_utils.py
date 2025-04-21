@@ -617,53 +617,79 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                 )
                         
                         # Process modifiers array, ensuring each modifier has proper fields
+                        # First, make sure the modifiers array exists
                         if "modifier" not in item:
                             item["modifier"] = []
                             logger.info(
                                 f"[AGENT-VALIDATE] Added empty modifier list for '{item['name']}'"
                             )
-                        else:
-                            # Process each modifier to ensure it has required fields
-                            for mod in item["modifier"]:
-                                if "name" not in mod:
-                                    mod["name"] = "Unknown Modifier"
-                                    logger.warning(
-                                        f"[AGENT-VALIDATE] Modifier for '{item['name']}' missing name"
-                                    )
-                                if "quantity" not in mod:
-                                    mod["quantity"] = 1
-                                    logger.info(
-                                        f"[AGENT-VALIDATE] Modifier '{mod.get('name')}' missing quantity, defaulting to 1"
-                                    )
+                        elif not isinstance(item["modifier"], list):
+                            # Fix invalid modifier format
+                            logger.warning(f"[AGENT-VALIDATE] Invalid 'modifier' format for '{item['name']}', fixing it")
+                            item["modifier"] = []
+                            
+                        # Log the modifiers that are being processed
+                        if item["modifier"]:
+                            logger.info(f"[AGENT-MODS] Item '{item['name']}' has {len(item['modifier'])} modifiers")
+                            mod_names = [mod.get('name', 'unnamed') for mod in item["modifier"]]
+                            logger.info(f"[AGENT-MODS] Modifier list: {', '.join(mod_names)}")
+                        
+                        # Process each modifier to ensure it has required fields
+                        for mod in item["modifier"]:
+                            if not isinstance(mod, dict):
+                                logger.warning(f"[AGENT-VALIDATE] Invalid modifier format in '{item['name']}', skipping")
+                                continue
                                 
-                                # Try to find modifier information in the menu
-                                if "reference_handler" not in mod or "price" not in mod:
-                                    # Get menu data for looking up modifier details
-                                    menu_data = self.menu_tool.menu_data
-                                    
-                                    # Find the modifier in the menu
-                                    found_modifier = None
-                                    for menu_mod in menu_data.get("modifiers", []):
-                                        if menu_mod.get("name", "").lower() == mod.get("name", "").lower():
-                                            found_modifier = menu_mod
-                                            break
-                                    
-                                    if found_modifier:
-                                        # Set reference handler and price from menu
-                                        mod["reference_handler"] = found_modifier.get("reference_handler", "")
-                                        mod["price"] = found_modifier.get("price", 0.0)
-                                        logger.info(
-                                            f"[AGENT-VALIDATE] Found menu data for modifier '{mod.get('name')}'"
-                                        )
-                                    else:
-                                        # Set defaults if not found
-                                        if "reference_handler" not in mod:
-                                            mod["reference_handler"] = ""
-                                        if "price" not in mod:
-                                            mod["price"] = 0.0
-                                        logger.warning(
-                                            f"[AGENT-VALIDATE] Could not find menu data for modifier '{mod.get('name')}'"
-                                        )
+                            if "name" not in mod:
+                                mod["name"] = "Unknown Modifier"
+                                logger.warning(
+                                    f"[AGENT-VALIDATE] Modifier for '{item['name']}' missing name"
+                                )
+                            if "quantity" not in mod:
+                                mod["quantity"] = 1
+                                logger.info(
+                                    f"[AGENT-VALIDATE] Modifier '{mod.get('name')}' missing quantity, defaulting to 1"
+                                )
+                            
+                            # Try to find modifier information in the menu
+                            if "reference_handler" not in mod or "price" not in mod:
+                                # Get menu data for looking up modifier details
+                                menu_data = self.menu_tool.menu_data
+                                
+                                # Find the modifier in the menu
+                                found_modifier = None
+                                mod_name_lower = mod.get("name", "").lower()
+                                
+                                for menu_mod in menu_data.get("modifiers", []):
+                                    menu_mod_name = menu_mod.get("name", "").lower()
+                                    if menu_mod_name == mod_name_lower:
+                                        found_modifier = menu_mod
+                                        break
+                                        
+                                    # Try fuzzy matching for modifiers like "Rare" cooking preference
+                                    # that might not be in the modifier list but are important
+                                    if (menu_mod_name in mod_name_lower or 
+                                        mod_name_lower in menu_mod_name):
+                                        found_modifier = menu_mod
+                                        logger.info(f"[AGENT-VALIDATE] Found fuzzy match for modifier: {mod.get('name')} → {menu_mod.get('name')}")
+                                        break
+                                
+                                if found_modifier:
+                                    # Set reference handler and price from menu
+                                    mod["reference_handler"] = found_modifier.get("reference_handler", "")
+                                    mod["price"] = found_modifier.get("price", 0.0)
+                                    logger.info(
+                                        f"[AGENT-VALIDATE] Found menu data for modifier '{mod.get('name')}'"
+                                    )
+                                else:
+                                    # Set defaults if not found, but keep the modifier
+                                    if "reference_handler" not in mod:
+                                        mod["reference_handler"] = f"MOD-{mod_name_lower.replace(' ', '-')}"
+                                    if "price" not in mod:
+                                        mod["price"] = 0.0
+                                    logger.warning(
+                                        f"[AGENT-VALIDATE] Created placeholder reference handler for modifier '{mod.get('name')}'"
+                                    )
 
                     return parsed_order
 

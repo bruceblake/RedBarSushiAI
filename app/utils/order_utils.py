@@ -380,11 +380,11 @@ def apply_modifications(
     current_items: List[Dict[str, Any]], modifications: Dict[str, Any]
 ) -> List[Dict[str, Any]]:
     """
-    Apply modifications (additions and removals) to the current order items.
+    Apply modifications (additions, removals, and modifications) to the current order items.
 
     Args:
         current_items: Current order items
-        modifications: Dictionary with 'additions' and 'removals' lists
+        modifications: Dictionary with 'additions', 'removals', and 'modifications' lists
 
     Returns:
         List of updated order items
@@ -394,26 +394,72 @@ def apply_modifications(
 
     # Create a copy to avoid modifying the original
     updated_items = current_items.copy()
+    
+    # Log the incoming modifications for debugging
+    logger.info(f"[APPLY-MODS] Applying modifications: {json.dumps(modifications)}")
 
     # Handle additions
     for addition in modifications.get("additions", []):
+        # Make sure modifiers array exists
+        if "modifier" not in addition:
+            addition["modifier"] = []
+        
+        # Make sure quantity is set
+        if "quantity" not in addition:
+            addition["quantity"] = 1
+            
         # Add the new item
+        logger.info(f"[APPLY-MODS] Adding item: {addition.get('name')} with {len(addition.get('modifier', []))} modifiers")
         updated_items.append(addition)
+
+    # Handle item-specific modifications (adding modifiers to existing items)
+    for modification in modifications.get("modifications", []):
+        item_name = modification.get("item_name")
+        
+        if not item_name:
+            logger.warning("[APPLY-MODS] Modification missing item_name, skipping")
+            continue
+            
+        # Find the target item
+        target_item = None
+        for item in updated_items:
+            if item.get("name") == item_name:
+                target_item = item
+                break
+                
+        if not target_item:
+            logger.warning(f"[APPLY-MODS] Item to modify not found: {item_name}, skipping")
+            continue
+            
+        # Ensure the target item has a modifiers array
+        if "modifier" not in target_item:
+            target_item["modifier"] = []
+            
+        # Apply the modifiers to the target item
+        for mod in modification.get("modifier", []):
+            target_item["modifier"].append(mod)
+            logger.info(f"[APPLY-MODS] Added modifier {mod.get('name')} to {item_name}")
 
     # Handle removals
     for removal in modifications.get("removals", []):
         removal_name = removal.get("name")
         removal_quantity = removal.get("quantity", 1)
 
+        if not removal_name:
+            logger.warning("[APPLY-MODS] Removal missing name, skipping")
+            continue
+
         # Find the item to remove
         for i, item in enumerate(updated_items):
             if item.get("name") == removal_name:
                 if item.get("quantity", 1) <= removal_quantity:
                     # Remove the entire item
+                    logger.info(f"[APPLY-MODS] Removing item: {removal_name}")
                     updated_items.pop(i)
                 else:
                     # Reduce the quantity
                     item["quantity"] = item.get("quantity", 1) - removal_quantity
+                    logger.info(f"[APPLY-MODS] Reducing quantity of {removal_name} to {item['quantity']}")
                 break
 
     return updated_items

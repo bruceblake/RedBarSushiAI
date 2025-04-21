@@ -24,6 +24,63 @@ _cache_duration = 900  # 15 minutes cache duration for menu data in production
 if os.environ.get("FLASK_ENV") == "development":
     _cache_duration = 60  # 1 minute for development
 
+# Menu requests cache - store common lookups
+_menu_requests_cache = {}
+_menu_requests_cache_duration = 300  # 5 minutes for menu requests
+
+def menu_request_cache(func):
+    """
+    Decorator to cache menu item requests to avoid redundant processing for common questions.
+    
+    Args:
+        func: The function to decorate
+        
+    Returns:
+        Wrapped function with caching
+    """
+    def wrapper(*args, **kwargs):
+        global _menu_requests_cache
+        
+        # Generate a cache key based on the function name and arguments
+        # For simplicity, we'll just use the first string argument as the key
+        cache_key = None
+        for arg in args:
+            if isinstance(arg, str):
+                cache_key = f"{func.__name__}:{arg.lower().strip()}"
+                break
+                
+        if not cache_key:
+            # No suitable cache key found, just call the function
+            return func(*args, **kwargs)
+            
+        # Check if we have a cached result
+        if cache_key in _menu_requests_cache:
+            cached_data, timestamp = _menu_requests_cache[cache_key]
+            current_time = time.time()
+            
+            # Check if cache is still valid
+            if current_time - timestamp < _menu_requests_cache_duration:
+                logger.info(f"Using cached menu request for: {cache_key}")
+                return cached_data
+                
+        # Cache miss or expired, call the function
+        result = func(*args, **kwargs)
+        
+        # Store the result in cache
+        _menu_requests_cache[cache_key] = (result, time.time())
+        
+        # Limit cache size to avoid memory issues
+        if len(_menu_requests_cache) > 100:
+            # Remove oldest entries
+            oldest_keys = sorted(_menu_requests_cache.items(), 
+                               key=lambda x: x[1][1])[:50]
+            for key, _ in oldest_keys:
+                _menu_requests_cache.pop(key, None)
+                
+        return result
+        
+    return wrapper
+
 # Toggle to use redbar_menu_data.json instead of menu_data.json
 # Set this to True to use redbar_menu_data.json
 USE_REDBAR_MENU = os.environ.get("USE_REDBAR_MENU", "false").lower() == "true"
@@ -277,6 +334,9 @@ def create_default_menu():
 def load_menu_data(force_refresh=False, location_id=None):
     """
     Load menu data from the file, with caching to avoid frequent reads.
+    
+    This function employs aggressive caching to minimize disk access and improve performance.
+    The cache is shared across all parts of the application.
 
     Args:
         force_refresh: If True, bypass cache and load directly from file
@@ -502,6 +562,7 @@ def find_menu_item(item_name: str, check_availability: bool = False) -> tuple:
     return None, 100  # No match
 
 
+@menu_request_cache
 def find_menu_item_by_name(
     item_name: str, check_availability: bool = False, context: Optional[Dict[str, Any]] = None
 ) -> Optional[Dict[str, Any]]:
@@ -510,6 +571,8 @@ def find_menu_item_by_name(
     
     This is a bridge function that first tries an exact match for efficiency,
     then uses AI matching for better fuzzy matching capabilities.
+    
+    The function is cached to avoid redundant lookups for common items.
 
     Args:
         item_name: The name of the item to find
