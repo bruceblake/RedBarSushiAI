@@ -97,13 +97,9 @@ if not MENU_FILE_PATH:
         MENU_FILE_PATH = os.path.join(os.getcwd(), DEFAULT_MENU_FILENAME)
         logger.warning(f"No menu file found, defaulting to: {MENU_FILE_PATH}")
 
-# Ensure backup folder is in a writable location
-# If in a read-only environment, use /tmp
-BACKUP_FOLDER = (
-    os.access(os.path.dirname(MENU_FILE_PATH), os.W_OK)
-    and os.path.join(os.path.dirname(MENU_FILE_PATH), "backups")
-    or "/tmp/redbar_backups"
-)
+# Set backup folder to /tmp to avoid creating a backups directory
+# This ensures all updates go directly to the main menu file
+BACKUP_FOLDER = "/tmp/redbar_backups"
 
 # Log where we're looking for files
 logger.info(f"Using menu file path: {MENU_FILE_PATH}")
@@ -173,22 +169,8 @@ def write_menu_file(
     # Ensure the directory exists
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-    # Create a backup before writing
-    try:
-        # Create backup directory if it doesn't exist
-        os.makedirs(BACKUP_FOLDER, exist_ok=True)
-
-        # Check if file exists first
-        if os.path.exists(file_path):
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            location_suffix = f"_{location_id}" if location_id else ""
-            backup_file = os.path.join(
-                BACKUP_FOLDER, f"menu_backup{location_suffix}_{timestamp}.json"
-            )
-            shutil.copy2(file_path, backup_file)
-            logger.info(f"Created backup at {backup_file}")
-    except Exception as e:
-        logger.warning(f"Could not create backup: {e}")
+    # Skip creating backups - we want all updates to go directly to the main file
+    logger.info(f"Skipping backup creation - writing directly to {file_path}")
 
     # Write to a temporary file first, then atomically move it to the target path
     # This prevents corruption if writing is interrupted
