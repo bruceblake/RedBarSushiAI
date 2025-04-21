@@ -618,7 +618,7 @@ def handle_menu_questions():
         menu_context = ""
         if search_results.get("found"):
             menu_context = "Here are relevant menu items:\n"
-            for item in search_results[:5]:  # Limit to 5 items for context
+            for item in search_results.get("items"):  # Limit to 5 items for context
                 price_str = f"${item.get('price', 0):.2f}"
                 desc = item.get('description', 'No description available')
                 menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
