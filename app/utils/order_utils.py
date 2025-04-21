@@ -795,6 +795,23 @@ def prepare_order_for_deliverect(
             if mod_count > 0:
                 mod_names = [mod.get('name', 'unnamed') for mod in item.get("modifier", [])]
                 logger.info(f"[ORDER-PREPARE] Modifiers: {', '.join(mod_names)}")
+                
+                # Log full modifier details for debugging
+                logger.info(f"[ORDER-PREPARE-DETAIL] Full modifier data for '{item.get('name')}': {json.dumps(item.get('modifier', []))}")
+                
+                # Ensure each modifier has necessary fields for Deliverect
+                for mod in item.get("modifier", []):
+                    if isinstance(mod, dict) and "name" in mod:
+                        # Ensure reference_handler exists
+                        if "reference_handler" not in mod or not mod["reference_handler"]:
+                            mod_name = mod["name"].lower()
+                            mod["reference_handler"] = f"MOD-{mod_name.replace(' ', '-')}"
+                            logger.info(f"[ORDER-PREPARE] Created reference_handler '{mod['reference_handler']}' for modifier '{mod['name']}'")
+                        
+                        # Ensure price exists
+                        if "price" not in mod:
+                            mod["price"] = 0.0
+                            logger.info(f"[ORDER-PREPARE] Set default price 0.0 for modifier '{mod['name']}'")
     
     # Step 1: Validate items exist in menu and are available
     valid_items = validate_order_items(order_items)
@@ -810,6 +827,10 @@ def prepare_order_for_deliverect(
     for item in valid_items_with_modifiers:
         mod_count = len(item.get("modifier", []))
         logger.info(f"[ORDER-PREPARE] Item after modifier validation: {item.get('name')} with {mod_count} modifiers")
+        
+        # Log full modified modifier details
+        if mod_count > 0:
+            logger.info(f"[ORDER-PREPARE-VALIDATED] Final modifiers for '{item.get('name')}': {json.dumps(item.get('modifier', []))}")
 
     # Step 3: Perform comprehensive availability validation using snooze_validator
     fully_validated_items = validate_items_availability(valid_items_with_modifiers)

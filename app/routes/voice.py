@@ -294,15 +294,15 @@ def take_name():
         # Vary the message based on how many times we've tried
         if silence_retry_count >= 2:
             # After multiple silent attempts, give a more directive prompt
-            g = response.gather(
-                input="speech dtmf",
-                action="/take_name",
-                enhanced=True,
-                speech_model="phone_call",
-                language="en-US",
-                speech_timeout="auto",
-                timeout=7,  # Give more time
+            # Use adaptive timeouts for name gathering with high retry count
+            gather_params = setup_gather_params(
+                context="name", 
+                retry_count=2,  # Higher retry for more patience
+                include_dtmf=True,
+                action="/take_name"
             )
+            
+            g = response.gather(**gather_params)
             g.say(
                 "I need your name to continue. Please say your name or press any key to continue."
             )
@@ -311,15 +311,14 @@ def take_name():
             response.redirect("/main_menu_fallback")
         else:
             # Normal prompt for the first retry
-            g = response.gather(
-                input="speech",
-                action="/take_name",
-                enhanced=True,
-                speech_model="phone_call",
-                language="en-US",
-                speech_timeout="auto",
-                timeout=7,  # Give more time
+            # Use adaptive timeouts for name gathering with low retry count
+            gather_params = setup_gather_params(
+                context="name", 
+                retry_count=0,  # First retry
+                action="/take_name"
             )
+            
+            g = response.gather(**gather_params)
             g.say(
                 "I'm waiting for your name. Please tell me your name so I can help you with your order."
             )
@@ -342,16 +341,15 @@ def take_name():
         # Spell out the name for confirmation
         spelled_name = " ".join(list(caller_name))
 
-        with response.gather(
-            input="speech dtmf",
-            action="/confirm_name",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=5,
-            num_digits=1,
-        ) as g:
+        # Use adaptive timeouts for name confirmation (should be short)
+        gather_params = setup_gather_params(
+            context="confirm", 
+            include_dtmf=True,
+            action="/confirm_name"
+        )
+        gather_params["num_digits"] = 1  # Add DTMF parameter
+        
+        with response.gather(**gather_params) as g:
             g.say(
                 f"I heard {caller_name}, spelled {spelled_name}. Is that correct? Say yes or press 1 for yes, or say no or press 2 to correct it."
             )
@@ -360,15 +358,14 @@ def take_name():
     else:
         # Try again with a more specific prompt if we couldn't get the name
         response = VoiceResponse()
-        with response.gather(
-            input="speech dtmf",
-            action="/take_name",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=7,  # Give more time
-        ) as g:
+        # Use adaptive timeouts for name gathering 
+        gather_params = setup_gather_params(
+            context="name", 
+            include_dtmf=True,
+            action="/take_name"
+        )
+        
+        with response.gather(**gather_params) as g:
             g.say(
                 "I didn't catch your name. Please say just your first name clearly, or press any key to continue."
             )
@@ -414,15 +411,13 @@ def confirm_name():
             g.say(menu_prompt)
     else:
         # User said the name was incorrect, ask for name again
-        with response.gather(
-            input="speech",
-            action="/take_name",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=7,  # Give more time
-        ) as g:
+        # Use adaptive timeouts for name correction
+        gather_params = setup_gather_params(
+            context="name",
+            action="/take_name"
+        )
+        
+        with response.gather(**gather_params) as g:
             g.say("I apologize for getting that wrong. Please tell me your name again.")
 
     return Response(str(response), mimetype="text/xml")
@@ -615,13 +610,16 @@ def main_menu():
             logger.warning(
                 "Multiple silences detected in main menu, going to DTMF-only mode"
             )
-            with response.gather(
-                input="dtmf speech",
-                action="/main_menu",
-                num_digits=1,
-                timeout=15,
-                speech_timeout=15,  # Much longer timeout
-            ) as g:
+            # Use adaptive timeouts with retry count for main menu
+            gather_params = setup_gather_params(
+                context="menu", 
+                retry_count=3,  # High retry count for more patient behavior
+                include_dtmf=True,
+                action="/main_menu"
+            )
+            gather_params["num_digits"] = 1  # Add DTMF parameter
+            
+            with response.gather(**gather_params) as g:
                 g.say(
                     "I can't hear you clearly. Please press 1 on your keypad to order, press 2 for menu questions, or press 3 to speak with a person. You can also try speaking louder."
                 )
@@ -631,13 +629,16 @@ def main_menu():
             return Response(str(response), mimetype="text/xml")
         elif silence_retry_count >= 1:
             # First retry with better guidance and speech + DTMF
-            with response.gather(
-                input="dtmf speech",
-                action="/main_menu",
-                num_digits=1,
-                timeout=12,
-                speech_timeout=12,
-            ) as g:
+            # Use adaptive timeouts with medium retry count
+            gather_params = setup_gather_params(
+                context="menu", 
+                retry_count=1,  # First retry count
+                include_dtmf=True,
+                action="/main_menu"
+            )
+            gather_params["num_digits"] = 1  # Add DTMF parameter
+            
+            with response.gather(**gather_params) as g:
                 g.say(
                     "I'm having trouble hearing you. Please press 1 to order, 2 for menu questions, or 3 for a real person. Or you can speak your choice clearly."
                 )
@@ -675,16 +676,15 @@ def main_menu():
         response.say("Please hold, transferring to a real person.")
         response.hangup()
     else:
-        with response.gather(
-            input="speech dtmf",
-            action="/main_menu",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            timeout=7,  # Give more time
-            num_digits=1,
-        ) as g:
+        # Use adaptive timeouts for main menu fallback
+        gather_params = setup_gather_params(
+            context="menu",
+            include_dtmf=True,
+            action="/main_menu"
+        )
+        gather_params["num_digits"] = 1  # Add DTMF parameter
+        
+        with response.gather(**gather_params) as g:
             g.say(
                 "I didn't understand. Press 1 to order, 2 for menu questions, 3 for a real person."
             )
@@ -749,17 +749,15 @@ def handle_menu_questions():
     if intent == "order_food":
         # User decided to order instead of asking questions
         session["ordering_in_progress"] = True
-        with response.gather(
-            input="speech",
-            action="/take_order",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout=10,
-            timeout=12,
-        ) as g:
+        # Use adaptive timeouts for order taking
+        gather_params = setup_gather_params(
+            context="complex_order", 
+            action="/take_order"
+        )
+        
+        with response.gather(**gather_params) as g:
             g.say(
-                "I'll take your order now. Please tell me what you would like to order."
+                "I'll take your order now. Please tell me what you would like to order. Take your time, I'll wait."
             )
     elif intent == "ask_menu":
         # Use AI agent to answer any menu question; fallback on error
@@ -825,15 +823,13 @@ def handle_menu_questions():
         response.say(reply)
         
         # Add a gather to continue the conversation
-        with response.gather(
-            input="speech",
-            action="/handle_menu_questions",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout=10,
-            timeout=12,
-        ) as g:
+        # Use adaptive timeouts for menu follow-up
+        gather_params = setup_gather_params(
+            context="menu",
+            action="/handle_menu_questions"
+        )
+        
+        with response.gather(**gather_params) as g:
             g.say("Is there anything else you'd like to know about our menu?")
             
         return Response(str(response), mimetype="text/xml")

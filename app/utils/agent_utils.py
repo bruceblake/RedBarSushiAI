@@ -492,14 +492,17 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 - "a build a poke bowl with sushi rice, and add spicy tofu and smashed avocado" should be
                   understood as ONE main item (poke bowl) with THREE modifiers (sushi rice, spicy tofu,
                   smashed avocado), not as four separate items.
+                - "steak frites cooked rare with a side of fries" should be ONE main item (steak frites)
+                  with TWO modifiers (cooked rare, side of fries), not as separate items.
                 - Use the context and language cues to distinguish when a customer is adding modifiers
                   to a main item vs. ordering separate items
                 
                 When determining if something is a modifier:
-                1. Look for phrases like "with", "add", "extra", "no", "without", "on the side" 
+                1. Look for phrases like "with", "add", "extra", "no", "without", "on the side", "cooked" 
                 2. Consider if the item is typically a standalone dish or a component/addition
                 3. Check menu data for modifier groups and their relationships to menu items
                 4. Group related items together based on natural language structure
+                5. Cooking preferences (like "rare", "medium", "well done") are ALWAYS modifiers
 
                 Only respond with items that are actually on the menu. If an item requested is not found,
                 try to find the closest match or recommend alternatives. 
@@ -507,6 +510,7 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 Always return:
                 - List of items, each with: name (exactly as in menu), quantity, reference_handler, and price
                 - For each item, include its modifiers in the "modifier" array with their quantities and reference_handlers
+                - IMPORTANT: Each modifier in the modifier array MUST include: name, quantity, reference_handler, and price
                 """,
                 tools=tools,
             )
@@ -633,6 +637,30 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                             logger.info(f"[AGENT-MODS] Item '{item['name']}' has {len(item['modifier'])} modifiers")
                             mod_names = [mod.get('name', 'unnamed') for mod in item["modifier"]]
                             logger.info(f"[AGENT-MODS] Modifier list: {', '.join(mod_names)}")
+                            logger.info(f"[AGENT-MODS-DETAIL] Full modifier data for '{item['name']}': {json.dumps(item['modifier'])}")
+                            
+                            # Ensure each modifier has the required fields for Deliverect
+                            for mod in item["modifier"]:
+                                if not isinstance(mod, dict):
+                                    logger.warning(f"[AGENT-MODS-FIX] Skipping non-dict modifier")
+                                    continue
+                                    
+                                # Ensure required fields exist
+                                if "name" not in mod:
+                                    mod["name"] = "Unknown Modifier"
+                                if "quantity" not in mod:
+                                    mod["quantity"] = 1
+                                
+                                # Try to get a valid reference_handler if missing
+                                if "reference_handler" not in mod or not mod["reference_handler"]:
+                                    mod_name_lower = mod.get("name", "").lower()
+                                    # Create a placeholder but distinctive reference handler
+                                    mod["reference_handler"] = f"MOD-{mod_name_lower.replace(' ', '-')}"
+                                    logger.info(f"[AGENT-MODS-FIX] Created reference_handler '{mod['reference_handler']}' for modifier '{mod['name']}'")
+                                    
+                                # Ensure price is set
+                                if "price" not in mod:
+                                    mod["price"] = 0.0
                         
                         # Process each modifier to ensure it has required fields
                         for mod in item["modifier"]:
@@ -1604,6 +1632,17 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
                 menu_items = parsed_order.get("items", [])
                 intent = "order_food"
                 logger.info(f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'")
+                
+                # Ensure modifiers are preserved for each item
+                for item in menu_items:
+                    if "modifier" in item and item["modifier"]:
+                        logger.info(f"[ANALYZE-MODS] Item '{item.get('name')}' has {len(item['modifier'])} modifiers")
+                        # Log each modifier for debugging
+                        for mod in item["modifier"]:
+                            if isinstance(mod, dict):
+                                logger.info(f"[ANALYZE-MOD-DETAIL] Modifier for {item.get('name')}: {mod.get('name')} (ref: {mod.get('reference_handler', 'none')})")
+                            else:
+                                logger.warning(f"[ANALYZE-MOD-ERROR] Invalid modifier format: {mod}")
     
     except Exception as e:
         logger.error(f"[ANALYZE-ERROR] Error in analyze_user_input: {str(e)}")
