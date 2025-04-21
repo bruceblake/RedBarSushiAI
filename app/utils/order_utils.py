@@ -598,6 +598,11 @@ def validate_order_items(order_items: List[Dict[str, Any]]) -> List[Dict[str, An
                 item["price"] = available_menu_items[ref].get(
                     "price", item.get("price", 0.0)
                 )
+                # Make sure modifiers are preserved during validation
+                if "modifier" in item and item["modifier"]:
+                    logger.info(f"[ORDER-VALIDATE] Preserving {len(item['modifier'])} modifiers for item '{item_name}'")
+                    mod_names = [mod.get('name', 'unnamed') for mod in item["modifier"]]
+                    logger.info(f"[ORDER-VALIDATE] Modifier list: {', '.join(mod_names)}")
                 valid_items.append(item)
             else:
                 # Item exists but is not available (snoozed or unavailable)
@@ -634,6 +639,11 @@ def validate_order_items(order_items: List[Dict[str, Any]]) -> List[Dict[str, An
                 logger.info(
                     f"[ORDER-VALIDATE] Found available item: {item_name} → {item['reference_handler']}"
                 )
+                # Make sure modifiers are preserved during validation
+                if "modifier" in item and item["modifier"]:
+                    logger.info(f"[ORDER-VALIDATE] Preserving {len(item['modifier'])} modifiers for item '{item_name}'")
+                    mod_names = [mod.get('name', 'unnamed') for mod in item["modifier"]]
+                    logger.info(f"[ORDER-VALIDATE] Modifier list: {', '.join(mod_names)}")
                 valid_items.append(item)
             else:
                 # Try to find the item regardless of availability
@@ -781,7 +791,16 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
                     
                     if not found_match:
                         # No match found, but create a placeholder reference handler and keep it
-                        mod["reference_handler"] = f"MOD-{mod_name.replace(' ', '-')}"
+                        # Determine modifier type dynamically based on content
+                        mod_lower = mod_name.lower()
+                        if any(cooking_term in mod_lower for cooking_term in ["cook", "rare", "medium", "well", "done"]):
+                            mod_type = "COOK"
+                        elif any(side_term in mod_lower for side_term in ["side", "extra", "add", "fries", "salad"]):
+                            mod_type = "SIDE"
+                        else:
+                            mod_type = "GEN"
+                                
+                        mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
                         mod["price"] = mod.get("price", 0.0)
                         logger.warning(
                             f"[ORDER-VALIDATE] Modifier not found in menu but creating placeholder: {mod.get('name')} → {mod['reference_handler']}"
@@ -840,7 +859,15 @@ def prepare_order_for_deliverect(
                         # Ensure reference_handler exists
                         if "reference_handler" not in mod or not mod["reference_handler"]:
                             mod_name = mod["name"].lower()
-                            mod["reference_handler"] = f"MOD-{mod_name.replace(' ', '-')}"
+                            # Determine modifier type dynamically based on content
+                            if any(cooking_term in mod_name for cooking_term in ["cook", "rare", "medium", "well", "done"]):
+                                mod_type = "COOK"
+                            elif any(side_term in mod_name for side_term in ["side", "extra", "add", "fries", "salad"]):
+                                mod_type = "SIDE"
+                            else:
+                                mod_type = "GEN"
+                                
+                            mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
                             logger.info(f"[ORDER-PREPARE] Created reference_handler '{mod['reference_handler']}' for modifier '{mod['name']}'")
                         
                         # Ensure price exists

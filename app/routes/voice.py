@@ -46,13 +46,13 @@ voice_bp = Blueprint("voice", __name__)
 SPEECH_TIMEOUT_SHORT = 3    # For simple responses (yes/no)
 SPEECH_TIMEOUT_MEDIUM = 3  # For name, phone number
 SPEECH_TIMEOUT_LONG = 5    # For orders, menu questions
-SPEECH_TIMEOUT_EXTENDED = 7  # For complex orders
+SPEECH_TIMEOUT_EXTENDED = 5  # For complex orders
 
 # Regular timeout configuration (waiting for any input)
 TIMEOUT_SHORT = 3
 TIMEOUT_MEDIUM = 3
 TIMEOUT_LONG = 5
-TIMEOUT_EXTENDED = 7
+TIMEOUT_EXTENDED = 5
 
 # Progressive timeout settings
 MAX_SILENCE_RETRIES = 3
