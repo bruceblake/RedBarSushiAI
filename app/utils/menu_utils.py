@@ -521,15 +521,18 @@ def find_menu_item(item_name: str, check_availability: bool = False) -> tuple:
 
 
 def find_menu_item_by_name(
-    item_name: str, check_availability: bool = False
+    item_name: str, check_availability: bool = False, context: Optional[Dict[str, Any]] = None
 ) -> Optional[Dict[str, Any]]:
     """
-    Simplified placeholder for menu item lookup - transitioning to AI agent for matching.
-    Retains only exact match functionality for basic operation.
+    Find a menu item by name, using AI matching if exact match fails.
+    
+    This is a bridge function that first tries an exact match for efficiency,
+    then uses AI matching for better fuzzy matching capabilities.
 
     Args:
         item_name: The name of the item to find
         check_availability: If True, only return items that are available
+        context: Optional context for AI matching (e.g., conversation history)
 
     Returns:
         dict or None: The menu item if found, None otherwise
@@ -545,9 +548,7 @@ def find_menu_item_by_name(
     # Get menu data
     menu_data = load_menu_data()
     
-    # AI agent should handle fuzzy matching - we just provide basic exact match here
-    
-    # Try direct match against menu items
+    # Step 1: Try exact matching first for efficiency
     for item in menu_data.get("items", []):
         if item.get("name", "").lower() == item_name_lower:
             # Verify this item is available if required
@@ -558,10 +559,24 @@ def find_menu_item_by_name(
                 return item
             else:
                 logger.warning(f"[MENU-LOOKUP] Found direct match '{item.get('name')}' but item is unavailable/snoozed")
-                return None
+                return None if check_availability else item
 
-    # No match found - in production the AI agent should handle fuzzy matching
-    logger.warning(f"[MENU-LOOKUP] No exact match found for '{item_name}' - AI agent should handle fuzzy matching")
+    # Step 2: No exact match, try AI matching
+    # Import here to avoid circular imports
+    try:
+        # Lazy import to avoid circular imports
+        from app.utils.menu_matcher import find_menu_item_ai
+        
+        ai_match = find_menu_item_ai(item_name, check_availability, context)
+        if ai_match:
+            logger.info(f"[MENU-LOOKUP] AI matcher found: {ai_match.get('name')} for '{item_name}'")
+            return ai_match
+    except Exception as e:
+        logger.error(f"[MENU-LOOKUP] Error in AI matching: {str(e)}")
+        # Continue with fallback if AI matching fails
+    
+    # No match found
+    logger.warning(f"[MENU-LOOKUP] No match found for '{item_name}'")
     return None
 
 
