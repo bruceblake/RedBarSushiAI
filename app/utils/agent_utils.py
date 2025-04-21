@@ -481,18 +481,31 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 instructions="""
                 You are an assistant that helps parse customer food orders for a sushi restaurant. 
                 Your job is to:
-                1. Identify menu items in customer orders
+                1. Identify main menu items in customer orders
                 2. Extract quantity information
-                3. Parse any modifiers or special requests
+                3. Properly identify and group modifiers with their parent items
                 4. Verify all items exist in the actual menu
                 5. Return the full order in a structured format
+
+                IMPORTANT: Pay special attention to detecting modifiers vs. main items. For example:
+                - "a build a poke bowl with sushi rice, and add spicy tofu and smashed avocado" should be
+                  understood as ONE main item (poke bowl) with THREE modifiers (sushi rice, spicy tofu,
+                  smashed avocado), not as four separate items.
+                - Use the context and language cues to distinguish when a customer is adding modifiers
+                  to a main item vs. ordering separate items
                 
+                When determining if something is a modifier:
+                1. Look for phrases like "with", "add", "extra", "no", "without", "on the side" 
+                2. Consider if the item is typically a standalone dish or a component/addition
+                3. Check menu data for modifier groups and their relationships to menu items
+                4. Group related items together based on natural language structure
+
                 Only respond with items that are actually on the menu. If an item requested is not found,
                 try to find the closest match or recommend alternatives. 
                 
                 Always return:
                 - List of items, each with: name (exactly as in menu), quantity, reference_handler, and price
-                - Any modifiers for each item with their quantities
+                - For each item, include its modifiers in the "modifier" array with their quantities and reference_handlers
                 """,
                 tools=tools,
             )
@@ -573,7 +586,7 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                             "[AGENT-VALIDATE] Missing 'items' key in parsed order, adding empty items list"
                         )
 
-                    # Verify all items have required fields
+                    # Verify all items have required fields and process their modifiers
                     for item in parsed_order["items"]:
                         if "name" not in item:
                             item["name"] = "Unknown Item"
@@ -601,11 +614,55 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                 logger.warning(
                                     f"[AGENT-PRICE] Could not find price for '{item['name']}', using 0.0"
                                 )
+                        
+                        # Process modifiers array, ensuring each modifier has proper fields
                         if "modifier" not in item:
                             item["modifier"] = []
                             logger.info(
                                 f"[AGENT-VALIDATE] Added empty modifier list for '{item['name']}'"
                             )
+                        else:
+                            # Process each modifier to ensure it has required fields
+                            for mod in item["modifier"]:
+                                if "name" not in mod:
+                                    mod["name"] = "Unknown Modifier"
+                                    logger.warning(
+                                        f"[AGENT-VALIDATE] Modifier for '{item['name']}' missing name"
+                                    )
+                                if "quantity" not in mod:
+                                    mod["quantity"] = 1
+                                    logger.info(
+                                        f"[AGENT-VALIDATE] Modifier '{mod.get('name')}' missing quantity, defaulting to 1"
+                                    )
+                                
+                                # Try to find modifier information in the menu
+                                if "reference_handler" not in mod or "price" not in mod:
+                                    # Get menu data for looking up modifier details
+                                    menu_data = self.menu_tool.menu_data
+                                    
+                                    # Find the modifier in the menu
+                                    found_modifier = None
+                                    for menu_mod in menu_data.get("modifiers", []):
+                                        if menu_mod.get("name", "").lower() == mod.get("name", "").lower():
+                                            found_modifier = menu_mod
+                                            break
+                                    
+                                    if found_modifier:
+                                        # Set reference handler and price from menu
+                                        mod["reference_handler"] = found_modifier.get("reference_handler", "")
+                                        mod["price"] = found_modifier.get("price", 0.0)
+                                        logger.info(
+                                            f"[AGENT-VALIDATE] Found menu data for modifier '{mod.get('name')}'"
+                                        )
+                                    else:
+                                        # Set defaults if not found
+                                        if "reference_handler" not in mod:
+                                            mod["reference_handler"] = ""
+                                        if "price" not in mod:
+                                            mod["price"] = 0.0
+                                        logger.warning(
+                                            f"[AGENT-VALIDATE] Could not find menu data for modifier '{mod.get('name')}'"
+                                        )
 
                     return parsed_order
 
@@ -681,15 +738,22 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 Your job is to:
                 1. Understand the current order
                 2. Parse the customer's modification request
-                3. Identify items to add, remove, or modify
+                3. Identify items to add, remove, or modify (including modifiers)
                 4. Return the updated order in a structured format
+                
+                IMPORTANT: Pay special attention to modifiers vs. main items:
+                - Adding a modifier to an existing item should be represented as a modification to that item,
+                  not as a new separate menu item
+                - Look for phrases like "add avocado to my roll" which indicate adding a modifier to an existing item
+                - Use context to determine if a mentioned item is a modifier for an existing item or a new main item
                 
                 Only include items that are actually on the menu. If an item requested is not found,
                 try to find the closest match or recommend alternatives.
                 
                 Always return the full modified order with:
-                - 'additions': List of items to add
+                - 'additions': List of items to add, including any modifiers for each item
                 - 'removals': List of items to remove
+                - 'modifications': List of modifications to existing items (like adding a modifier to an item)
                 """,
                 tools=tools,
             )
@@ -780,6 +844,11 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                         modifications["removals"] = []
                         logger.warning(
                             "[AGENT-VALIDATE] Missing 'removals' key in modifications, adding empty list"
+                        )
+                    if "modifications" not in modifications:
+                        modifications["modifications"] = []
+                        logger.warning(
+                            "[AGENT-VALIDATE] Missing 'modifications' key in modifications, adding empty list"
                         )
 
                     # Verify additions have required fields
@@ -876,11 +945,50 @@ else:
                     messages = [
                         {
                             "role": "system",
-                            "content": "You are a restaurant order parser. Extract menu items from customer orders into JSON.",
+                            "content": """You are a restaurant order parser for a sushi restaurant. 
+                            Your job is to extract menu items and their modifiers from customer orders.
+                            
+                            IMPORTANT: Pay special attention to detecting modifiers vs. main items. For example:
+                            - "a build a poke bowl with sushi rice, and add spicy tofu and smashed avocado" should be
+                              understood as ONE main item (poke bowl) with THREE modifiers (sushi rice, spicy tofu,
+                              smashed avocado), not as four separate items.
+                            - Use the context and language cues to distinguish when a customer is adding modifiers
+                              to a main item vs. ordering separate items
+                            
+                            When determining if something is a modifier:
+                            1. Look for phrases like "with", "add", "extra", "no", "without", "on the side" 
+                            2. Consider if the item is typically a standalone dish or a component/addition
+                            3. Group related items together based on natural language structure
+                            """,
                         },
                         {
                             "role": "user",
-                            "content": f"Extract menu items from this order: {order_text}\nOur menu has these categories: {', '.join(categories)}\nRespond with a JSON object containing an 'items' array of item names.",
+                            "content": f"""Extract menu items from this order: {order_text}
+                            Our menu has these categories: {', '.join(categories)}
+                            
+                            Respond with a JSON object containing an 'items' array, where each item has:
+                            - name: The name of the main menu item
+                            - quantity: The quantity ordered (default to 1 if not specified)
+                            - modifier: An array of modifiers for this item, each with a name and quantity
+                            
+                            Example response for "I want a California Roll with extra wasabi and a spicy tuna roll":
+                            {{
+                              "items": [
+                                {{
+                                  "name": "California Roll",
+                                  "quantity": 1,
+                                  "modifier": [
+                                    {{ "name": "Extra Wasabi", "quantity": 1 }}
+                                  ]
+                                }},
+                                {{
+                                  "name": "Spicy Tuna Roll",
+                                  "quantity": 1,
+                                  "modifier": []
+                                }}
+                              ]
+                            }}
+                            """,
                         },
                     ]
 
@@ -1121,11 +1229,28 @@ else:
                     messages = [
                         {
                             "role": "system",
-                            "content": "You are a sushi restaurant order modifier. Process order changes and return JSON.",
+                            "content": """You are a sushi restaurant order modifier. Process order changes and return JSON.
+                            
+                            IMPORTANT: Pay special attention to modifiers vs. main items:
+                            - Adding a modifier to an existing item should be represented as a modification to that item,
+                              not as a new separate menu item
+                            - Look for phrases like "add avocado to my roll" which indicate adding a modifier to an existing item
+                            - Use context to determine if a mentioned item is a modifier for an existing item or a new main item
+                            """,
                         },
                         {
                             "role": "user",
-                            "content": f"Current order:\n{current_items}\n\nModification request: {modification_text}\n\nReturn JSON with 'additions' and 'removals' arrays.",
+                            "content": f"""Current order:
+{current_items}
+
+Modification request: {modification_text}
+
+Return JSON with:
+- 'additions': List of new items to add, each with name, quantity, and modifier array
+- 'removals': List of items to remove, each with name and quantity
+- 'modifications': List of modifications to existing items (like adding a modifier to an item), 
+  each with item_name, and a modifier array
+""",
                         },
                     ]
 
@@ -1202,6 +1327,8 @@ else:
                     modifications["additions"] = []
                 if "removals" not in modifications:
                     modifications["removals"] = []
+                if "modifications" not in modifications:
+                    modifications["modifications"] = []
 
                 # Verify and enhance additions (only if OpenAI API available)
                 for item in modifications.get("additions", []):
@@ -1347,6 +1474,6 @@ def get_order_modifications(
     modifications = agent.modify_order(current_order, user_input)
 
     logger.info(
-        f"[ORDER-MODIFICATIONS] Found modifications: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}"
+        f"[ORDER-MODIFICATIONS] Found modifications: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}, modifications={len(modifications.get('modifications', []))}"
     )
     return modifications
