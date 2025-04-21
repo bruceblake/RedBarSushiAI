@@ -20,6 +20,9 @@ from app.utils.agent_utils import (
     OrderParsingAgent,
 )
 
+# Set up logger
+logger = logging.getLogger(__name__)
+
 # Import optimized menu handler
 try:
     from app.utils.opt_menu_handler import handle_menu_query
@@ -29,14 +32,14 @@ except ImportError:
     OPTIMIZED_MENU_HANDLER = False
     logger.warning("Optimized menu handler not available, using standard handler")
 
-logger = logging.getLogger(__name__)
 logger.info("Successfully imported OpenAI agent utilities")
 
 # Import real-time audio processing utilities
 from app.utils.realtime_audio import get_audio_processor
+# Import menu caching utilities
+from app.utils.menu_cache import get_cached_response
 
 voice_bp = Blueprint("voice", __name__)
-logger = logging.getLogger(__name__)
 
 # Import channel_status from order.py
 from app.routes.order import channel_status

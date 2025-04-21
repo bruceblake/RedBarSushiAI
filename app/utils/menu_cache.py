@@ -136,7 +136,6 @@ def menu_cache(cache_type: str = "item"):
 
 def clear_caches():
     """Clear all caches."""
-    global _menu_questions_cache, _menu_items_cache, _ai_response_cache
     _menu_questions_cache.clear()
     _menu_items_cache.clear()
     _ai_response_cache.clear()

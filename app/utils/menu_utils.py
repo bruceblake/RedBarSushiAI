@@ -39,8 +39,6 @@ def menu_request_cache(func):
         Wrapped function with caching
     """
     def wrapper(*args, **kwargs):
-        global _menu_requests_cache
-        
         # Generate a cache key based on the function name and arguments
         # For simplicity, we'll just use the first string argument as the key
         cache_key = None
