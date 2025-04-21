@@ -472,8 +472,43 @@ def apply_modifications(
             
         # Apply the modifiers to the target item
         for mod in modification.get("modifier", []):
-            target_item["modifier"].append(mod)
-            logger.info(f"[APPLY-MODS] Added modifier {mod.get('name')} to {item_name}")
+            # Check if the modifier is a string or already a dictionary
+            if isinstance(mod, str):
+                # Convert string modifier to proper dictionary format
+                mod_name = mod.strip()
+                if "cooked" in mod_name.lower():
+                    mod_type = "cooking"
+                elif "side" in mod_name.lower() or "fries" in mod_name.lower() or "salad" in mod_name.lower():
+                    mod_type = "side"
+                else:
+                    mod_type = "general"
+                
+                # Create properly formatted modifier object
+                mod_obj = {
+                    "name": mod_name.capitalize(),
+                    "quantity": 1,
+                    "price": 0.0,
+                    "reference_handler": f"MOD-{mod_type}-{mod_name.lower().replace(' ', '-')}"
+                }
+                
+                # Add the properly formatted modifier
+                target_item["modifier"].append(mod_obj)
+                logger.info(f"[APPLY-MODS] Added string modifier '{mod_name}' as object to {item_name}")
+            else:
+                # Ensure the dictionary modifier has all required fields
+                if isinstance(mod, dict):
+                    if "name" not in mod:
+                        mod["name"] = "Unknown Modifier"
+                    if "quantity" not in mod:
+                        mod["quantity"] = 1
+                    if "price" not in mod:
+                        mod["price"] = 0.0
+                    if "reference_handler" not in mod:
+                        mod_name = mod["name"].lower()
+                        mod["reference_handler"] = f"MOD-{mod_name.replace(' ', '-')}"
+                    
+                    target_item["modifier"].append(mod)
+                    logger.info(f"[APPLY-MODS] Added modifier {mod.get('name')} to {item_name}")
 
     # Handle removals
     for removal in modifications.get("removals", []):

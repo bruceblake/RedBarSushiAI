@@ -644,7 +644,13 @@ def new_modify_order():
     calculate_bill_amount(updated_items)
     session["bill_amount"] = int(session.get("total_price", 0) * 100)
     order_description = build_order_description(updated_items)
+    
+    # Log detailed order information including modifiers
     log_info(f"Order updated after modification: {updated_items}")
+    for item in updated_items:
+        if "modifier" in item and item["modifier"]:
+            mod_list = [f"{mod.get('name', 'unknown')} (ref: {mod.get('reference_handler', 'none')})" for mod in item["modifier"]]
+            log_info(f"Item {item.get('name')} has {len(item['modifier'])} modifiers: {', '.join(mod_list)}")
 
     # Confirm updated order
     confirmation_message = (

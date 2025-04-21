@@ -632,6 +632,51 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                             logger.warning(f"[AGENT-VALIDATE] Invalid 'modifier' format for '{item['name']}', fixing it")
                             item["modifier"] = []
                             
+                        # Process each modifier to ensure proper formatting
+                        processed_modifiers = []
+                        for mod in item.get("modifier", []):
+                            # Skip non-dictionary modifiers
+                            if not isinstance(mod, dict):
+                                logger.warning(f"[AGENT-VALIDATE] Invalid modifier format in '{item['name']}', skipping: {mod}")
+                                continue
+                                
+                            # Build a properly formatted modifier
+                            valid_mod = {}
+                            
+                            # Ensure name exists
+                            if "name" not in mod:
+                                valid_mod["name"] = "Unknown Modifier"
+                                logger.warning(f"[AGENT-VALIDATE] Modifier for '{item['name']}' missing name")
+                            else:
+                                valid_mod["name"] = mod["name"]
+                            
+                            # Ensure quantity exists
+                            valid_mod["quantity"] = mod.get("quantity", 1)
+                            
+                            # Ensure reference_handler exists
+                            if "reference_handler" not in mod or not mod["reference_handler"]:
+                                mod_name = valid_mod["name"].lower()
+                                # Determine modifier type based on name
+                                if "cook" in mod_name or "rare" in mod_name or "medium" in mod_name or "well" in mod_name:
+                                    mod_type = "COOK"
+                                elif "side" in mod_name or "fries" in mod_name or "salad" in mod_name:
+                                    mod_type = "SIDE"
+                                else:
+                                    mod_type = "GEN"
+                                valid_mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                                logger.info(f"[AGENT-VALIDATE] Created reference_handler '{valid_mod['reference_handler']}' for modifier '{valid_mod['name']}'")
+                            else:
+                                valid_mod["reference_handler"] = mod["reference_handler"]
+                            
+                            # Ensure price exists
+                            valid_mod["price"] = mod.get("price", 0.0)
+                            
+                            # Add the valid modifier to our processed list
+                            processed_modifiers.append(valid_mod)
+                        
+                        # Replace the original modifiers with our processed ones
+                        item["modifier"] = processed_modifiers
+                        
                         # Log the modifiers that are being processed
                         if item["modifier"]:
                             logger.info(f"[AGENT-MODS] Item '{item['name']}' has {len(item['modifier'])} modifiers")
@@ -801,6 +846,8 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                   not as a new separate menu item
                 - Look for phrases like "add avocado to my roll" which indicate adding a modifier to an existing item
                 - Use context to determine if a mentioned item is a modifier for an existing item or a new main item
+                - Cooking preferences (like "rare", "medium", "well done") are ALWAYS modifiers
+                - Side dishes mentioned with "with" are typically modifiers (e.g., "with fries")
                 
                 Only include items that are actually on the menu. If an item requested is not found,
                 try to find the closest match or recommend alternatives.
@@ -809,6 +856,35 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 - 'additions': List of items to add, including any modifiers for each item
                 - 'removals': List of items to remove
                 - 'modifications': List of modifications to existing items (like adding a modifier to an item)
+                
+                CRITICAL: For each modifier in the 'modification' array, you MUST return them as proper objects with these fields:
+                - 'name': The name of the modifier (e.g., "Cooked Rare", "Side of Fries")
+                - 'quantity': The quantity of the modifier (default to 1)
+                - 'reference_handler': A unique identifier for the modifier (e.g., "MOD-cooked-rare")
+                - 'price': The price change for the modifier (default to 0.0)
+                
+                EXAMPLE FORMAT for modifications:
+                {
+                  "modifications": [
+                    {
+                      "item_name": "Delicious Steak Frites",
+                      "modifier": [
+                        {
+                          "name": "Cooked Rare",
+                          "quantity": 1,
+                          "reference_handler": "MOD-COOK-01",
+                          "price": 0.0
+                        },
+                        {
+                          "name": "Side of Fries",
+                          "quantity": 1,
+                          "reference_handler": "MOD-SIDE-01",
+                          "price": 0.0
+                        }
+                      ]
+                    }
+                  ]
+                }
                 """,
                 tools=tools,
             )
@@ -905,6 +981,67 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                         logger.warning(
                             "[AGENT-VALIDATE] Missing 'modifications' key in modifications, adding empty list"
                         )
+                        
+                    # Process and validate all modifications to ensure modifiers are properly formatted
+                    for modification in modifications.get("modifications", []):
+                        if "item_name" not in modification:
+                            logger.warning("[AGENT-VALIDATE] Modification missing 'item_name', skipping")
+                            continue
+                            
+                        # Ensure the modifier field exists and is a list
+                        if "modifier" not in modification:
+                            modification["modifier"] = []
+                            logger.warning(f"[AGENT-VALIDATE] Missing 'modifier' in modification for {modification.get('item_name')}")
+                        
+                        # Process each modifier to ensure it's a proper dictionary
+                        processed_modifiers = []
+                        for mod in modification.get("modifier", []):
+                            # Convert string modifiers to dictionaries
+                            if isinstance(mod, str):
+                                # Create properly formatted modifier object
+                                mod_name = mod.strip()
+                                
+                                # Determine modifier type
+                                if "cook" in mod_name.lower() or "rare" in mod_name.lower() or "medium" in mod_name.lower() or "well" in mod_name.lower():
+                                    mod_type = "COOK"
+                                elif "side" in mod_name.lower() or "fries" in mod_name.lower() or "salad" in mod_name.lower():
+                                    mod_type = "SIDE"
+                                else:
+                                    mod_type = "GEN"
+                                    
+                                mod_obj = {
+                                    "name": mod_name.capitalize(),
+                                    "quantity": 1,
+                                    "price": 0.0,
+                                    "reference_handler": f"MOD-{mod_type}-{mod_name.lower().replace(' ', '-')}"
+                                }
+                                logger.info(f"[AGENT-VALIDATE] Converted string modifier '{mod}' to object for {modification.get('item_name')}")
+                                processed_modifiers.append(mod_obj)
+                            # Ensure dictionary modifiers have all required fields
+                            elif isinstance(mod, dict):
+                                if "name" not in mod:
+                                    mod["name"] = "Unknown Modifier"
+                                if "quantity" not in mod:
+                                    mod["quantity"] = 1
+                                if "price" not in mod:
+                                    mod["price"] = 0.0
+                                if "reference_handler" not in mod:
+                                    mod_name = mod.get("name", "").lower()
+                                    # Determine modifier type by name
+                                    if "cook" in mod_name or "rare" in mod_name or "medium" in mod_name or "well" in mod_name:
+                                        mod_type = "COOK"
+                                    elif "side" in mod_name or "fries" in mod_name or "salad" in mod_name:
+                                        mod_type = "SIDE"
+                                    else:
+                                        mod_type = "GEN"
+                                    mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                                processed_modifiers.append(mod)
+                            else:
+                                logger.warning(f"[AGENT-VALIDATE] Invalid modifier format in modification for {modification.get('item_name')}: {mod}")
+                        
+                        # Replace the modifiers with the processed ones
+                        modification["modifier"] = processed_modifiers
+                        logger.info(f"[AGENT-VALIDATE] Processed {len(processed_modifiers)} modifiers for {modification.get('item_name')}")
 
                     # Verify additions have required fields
                     for item in modifications["additions"]:
