@@ -286,7 +286,11 @@ def menu_update():
             items_count = len(processed_data.get("items", []))
             modifiers_count = len(processed_data.get("modifiers", []))
             groups_count = len(processed_data.get("modifierGroups", []))
-            variants_count = len(processed_data.get("name_variants", {}))
+            
+            # Remove name_variants field if it exists - AI agent will handle matching
+            if "name_variants" in processed_data:
+                logger.info("[MENU-UPDATE] Removing name_variants field - AI agent will handle matching")
+                processed_data.pop("name_variants", None)
 
             logger.info(
                 f"[MENU-UPDATE] Processed menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups"
@@ -418,15 +422,12 @@ def menu_update():
                             f"[MENU-UPDATE] Merged menu now has {len(updated_items)} items"
                         )
 
-                # Carry over name variants from current menu if not in processed data
-                if (
-                    "name_variants" not in processed_data
-                    or not processed_data["name_variants"]
-                ):
-                    logger.info("[MENU-UPDATE] Preserving existing name variants")
-                    processed_data["name_variants"] = current_menu.get(
-                        "name_variants", {}
-                    )
+                # Remove name_variants field if it exists - AI agent will handle matching
+                if "name_variants" in processed_data:
+                    logger.info("[MENU-UPDATE] Removing name_variants field - AI agent will handle matching")
+                    processed_data.pop("name_variants", None)
+                if "name_variants" in current_menu:
+                    logger.info("[MENU-UPDATE] Current menu has name_variants but we're removing it - AI agent will handle matching")
 
             # Detailed logging before attempting to write
             logger.info(
@@ -474,7 +475,7 @@ def menu_update():
             # Verify the menu was saved correctly
             reloaded_menu = load_menu_data(force_refresh=True)
             reloaded_count = len(reloaded_menu.get("items", []))
-            reloaded_variants = len(reloaded_menu.get("name_variants", {}))
+            # No need to check name_variants - AI agent will handle matching
 
             if reloaded_count == 0:
                 logger.warning(
@@ -554,37 +555,13 @@ def menu_update():
                 except Exception as callback_e:
                     logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
 
-            # Add name variants if needed
-            if "name_variants" in processed_data and processed_data["name_variants"]:
-                logger.info(
-                    f"[MENU-UPDATE] Menu already has {variants_count} name variants"
-                )
-            else:
-                # Generate name variants for all items
-                logger.info("[MENU-UPDATE] Generating name variants for menu items")
-                variants_dict = {}
-                for item in processed_data.get("items", []):
-                    item_name = item.get("name", "")
-                    if item_name:
-                        from app.utils.menu_utils import add_name_variants
-
-                        variants_dict = add_name_variants(item_name, variants_dict)
-
-                # Update the processed data with variants
-                processed_data["name_variants"] = variants_dict
-                logger.info(
-                    f"[MENU-UPDATE] Generated {len(variants_dict)} name variants"
-                )
-
-                # Save again with the variants
-                if write_menu_file(processed_data):
-                    logger.info(
-                        "[MENU-UPDATE] Successfully wrote menu with name variants"
-                    )
-                else:
-                    logger.error(
-                        "[MENU-UPDATE] Failed to write menu with name variants"
-                    )
+            # Remove name_variants field if it exists - AI agent will handle matching
+            if "name_variants" in processed_data:
+                logger.info("[MENU-UPDATE] Removing name_variants field - AI agent will handle matching")
+                processed_data.pop("name_variants", None)
+                
+            # No name variants generation needed - AI agent will handle menu item matching
+            logger.info("[MENU-UPDATE] No name variants needed - AI agent will handle menu item matching")
 
             # Return success response
             return (
@@ -594,7 +571,7 @@ def menu_update():
                         "items": len(processed_data.get("items", [])),
                         "modifiers": len(processed_data.get("modifiers", [])),
                         "modifierGroups": len(processed_data.get("modifierGroups", [])),
-                        "name_variants": len(processed_data.get("name_variants", {})),
+                        "ai_matching": True,  # Indicate that AI agent will handle matching
                         "source": "deliverect" if is_deliverect else "custom",
                         "has_backup": (
                             os.path.exists(backup_path)
@@ -928,8 +905,14 @@ def get_menu():
                 f"[GET-MENU] Item {idx+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}"
             )
 
+    # Remove name_variants if it exists - AI agent will handle matching
+    if "name_variants" in menu_data:
+        logger.info("[GET-MENU] Removing name_variants field - AI agent will handle matching")
+        menu_data.pop("name_variants", None)
+        
     # Add file location to response for debugging
     menu_data["_debug"] = {"file_path": MENU_FILE_PATH}
+    menu_data["ai_matching"] = True  # Indicate that AI agent will handle matching
 
     # Return menu data
     return jsonify(menu_data), 200

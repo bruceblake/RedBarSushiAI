@@ -834,16 +834,12 @@ else:
                         "No OpenAI API key available - using simple keyword matching"
                     )
                     items = self.menu_tool.menu_data.get("items", [])
-                    name_variants = self.menu_tool.menu_data.get("name_variants", {})
-
+                    
                     # Simple keyword matching
                     order_lower = order_text.lower()
                     potential_items = []
-
-                    # Check direct matches with name variants
-                    for variant, item_name in name_variants.items():
-                        if variant in order_lower:
-                            potential_items.append(item_name)
+                    
+                    # Skip name variants - AI agent will handle matching
 
                     # Check direct matches with item names
                     for item in items:
@@ -929,43 +925,14 @@ else:
                         logger.info(
                             f"[ORDER-VERIFY-PASS3] Starting third pass verification with fuzzy matching for {len(still_unverified)} items"
                         )
-                        name_variants = self.menu_tool.menu_data.get(
-                            "name_variants", {}
-                        )
+                        # AI agent will handle menu item matching
                         menu_items = self.menu_tool.menu_data.get("items", [])
 
                         for item_name in still_unverified:
                             item_lower = item_name.lower()
                             found = False
-
-                            # Try fuzzy matching with name variants
-                            for variant, menu_item_name in name_variants.items():
-                                # Check if item name is contained in variant or variant is contained in item name
-                                if (
-                                    item_lower in variant.lower()
-                                    or variant.lower() in item_lower
-                                ):
-                                    logger.info(
-                                        f"[ORDER-VERIFY-PASS3-FUZZY] Found partial match: '{item_name}' ~ '{variant}' → '{menu_item_name}'"
-                                    )
-                                    menu_item = find_menu_item_by_name(menu_item_name)
-                                    if menu_item:
-                                        logger.info(
-                                            f"[ORDER-VERIFY-PASS3-SUCCESS] Fuzzy match found '{item_name}' as '{menu_item.get('name')}' (${menu_item.get('price', 0.0)})"
-                                        )
-                                        verified_items.append(
-                                            {
-                                                "name": menu_item.get("name"),
-                                                "price": menu_item.get("price", 0.0),
-                                                "reference_handler": menu_item.get(
-                                                    "reference_handler", ""
-                                                ),
-                                                "quantity": 1,
-                                                "modifier": [],
-                                            }
-                                        )
-                                        found = True
-                                        break
+                            
+                            # Skip name variants - AI agent will handle matching for fuzzy matches
 
                             # If still not found, try matching directly against menu items
                             if not found:
@@ -1119,7 +1086,7 @@ else:
                     # Extract possible add/remove keywords
                     mod_lower = modification_text.lower()
                     self.menu_tool.menu_data.get("items", [])
-                    name_variants = self.menu_tool.menu_data.get("name_variants", {})
+                    # Skip name variants - AI agent will handle matching
 
                     # Very simple add/remove detection
                     is_addition = any(
@@ -1139,28 +1106,9 @@ else:
                                     {"name": item.get("name"), "quantity": 1}
                                 )
 
-                    # Check all menu items for potential additions
-                    if is_addition:
-                        for variant, item_name in name_variants.items():
-                            if variant in mod_lower:
-                                # Only add it if not already in the list
-                                if not any(
-                                    add_item.get("name") == item_name
-                                    for add_item in modifications["additions"]
-                                ):
-                                    menu_item = find_menu_item_by_name(item_name)
-                                    if menu_item:
-                                        modifications["additions"].append(
-                                            {
-                                                "name": item_name,
-                                                "quantity": 1,
-                                                "price": menu_item.get("price", 0.0),
-                                                "reference_handler": menu_item.get(
-                                                    "reference_handler", ""
-                                                ),
-                                                "modifier": [],
-                                            }
-                                        )
+                    # Skip name variants for additions - AI agent will handle matching
+                    # Check all menu items for potential additions using direct matching only
+                    # This is a simple fallback - the proper AI agent will do better matching
 
                 # Ensure required structure
                 if "additions" not in modifications:

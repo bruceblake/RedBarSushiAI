@@ -56,8 +56,8 @@ def validate_and_fix_menu_data(menu_data):
                 temp_data = {
                     "items": valid_items,
                     "modifiers": [],
-                    "modifierGroups": [],
-                    "name_variants": {},
+                    "modifierGroups": []
+                    # No name_variants field - AI agent will handle matching
                 }
                 menu_data = temp_data
             else:
@@ -125,13 +125,10 @@ def validate_and_fix_menu_data(menu_data):
                 )
         menu_data["modifierGroups"] = valid_groups
 
-    if "name_variants" not in menu_data or not isinstance(
-        menu_data["name_variants"], dict
-    ):
-        logger.warning(
-            f"[MENU-FIX] name_variants is not a valid dictionary: {type(menu_data.get('name_variants', None))}"
-        )
-        menu_data["name_variants"] = {}
+    # AI agent will handle menu item matching - name_variants field is no longer needed
+    if "name_variants" in menu_data:
+        logger.info("[MENU-FIX] Removing name_variants field - AI agent will handle matching")
+        menu_data.pop("name_variants", None)
 
     # Build map of existing items for reference
     existing_items = {}

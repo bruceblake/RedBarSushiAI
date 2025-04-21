@@ -1615,30 +1615,13 @@ def _convert_product_to_item(product):
 
 
 def _add_name_variants(name_variants, item_name):
-    """Generate and add name variants for an item."""
-    if not item_name:
-        return
-
-    # Add the full name as its own variant
-    item_name_lower = item_name.lower()
-    name_variants[item_name_lower] = item_name
-
-    # Add individual words as variants
-    words = item_name_lower.split()
-    for word in words:
-        if len(word) > 3:  # Only use reasonably distinctive words
-            name_variants[word] = item_name
-
-    # Special case for test_name_variants
-    if item_name_lower == "spicy tuna roll":
-        name_variants["tuna roll"] = item_name
-        name_variants["spicy tuna"] = item_name
-
-    # Add common pairs of words for better matching
-    if len(words) >= 2:
-        for i in range(len(words) - 1):
-            word_pair = f"{words[i]} {words[i+1]}"
-            name_variants[word_pair] = item_name
+    """
+    This function is being phased out as we're transitioning to using an AI agent
+    for menu item matching instead of name variants.
+    Keep empty dictionary data structure for backward compatibility only.
+    """
+    # This function intentionally does nothing - AI agent will handle matching
+    pass
 
 
 def get_deliverect_token(location_id=None):
