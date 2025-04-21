@@ -490,6 +490,18 @@ def validate_and_fix_menu_data(menu_data):
         ):
             group["maxAllowed"] = 999
             fixed_modifier_group_count += 1
+            
+        # Ensure multiMax constraint is valid (maximum quantity of any single modifier)
+        if "multiMax" not in group or not isinstance(
+            group["multiMax"], (int, float)
+        ):
+            group["multiMax"] = 1
+            fixed_modifier_group_count += 1
+            
+        # Ensure isVariantGroup flag is a boolean
+        if "isVariantGroup" in group and not isinstance(group["isVariantGroup"], bool):
+            group["isVariantGroup"] = bool(group["isVariantGroup"])
+            fixed_modifier_group_count += 1
 
         # Ensure modifiers is a list
         modifiers = group.get("modifiers", [])

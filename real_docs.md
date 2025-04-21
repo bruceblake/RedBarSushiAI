@@ -1,1150 +1,676 @@
-# Project Documentation: AI Restaurant Phone Agent
+# Project Documentation: AI Restaurant Phone Agent (Condensed Core w/ Full Deliverect API)
 
-**Version:** 1.1
-**Date:** 2025-04-17
-**Primary Audience:** AI Development Assistants (e.g., Gemini, Claude, GPT-4) for code generation, feature implementation, updates, and debugging.
-**Goal:** To provide a comprehensive, precise, and structured overview of the AI Restaurant Phone Agent system, enabling AI assistants to understand its components, interactions, APIs, and data models for effective codebase manipulation.
+**Version:** 1.1-full-deliverect
+**Date:** 2025-04-18
+**Purpose:** Provide essential technical details and complete Deliverect API specifications for AI assistants to understand and modify the AI Restaurant Phone Agent codebase. This system handles inbound calls, takes orders via conversational AI, integrates with Deliverect for POS submission, and sends SMS updates.
+**Target Audience:** AI Development Assistants (e.g., Gemini, Claude, GPT-4).
+**Note:** Core sections are condensed. Deliverect API section is comprehensive based on provided input. Appendix A provides detailed menu structure examples.
 
 ---
 
 ## 1. Project Overview
 
-**Name:** AI Restaurant Phone Agent (Internal Codename: TBD)
-
-**Purpose:** To handle inbound phone calls for restaurants, provide information about the restaurant and its menu, assist customers with placing orders conversationally, inject finalized orders into the restaurant's POS via Deliverect, and provide subsequent order status updates via SMS.
-
-**Core Technologies:**
-
-- **AI Conversation:** OpenAI Agents API
-- **Telephony & SMS:** Twilio API
-- **Order Injection:** Deliverect API
-- **Backend:** Python (Framework: TBD - e.g., Flask, FastAPI) hosted on Render
-- **Task Queue:** Celery
-- **Database:** PostgreSQL on Render
-- **Cache/State/Broker:** Redis on Render
-
-**High-Level Goal:** Automate the phone ordering process, reduce staff workload, improve order accuracy, and enhance customer experience through conversational interaction and proactive status updates.
+- **Goal:** Automate phone ordering using conversational AI, reducing staff load and improving accuracy.
+- **Core Technologies:**
+  - **AI:** OpenAI Agents API (Assistants API)
+  - **Telephony/SMS:** Twilio API
+  - **Order Injection:** Deliverect API
+  - **Backend:** Python (Flask/FastAPI/Django TBD) on Render
+  - **Tasks:** Celery
+  - **DB:** PostgreSQL (Render)
+  - **Cache/State:** Redis (Render)
 
 ---
 
-## 2. Core Features
+## 2. Core Features Summary
 
-- **Inbound Call Handling:** Answer incoming calls via a dedicated Twilio phone number.
-- **Conversational AI:** Engage callers in natural language using OpenAI Agents API.
-- **Restaurant Information:** Provide details like hours, address, and general info (sourced from Postgres).
-- **Menu Interaction:** Discuss menu items, prices, descriptions, options, and availability (sourced from Postgres). Answer questions about the menu.
-- **Order Taking:** Guide users through building an order (items, quantities, modifications, special requests). Maintain order state during the conversation (using Redis).
-- **Order Placement:** Validate the completed order and submit it to the restaurant's POS system via the Deliverect API.
-- **Order Confirmation:** Confirm order placement with the user verbally and potentially via SMS.
-- **Status Updates:** Receive order status updates from Deliverect (via webhook) or poll Deliverect, update the order status in Postgres, and send SMS notifications to the customer via Twilio.
-- **Store Status Awareness:** Handle store closures/busy modes communicated via Deliverect webhooks.
-- **Menu Synchronization:** Receive menu updates from Deliverect (via webhook) and update the internal Postgres menu database.
-- **Product Availability:** Handle item snoozing/unsnoozing based on Deliverect webhooks.
+- Handle inbound Twilio calls.
+- Conversational order taking & menu queries using OpenAI Agents API.
+- Access restaurant/menu info from Postgres.
+- Maintain conversation/order state in Redis.
+- Place orders via Deliverect API using PLUs.
+- Send order status SMS updates via Twilio (triggered by Deliverect webhooks/Celery).
+- Handle Deliverect webhooks for menu sync, store status (busy/open), and item availability (snooze).
 
 ---
 
-## 3. System Architecture
+## 3. System Architecture (API-Driven Agent w/ Background Processing)
 
-The system follows an **API-Driven Agent Architecture with Background Processing**.
+1.  **Twilio:** Handles calls (PSTN), STT/TTS (via TwiML), SMS. Sends webhooks to Render backend.
+2.  **Render Web Service (Python Backend):** Central orchestrator.
+    - Hosts HTTP endpoints for Twilio & Deliverect webhooks.
+    - Manages conversation state (Redis, keyed by `CallSid`).
+    - Interacts with OpenAI Agents API (sending user input, handling tool calls).
+    - Implements Python **Tools (Functions)** callable by the OpenAI Agent.
+    * Generates TwiML for Twilio responses.
+    * Queries/Writes Postgres DB (menu, orders).
+    * Calls Deliverect API (order placement).
+    * Enqueues Celery tasks.
+3.  **OpenAI Agents API:** NLU, dialogue management, decision-making, tool triggering.
+4.  **PostgreSQL:** Persistent storage (menu, orders, restaurant info). **PLU** is critical identifier. See Appendix A for menu structure details.
+5.  **Redis:** Stores active conversation state (cart, context), Celery broker/backend.
+6.  **Celery Workers:** Execute async tasks (SMS sending, polling).
+7.  **Deliverect API:** External service for POS order injection & menu/status sync. Called by Render backend; sends webhooks to Render backend.
 
-1.  **Twilio (Voice Gateway & Comms):** Handles PSTN interaction. Receives calls, streams audio, performs STT/TTS based on TwiML instructions from the backend, and sends/receives SMS. Interacts with the Render Web Service via webhooks.
-2.  **Render Web Service (Python Backend):** The central orchestrator.
-    - Hosts API endpoints for Twilio webhooks (voice, status callbacks) and Deliverect webhooks (registration, status updates, menu updates, etc.).
-    - Manages conversation state using Redis (keyed by Twilio `CallSid`).
-    - Interacts with the OpenAI Agents API, providing context and user input, and crucially, implementing the **Tools (Functions)** the Agent can call.
-    - Generates TwiML responses for Twilio.
-    - Queries Postgres for menu data, restaurant info, and order history.
-    - Writes order details and status updates to Postgres.
-    - Calls the Deliverect API for order placement and potentially status polling.
-    - Enqueues asynchronous tasks (e.g., SMS notifications, polling) to Celery.
-3.  **OpenAI Agents API (AI Core):** Performs NLU, dialogue management, and decision-making. Uses the "Tools" provided by the Render Web Service to interact with the outside world (look up menu items, add to cart, place order).
-4.  **PostgreSQL (Database):** Persistent storage for menu details (including PLUs), restaurant info, order history, and statuses.
-5.  **Redis (Cache/State/Broker):** Stores active conversation state, temporary order data during calls, and serves as the Celery message broker and potentially backend.
-6.  **Celery Workers (Render Background Worker):** Execute asynchronous tasks dequeued from Redis (e.g., sending SMS via Twilio, polling Deliverect API).
-7.  **Deliverect API (Order/Menu Management):** External service for injecting orders into the POS and managing menu/store status synchronization. Interacts via direct API calls from the Render service and webhooks _to_ the Render service.
-
-**Diagrammatic Flow (Conceptual):**
-[Customer Phone] <--> [Twilio API (Voice/SMS)] <--> [Render Web Service (Python)]
-^ | ^ | ^
-| v | v |
-[OpenAI Agents API] <-+ | +-> [Postgres DB]
-| v |
-+-> [Redis] <--> [Celery Worker]
-| ^
-v | (Polling)
-[Deliverect API] <-----+--------------+
-^ | (Webhooks)
-+---+
+**Conceptual Flow:** Call -> Twilio -> Render Backend <-> OpenAI Agent (using Tools) -> Render Backend -> Twilio (TwiML). Order Placement: Agent Tool -> Render Backend -> Deliverect API. Status: Deliverect Webhook -> Render Backend -> Celery -> Twilio SMS.
 
 ---
 
-## 4. Technology Stack
+## 4. Technology Stack Summary
 
-- **Cloud Platform:** Render.io
-  - Web Service (Python Application)
-  - Background Worker (Celery)
-  - PostgreSQL Instance
-  - Redis Instance
-- **Programming Language:** Python (Version: TBD, e.g., 3.10+)
-- **Web Framework:** TBD (e.g., Flask, FastAPI, Django)
-- **Task Queue:** Celery (with Redis as broker/backend)
-- **Database ORM:** TBD (e.g., SQLAlchemy, Django ORM)
-- **External APIs:**
-  - Twilio API (Programmable Voice, Programmable Messaging)
-  - OpenAI Agents API
-  - Deliverect API
+- **Cloud:** Render.io (Web Service, Background Worker, Postgres, Redis)
+- **Language:** Python 3.10+ (TBD Framework: Flask/FastAPI/Django)
+- **Tasks:** Celery
+- **DB ORM:** SQLAlchemy/Django ORM (TBD)
+- **APIs:** Twilio, OpenAI Agents, Deliverect
 
 ---
 
-## 5. Data Storage
+## 5. Data Storage Essentials
 
-**5.1. PostgreSQL Database Schema (Conceptual)**
+**5.1. PostgreSQL Schema Highlights**
 
-- `restaurants`: Basic info (id, name, address, phone, hours_description)
-- `menu_categories`: (id, name, description)
-- `menu_items`: (id, category_id, name, description, price, **plu** (Deliverect Product ID - CRITICAL, UNIQUE), is_available, image_url, snoozed_until (timestamp, nullable))
-- `modifier_groups`: (id, name, min_selection, max_selection)
-- `modifiers`: (id, group_id, name, price_change, **plu** (Deliverect Modifier ID - CRITICAL, UNIQUE), is_available, snoozed_until (timestamp, nullable))
-- `item_modifier_groups`: Links items to modifier groups.
-- `orders`: (id, **deliverect_channel_order_id** (UNIQUE), customer_phone, order_type (delivery/pickup), status (e.g., pending, confirmed, preparing, ready, delivered, cancelled), total_price, placed_at, estimated_time, delivery_address (JSON/structured), notes)
-- `order_items`: (id, order_id, menu_item_plu, quantity, unit_price, item_name)
-- `order_item_modifiers`: (id, order_item_id, modifier_plu, modifier_name, price_change)
-- `menu_name_variants`: (id, variant_phrase (lowercase, indexed), canonical_name, target_plu (FK to menu_items.plu or modifiers.plu))
-- _(Other tables as needed, e.g., for Deliverect channel links, locations)_
+(Reflects structure seen in Appendix A)
 
-**Key Considerations:**
+- `restaurants`: Basic info.
+- `menu_categories`: `id`, `deliverect_category_id` (UNIQUE, e.g., "67209bfb174a0e5384d4db4f"), `name`, `description`.
+- `menu_items`: `id`, `category_id` (FK), `name`, `description`, `price`, **`plu`** (UNIQUE, CRITICAL), `deliverect_item_id` (UNIQUE, e.g., "6721daafc33216a11b4e239d"), `is_available`, `is_combo`, `is_variant`, `image_url`, `snoozed_until`.
+- `modifiers`: `id`, `modifier_group_id` (FK), `name`, `price_change`, **`plu`** (UNIQUE, CRITICAL), `deliverect_modifier_id` (UNIQUE, e.g., "67209bb4174a0e5384d4d9fd"), `is_available`, `snoozed_until`.
+- `modifier_groups`: `id`, `deliverect_group_id` (UNIQUE, e.g., "67209bb4174a0e5384d4d9fb"), `name`, `min_selection`, `max_selection`, `multiMax`, `plu` (Group PLU), `is_variant_group`.
+- `item_modifier_groups`: Links `menu_items` to `modifier_groups` (M2M).
+- `group_modifiers`: Links `modifier_groups` to `modifiers` (M2M, representing `subProducts` in groups).
+- `orders`: `id`, **`deliverect_channel_order_id`** (UNIQUE, CRITICAL), `customer_phone`, `order_type`, `status`, `total_price`, `placed_at`, `estimated_time`, `delivery_address` (JSON/structured), `notes`.
+- `order_items`: Links `orders` to `menu_items` via `menu_item_plu`, stores quantity.
+- `order_item_modifiers`: Links `order_items` to `modifiers` via `modifier_plu`.
+- `menu_name_variants`: `variant_phrase` (lowercase), `canonical_name`, `target_plu` (FK to item/modifier PLU).
 
-- The `plu` field in `menu_items` and `modifiers` is essential for mapping to Deliverect entities when creating orders and processing menu updates/snoozing. This corresponds directly to the `plu` field in the sample menu data (See **Appendix A**). Ensure PLUs are unique.
-- `deliverect_channel_order_id` is the primary key for linking our order record to Deliverect's system.
-- The `menu_name_variants` table should be populated based on the `name_variants` mapping provided in the sample menu data (See **Appendix A**). This allows efficient lookup of canonical item names and PLUs from various user inputs. The `target_plu` should reference the PLU of the item/modifier the variant phrase maps to.
+**5.2. Redis Usage**
 
-**5.2. Redis Data Usage**
-
-- **Conversation State:** Keyed by Twilio `CallSid`. Stores a JSON blob or hash containing:
-  - Current step in the conversation flow.
-  - Partially built order (items identified by PLU, quantities, modifiers identified by PLU).
-  - User information gathered (e.g., name, phone for callback/updates if needed).
-  - Last few interaction turns (for context).
-  - Any flags or temporary data needed for the conversation.
-  - _TTL should be set appropriately (e.g., 1-2 hours)._
-- **Celery Broker/Backend:** Manages task queues and results.
-- **Caching (Optional):** Frequently accessed menu data or restaurant info can be cached to reduce DB load.
+- **Conversation State:** Key: Twilio `CallSid`. Stores JSON/Hash: current cart (items/modifiers by PLU), user info, conversation context. TTL ~1-2 hours.
+- **Celery Broker/Backend.**
+- **Optional Caching.**
 
 ---
 
-## 6. API Integrations
+## 6. API Integrations Essentials (Excluding Deliverect)
 
 **6.1. Twilio API**
 
-- **Purpose:** Voice Interaction (Inbound Calls, STT, TTS), SMS Notifications.
-- **Key Products Used:** Programmable Voice, Programmable Messaging.
-- **Interaction Mode:**
-  - **Voice:** Twilio receives calls, initiates webhook requests to `/webhook/voice` endpoint on Render Web Service. Backend responds with TwiML instructions (`<Say>`, `<Gather>`, `<Hangup>`, etc.). STT results are included in Twilio's webhook requests.
-  - **SMS:** Render Service (via Celery worker) makes outbound API calls to Twilio's Messaging API to send SMS messages.
-- **Authentication:** Twilio Account SID and Auth Token (stored securely as environment variables). Request validation using Twilio signatures on incoming webhooks is recommended.
-- **Key Identifiers:** `CallSid` (identifies a unique call leg, used for state management in Redis), `MessageSid` (for SMS).
-- **Relevant Docs:**
-  - Programmable Voice Quickstarts/API: [https://www.twilio.com/docs/voice](https://www.twilio.com/docs/voice)
-  - TwiML for Voice: [https://www.twilio.com/docs/voice/twiml](https://www.twilio.com/docs/voice/twiml)
-  - Programmable Messaging API: [https://www.twilio.com/docs/messaging/api](https://www.twilio.com/docs/messaging/api)
-  - Securing Webhooks: [https://www.twilio.com/docs/usage/security#validating-requests](https://www.twilio.com/docs/usage/security#validating-requests)
+- **Purpose:** Voice I/O (STT/TTS via TwiML), SMS.
+- **Interaction:** Inbound webhooks (`/webhook/voice`) from Twilio; Backend responds with TwiML. Outbound SMS API calls from Celery worker.
+- **Auth:** Account SID/Auth Token (Env Vars). Recommend webhook signature validation.
+- **Key ID:** `CallSid`.
+- **Relevant Docs:** See Twilio Documentation.
 
 **6.2. OpenAI Agents API (Assistants API)**
 
-- **Purpose:** NLU, Dialogue Management, Tool/Function Calling.
-- **Interaction Mode:** Render Web Service makes API calls to OpenAI.
-  - Create/Retrieve Assistant (configured with instructions, model, and tool definitions).
-  - Create Thread (represents a conversation).
-  - Add Message to Thread (user input).
-  - Run Assistant on Thread.
-  - Handle `requires_action` status (execute defined Python functions/tools based on Agent request).
-  - Submit Tool Outputs back to the Run.
-  - Retrieve completed Assistant response.
-- **Authentication:** OpenAI API Key (stored securely as environment variable).
-- **Key Concepts:** Assistant, Thread, Message, Run, Tool/Function Calling.
-- **Required Tools (Implemented in Render Python App):**
-  - `lookup_menu_item(item_name: str, category: str = None)` -> JSON details or "not found". **This tool MUST leverage the `menu_name_variants` data (derived from Appendix A) stored in Postgres to resolve synonyms/variations (`item_name`) to canonical items and their PLUs before querying the main `menu_items` table.** Should return item details including name, description, price, and PLU.
-  - `get_restaurant_info(query: str)` -> Text response (e.g., hours, address).
-  - `get_menu_categories()` -> List[str].
-  - `get_items_in_category(category_name: str)` -> List[JSON item details].
-  - `add_item_to_cart(plu: str, quantity: int, modifiers: List[str] = None)` -> Success/Failure status, updated cart summary. **Requires the correct `plu` obtained via `lookup_menu_item`.** Modifiers should also be identified by their PLUs if applicable. Updates the order state in Redis.
-  - `remove_item_from_cart(item_identifier: str)` -> Success/Failure status, updated cart summary. Identifier could be PLU or an index in the cart. Updates Redis state.
-  - `get_current_cart()` -> JSON representation of the current order state in Redis.
-  - `clear_cart()` -> Success status. Clears order state in Redis.
-  - `place_order(customer_details: dict, delivery_details: dict = None, order_type: int)` -> JSON response { success: bool, channelOrderId: str | None, message: str }. _This tool internally calls the Deliverect Create Order API, using PLUs for items/modifiers retrieved from Redis state._
-- **Relevant Docs:**
-  - Assistants API Overview: [https://platform.openai.com/docs/assistants/overview](https://platform.openai.com/docs/assistants/overview)
-  - How Assistants Work: [https://platform.openai.com/docs/assistants/how-it-works](https://platform.openai.com/docs/assistants/how-it-works)
-  - Tools (Function Calling): [https://platform.openai.com/docs/assistants/tools](https://platform.openai.com/docs/assistants/tools)
+- **Purpose:** Conversation logic, Tool/Function Calling.
+- **Interaction:** Backend makes REST API calls (Create/Run Thread/Assistant, Add Message, Submit Tool Outputs). Handles `requires_action` status to execute local Python tools.
+- **Auth:** OpenAI API Key (Env Var).
+- **Key Concepts:** Assistant, Thread, Message, Run, Tool Calling.
+- **Required Tools (Python functions implemented in Render backend):**
+  - `lookup_menu_item(item_name: str)`: Resolves `item_name` using `menu_name_variants` DB table (derived from Appendix A `name_variants`), returns item details (name, desc, price, PLU).
+  - `get_restaurant_info(query: str)`: Returns text info (hours, etc.) from DB.
+  - `add_item_to_cart(plu: str, quantity: int, modifiers: List[str] = None)`: Updates cart in Redis state (uses PLUs). Returns status/summary. Modifiers list contains PLUs.
+  - `get_current_cart()`: Returns current cart JSON from Redis state.
+  - `place_order(customer_details: dict, delivery_details: dict = None, order_type: int)`: Retrieves cart from Redis, calls Deliverect Create Order API using PLUs. Returns { success: bool, channelOrderId: str | None, message: str }.
+  - _(Other tools like get_categories, remove_item, clear_cart as needed)_
+- **Relevant Docs:** See OpenAI Assistants API Documentation.
 
-**6.3. Deliverect API**
+---
+
+## 6.3. Deliverect API (Full Details)
 
 - **Base URL (Staging):** `https://api.staging.deliverect.com`
 - **Authentication:** Likely via API keys or OAuth tokens associated with the `channelName` (Scope). Store credentials securely as environment variables.
-- **Key Identifiers:** `channelName` (Scope), `channelLinkId` (Specific store instance), `channelOrderId` (Unique order ID generated by _this_ application), `_id` (Deliverect's internal IDs), `plu` (Product/Modifier ID - **Must match the PLUs provided in the menu data, see Appendix A**).
+- **Key Identifiers:** `channelName` (Scope), `channelLinkId` (Specific store instance), `channelOrderId` (Unique order ID generated by _this_ application), `_id` (Deliverect's internal IDs), `plu` (Product/Modifier ID from menu data - see Appendix A).
 
-- **Endpoints Used (Calls FROM Application TO Deliverect):**
+### Endpoints Used (Calls FROM Application TO Deliverect)
 
-  - **Create Order / Cancel Order**
+#### Create Order
 
-    - **Method:** `POST`
-    - **URL:** `/{channelName}/order/{channelLinkId}`
-    - **Purpose:** Submits a new order or cancels an existing one.
-    - **Path Params:**
-      - `channelName` (string, required): Scope provided to the integration. Lowercase.
-      - `channelLinkId` (string, required): Unique ID for the specific restaurant location link.
-    - **Body Params (Create Order - Key Fields):**
-      - `channelOrderId` (string, required): **Unique ID generated by this application.** Cannot be reused within 48hrs.
-      - `channelOrderDisplayId` (string, required): User-friendly order ID.
-      - `orderType` (int32, required): 1 (pickup), 2 (delivery), 3 (eat-in), 4 (curbside).
-      - `pickupTime` / `estimatedPickupTime` (string, ISO 8601 format): Required based on type.
-      - `deliveryTime` (string, ISO 8601 format): Mandatory if `orderType` is 2.
-      - `customer` (object, required): Customer details (name, phone, email).
-      - `deliveryAddress` (object): Required if `orderType` is 2. Address details.
-      - `orderIsAlreadyPaid` (boolean, required): Typically `true` if payment handled externally or `false` if pay on pickup/delivery.
-      - `payment` (object, required): Payment details (e.g., amount, type).
-      - `items` (array[object], required): List of order items.
-        - `plu` (string, required): **The Deliverect PLU for the item (from Appendix A / DB).**
-        - `name` (string, required)
-        - `price` (int32, required): Price in cents.
-        - `quantity` (int32, required)
-        - `subItems` (array[object]): Modifiers associated with this item (containing their **`plu`**, `name`, `price`, `quantity`).
-      - `decimalDigits` (int32): Usually `2`.
-      - _(Other fields like `deliveryCost`, `discountTotal`, `tip`, etc. as applicable)_
-    - **Body Params (Cancel Order):**
-      - Send a _secondary_ request to the same endpoint.
-      - `channelOrderId` (string, required): Must match the original order's ID.
-      - `status` (int): `100` (Cancel request).
-    - **Success Response:** `201 Created` (for new orders), `200 OK` (for cancellation requests). **Note:** This only confirms Deliverect received the request, not POS acceptance. Listen to Order Status Update webhook for confirmation.
-    - **Error Responses:** `400` (Bad Request), `401` (Unauthorized), `404` (Not Found), `417` (Validation Failed), `500` (Server Error).
+- **Method:** `POST`
+- **URL:** `https://api.staging.deliverect.com/{channelName}/order/{channelLinkId}`
+- **Purpose:** Place a new order or process a cancellation of an existing order.
+- **Channel 'Scope':** The `{channelname}` represents the Scope provided to create orders. If invalid or no access, request is unauthorised. Use lowercase letters.
+- **Channel Link ID:** The `{channelLinkId}` is the unique identifier of the channel in the restaurant location. Obtained via `Register Channel` webhook. If invalid or not available, request is unauthorised.
+- **Order Types:**
+  - `1`: pick up
+  - `2`: delivery
+  - `3`: Eat-in
+  - `4`: Curbside
+- **Order Response:** All valid requests receive `201 Created`. This does **not** indicate POS success; reference `Order Status Update` webhook events for confirmation.
+- **Path Parameters:**
+  - `channelName` (string, required): 'scope' of the channel.
+  - `channelLinkId` (string, required): Unique identifier of the channel link.
+- **Body Parameters:**
+  - `channelOrderId` (string, required): Unique ID generated by this application. Cannot be reused within 48hr after pickup time.
+  - `channelOrderDisplayId` (string, required): User-friendly order ID.
+  - `orderType` (int32, required): See Order Types above.
+  - `pickupTime` (string, ISO 8601 format): Estimated pickup time.
+  - `estimatedPickupTime` (string, ISO 8601 format): Alternative pickup time field.
+  - `deliveryTime` (string, ISO 8601 format): Mandatory if `orderType` is 2 (delivery).
+  - `deliveryIsAsap` (boolean, default: `true`): If delivery should be ASAP.
+  - `courier` (string, required): If platform handles delivery, specify channel name here. Otherwise, use `"restaurant"` (lowercase) for self-delivery by the restaurant.
+  - `customer` (object, required): Customer details (name, phoneNumber, email, companyName, deliveryArea, notes).
+  - `deliveryAddress` (object, required if `orderType` is 2): Delivery address details (street, streetNumber, postcode, city, latitude, longitude, notes).
+  - `orderIsAlreadyPaid` (boolean, required, default: `true`): Indicates if payment was handled.
+  - `payment` (object, required): Payment details (amount, type [0=cash, 1=card, 2=voucher, 3=online], provider).
+  - `note` (string): General order notes.
+  - `items` (array of objects, required): List of order items.
+    - `plu` (string, required): The Deliverect PLU for the item/modifier.
+    - `name` (string, required): Item name.
+    - `price` (int32, required): Price in cents.
+    - `quantity` (int32, required): Quantity of this item.
+    - `subItems` (array of objects): Modifiers attached to this item. Each subItem object has the same structure (`plu`, `name`, `price`, `quantity`, potentially nested `subItems`).
+  - `decimalDigits` (int32, default: 2): Number of decimal digits for prices (usually 2).
+  - `numberOfCustomers` (int32): Number of people this order is for.
+  - `deliveryCost` (int32): Delivery cost in cents.
+  - `serviceCharge` (int32): Service charge in cents.
+  - `discountTotal` (int32): Total discount amount in cents.
+  - `discounts` (array of objects): List of discounts applied (each with `name`, `type`, `amount`, `plu`, `discountId`).
+  - `taxes` (array of objects): List of taxes applied (each with `name`, `amount`, `taxId`).
+  - `table` (string): Table ID or name for eat-in orders.
+  - `validationId` (string): ID from `ValidateDelivery` endpoint (if used). Valid for 10 mins.
+  - `bagFee` (int32): Bag fee in cents.
+  - `driverTip` (int32): Tip for the driver in cents.
+  - `tip` (int32): General tip in cents.
+- **Responses:**
+  - `201 Created`: Order received by Deliverect.
+  - `400 Bad Request`: Invalid request format or data.
+  - `401 Unauthorized`: Invalid `channelName` or `channelLinkId`.
+  - `404 Not Found`: Endpoint/resource not found.
+  - `417 Expectation Failed`: Validation error (e.g., expired `validationId`).
+  - `500 Internal Server Error`: Deliverect server error.
 
-  - **Menu Update Callback (Async)**
+#### Cancel Order
 
-    - **Method:** `POST`
-    - **URL:** `/{channelName}/menuStatus/{_id}` (The `_id` comes from the `callback` URL provided in the Menu Update webhook payload).
-    - **Purpose:** To notify Deliverect that an asynchronously received menu update has been processed.
-    - **Path Params:**
-      - `channelName` (string, required): Scope.
-      - `_id` (string, required): Unique ID of the menu publish request.
-    - **Body Params:**
-      - `status` (string, required): "ONLINE" (Success) or "FAILED" (Failure).
-      - `comment` (string, optional): Details if status is "FAILED".
-    - **Success Response:** `200 OK`.
-    - **Error Responses:** `400` (Bad Request).
-    - **Timing:** Must respond within 30 minutes of receiving the menu update webhook.
+- **Method:** `POST`
+- **URL:** `https://api.staging.deliverect.com/{channelName}/order/{channelLinkId}` (Same endpoint as Create Order)
+- **Purpose:** Request cancellation of a previously submitted order.
+- **Process:** Send a _secondary_ order payload with the _same_ `channelOrderId` as the original order and set `"status": 100`.
+- **POS Handling:** The POS receives this as a cancellation request and initiates its void/cancellation workflow.
+- **Confirmation:** A successful POS cancellation results in an `Order Status Update` webhook with status `110` (CANCELED).
+- **Warning:** Cancellation is often impossible once an order is `Accepted` (status 20) or higher by the POS. Advised not to attempt cancellation after acceptance. Deliverect does not validate this based on status.
+- **Responses:**
+  - `200 OK`: Cancellation request received by Deliverect.
+  - `400 Bad Request`: Invalid format.
 
-  - **Update Store Status (open/closed)**
-    - **Method:** `POST`
-    - **URL:** `/{channelName}/updateStoreStatus/{channelLinkId}`
-    - **Purpose:** To inform Deliverect if the channel (this application) needs to mark the store as open/closed (e.g., due to integration issues). Corresponds to Deliverect's "Busy Mode" initiated _by the channel_.
-    - **Path Params:**
-      - `channelName` (string, required): Scope.
-      - `channelLinkId` (string, required): Store link ID.
-    - **Body Params:**
-      - `status` (string, required): "open" or "closed".
-      - `reason` (string, required): Explanation for the status change.
-    - **Success Response:** `200 OK`.
-    - **Error Responses:** `400`, `403` (Forbidden), `404`.
+#### Menu Update Callback (Async)
 
-- **Endpoints Handled (Webhooks FROM Deliverect TO Application):**
-  _These require dedicated API endpoints on the Render Web Service._
+- **Method:** `POST`
+- **URL:** `https://api.staging.deliverect.com/{channelName}/menuStatus/{_id}` (URL provided in the async Menu Update webhook payload's `callback` field)
+- **Purpose:** Notify Deliverect that an asynchronously received menu update has been fully processed by the application.
+- **Path Parameters:**
+  - `channelName` (string, required): Case-sensitive Scope.
+  - `_id` (string, required): Unique identifier of the menu publish request (from the callback URL).
+- **Body Parameters:**
+  - `status` (string, required): `"ONLINE"` (Success) or `"FAILED"` (Failure).
+  - `comment` (string, optional): Details if status is `"FAILED"`.
+- **Response Time:** Must be called within 30 minutes of receiving the async menu update webhook, otherwise Deliverect classifies the operation as "Failed".
+- **Responses:**
+  - `200 OK`: Callback received.
+  - `400 Bad Request`: Invalid request.
 
-  - **Channel Registration**
+#### Update Store Status (open/closed)
 
-    - **Method:** `POST`
-    - **Your Endpoint URL:** `/webhook/deliverect/register` (Configured in Deliverect)
-    - **Purpose:** Called by Deliverect when a new store link is registered, activated, or deactivated.
-    - **Request Body from Deliverect:**
-      - `status` (string): "register", "active", or "inactive".
-      - `channelLocationId` (string): Merchant's ID on the channel platform (if applicable).
-      - `channelLinkId` (string): The crucial ID linking Deliverect to this specific store instance. **Store this in DB.**
-      - `locationId` (string): Deliverect's internal location ID.
-      - `channelLinkName` (string): Display name in Deliverect.
-    - **Required Response Body (JSON, case-sensitive):** Provide the URLs of _your_ application's endpoints for Deliverect to call.
-      ```json
-      {
-        "statusUpdateURL": "https://<your-app-domain>/webhook/deliverect/order_status",
-        "menuUpdateURL": "https://<your-app-domain>/webhook/deliverect/menu_update",
-        "snoozeUnsnoozeURL": "https://<your-app-domain>/webhook/deliverect/snooze",
-        "busyModeURL": "https://<your-app-domain>/webhook/deliverect/busy_mode",
-        "updatePrepTimeURL": "https://<your-app-domain>/webhook/deliverect/prep_time",
-        "paymentUpdateURL": "https://<your-app-domain>/webhook/deliverect/payment_update",
-        "courierUpdateURL": "https://<your-app-domain>/webhook/deliverect/courier_update",
-        "menuUrl": "https://<your-restaurant-or-proxy-menu-url>"
+- **Method:** `POST`
+- **URL:** `https://api.staging.deliverect.com/{channelName}/updateStoreStatus/{channelLinkId}`
+- **Purpose:** Allows the channel integration (this application) to inform Deliverect about the store's status (e.g., if the integration needs to temporarily stop orders). Corresponds to Deliverect's "Busy Mode" initiated _by the channel_.
+- **Path Parameters:**
+  - `channelName` (string, required): 'scope' of the channel.
+  - `channelLinkId` (string, required): Unique identifier of the channel link.
+- **Body Parameters:**
+  - `status` (string, required): `"open"` or `"closed"`.
+  - `reason` (string, required): Explanation for the status change.
+- **Responses:**
+  - `200 OK`: Status update received.
+  - `400 Bad Request`: Invalid request.
+  - `403 Forbidden`: Incorrect scope/permissions.
+  - `404 Not Found`: Invalid `channelLinkId`.
+
+### Endpoints Handled (Webhooks FROM Deliverect TO Application)
+
+_These require dedicated HTTP endpoints on the Render Web Service._
+
+#### Channel Registration
+
+- **Method:** `POST`
+- **Your Endpoint URL:** `/webhook/deliverect/register` (Configured in Deliverect)
+- **Purpose:** Called by Deliverect when a new store link is registered (`register`), activated (`active`), or deactivated (`inactive`).
+- **Request Body from Deliverect:**
+  - `status` (string): "register", "active", or "inactive".
+  - `channelLocationId` (string): Merchant's ID on the channel platform (if applicable).
+  - `channelLinkId` (string): **CRITICAL ID linking Deliverect to this specific store instance. Store this in DB.**
+  - `locationId` (string): Deliverect's internal location ID.
+  - `channelLinkName` (string): Display name in Deliverect.
+- **Required Response Body (JSON, case-sensitive):** Provide the URLs of _your_ application's endpoints for Deliverect to call.
+  ```json
+  {
+    "statusUpdateURL": "https://<your-app-domain>/webhook/deliverect/order_status",
+    "menuUpdateURL": "https://<your-app-domain>/webhook/deliverect/menu_update",
+    "snoozeUnsnoozeURL": "https://<your-app-domain>/webhook/deliverect/snooze",
+    "busyModeURL": "https://<your-app-domain>/webhook/deliverect/busy_mode",
+    "updatePrepTimeURL": "https://<your-app-domain>/webhook/deliverect/prep_time",
+    "paymentUpdateURL": "https://<your-app-domain>/webhook/deliverect/payment_update",
+    "courierUpdateURL": "https://<your-app-domain>/webhook/deliverect/courier_update",
+    "menuUrl": "https://<your-restaurant-or-proxy-menu-url>"
+  }
+  ```
+- **Success Response Code:** `200 OK`.
+- **Error Response Code:** `400` (Bad Request).
+
+#### Menu Update
+
+- **Method:** `POST`
+- **Your Endpoint URL:** `/webhook/deliverect/menu_update`
+- **Purpose:** Receives the full menu structure or updates from Deliverect when a customer publishes changes. See **Appendix A** for detailed structure examples and the **Menu Glossary** below for field definitions.
+- **Request Body from Deliverect (Async Example):**
+  ```json
+  {
+      "body": {
+          "menus": [ /* Array of menu objects - See Appendix A / Glossary */ ],
+          "stores": [ "channelLinkId1", ... ],
+          "callback": "https://api.staging.deliverect.com/{channelName}/menuStatus/{_id}" // URL for Menu Update Callback API
       }
-      ```
-    - **Success Response Code:** `200 OK`.
-    - **Error Response Code:** `400` (Bad Request).
+  }
+  ```
+  _(Sync format differs: payload is directly the array of menu properties)_
+- **Action:** Parse the menu structure (categories, items with PLUs, modifiers with PLUs, prices, availability, subProducts links, etc.). Update the PostgreSQL database accordingly (tables like `menu_items`, `modifiers`, `modifier_groups`, `menu_name_variants`). If async, store the `callback` URL and call the "Menu Update Callback" API endpoint once processing is complete.
+- **Success Response Code:** `200 OK`.
+- **Error Response Code:** `400`.
 
-  - **Menu Update**
+#### Order Status Update
 
-    - **Method:** `POST`
-    - **Your Endpoint URL:** `/webhook/deliverect/menu_update`
-    - **Purpose:** Receives the full menu structure or updates from Deliverect when a customer publishes changes. The structure will resemble the data in **Appendix A**.
-    - **Request Body from Deliverect (Async Example):**
-      ```json
-      {
-          "body": {
-              "menus": [ /* Array of menu objects - See Deliverect Menu Model */ ],
-              "stores": [ "channelLinkId1", ... ],
-              "callback": "https://api.staging.deliverect.com/{channelName}/menuStatus/{_id}"
-          }
-      }
-      ```
-      _(Sync format is different - handle both if necessary, see docs)_
-    - **Action:** Parse the menu structure (categories, items with PLUs, modifiers with PLUs, prices, availability, etc.). Update the PostgreSQL `menu_items`, `modifiers`, `modifier_groups` tables accordingly. **Crucially, update or rebuild the `menu_name_variants` table based on the received item names and potentially inferred variations.** If async, store the `callback` URL and call it via the "Menu Update Callback" endpoint once processing is complete.
-    - **Success Response Code:** `200 OK`.
-    - **Error Response Code:** `400`.
+- **Method:** `POST`
+- **Your Endpoint URL:** `/webhook/deliverect/order_status`
+- **Purpose:** Receives status changes for orders previously submitted via the Create Order API. **This is the primary way to know if an order was accepted by the POS and its subsequent progress.**
+- **Request Body from Deliverect:**
+  ```json
+  {
+      "orderId": "Deliverect internal order ID",
+      "status": <int>, // Status code (e.g., 20=Accepted, 110=Canceled) - See Deliverect docs for full list
+      "timeStamp": "ISO 8601 timestamp",
+      "receiptId": "POS receipt ID (optional)",
+      "reason": "Reason text (optional, e.g., for failure/cancellation)",
+      "channelOrderId": "YOUR unique order ID submitted previously", // CRITICAL for matching
+      "location": "Deliverect location ID",
+      "channelLink": "channelLinkId"
+  }
+  ```
+- **Action:** Find the order in Postgres using `channelOrderId`. Update its status field. If the status change warrants a customer notification (e.g., Accepted, Ready, Out for Delivery, Cancelled), enqueue a Celery task to send an SMS via Twilio.
+- **Success Response Body:** `{"result": "OK"}`
+- **Success Response Code:** `200 OK`.
+- **Error Response Code:** `400`.
 
-  - **Order Status Update**
+#### Snooze / Unsnooze Products
 
-    - **Method:** `POST`
-    - **Your Endpoint URL:** `/webhook/deliverect/order_status`
-    - **Purpose:** Receives status changes for orders previously submitted. **This is the primary way to know if an order was accepted by the POS and its progress.**
-    - **Request Body from Deliverect:**
-      ```json
-      {
-          "orderId": "Deliverect internal order ID",
-          "status": <int>, // See Deliverect Order Statuses doc
-          "timeStamp": "ISO 8601 timestamp",
-          "receiptId": "POS receipt ID (optional)",
-          "reason": "Reason text (optional)",
-          "channelOrderId": "YOUR unique order ID submitted previously", // CRITICAL for matching
-          "location": "Deliverect location ID",
-          "channelLink": "channelLinkId"
-      }
-      ```
-    - **Action:** Find the order in Postgres using `channelOrderId`. Update its status. If the status change warrants a customer notification (e.g., Accepted, Ready, Out for Delivery, Cancelled), enqueue a Celery task to send an SMS via Twilio.
-    - **Success Response Body:** `{"result": "OK"}`
-    - **Success Response Code:** `200 OK`.
-    - **Error Response Code:** `400`.
-
-  - **Snooze / Unsnooze Products**
-
-    - **Method:** `POST`
-    - **Your Endpoint URL:** `/webhook/deliverect/snooze`
-    - **Purpose:** Notifies when specific items (by PLU) should be marked as temporarily unavailable (snoozed) or available again (unsnoozed).
-    - **Request Body from Deliverect:**
-      ```json
-      {
-          "accountId":"...",
-          "locationId":"...",
-          "channelLinkId":"...",
-          "operations":[
-              {
-                  "action":"snooze" or "unsnooze",
-                  "data":{
-                      "items":[
-                         { "plu": "ITEM_PLU_1", "snoozeStart": "...", "snoozeEnd": "..." },
-                         { "plu": "MODIFIER_PLU_2", ... }
-                      ]
-                  }
+- **Method:** `POST`
+- **Your Endpoint URL:** `/webhook/deliverect/snooze`
+- **Purpose:** Notifies when specific items (identified by PLU) should be marked as temporarily unavailable (snoozed) or available again (unsnoozed). Triggered only for items in active/published menus.
+- **Request Body from Deliverect:**
+  ```json
+  {
+      "accountId":"...",
+      "locationId":"...",
+      "channelLinkId":"...",
+      "operations":[
+          {
+              "action":"snooze" or "unsnooze",
+              "data":{
+                  "items":[
+                     { "plu": "ITEM_PLU_1", "snoozeStart": "ISO8601_UTC", "snoozeEnd": "ISO8601_UTC" },
+                     { "plu": "MODIFIER_PLU_2", ... }
+                  ]
               }
-          ],
-          "allSnoozedItems": [ /* Optional: Complete list of currently snoozed PLUs */ ]
-      }
-      ```
-    - **Action:** Update the `is_available` status or `snoozed_until` timestamp for the specified items/modifiers (identified by `plu` matching those in **Appendix A** / DB) in the Postgres database. Use `allSnoozedItems` if present for a full sync.
-    - **Success Response Body:** `"ok"` (string)
-    - **Success Response Code:** `200 OK`.
-    - **Error Response Code:** `400`.
+          }
+      ],
+      "allSnoozedItems": [ /* Optional: Complete list of currently snoozed PLUs {plu, snoozeStart, snoozeEnd} */ ]
+  }
+  ```
+- **Action:** Update the `is_available` status or `snoozed_until` timestamp for the specified items/modifiers (identified by `plu`) in the Postgres database. Use `allSnoozedItems` if present for a full sync. Deliverect sends a separate `unsnooze` event when the time expires or if manually unsnoozed.
+- **Success Response Body:** `"ok"` (string)
+- **Success Response Code:** `200 OK`.
+- **Error Response Code:** `400`.
 
-  - **Busy mode**
+#### Busy mode
 
-    - **Method:** `POST`
-    - **Your Endpoint URL:** `/webhook/deliverect/busy_mode`
-    - **Purpose:** Notifies when the restaurant enables/disables busy mode _from their POS/Deliverect_.
-    - **Request Body from Deliverect:**
-      ```json
-      {
-          "accountId": "...",
-          "locationId": "...",
-          "channelLinkId": "...",
-          "status": "PAUSED" | "ONLINE" | "BUSY", // BUSY = Orange busy mode
-          "delay": <int> // Minutes delay if status is BUSY
-      }
-      ```
-    - **Action:** Update the store's status in the application (e.g., a flag in Redis or DB associated with the `channelLinkId`). The AI Agent should check this status before attempting to place an order. If "BUSY", potentially inform the user about delays.
-    - **Success Response Body:** `{"status": "PAUSED"}` or `{"status": "ONLINE"}` or `{"status": "BUSY"}` (Echo the received status).
-    - **Success Response Code:** `200 OK`.
-    - **Error Response Code:** `400`.
+- **Method:** `POST`
+- **Your Endpoint URL:** `/webhook/deliverect/busy_mode`
+- **Purpose:** Notifies when the restaurant enables/disables busy mode _from their POS/Deliverect_.
+- **Request Body from Deliverect:**
+  ```json
+  {
+      "accountId": "...",
+      "locationId": "...",
+      "channelLinkId": "...",
+      "status": "PAUSED" | "ONLINE" | "BUSY", // PAUSED=Closed, ONLINE=Open, BUSY=Busy (Orange)
+      "delay": <int> // Minutes delay if status is BUSY (indicates increased prep time)
+  }
+  ```
+- **Action:** Update the store's status in the application (e.g., a flag in Redis or DB associated with the `channelLinkId`). The AI Agent should check this status before attempting to place an order. If "BUSY", potentially inform the user about delays or adjust estimated times. If "PAUSED", prevent new orders.
+- **Success Response Body:** `{"status": "PAUSED"}` or `{"status": "ONLINE"}` or `{"status": "BUSY"}` (Echo the received status).
+- **Success Response Code:** `200 OK`.
+- **Error Response Code:** `400`.
 
-  - **Preparation time update**
+#### Preparation time update
 
-    - **Method:** `POST`
-    - **Your Endpoint URL:** `/webhook/deliverect/prep_time`
-    - **Purpose:** Notifies of an updated estimated pickup/preparation time from the POS.
-    - **Request Body from Deliverect:**
-      ```json
-      {
-          "channelOrderId": "YOUR unique order ID",
-          "orderId": "Deliverect internal order ID",
-          "location": "Deliverect location ID",
-          "status": <int>, // Current order status
-          "pickupTime": "New estimated pickup time (ISO 8601)"
-      }
-      ```
-    - **Action:** Update the estimated time for the order in Postgres (identified by `channelOrderId`). Potentially enqueue a Celery task to notify the customer via SMS of the updated time.
-    - **Success Response Code:** `200 OK`.
-    - **Error Response Code:** `400`.
+- **Method:** `POST`
+- **Your Endpoint URL:** `/webhook/deliverect/prep_time`
+- **Purpose:** Notifies of an updated estimated pickup/preparation time from the POS for a specific order.
+- **Request Body from Deliverect:**
+  ```json
+  {
+      "channelOrderId": "YOUR unique order ID",
+      "orderId": "Deliverect internal order ID",
+      "location": "Deliverect location ID",
+      "status": <int>, // Current order status (e.g., 20)
+      "pickupTime": "New estimated pickup time (ISO 8601 UTC)"
+  }
+  ```
+- **Action:** Update the estimated time for the order in Postgres (identified by `channelOrderId`). Potentially enqueue a Celery task to notify the customer via SMS of the updated time.
+- **Success Response Code:** `200 OK`.
+- **Error Response Code:** `400`.
 
-  - **Payment update**
-    - **Method:** `POST`
-    - **Your Endpoint URL:** `/webhook/deliverect/payment_update`
-    - **Purpose:** Receives status updates for payments processed via Deliverect Pay (Likely **Not Applicable** if payments are handled differently, e.g., pay on pickup/delivery or via a separate system).
-    - **Request Body from Deliverect:**
-      ```json
-      {
-          "paymentId": "Deliverect Pay ID",
-          "status": "authorized" | "refused" | "failed" | "pending"
-      }
-      ```
-    - **Action:** If using Deliverect Pay, update payment status associated with the order.
-    - **Success Response Body:** `"OK"` (string)
-    - **Success Response Code:** `200 OK`.
+#### Payment update
 
----
-
-## 7. Internal Application Components
-
-**7.1. Render Web Service (Python Application)**
-
-- **Responsibilities:**
-  - API Endpoint Implementation (Twilio Webhooks, Deliverect Webhooks).
-  - Request Handling & Validation.
-  - TwiML Generation.
-  - Conversation State Management (Interaction with Redis).
-  - Orchestration of calls to OpenAI Agents API.
-  - Implementation of OpenAI Agent Tools/Functions (interacting with DB, Redis, Deliverect API).
-  - Direct calls to Deliverect API (Create Order, Menu Callback, Store Status Update).
-  - Database Interaction (Reading menu/restaurant info, Writing order data).
-  - Enqueueing tasks to Celery.
-- **Key Modules/Packages:** Web framework (Flask/FastAPI/Django), Twilio Python Helper Library, OpenAI Python Library, Requests/HTTPX (for Deliverect API calls), Celery client, Database ORM (SQLAlchemy/Django ORM), Redis client.
-
-**7.2. Render Background Worker (Celery)**
-
-- **Responsibilities:**
-  - Executing long-running or asynchronous tasks offloaded by the Web Service.
-- **Key Tasks:**
-  - `send_sms_notification(customer_phone, message_body)`: Calls Twilio Messaging API.
-  - `process_deliverect_menu_update(menu_data, callback_url)`: Parses menu and updates DB (if async menu processing is complex). Calls Deliverect Menu Update Callback upon completion.
-  - `poll_deliverect_order_status(channel_order_id)`: (If webhooks are unreliable or need backup) Periodically calls Deliverect API to check status.
-  - `update_order_status_and_notify(channel_order_id, new_status, reason)`: Updates DB and potentially queues SMS task.
-- **Key Modules/Packages:** Celery, Twilio Python Helper Library, Requests/HTTPX, Database ORM, Redis client.
+- **Method:** `POST`
+- **Your Endpoint URL:** `/webhook/deliverect/payment_update`
+- **Purpose:** Receives status updates for payments processed via Deliverect Pay. (Likely **Not Applicable** if payments are handled differently).
+- **Request Body from Deliverect:**
+  ```json
+  {
+      "paymentId": "Deliverect Pay ID",
+      "status": "authorized" | "refused" | "failed" | "pending"
+  }
+  ```
+- **Action:** If using Deliverect Pay, update payment status associated with the order.
+- **Success Response Body:** `"OK"` (string)
+- **Success Response Code:** `200 OK`.
 
 ---
 
-## 8. Key Workflows
+## 7. Internal Component Summary
 
-**8.1. Handling a Conversation Turn:**
+- **Render Web Service (Python):** Handles webhooks (Twilio, Deliverect), orchestrates OpenAI API calls, implements Agent Tools, manages state (Redis), calls Deliverect API, queues Celery tasks.
+- **Render Background Worker (Celery):** Executes async tasks: `send_sms_notification`, `process_deliverect_menu_update`, etc.
 
-1.  Twilio receives user speech -> Performs STT -> POSTs to `/webhook/voice` with transcription and `CallSid`.
-2.  Render App:
-    - Retrieves/Initializes conversation state from Redis using `CallSid`.
-    - Adds user transcription to conversation history (in Redis state).
-    - Calls OpenAI Agent API (`Add Message`, `Run Assistant`).
-3.  OpenAI Agent: Processes input + history + tools -> Responds with text or `requires_action` (tool call).
-4.  Render App:
-    - **If Text Response:**
-      - Updates conversation history in Redis.
-      - Generates TwiML (`<Say>`, `<Gather>`).
-      - Responds to Twilio with TwiML.
-    - **If Tool Call (`requires_action`):**
-      - Identifies requested tool and arguments.
-      - Executes the corresponding Python function (e.g., `lookup_menu_item` uses name variants to find PLU, `add_item_to_cart` updates Redis using PLU).
-      - Calls OpenAI Agent API (`Submit Tool Outputs`).
-      - Waits for the Run to complete (Agent processes tool result).
-      - Retrieves final text response from Agent.
-      - Updates conversation history in Redis.
-      - Generates TwiML (`<Say>`, `<Gather>`).
-      - Responds to Twilio with TwiML.
-5.  Twilio executes TwiML (Speaks response, listens for next input). Loop back to step 1.
+---
 
-**8.2. Placing an Order:**
+## 8. Key Workflow Summaries
 
-1.  Conversation leads to user confirming the order.
-2.  OpenAI Agent decides to call the `place_order` tool with gathered details.
-3.  Render App executes the `place_order` Python function:
-    - Retrieves final order details (items/modifiers identified by PLU) from Redis state using `CallSid`.
-    - Retrieves customer details (phone, name) and delivery/pickup info from state.
-    - Validates the order.
-    - Generates a unique `channelOrderId`.
-    - Formats the order payload according to Deliverect API specs (using PLUs).
-    - Makes a `POST` request to Deliverect's `/order` endpoint.
-4.  Deliverect API responds (`201 Created` on success).
-5.  Render App (`place_order` function):
-    - **On Success:**
-      - Saves the order details (including `channelOrderId`, initial status 'pending_confirmation') to Postgres.
-      - Clears the cart/order state in Redis.
-      - Enqueues Celery task: `send_sms_notification(customer_phone, "Order received! We'll text updates.")`.
-      - Returns success status and `channelOrderId` to the OpenAI Agent.
-    - **On Failure:**
-      - Logs the error.
-      - Returns failure status and error message to the OpenAI Agent.
-6.  OpenAI Agent receives the tool result and formulates a final response to the user (e.g., "Okay, your order [ID] is placed!" or "Sorry, there was an issue placing your order.").
-7.  Render App sends the final TwiML response (likely including `<Hangup>`) to Twilio.
-
-**8.3. Handling Order Status Update (Webhook):**
-
-1.  POS updates order status -> Deliverect sends `POST` to `/webhook/deliverect/order_status`.
-2.  Render App (`/webhook/deliverect/order_status` endpoint):
-    - Parses request body, extracts `channelOrderId` and `status`.
-    - Finds the corresponding order in Postgres using `channelOrderId`.
-    - Updates the order's status field in Postgres.
-    - Determines if the new status requires customer notification.
-    - If notification needed: Enqueues Celery task `send_sms_notification(customer_phone, "Update: Your order is now [status_description]!")`.
-    - Responds to Deliverect with `200 OK` and `{"result": "OK"}` body.
-3.  Celery Worker picks up the `send_sms_notification` task and calls the Twilio Messaging API.
+- **Conversation Turn:** Twilio webhook -> Get state (Redis) -> Call OpenAI Agent -> Handle response (TwiML text or execute Tool) -> Update state (Redis) -> Respond TwiML to Twilio. Tool execution involves local Python function (DB/Redis/Deliverect interaction using PLUs/variants) and submitting result back to Agent.
+- **Order Placement:** User confirms -> Agent calls `place_order` tool -> Backend function retrieves cart (Redis), generates `channelOrderId`, calls Deliverect `/order` API with PLUs -> On success, saves order (Postgres), clears cart (Redis), queues SMS task (Celery), returns success to Agent -> Agent confirms to user via TwiML.
+- **Status Update:** Deliverect `/order_status` webhook received -> Backend finds order by `channelOrderId` (Postgres), updates status -> Queues SMS task (Celery) if needed -> Responds 200 OK to Deliverect.
 
 ---
 
 ## 9. Configuration Management
 
-- All sensitive information (API Keys, Database URLs, Secret Keys) and environment-specific settings MUST be configured using **Environment Variables**.
-- Render provides a mechanism for setting environment variables for Web Services and Background Workers.
-- **Required Environment Variables (Examples):**
-  - `PYTHON_ENV` (e.g., `production`, `staging`)
-  - `DATABASE_URL` (Postgres connection string)
-  - `REDIS_URL` (Redis connection string)
-  - `TWILIO_ACCOUNT_SID`
-  - `TWILIO_AUTH_TOKEN`
-  - `TWILIO_PHONE_NUMBER` (The number used for calls/SMS)
-  - `OPENAI_API_KEY`
-  - `OPENAI_ASSISTANT_ID`
-  - `DELIVERECT_CHANNEL_NAME` (The specific scope/channel name)
-  - `DELIVERECT_API_KEY` / `DELIVERECT_AUTH_DETAILS` (Actual auth mechanism TBD)
-  - `APP_BASE_URL` (e.g., `https://your-app-name.onrender.com`)
-  - `CELERY_BROKER_URL` (Usually same as `REDIS_URL`)
-  - `CELERY_RESULT_BACKEND` (Usually same as `REDIS_URL`)
+- **Environment Variables:** Used exclusively for secrets (API keys, DB URL) and settings. Render manages these.
+- **Examples:** `DATABASE_URL`, `REDIS_URL`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `OPENAI_API_KEY`, `OPENAI_ASSISTANT_ID`, `DELIVERECT_CHANNEL_NAME`, `DELIVERECT_API_KEY`.
 
 ---
 
-## 10. Testing Strategy
+## 10. Testing Strategy Summary
 
-- **Staging Environment:** A separate Render deployment mirroring production (separate Web Service, Background Worker, Postgres DB, Redis instance) using staging API keys.
-- **Unit Tests:** Test individual Python functions/classes in isolation (using `pytest`, `unittest`). Mock external dependencies (DB, Redis, APIs).
-- **Integration Tests:** Test interactions between components within the staging environment (e.g., API endpoint receives data -> writes to staging DB). Use `pytest` with HTTP clients (`requests`, `httpx`) and DB/Redis checks.
-- **End-to-End (E2E) / Simulation Tests:** Simulate full conversations (text-based via API calls, potentially audio) against the staging environment. Verify conversation flow, tool execution (especially `lookup_menu_item` with variants and `place_order` with PLUs), order placement in staging Deliverect (if possible, or mock Deliverect endpoint), and DB/Redis state changes.
+- **Staging Environment:** Essential on Render with test keys/DB/Redis.
+- **Unit Tests:** Test functions/classes in isolation (mock dependencies).
+- **Integration Tests:** Test component interactions within staging (e.g., webhook -> DB write).
+- **E2E/Simulation:** Simulate conversations against staging env. Verify flow, tool execution (using PLUs/variants), mocked/real Deliverect interaction, state changes.
 
 ---
 
 ## 11. Future Considerations / Roadmap (Placeholder)
 
-- Handling payments directly via phone (requires PCI compliance considerations).
-- Support for multiple restaurant locations.
-- More sophisticated handling of ambiguous user requests or complex modifications.
-- Integration with delivery fleet management APIs.
-- Web-based interface for viewing orders/status.
-- Analytics dashboard.
-- Handling modifier groups and nested modifiers during order taking.
+- Direct payment handling.
+- Multi-location support.
+- Advanced ambiguity handling.
+- Delivery fleet integration.
+- Web UI/Analytics.
 
 ---
 
-**Document Maintenance:** This document should be updated whenever significant changes are made to the architecture, core features, API integrations, data models (including menu structure changes), or key workflows. Accurate documentation is crucial for effective AI-assisted development.
+## Appendix A: Deliverect Menu Data Structure (Examples)
 
----
+The following illustrates the structure of the JSON payload received via the Deliverect Menu Update webhook (`/webhook/deliverect/menu_update`). The application needs to parse this structure to populate its internal database. **PLU** is the critical identifier linking items/modifiers to Deliverect. IDs (`_id`) link components within the payload.
 
-## Appendix A: Sample Menu Data (JSON Representation)
-
-This JSON object represents the structure and content of the menu data the system needs to manage. This data is typically received via the Deliverect Menu Update webhook and stored/queried from the PostgreSQL database. The `plu` field is critical for identifying items/modifiers when interacting with Deliverect. The `name_variants` map is used to resolve user utterances to canonical item names and their corresponding PLUs.
+**(Note: This is a representative sample, not the complete menu.)**
 
 ```json
-{
-  "items": [
-    {
-      "name": "Rare",
-      "reference_handler": "COOK-01",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0000",
-      "plu": "COOK-01"
+[ // The payload is typically an array containing one main menu object
+  {
+    "menu": "Menu Name",
+    "menuId": "67209bfb174a0e5384d4db61", // Deliverect Menu ID
+    "channelLinkId": "66b35566dc02e27b286fca60", // Specific store link ID
+    "currency": 1, // Currency code (lookup needed)
+    "menuType": 0, // 0 = Delivery & Pickup, etc.
+    "availabilities": [ // Store opening hours
+      { "dayOfWeek": 1, "startTime": "00:00", "endTime": "23:59" },
+      // ... other days ...
+    ],
+    "categories": [ // Array of category objects
+      {
+        "_id": "67209bfb174a0e5384d4db4f", // Category's internal Deliverect ID
+        "name": "Steak & Burgers",
+        "posCategoryId": "STK", // Optional POS category ID
+        "subProducts": [ // List of Deliverect Item IDs belonging to this category
+          "6721daafc33216a11b4e239d", // -> "Deluxe Burger (Pick and Choose)"
+          "6721daafc33216a11b4e23a2", // -> "Burger Combo (Drink not Included)"
+          "66b35629a7eb47d479f1d31b", // -> "Chicken Burger"
+          "66b35629a7eb47d479f1d339", // -> "Delicious Steak Frites"
+          // ... other item IDs ...
+        ],
+        "availabilities": [] // Category-specific availability overrides
+        // ... other category fields (description, image, etc.)
+      },
+      {
+        "_id": "67209bfb174a0e5384d4db50",
+        "name": "Sides",
+        "posCategoryId": "SD",
+        "subProducts": [
+          "66b35629a7eb47d479f1d309", // -> "White Rice"
+          "66b35629a7eb47d479f1d30b", // -> "Egg Noodles"
+          // ... other side item IDs ...
+        ],
+        "availabilities": []
+      }
+      // ... other categories ...
+    ],
+    "products": { // Dictionary mapping Deliverect Item ID to Product details
+      "66b35629a7eb47d479f1d339": { // Example: "Delicious Steak Frites"
+        "_id": "66b35629a7eb47d479f1d339",
+        "name": "Delicious Steak Frites",
+        "description": "Basic Example Product with - Modifier groups...",
+        "price": 1500, // Price in cents
+        "plu": "STK-01", // CRITICAL ID for ordering
+        "productType": 1, // 1 = Product
+        "imageUrl": "https://...",
+        "subProducts": [ // List of Modifier Group IDs attached to this item
+          "66b35629a7eb47d479f1d33b", // -> Modifier Group "Cooking instructions"
+          "66b35629a7eb47d479f1d2fb"  // -> Modifier Group "Add a side"
+        ],
+        "snoozed": false, // Current snooze status
+        "deliveryTax": 9000, // Tax info (integer, 3 decimal places, e.g., 9000 = 9.000%)
+        "takeawayTax": 9000,
+        "eatInTax": 9000
+        // ... other product fields (tags, nutritional info, etc.)
+      },
+      "66b35629a7eb47d479f1d335": { // Example: "Chicken Tenders" (Product with Variants)
+        "_id": "66b35629a7eb47d479f1d335",
+        "name": "Chicken Tenders",
+        "description": "Variant prices for different sizes...",
+        "price": 800, // Base price (often cheapest variant)
+        "plu": "VAR-PROD-1",
+        "productType": 1,
+        "isVariant": true, // Indicates this product uses variants for pricing/options
+        "subProducts": [
+          "66b35629a7eb47d479f1d371" // -> Modifier Group "How many pieces?" (Variant Group)
+        ],
+        "snoozed": false
+      },
+      "6721daafc33216a11b4e23a3": { // Example: "3 Pieces" (A Variant Item itself)
+        "_id": "6721daafc33216a11b4e23a3",
+        "name": "3 Pieces",
+        "price": 0, // Price difference relative to base product (VAR-PROD-1)
+        "plu": "VAR-1-#V0#-", // Variant PLU
+        "productType": 1, // Still a product type
+        "parentId": "66b35629a7eb47d479f1d371", // Belongs to the "How many pieces?" group
+        "snoozed": false
+      },
+      "6721daafc33216a11b4e23a4": { // Example: "6 Pieces" (Another Variant Item)
+        "_id": "6721daafc33216a11b4e23a4",
+        "name": "6 Pieces",
+        "price": 300, // Price difference (adds 3.00 to base price)
+        "plu": "VAR-2-#V300#-",
+        "productType": 1,
+        "parentId": "66b35629a7eb47d479f1d371",
+        "snoozed": false
+      },
+      "66b35629a7eb47d479f1d309": { // Example: "White Rice" (Simple Product)
+        "_id": "66b35629a7eb47d479f1d309",
+        "name": "White Rice",
+        "description": "White coloured rice",
+        "price": 450,
+        "plu": "RICE-01",
+        "productType": 1,
+        "subProducts": [ // Can still have modifier groups
+             "66b35629a7eb47d479f1d345" // -> Modifier Group "Choose a sauce"
+        ],
+        "snoozed": false
+      }
+      // ... other products mapping ID to details ...
     },
-    {
-      "name": "Medium Rare",
-      "reference_handler": "COOK-02",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0001",
-      "plu": "COOK-02"
+    "modifierGroups": { // Dictionary mapping Deliverect Group ID to Modifier Group details
+      "66b35629a7eb47d479f1d33b": { // Example: "Cooking instructions"
+        "_id": "66b35629a7eb47d479f1d33b",
+        "name": "Cooking instructions",
+        "plu": "MOD-01", // Modifier Group PLU (optional, may exist)
+        "productType": 3, // 3 = Modifier Group
+        "min": 1, // Min required selections from this group
+        "max": 3, // Max allowed selections from this group
+        "multiMax": 1, // Max quantity of any *single* modifier within the group
+        "subProducts": [ // List of Deliverect Modifier IDs belonging to this group
+          "66b35629a7eb47d479f1d2fd", // -> Modifier "Rare"
+          "66b35629a7eb47d479f1d2ff", // -> Modifier "Medium Rare"
+          "66b35629a7eb47d479f1d33d"  // -> Modifier "Well Done"
+        ],
+        "snoozed": false
+      },
+      "66b35629a7eb47d479f1d371": { // Example: "How many pieces?" (Variant Group)
+        "_id": "66b35629a7eb47d479f1d371",
+        "name": "How many pieces?",
+        "plu": "MG-VAR-1",
+        "productType": 3,
+        "isVariantGroup": true, // Indicates this group defines variants
+        "min": 1,
+        "max": 1,
+        "subProducts": [ // List of Variant Item IDs
+          "6721daafc33216a11b4e23a3", // -> "3 Pieces"
+          "6721daafc33216a11b4e23a4", // -> "6 Pieces"
+          "6721daafc33216a11b4e23a5"  // -> "9 Pieces"
+        ],
+        "snoozed": false
+      }
+      // ... other modifier groups ...
     },
-    {
-      "name": "Well Done",
-      "reference_handler": "COOK-03",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0002",
-      "plu": "COOK-03"
+    "modifiers": { // Dictionary mapping Deliverect Modifier ID to Modifier details
+      "66b35629a7eb47d479f1d2fd": { // Example: "Rare"
+        "_id": "66b35629a7eb47d479f1d2fd",
+        "name": "Rare",
+        "price": 0, // Price difference (adds 0.00)
+        "plu": "COOK-01", // CRITICAL ID for ordering
+        "productType": 2, // 2 = Modifier
+        "parentId": "66b35629a7eb47d479f1d33b", // Belongs to "Cooking instructions" group
+        "snoozed": false
+      },
+      "66b35629a7eb47d479f1d30f": { // Example: "Sate Sauce"
+        "_id": "66b35629a7eb47d479f1d30f",
+        "name": "Sate Sauce",
+        "price": 50, // Price difference (adds 0.50)
+        "plu": "SAUCE-01",
+        "productType": 2,
+        "parentId": "66b35629a7eb47d479f1d345", // Belongs to "Choose a sauce" group
+        "snoozed": false
+      }
+      // ... other modifiers ...
     },
-    {
-      "name": "Fries",
-      "reference_handler": "SI-01",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0003",
-      "plu": "SI-01"
-    },
-    {
-      "name": "Salad",
-      "reference_handler": "SI-02",
-      "available": true,
-      "price": 2.0,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0004",
-      "plu": "SI-02"
-    },
-    {
-      "name": "Mashed Potato",
-      "reference_handler": "SI-03",
-      "available": true,
-      "price": 1.0,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0005",
-      "plu": "SI-03"
-    },
-    {
-      "name": "Sashimi",
-      "reference_handler": "BXSBVZRHZPYS2",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0006",
-      "plu": "BXSBVZRHZPYS2"
-    },
-    {
-      "name": "Sate Sauce",
-      "reference_handler": "SAUCE-01",
-      "available": true,
-      "price": 0.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0007",
-      "plu": "SAUCE-01"
-    },
-    {
-      "name": "Hot Sauce",
-      "reference_handler": "SAUCE-02",
-      "available": true,
-      "price": 0.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0008",
-      "plu": "SAUCE-02"
-    },
-    {
-      "name": "Pepperoni",
-      "reference_handler": "PEPP-#O0#-",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0009",
-      "plu": "PEPP-#O0#-"
-    },
-    {
-      "name": "Bacon",
-      "reference_handler": "BAC-#O0#-",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0010",
-      "plu": "BAC-#O0#-"
-    },
-    {
-      "name": "Red Onion",
-      "reference_handler": "RONION-#O0#-",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0011",
-      "plu": "RONION-#O0#-"
-    },
-    {
-      "name": "Mushroom",
-      "reference_handler": "MUSH-#O0#-",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0012",
-      "plu": "MUSH-#O0#-"
-    },
-    {
-      "name": "Red Pepper",
-      "reference_handler": "REDPEPP-#O0#-",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0013",
-      "plu": "REDPEPP-#O0#-"
-    },
-    {
-      "name": "Chicken Burger",
-      "reference_handler": "P-BURG-CHK###PRNT",
-      "available": true,
-      "price": 9.95,
-      "description": "Crispy coated chicken thigh, iceberg lettuce, pickles, slice of cheese & mayo, all in a toasted brioche bun.",
-      "snoozed": false,
-      "id": "ITEM-0014",
-      "plu": "P-BURG-CHK###PRNT"
-    },
-    {
-      "name": "Cheeseburger",
-      "reference_handler": "P-BURG-CHE###PRNT",
-      "available": true,
-      "price": 10.95,
-      "description": "100% beef patty, cheddar, caramelized onions, mayonnaise, pickles in a Pretzel bun",
-      "snoozed": false,
-      "id": "ITEM-0015",
-      "plu": "P-BURG-CHE###PRNT"
-    },
-    {
-      "name": "Veggie Burger",
-      "reference_handler": "P-BURG-VEG###PRNT",
-      "available": true,
-      "price": 9.95,
-      "description": "Black bean burgers with sweet potato, mushrooms, quinoa, and pecans.",
-      "snoozed": false,
-      "id": "ITEM-0016",
-      "plu": "P-BURG-VEG###PRNT"
-    },
-    {
-      "name": "French Fries",
-      "reference_handler": "P-FRS-S-#U#-",
-      "available": true,
-      "price": 2.0,
-      "description": "Plain fries from France",
-      "snoozed": false,
-      "id": "ITEM-0017",
-      "plu": "P-FRS-S-#U#-"
-    },
-    {
-      "name": "Curly Fries",
-      "reference_handler": "P-FRS-M-#U#-",
-      "available": true,
-      "price": 2.0,
-      "description": "Spiralised potatoes, fried",
-      "snoozed": false,
-      "id": "ITEM-0018",
-      "plu": "P-FRS-M-#U#-"
-    },
-    {
-      "name": "Seasoned Fries",
-      "reference_handler": "P-FRS-L-#U#-",
-      "available": true,
-      "price": 2.5,
-      "description": "Plain fries, but a bit fancier",
-      "snoozed": false,
-      "id": "ITEM-0019",
-      "plu": "P-FRS-L-#U#-"
-    },
-    {
-      "name": "Coca Cola ",
-      "reference_handler": "DRNK-01-#U#-",
-      "available": true,
-      "price": 4.0,
-      "description": "Cola flavoured sugar and caffeine",
-      "snoozed": false,
-      "id": "ITEM-0020",
-      "plu": "DRNK-01-#U#-"
-    },
-    {
-      "name": "Diet Coke",
-      "reference_handler": "DRNK-02-#U#-",
-      "available": true,
-      "price": 4.0,
-      "description": "Cola flavoured aspartame and caffeine",
-      "snoozed": false,
-      "id": "ITEM-0021",
-      "plu": "DRNK-02-#U#-"
-    },
-    {
-      "name": "Ginger Beer",
-      "reference_handler": "DRNK-03-#U#-",
-      "available": true,
-      "price": 4.0,
-      "description": "Australia's favourite ginger beer!",
-      "snoozed": false,
-      "id": "ITEM-0022",
-      "plu": "DRNK-03-#U#-"
-    },
-    {
-      "name": "White Rice",
-      "reference_handler": "RICE-01",
-      "available": true,
-      "price": 4.5,
-      "description": "White coloured rice",
-      "snoozed": false,
-      "id": "ITEM-0023",
-      "plu": "RICE-01"
-    },
-    {
-      "name": "Yellow Rice",
-      "reference_handler": "RICE-02",
-      "available": true,
-      "price": 4.5,
-      "description": "White rice with Saffron",
-      "snoozed": false,
-      "id": "ITEM-0024",
-      "plu": "RICE-02"
-    },
-    {
-      "name": "Egg Noodles",
-      "reference_handler": "NOOD-01",
-      "available": true,
-      "price": 4.5,
-      "description": "Egg noodles and veggies fried and tossed with a delicious sauce",
-      "snoozed": false,
-      "id": "ITEM-0025",
-      "plu": "NOOD-01"
-    },
-    {
-      "name": "Ramen Noodles",
-      "reference_handler": "NOOD-02",
-      "available": true,
-      "price": 4.5,
-      "description": "Chinese-style wheat noodles",
-      "snoozed": false,
-      "id": "ITEM-0026",
-      "plu": "NOOD-02"
-    },
-    {
-      "name": "3 Pieces",
-      "reference_handler": "VAR-1-#V0#-",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0027",
-      "plu": "VAR-1-#V0#-"
-    },
-    {
-      "name": "6 Pieces",
-      "reference_handler": "VAR-2-#V300#-",
-      "available": true,
-      "price": 3.0,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0028",
-      "plu": "VAR-2-#V300#-"
-    },
-    {
-      "name": "9 Pieces",
-      "reference_handler": "VAR-3-#V550#-",
-      "available": true,
-      "price": 5.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0029",
-      "plu": "VAR-3-#V550#-"
-    },
-    {
-      "name": "Yuzu Salmon",
-      "reference_handler": "PRT-01###PRNT-#O0#-",
-      "available": true,
-      "price": 1.8,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0030",
-      "plu": "PRT-01###PRNT-#O0#-"
-    },
-    {
-      "name": "Spicy Tuna",
-      "reference_handler": "PRT-02###PRNT",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0031",
-      "plu": "PRT-02###PRNT"
-    },
-    {
-      "name": "Teriyaki Chicken",
-      "reference_handler": "PRT-03###PRNT",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0032",
-      "plu": "PRT-03###PRNT"
-    },
-    {
-      "name": "Mini Poke Bowl",
-      "reference_handler": "SZ-01",
-      "available": true,
-      "price": 8.0,
-      "description": "A little bowl of Poke",
-      "snoozed": false,
-      "id": "ITEM-0033",
-      "plu": "SZ-01"
-    },
-    {
-      "name": "Large Poke Bowl",
-      "reference_handler": "SZ-02",
-      "available": true,
-      "price": 12.0,
-      "description": "A big bowl of Poke",
-      "snoozed": false,
-      "id": "ITEM-0034",
-      "plu": "SZ-02"
-    },
-    {
-      "name": "Sushi Rice",
-      "reference_handler": "BS-01###PRNT",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0035",
-      "plu": "BS-01###PRNT"
-    },
-    {
-      "name": "Cruncy Cabbage Slaw",
-      "reference_handler": "BS-02###PRNT",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0036",
-      "plu": "BS-02###PRNT"
-    },
-    {
-      "name": "Spicy Tofu",
-      "reference_handler": "XTRA-TOF###PRNT",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0037",
-      "plu": "XTRA-TOF###PRNT"
-    },
-    {
-      "name": "Crispy Onions",
-      "reference_handler": "XTRA-CONI###PRNT",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0038",
-      "plu": "XTRA-CONI###PRNT"
-    },
-    {
-      "name": "Smashed Avocado",
-      "reference_handler": "XTRA-AVO###PRNT",
-      "available": true,
-      "price": 7.5,
-      "description": "",
-      "snoozed": false,
-      "id": "ITEM-0039",
-      "plu": "XTRA-AVO###PRNT"
-    },
-    {
-      "name": "Burger Combo (Drink not Included)",
-      "reference_handler": "P-BRGR",
-      "available": true,
-      "price": 9.5,
-      "description": "Combo with Bundles - Modifier Groups as Upsell",
-      "snoozed": false,
-      "id": "ITEM-0040",
-      "plu": "P-BRGR"
-    },
-    {
-      "name": "Delicious Steak Frites",
-      "reference_handler": "STK-01",
-      "available": true,
-      "price": 15.0,
-      "description": "Basic Example Product with - Modifier groups - min/max variables - default selection - translations",
-      "snoozed": false,
-      "id": "ITEM-0041",
-      "plu": "STK-01"
-    },
-    {
-      "name": "Chicken Sate",
-      "reference_handler": "P-SATE",
-      "available": true,
-      "price": 4.5,
-      "description": "Product with Nested Modifiers - Multimax variables - Allergens (tags)",
-      "snoozed": false,
-      "id": "ITEM-0042",
-      "plu": "P-SATE"
-    },
-    {
-      "name": "Chicken Tenders",
-      "reference_handler": "VAR-PROD-1",
-      "available": true,
-      "price": 8.0,
-      "description": "Variant prices for different sizes will show cheapaest on top level product",
-      "snoozed": false,
-      "id": "ITEM-0043",
-      "plu": "VAR-PROD-1"
-    },
-    {
-      "name": "Build your own Pizza",
-      "reference_handler": "PIZZ-00",
-      "available": true,
-      "price": 8.0,
-      "description": "Build your own pizza, first topping is free!",
-      "snoozed": false,
-      "id": "ITEM-0044",
-      "plu": "PIZZ-00"
-    },
-    {
-      "name": "The Hawaiian",
-      "reference_handler": "PIZZ-01",
-      "available": true,
-      "price": 8.0,
-      "description": "Italy's favourite Pizza!",
-      "snoozed": false,
-      "id": "ITEM-0045",
-      "plu": "PIZZ-01"
-    },
-    {
-      "name": "Build a Poke Bowl",
-      "reference_handler": "P-PB-01",
-      "available": true,
-      "price": 10.0,
-      "description": "Select a size then choose your ingredients",
-      "snoozed": false,
-      "id": "ITEM-0046",
-      "plu": "P-PB-01"
+    "snoozedProducts": { // Dictionary of currently snoozed items by PLU
+      // Example if "RICE-01" was snoozed:
+      // "RICE-01": {
+      //   "plu": "RICE-01",
+      //   "name": "White Rice",
+      //   "snoozeStart": "...",
+      //   "snoozeEnd": "..."
+      // }
     }
-  ],
-  "modifiers": [],
-  "modifierGroups": [],
-  "name_variants": {
-    "rare": "Medium Rare",
-    "medium rare": "Medium Rare",
-    "medium": "Medium Rare",
-    "well done": "Well Done",
-    "well": "Well Done",
-    "done": "Well Done",
-    "fries": "Seasoned Fries",
-    "salad": "Salad",
-    "mashed potato": "Mashed Potato",
-    "mashed": "Mashed Potato",
-    "potato": "Mashed Potato",
-    "sashimi": "Sashimi",
-    "sate sauce": "Sate Sauce",
-    "sate": "Chicken Sate",
-    "sauce": "Hot Sauce",
-    "hot sauce": "Hot Sauce",
-    "pepperoni": "Pepperoni",
-    "bacon": "Bacon",
-    "red onion": "Red Onion",
-    "onion": "Red Onion",
-    "mushroom": "Mushroom",
-    "red pepper": "Red Pepper",
-    "pepper": "Red Pepper",
-    "chicken burger": "Chicken Burger",
-    "chicken": "Chicken Tenders",
-    "burger": "Burger Combo (Drink not Included)",
-    "cheeseburger": "Cheeseburger",
-    "veggie burger": "Veggie Burger",
-    "veggie": "Veggie Burger",
-    "french fries": "French Fries",
-    "french": "French Fries",
-    "curly fries": "Curly Fries",
-    "curly": "Curly Fries",
-    "seasoned fries": "Seasoned Fries",
-    "seasoned": "Seasoned Fries",
-    "coca cola ": "Coca Cola ",
-    "coca": "Coca Cola ",
-    "cola": "Coca Cola ",
-    "coca cola": "Coca Cola ",
-    "diet coke": "Diet Coke",
-    "diet": "Diet Coke",
-    "coke": "Diet Coke",
-    "ginger beer": "Ginger Beer",
-    "ginger": "Ginger Beer",
-    "beer": "Ginger Beer",
-    "white rice": "White Rice",
-    "white": "White Rice",
-    "rice": "Sushi Rice",
-    "yellow rice": "Yellow Rice",
-    "yellow": "Yellow Rice",
-    "egg noodles": "Egg Noodles",
-    "noodles": "Ramen Noodles",
-    "ramen noodles": "Ramen Noodles",
-    "ramen": "Ramen Noodles",
-    "3 pieces": "3 Pieces",
-    "pieces": "9 Pieces",
-    "6 pieces": "6 Pieces",
-    "9 pieces": "9 Pieces",
-    "yuzu salmon": "Yuzu Salmon",
-    "yuzu": "Yuzu Salmon",
-    "salmon": "Yuzu Salmon",
-    "spicy tuna": "Spicy Tuna",
-    "spicy": "Spicy Tofu",
-    "tuna": "Spicy Tuna",
-    "teriyaki chicken": "Teriyaki Chicken",
-    "teriyaki": "Teriyaki Chicken",
-    "mini poke bowl": "Mini Poke Bowl",
-    "mini": "Mini Poke Bowl",
-    "poke": "Build a Poke Bowl",
-    "bowl": "Build a Poke Bowl",
-    "mini poke": "Mini Poke Bowl",
-    "poke bowl": "Build a Poke Bowl",
-    "large poke bowl": "Large Poke Bowl",
-    "large": "Large Poke Bowl",
-    "large poke": "Large Poke Bowl",
-    "sushi rice": "Sushi Rice",
-    "sushi": "Sushi Rice",
-    "cruncy cabbage slaw": "Cruncy Cabbage Slaw",
-    "cruncy": "Cruncy Cabbage Slaw",
-    "cabbage": "Cruncy Cabbage Slaw",
-    "slaw": "Cruncy Cabbage Slaw",
-    "cruncy cabbage": "Cruncy Cabbage Slaw",
-    "cabbage slaw": "Cruncy Cabbage Slaw",
-    "spicy tofu": "Spicy Tofu",
-    "tofu": "Spicy Tofu",
-    "crispy onions": "Crispy Onions",
-    "crispy": "Crispy Onions",
-    "onions": "Crispy Onions",
-    "smashed avocado": "Smashed Avocado",
-    "smashed": "Smashed Avocado",
-    "avocado": "Smashed Avocado",
-    "burger combo (drink not included)": "Burger Combo (Drink not Included)",
-    "combo": "Burger Combo (Drink not Included)",
-    "(drink": "Burger Combo (Drink not Included)",
-    "included)": "Burger Combo (Drink not Included)",
-    "burger combo": "Burger Combo (Drink not Included)",
-    "combo (drink": "Burger Combo (Drink not Included)",
-    "(drink not": "Burger Combo (Drink not Included)",
-    "not included)": "Burger Combo (Drink not Included)",
-    "delicious steak frites": "Delicious Steak Frites",
-    "delicious": "Delicious Steak Frites",
-    "steak": "Delicious Steak Frites",
-    "frites": "Delicious Steak Frites",
-    "delicious steak": "Delicious Steak Frites",
-    "steak frites": "Delicious Steak Frites",
-    "chicken sate": "Chicken Sate",
-    "chicken tenders": "Chicken Tenders",
-    "tenders": "Chicken Tenders",
-    "build your own pizza": "Build your own Pizza",
-    "build": "Build a Poke Bowl",
-    "your": "Build your own Pizza",
-    "pizza": "Build your own Pizza",
-    "build your": "Build your own Pizza",
-    "your own": "Build your own Pizza",
-    "own pizza": "Build your own Pizza",
-    "the hawaiian": "The Hawaiian",
-    "hawaiian": "The Hawaiian",
-    "build a poke bowl": "Build a Poke Bowl",
-    "build a": "Build a Poke Bowl",
-    "a poke": "Build a Poke Bowl"
+    // ... other top-level fields (translations, tags, etc.)
   }
-}
+]
+
+// Derived Name Variants Mapping (Stored in DB `menu_name_variants` table)
+// This structure helps the `lookup_menu_item` tool resolve user input.
+// Key: lowercase user phrase, Value: { canonical_name: string, target_plu: string }
+const name_variants_example = {
+  "rare": { "canonical_name": "Rare", "target_plu": "COOK-01" }, // Maps to modifier
+  "medium rare": { "canonical_name": "Medium Rare", "target_plu": "COOK-02" }, // Maps to modifier
+  "medium": { "canonical_name": "Medium Rare", "target_plu": "COOK-02" },
+  "fries": { "canonical_name": "Seasoned Fries", "target_plu": "P-FRS-L" }, // Example mapping to a specific fries type
+  "salad": { "canonical_name": "Salad", "target_plu": "SI-02" }, // Maps to modifier
+  "chicken tenders": { "canonical_name": "Chicken Tenders", "target_plu": "VAR-PROD-1" }, // Maps to base product
+  "3 pieces": { "canonical_name": "3 Pieces", "target_plu": "VAR-1-#V0#-" }, // Maps to variant item
+  "6 pieces": { "canonical_name": "6 Pieces", "target_plu": "VAR-2-#V300#-" },
+  "coke": { "canonical_name": "Coca Cola", "target_plu": "DRNK-01" }, // Maps to product
+  "diet coke": { "canonical_name": "Diet Coke", "target_plu": "DRNK-02" },
+  // ... many more mappings derived from item/modifier names and potential synonyms ...
+};
+Appendix B: Deliverect Menu Glossary (Selected Fields)
+This glossary defines key fields found within the Deliverect Menu Update payload (referenced in Appendix A). Fields marked with * are always present.
+
+Top Level:
+
+menu (string): Name of the menu.
+menuId (string): Internal Deliverect menu ID.
+channelLinkId (string): ID for the specific store link this menu applies to.
+currency (integer): Currency code (e.g., 1 might be EUR, lookup needed).
+menuType (integer): 0=Delivery/Pickup, 1=Delivery, 2=Pickup, 3=Eat-in, 4=Curbside.
+availabilities (array[object]): Store opening times.
+dayOfWeek (integer): 1=Monday to 7=Sunday.
+startTime, endTime (string): "HH:MM" format, local time.
+categories (array[object]): List of menu categories.
+products (object): Dictionary mapping item _id to product details.
+modifierGroups (object): Dictionary mapping group _id to group details.
+modifiers (object): Dictionary mapping modifier _id to modifier details.
+snoozedProducts (object): Dictionary mapping PLU to details for currently snoozed items.
+Categories:
+
+_id (string): Deliverect category ID.
+name (string): Category name.
+subProducts (array[string]): List of item _ids belonging to this category.
+Items (Products/Modifiers/Groups - Common Fields):
+
+_id (string): Deliverect's internal ID for this specific item instance in the menu structure.
+name (string): Item/Group/Modifier name.
+description (string): Description text.
+plu (string): CRITICAL unique identifier used for ordering.
+price (integer): Price in cents (often 0 for modifiers/variants, representing a price difference).
+productType (integer): 1=Product, 2=Modifier, 3=Modifier Group.
+imageUrl (string): URL for an image.
+subProducts (array[string]): For Products, lists associated Modifier Group _ids. For Groups, lists associated Modifier or Variant Item _ids.
+snoozed (boolean): Whether the item is currently snoozed.
+deliveryTax, takeawayTax, eatInTax (integer): Tax rates (e.g., 5000 = 5.000%).
+parentId (string): The _id of the group or product this item belongs to within the subProducts list.
+Modifier Groups Specific:
+
+min (integer): Minimum number of selections required from the group.
+max (integer): Maximum number of selections allowed (0 = unlimited).
+multiMax (integer): Maximum quantity allowed for any single modifier within the group (0 = unlimited).
+isVariantGroup (boolean): True if this group defines product variants (like sizes).
+Products Specific:
+
+isCombo (boolean): True if this is a meal deal/combo product.
+isVariant (boolean): True if this product's price/options are determined by selecting from a Variant Group.
+Modifiers Specific:
+
+defaultQuantity (integer): If > 0, this modifier is pre-selected (usually 1).
 ```
