@@ -607,7 +607,7 @@ def handle_menu_questions():
                 
         # Use the search_results from the analysis if available
         if "search_results" in analysis and analysis["search_results"]:
-                    search_results = analysis["search_results"]
+            search_results = analysis["search_results"]
         else:
                     # Otherwise perform a search
             search_results = menu_tool.search_menu(menu_query)
@@ -653,8 +653,8 @@ def handle_menu_questions():
                 reply = result.choices[0].message.content.strip()
         
         # Say the reply and offer to continue the conversation
-        response = VoiceResponse()
-        response.say(reply)
+                response = VoiceResponse()
+                response.say(reply)
         
         # Add a gather to continue the conversation
         with response.gather(
