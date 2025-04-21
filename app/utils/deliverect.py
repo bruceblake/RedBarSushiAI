@@ -27,6 +27,7 @@ def process_deliverect_menu(menu_data):
     - Deeply nested menu structures
     - Simple product lists
     - Modifiers and modifier groups
+    - Both direct API responses and webhook event formats
 
     Args:
         menu_data: The menu data from Deliverect API
@@ -35,6 +36,59 @@ def process_deliverect_menu(menu_data):
         dict: Processed menu data in the standard internal format
     """
     logger.info("Processing Deliverect menu data")
+    
+    # Debug log the structure of the data
+    if isinstance(menu_data, dict):
+        logger.info(f"Menu data is a dictionary with keys: {list(menu_data.keys())}")
+        for key in menu_data.keys():
+            logger.info(f"Type of {key}: {type(menu_data[key])}")
+            if isinstance(menu_data[key], (list, dict)):
+                logger.info(f"Length of {key}: {len(menu_data[key])}")
+                
+                # Examine the first few elements for better debugging 
+                if isinstance(menu_data[key], list) and len(menu_data[key]) > 0:
+                    sample = menu_data[key][0]
+                    if isinstance(sample, dict):
+                        logger.info(f"Sample of {key} list has keys: {list(sample.keys())}")
+                        # Check if it has subProducts or modifiers
+                        if "subProducts" in sample:
+                            logger.info(f"Sample has subProducts, type: {type(sample['subProducts'])}")
+                            if isinstance(sample["subProducts"], list):
+                                logger.info(f"subProducts length: {len(sample['subProducts'])}")
+                        if "modifiers" in sample:
+                            logger.info(f"Sample has modifiers, type: {type(sample['modifiers'])}")
+                        if "modifierGroups" in sample:
+                            logger.info(f"Sample has modifierGroups, type: {type(sample['modifierGroups'])}")
+                
+                # If this is a dictionary of objects with ids, this is likely a dictionary-based collection
+                elif isinstance(menu_data[key], dict) and all(isinstance(v, dict) for v in menu_data[key].values()):
+                    logger.info(f"{key} appears to be a dictionary-based collection")
+                    sample_key = next(iter(menu_data[key]))
+                    sample = menu_data[key][sample_key]
+                    logger.info(f"Sample of {key} dict has keys: {list(sample.keys())}")
+                    # Check if it has subProducts or modifiers
+                    if "subProducts" in sample:
+                        logger.info(f"Sample has subProducts, type: {type(sample['subProducts'])}")
+                        if isinstance(sample["subProducts"], list):
+                            logger.info(f"subProducts length: {len(sample['subProducts'])}")
+                    if "modifiers" in sample:
+                        logger.info(f"Sample has modifiers, type: {type(sample['modifiers'])}")
+                    if "modifierGroups" in sample:
+                        logger.info(f"Sample has modifierGroups, type: {type(sample['modifierGroups'])}")
+    elif isinstance(menu_data, list):
+        logger.info(f"Menu data is a list of length {len(menu_data)}")
+        if len(menu_data) > 0:
+            logger.info(f"First item is a {type(menu_data[0])}")
+            if isinstance(menu_data[0], dict):
+                logger.info(f"First item keys: {list(menu_data[0].keys())}")
+                
+                # Check if it has subProducts or modifiers
+                if "subProducts" in menu_data[0]:
+                    logger.info(f"First item has subProducts, type: {type(menu_data[0]['subProducts'])}")
+                if "modifiers" in menu_data[0]:
+                    logger.info(f"First item has modifiers, type: {type(menu_data[0]['modifiers'])}")
+                if "modifierGroups" in menu_data[0]:
+                    logger.info(f"First item has modifierGroups, type: {type(menu_data[0]['modifierGroups'])}")
 
     # Initialize the result structure
     result = {
@@ -49,180 +103,288 @@ def process_deliverect_menu(menu_data):
             "modifiers": {}
         }
     }
-
-    # Handle the case where menu_data is a list
-    if isinstance(menu_data, list):
-        # Check if this is a simple list of product objects
-        if all(
-            isinstance(item, dict) and "name" in item and "price" in item
-            for item in menu_data
-        ):
-            # Process direct list of products
-            for product in menu_data:
-                if _is_valid_product(product):
-                    # Store raw product data for relationship processing
-                    if "_id" in product:
-                        result["_raw_data"]["products"][product["_id"]] = product
+    
+    # Check for various standard Deliverect webhooks and API response formats
+    
+    # Format 1: Standard webhook event format with type and data.menu
+    if (isinstance(menu_data, dict) and 
+        "type" in menu_data and 
+        "data" in menu_data and 
+        isinstance(menu_data["data"], dict) and 
+        "menu" in menu_data["data"]):
+        logger.info(f"Found standard Deliverect webhook event format with type: {menu_data.get('type')}")
+        menu_data = menu_data["data"]["menu"]
+        
+    # Format 2: Async webhook format with body.menus
+    elif (isinstance(menu_data, dict) and 
+          "body" in menu_data and 
+          isinstance(menu_data["body"], dict) and 
+          "menus" in menu_data["body"]):
+        logger.info("Found Deliverect async webhook format with body.menus")
+        menus = menu_data["body"]["menus"]
+        if isinstance(menus, list) and len(menus) > 0:
+            # Extract the first menu
+            menu_data = menus[0]
+            logger.info(f"Using first menu from async format with keys: {list(menu_data.keys()) if isinstance(menu_data, dict) else 'Not a dict'}")
+            
+    # Format 3: Channel webhook format
+    elif (isinstance(menu_data, dict) and 
+          "channels" in menu_data and 
+          isinstance(menu_data["channels"], (list, dict))):
+        logger.info("Found Deliverect channel webhook format")
+        channels = menu_data["channels"]
+        
+        # Extract menu data from channels
+        if isinstance(channels, list) and len(channels) > 0:
+            # Find the first channel with a menu
+            for channel in channels:
+                if isinstance(channel, dict) and "menu" in channel:
+                    logger.info("Found menu in channel")
+                    menu_data = channel["menu"]
+                    break
+        elif isinstance(channels, dict):
+            # Check if any channel has a menu
+            for channel_id, channel in channels.items():
+                if isinstance(channel, dict) and "menu" in channel:
+                    logger.info(f"Found menu in channel {channel_id}")
+                    menu_data = channel["menu"]
+                    break
                     
-                    item = _convert_product_to_item(product)
-                    if item:
-                        result["items"].append(item)
-                        _add_name_variants(result["name_variants"], item["name"])
-        else:
-            # It's a complex structure, try to find products recursively
-            for item in menu_data:
-                if isinstance(item, dict):
-                    # Look for categories directly
-                    categories = item.get("categories", [])
-                    if categories and isinstance(categories, list):
-                        for category in categories:
-                            _process_category(category, result)
-
-                    # Look for menu with categories
-                    menu = item.get("menu", {})
-                    if menu and isinstance(menu, dict):
-                        menu_categories = menu.get("categories", [])
-                        if menu_categories and isinstance(menu_categories, list):
-                            for category in menu_categories:
-                                _process_category(category, result)
-
-                    # Extract products directly if available
-                    products = item.get("products", {})
-                    if isinstance(products, dict) and products:
-                        logger.info(f"Found {len(products)} products in Deliverect format")
-                        for prod_id, prod_data in products.items():
-                            # Store raw product for relationship processing
-                            result["_raw_data"]["products"][prod_id] = prod_data
-                            
-                            # Process the product
-                            if _is_valid_product(prod_data):
-                                # Ensure the product has an _id field for reference
-                                if "_id" not in prod_data:
-                                    prod_data["_id"] = prod_id
-                                
-                                item = _convert_product_to_item(prod_data)
-                                if item and not any(
-                                    existing["name"] == item["name"] for existing in result["items"]
-                                ):
-                                    result["items"].append(item)
-                                    _add_name_variants(result["name_variants"], item["name"])
-                                    
-                    # Extract modifier groups directly if available
-                    mod_groups = item.get("modifierGroups", {})
-                    if isinstance(mod_groups, dict) and mod_groups:
-                        logger.info(f"Found {len(mod_groups)} modifier groups in Deliverect format")
-                        # Store raw modifier groups for relationship processing
-                        for group_id, group_data in mod_groups.items():
-                            result["_raw_data"]["modifierGroups"][group_id] = group_data
-                        
-                        _process_modifier_groups(mod_groups, result)
-                    
-                    # Extract modifiers directly if available
-                    mods = item.get("modifiers", {})
-                    if isinstance(mods, dict) and mods:
-                        logger.info(f"Found {len(mods)} modifiers in Deliverect format")
-                        # Store raw modifiers for relationship processing
-                        for mod_id, mod_data in mods.items():
-                            result["_raw_data"]["modifiers"][mod_id] = mod_data
-                            
-                        _process_modifiers(mods, result)
-                    
-                    # Recursively scan for products in any structure
-                    _recursively_find_products(item, result)
-
-    # Handle the case where menu_data is a dict
-    elif isinstance(menu_data, dict):
-        # Check if this is a direct product
-        if "name" in menu_data and "price" in menu_data:
-            if _is_valid_product(menu_data):
-                # Store raw product data for relationship processing
-                if "_id" in menu_data:
-                    result["_raw_data"]["products"][menu_data["_id"]] = menu_data
-                
-                item = _convert_product_to_item(menu_data)
-                if item:
-                    result["items"].append(item)
-                    _add_name_variants(result["name_variants"], item["name"])
-        else:
-            # Look for categories directly
-            categories = menu_data.get("categories", [])
-            if categories and isinstance(categories, list):
-                for category in categories:
-                    _process_category(category, result)
-
-            # Look for menu with categories
-            menu = menu_data.get("menu", {})
-            if menu and isinstance(menu, dict):
-                menu_categories = menu.get("categories", [])
-                if menu_categories and isinstance(menu_categories, list):
-                    for category in menu_categories:
-                        _process_category(category, result)
-
-            # Process products directly if available
-            products = menu_data.get("products", {})
-            if isinstance(products, dict) and products:
-                logger.info(f"Found {len(products)} products in Deliverect format")
-                for prod_id, prod_data in products.items():
+    # Format 4: Direct menu object with channel and menu
+    elif (isinstance(menu_data, dict) and 
+          "channel" in menu_data and 
+          "menu" in menu_data and 
+          isinstance(menu_data["menu"], dict)):
+        logger.info("Found direct menu object with channel and menu")
+        menu_data = menu_data["menu"]
+    
+    # Handle case where the data is in standard Deliverect format with top-level keys
+    # (categories, products, modifierGroups, modifiers)
+    if isinstance(menu_data, dict) and any(key in menu_data for key in ["categories", "products", "modifierGroups", "modifiers"]):
+        logger.info("Found standard Deliverect menu format with top-level keys")
+        
+        # Process categories if present
+        if "categories" in menu_data and isinstance(menu_data["categories"], list):
+            logger.info(f"Processing {len(menu_data['categories'])} categories from top level")
+            for category in menu_data["categories"]:
+                _process_category(category, result)
+        
+        # Process products if present as a dictionary
+        if "products" in menu_data:
+            if isinstance(menu_data["products"], dict):
+                logger.info(f"Processing {len(menu_data['products'])} products from top level (dict)")
+                for prod_id, prod_data in menu_data["products"].items():
                     # Store raw product for relationship processing
+                    if not isinstance(prod_data, dict):
+                        logger.warning(f"Skipping non-dict product: {prod_id}")
+                        continue
+                        
                     result["_raw_data"]["products"][prod_id] = prod_data
+                    
+                    # Ensure the product has an _id field for reference
+                    if "_id" not in prod_data:
+                        prod_data["_id"] = prod_id
                     
                     # Process the product
                     if _is_valid_product(prod_data):
-                        # Ensure the product has an _id field for reference
-                        if "_id" not in prod_data:
-                            prod_data["_id"] = prod_id
-                        
                         item = _convert_product_to_item(prod_data)
                         if item and not any(
                             existing["name"] == item["name"] for existing in result["items"]
                         ):
                             result["items"].append(item)
                             _add_name_variants(result["name_variants"], item["name"])
-            
-            # Process modifiers and modifier groups if present
-            # First check for nested modifierGroups dictionary
-            modifier_groups = menu_data.get("modifierGroups", {})
-            if isinstance(modifier_groups, dict) and modifier_groups:
-                logger.info(f"Found {len(modifier_groups)} modifier groups in Deliverect format")
+            elif isinstance(menu_data["products"], list):
+                logger.info(f"Processing {len(menu_data['products'])} products from top level (list)")
+                for prod_data in menu_data["products"]:
+                    if not isinstance(prod_data, dict):
+                        continue
+                        
+                    # Store raw product for relationship processing
+                    if "_id" in prod_data:
+                        result["_raw_data"]["products"][prod_data["_id"]] = prod_data
+                    elif "id" in prod_data:
+                        result["_raw_data"]["products"][prod_data["id"]] = prod_data
+                    
+                    # Process the product
+                    if _is_valid_product(prod_data):
+                        item = _convert_product_to_item(prod_data)
+                        if item and not any(
+                            existing["name"] == item["name"] for existing in result["items"]
+                        ):
+                            result["items"].append(item)
+                            _add_name_variants(result["name_variants"], item["name"])
+        
+        # Process modifier groups if present
+        if "modifierGroups" in menu_data:
+            if isinstance(menu_data["modifierGroups"], dict):
+                logger.info(f"Processing {len(menu_data['modifierGroups'])} modifier groups from top level (dict)")
                 # Store raw modifier groups for relationship processing
-                for group_id, group_data in modifier_groups.items():
+                for group_id, group_data in menu_data["modifierGroups"].items():
+                    if not isinstance(group_data, dict):
+                        logger.warning(f"Skipping non-dict modifier group: {group_id}")
+                        continue
+                        
                     result["_raw_data"]["modifierGroups"][group_id] = group_data
+                    
+                    # Ensure the group has an _id field for reference
+                    if "_id" not in group_data:
+                        group_data["_id"] = group_id
                 
-                _process_modifier_groups(modifier_groups, result)
-            
-            # Check if modifierGroups is an array
-            elif isinstance(menu_data.get("modifierGroups"), list):
-                logger.info(f"Found {len(menu_data.get('modifierGroups'))} modifier groups as array")
+                _process_modifier_groups(menu_data["modifierGroups"], result)
+            elif isinstance(menu_data["modifierGroups"], list):
+                logger.info(f"Processing {len(menu_data['modifierGroups'])} modifier groups from top level (list)")
                 # Store raw modifier groups for relationship processing
-                for group in menu_data.get("modifierGroups", []):
-                    if isinstance(group, dict) and "_id" in group:
+                for group in menu_data["modifierGroups"]:
+                    if not isinstance(group, dict):
+                        continue
+                        
+                    if "_id" in group:
                         result["_raw_data"]["modifierGroups"][group["_id"]] = group
+                    elif "id" in group:
+                        result["_raw_data"]["modifierGroups"][group["id"]] = group
                 
-                _process_modifier_groups_array(menu_data.get("modifierGroups"), result)
-
-            # Process modifiers if present
-            modifiers = menu_data.get("modifiers", {})
-            if isinstance(modifiers, dict) and modifiers:
-                logger.info(f"Found {len(modifiers)} modifiers in Deliverect format")
+                _process_modifier_groups_array(menu_data["modifierGroups"], result)
+        
+        # Process modifiers if present
+        if "modifiers" in menu_data:
+            if isinstance(menu_data["modifiers"], dict):
+                logger.info(f"Processing {len(menu_data['modifiers'])} modifiers from top level (dict)")
                 # Store raw modifiers for relationship processing
-                for mod_id, mod_data in modifiers.items():
+                for mod_id, mod_data in menu_data["modifiers"].items():
+                    if not isinstance(mod_data, dict):
+                        logger.warning(f"Skipping non-dict modifier: {mod_id}")
+                        continue
+                        
                     result["_raw_data"]["modifiers"][mod_id] = mod_data
+                    
+                    # Ensure the modifier has an _id field for reference
+                    if "_id" not in mod_data:
+                        mod_data["_id"] = mod_id
                 
-                _process_modifiers(modifiers, result)
-            
-            # Check if modifiers is an array
-            elif isinstance(menu_data.get("modifiers"), list):
-                logger.info(f"Found {len(menu_data.get('modifiers'))} modifiers as array")
+                _process_modifiers(menu_data["modifiers"], result)
+            elif isinstance(menu_data["modifiers"], list):
+                logger.info(f"Processing {len(menu_data['modifiers'])} modifiers from top level (list)")
                 # Store raw modifiers for relationship processing
-                for mod in menu_data.get("modifiers", []):
-                    if isinstance(mod, dict) and "_id" in mod:
+                for mod in menu_data["modifiers"]:
+                    if not isinstance(mod, dict):
+                        continue
+                        
+                    if "_id" in mod:
                         result["_raw_data"]["modifiers"][mod["_id"]] = mod
+                    elif "id" in mod:
+                        result["_raw_data"]["modifiers"][mod["id"]] = mod
                 
-                _process_modifiers_array(menu_data.get("modifiers"), result)
-
-            # Recursively scan for products in any structure
-            _recursively_find_products(menu_data, result)
-
+                _process_modifiers_array(menu_data["modifiers"], result)
+                
+        # Also check for options which might be modifiers in some formats
+        if "options" in menu_data and not "modifiers" in menu_data:
+            if isinstance(menu_data["options"], dict):
+                logger.info(f"Processing {len(menu_data['options'])} options as modifiers (dict)")
+                # Store raw modifiers for relationship processing
+                for mod_id, mod_data in menu_data["options"].items():
+                    if not isinstance(mod_data, dict):
+                        logger.warning(f"Skipping non-dict option: {mod_id}")
+                        continue
+                        
+                    result["_raw_data"]["modifiers"][mod_id] = mod_data
+                    
+                    # Ensure the modifier has an _id field for reference
+                    if "_id" not in mod_data:
+                        mod_data["_id"] = mod_id
+                
+                _process_modifiers(menu_data["options"], result)
+            elif isinstance(menu_data["options"], list):
+                logger.info(f"Processing {len(menu_data['options'])} options as modifiers (list)")
+                # Store raw modifiers for relationship processing
+                for mod in menu_data["options"]:
+                    if not isinstance(mod, dict):
+                        continue
+                        
+                    if "_id" in mod:
+                        result["_raw_data"]["modifiers"][mod["_id"]] = mod
+                    elif "id" in mod:
+                        result["_raw_data"]["modifiers"][mod["id"]] = mod
+                
+                _process_modifiers_array(menu_data["options"], result)
+    
+    # Handle the case where menu_data is a list
+    elif isinstance(menu_data, list):
+        # Check each item for specific formats
+        for i, item in enumerate(menu_data):
+            if not isinstance(item, dict):
+                continue
+                
+            # Check if this is the standard Deliverect format in array form
+            if "menu" in item and isinstance(item["menu"], dict):
+                logger.info(f"Found Deliverect menu at index {i}")
+                # Process this menu item recursively
+                sub_result = process_deliverect_menu(item["menu"])
+                
+                # Merge results
+                result["items"].extend(sub_result.get("items", []))
+                result["modifiers"].extend(sub_result.get("modifiers", []))
+                result["modifierGroups"].extend(sub_result.get("modifierGroups", []))
+                result["name_variants"].update(sub_result.get("name_variants", {}))
+                
+                # Also merge raw data
+                result["_raw_data"]["products"].update(sub_result.get("_raw_data", {}).get("products", {}))
+                result["_raw_data"]["modifierGroups"].update(sub_result.get("_raw_data", {}).get("modifierGroups", {}))
+                result["_raw_data"]["modifiers"].update(sub_result.get("_raw_data", {}).get("modifiers", {}))
+            
+            # Check for direct categories list
+            elif "categories" in item and isinstance(item["categories"], list):
+                logger.info(f"Found categories at index {i}")
+                for category in item["categories"]:
+                    _process_category(category, result)
+            
+            # Check if this is a simple list of product objects
+            elif "name" in item and ("price" in item or "id" in item or "_id" in item):
+                logger.info(f"Found direct product at index {i}")
+                if _is_valid_product(item):
+                    # Store raw product data for relationship processing
+                    if "_id" in item:
+                        result["_raw_data"]["products"][item["_id"]] = item
+                    elif "id" in item:
+                        result["_raw_data"]["products"][item["id"]] = item
+                    
+                    product_item = _convert_product_to_item(item)
+                    if product_item:
+                        result["items"].append(product_item)
+                        _add_name_variants(result["name_variants"], product_item["name"])
+            
+            # Check for modifier group
+            elif "productType" in item and item["productType"] == 3:
+                logger.info(f"Found direct modifier group at index {i}")
+                if "_id" in item:
+                    result["_raw_data"]["modifierGroups"][item["_id"]] = item
+                elif "id" in item:
+                    result["_raw_data"]["modifierGroups"][item["id"]] = item
+                    
+                # Process via the array processor which handles single objects
+                _process_modifier_groups_array([item], result)
+                
+            # Check for modifier
+            elif "productType" in item and item["productType"] == 2:
+                logger.info(f"Found direct modifier at index {i}")
+                if "_id" in item:
+                    result["_raw_data"]["modifiers"][item["_id"]] = item
+                elif "id" in item:
+                    result["_raw_data"]["modifiers"][item["id"]] = item
+                    
+                # Process via the array processor which handles single objects
+                _process_modifiers_array([item], result)
+            
+            # Recursively scan for complex structures
+            _recursively_find_products(item, result)
+    
+    # Special case - if we didn't find any items, modifiers, or groups yet,
+    # try one more recursive search through the entire data structure
+    if (len(result["items"]) == 0 and 
+        len(result["modifiers"]) == 0 and 
+        len(result["modifierGroups"]) == 0):
+        logger.info("No items, modifiers, or groups found yet - performing deep recursive search")
+        _recursively_find_products(menu_data, result, max_depth=15)  # Increase depth for thorough search
+    
     # Process relationships between products, modifier groups, and modifiers
     _process_relationships(result)
     
@@ -231,6 +393,17 @@ def process_deliverect_menu(menu_data):
         del result["_raw_data"]
 
     logger.info(f"Processed Deliverect menu: found {len(result['items'])} items, {len(result['modifiers'])} modifiers, {len(result['modifierGroups'])} modifier groups")
+    
+    # If we found no modifiers or modifier groups, log a warning
+    if len(result["modifiers"]) == 0 or len(result["modifierGroups"]) == 0:
+        logger.warning("WARNING: No modifiers or modifier groups found in the processed menu!")
+        
+        # Log the keys in the original data to help diagnose
+        if isinstance(menu_data, dict):
+            logger.warning(f"Original menu_data had keys: {list(menu_data.keys())}")
+        elif isinstance(menu_data, list):
+            logger.warning(f"Original menu_data was a list with {len(menu_data)} items")
+    
     return result
 
 
@@ -463,6 +636,34 @@ def _process_relationships(result):
         logger.warning("No raw data available for relationship processing")
         return
     
+    # Log raw data sizes for debugging
+    raw_products_count = len(result["_raw_data"]["products"])
+    raw_groups_count = len(result["_raw_data"]["modifierGroups"])
+    raw_modifiers_count = len(result["_raw_data"]["modifiers"])
+    logger.info(f"Raw data contains {raw_products_count} products, {raw_groups_count} modifier groups, and {raw_modifiers_count} modifiers")
+    
+    # Log a few sample raw data items for debugging
+    if raw_products_count > 0:
+        sample_key = next(iter(result["_raw_data"]["products"]))
+        sample_product = result["_raw_data"]["products"][sample_key]
+        logger.info(f"Sample raw product - ID: {sample_key}, Name: {sample_product.get('name', 'Unnamed')}")
+        
+        if "subProducts" in sample_product:
+            logger.info(f"  Product has subProducts: {sample_product['subProducts']}")
+            
+    if raw_groups_count > 0:
+        sample_key = next(iter(result["_raw_data"]["modifierGroups"]))
+        sample_group = result["_raw_data"]["modifierGroups"][sample_key]
+        logger.info(f"Sample raw modifier group - ID: {sample_key}, Name: {sample_group.get('name', 'Unnamed')}")
+        
+        if "subProducts" in sample_group:
+            logger.info(f"  Group has subProducts: {sample_group['subProducts']}")
+            
+    if raw_modifiers_count > 0:
+        sample_key = next(iter(result["_raw_data"]["modifiers"]))
+        sample_modifier = result["_raw_data"]["modifiers"][sample_key]
+        logger.info(f"Sample raw modifier - ID: {sample_key}, Name: {sample_modifier.get('name', 'Unnamed')}")
+    
     # First, build maps for easier lookups
     # ID -> Object index in the output arrays
     product_indices = {}   # _id -> index in items array
@@ -489,6 +690,11 @@ def _process_relationships(result):
         if "plu" in item and item["plu"] != item.get("reference_handler"):
             product_indices[item["plu"]] = idx
             product_refs[item["plu"]] = item["reference_handler"]
+            
+        # Also map by ID for more robust linking
+        if "id" in item:
+            product_indices[item["id"]] = idx
+            product_refs[item["id"]] = item["reference_handler"]
     
     # Build maps for modifier groups
     for idx, group in enumerate(result["modifierGroups"]):
@@ -510,6 +716,12 @@ def _process_relationships(result):
         if "plu" in group and group["plu"] != group.get("reference_handler"):
             group_indices[group["plu"]] = idx
             group_refs[group["plu"]] = group["reference_handler"]
+            
+        # Also store by name for name-based lookups (fallback)
+        if "name" in group:
+            group_id_by_name = f"name:{group['name'].lower()}"
+            group_indices[group_id_by_name] = idx
+            group_refs[group_id_by_name] = group["reference_handler"]
     
     # Build maps for modifiers
     for idx, modifier in enumerate(result["modifiers"]):
@@ -531,6 +743,12 @@ def _process_relationships(result):
         if "plu" in modifier and modifier["plu"] != modifier.get("reference_handler"):
             modifier_indices[modifier["plu"]] = idx
             modifier_refs[modifier["plu"]] = modifier["reference_handler"]
+            
+        # Also store by name for name-based lookups (fallback)
+        if "name" in modifier:
+            modifier_id_by_name = f"name:{modifier['name'].lower()}"
+            modifier_indices[modifier_id_by_name] = idx
+            modifier_refs[modifier_id_by_name] = modifier["reference_handler"]
     
     # Log mapping sizes for debugging
     logger.info(f"Built maps for {len(product_indices)} products, " +
@@ -571,18 +789,48 @@ def _process_relationships(result):
                         logger.debug(f"Linked product {item['name']} to modifier group ID {group_id} via subProducts")
         
         # Look up the raw product data to get more relationship info if needed
-        if item.get("deliverect_item_id") and item.get("deliverect_item_id") in result["_raw_data"]["products"]:
-            raw_product = result["_raw_data"]["products"][item["deliverect_item_id"]]
+        raw_product = None
+        deliverect_id = item.get("deliverect_item_id")
+        if deliverect_id and deliverect_id in result["_raw_data"]["products"]:
+            raw_product = result["_raw_data"]["products"][deliverect_id]
+        elif "id" in item and item["id"] in result["_raw_data"]["products"]:
+            raw_product = result["_raw_data"]["products"][item["id"]]
+        elif "reference_handler" in item and item["reference_handler"] in result["_raw_data"]["products"]:
+            raw_product = result["_raw_data"]["products"][item["reference_handler"]]
             
+        # Check the raw data for relationship info
+        if raw_product:
             # If we still don't have any modifier groups, check the raw data for more references
-            if not item["modifierGroups"] and "subProducts" in raw_product:
-                for group_id in raw_product["subProducts"]:
-                    if group_id in group_refs:
-                        # Add to modifierGroups using the reference_handler
-                        group_ref = group_refs[group_id]
-                        if group_ref not in item["modifierGroups"]:
-                            item["modifierGroups"].append(group_ref)
-                            logger.debug(f"Linked product {item['name']} to modifier group ID {group_id} via raw data")
+            if not item["modifierGroups"]:
+                # Check subProducts array
+                if "subProducts" in raw_product and isinstance(raw_product["subProducts"], list):
+                    for group_id in raw_product["subProducts"]:
+                        if group_id in group_refs:
+                            # Add to modifierGroups using the reference_handler
+                            group_ref = group_refs[group_id]
+                            if group_ref not in item["modifierGroups"]:
+                                item["modifierGroups"].append(group_ref)
+                                logger.debug(f"Linked product {item['name']} to modifier group ID {group_id} via raw data subProducts")
+                
+                # Check modifierGroups array
+                if "modifierGroups" in raw_product and isinstance(raw_product["modifierGroups"], list):
+                    for group_id in raw_product["modifierGroups"]:
+                        if group_id in group_refs:
+                            # Add to modifierGroups using the reference_handler
+                            group_ref = group_refs[group_id]
+                            if group_ref not in item["modifierGroups"]:
+                                item["modifierGroups"].append(group_ref)
+                                logger.debug(f"Linked product {item['name']} to modifier group ID {group_id} via raw data modifierGroups")
+                                
+                # Check groups array 
+                if "groups" in raw_product and isinstance(raw_product["groups"], list):
+                    for group_id in raw_product["groups"]:
+                        if group_id in group_refs:
+                            # Add to modifierGroups using the reference_handler
+                            group_ref = group_refs[group_id]
+                            if group_ref not in item["modifierGroups"]:
+                                item["modifierGroups"].append(group_ref)
+                                logger.debug(f"Linked product {item['name']} to modifier group ID {group_id} via raw data groups")
         
         # Clean up temporary fields
         if "deliverect_subProducts" in item:
@@ -614,32 +862,133 @@ def _process_relationships(result):
                         modifier = result["modifiers"][modifier_indices[modifier_id]]
                         modifier["parentId"] = group["reference_handler"]
                         logger.debug(f"Set parentId={group['reference_handler']} for modifier {modifier['name']}")
+            else:
+                # Check if we can find the modifier by name as a fallback
+                name_key = f"name:{modifier_id.lower()}" if isinstance(modifier_id, str) else None
+                if name_key and name_key in modifier_refs:
+                    mod_ref = modifier_refs[name_key]
+                    if mod_ref not in processed_modifiers:
+                        processed_modifiers.append(mod_ref)
+                        
+                        # Also update parentId in the modifier
+                        if name_key in modifier_indices:
+                            modifier = result["modifiers"][modifier_indices[name_key]]
+                            modifier["parentId"] = group["reference_handler"]
+                            logger.debug(f"Set parentId={group['reference_handler']} for modifier {modifier['name']} via name lookup")
         
         # Update with processed list
         group["modifiers"] = processed_modifiers
         
         # Look up raw group data to get more relationships if needed
-        if group.get("deliverect_group_id") and group.get("deliverect_group_id") in result["_raw_data"]["modifierGroups"]:
-            raw_group = result["_raw_data"]["modifierGroups"][group["deliverect_group_id"]]
+        raw_group = None
+        group_id = group.get("deliverect_group_id", group.get("id", group.get("reference_handler")))
+        if group_id and group_id in result["_raw_data"]["modifierGroups"]:
+            raw_group = result["_raw_data"]["modifierGroups"][group_id]
             
+        # Check the raw data for more modifier relationships
+        if raw_group:
             # If we don't have any modifiers yet, check raw data
-            if not group["modifiers"] and "subProducts" in raw_group:
-                for modifier_id in raw_group["subProducts"]:
-                    if modifier_id in modifier_refs:
-                        # Add modifier reference
-                        mod_ref = modifier_refs[modifier_id]
-                        if mod_ref not in group["modifiers"]:
-                            group["modifiers"].append(mod_ref)
-                            
-                            # Also update parentId in the modifier
-                            if modifier_id in modifier_indices:
-                                modifier = result["modifiers"][modifier_indices[modifier_id]]
-                                modifier["parentId"] = group["reference_handler"]
-                                logger.debug(f"Set parentId={group['reference_handler']} for modifier {modifier['name']} via raw data")
+            if not group["modifiers"]:
+                # Check subProducts array for modifier references
+                if "subProducts" in raw_group and isinstance(raw_group["subProducts"], list):
+                    for modifier_id in raw_group["subProducts"]:
+                        if modifier_id in modifier_refs:
+                            # Add modifier reference
+                            mod_ref = modifier_refs[modifier_id]
+                            if mod_ref not in group["modifiers"]:
+                                group["modifiers"].append(mod_ref)
+                                
+                                # Also update parentId in the modifier
+                                if modifier_id in modifier_indices:
+                                    modifier = result["modifiers"][modifier_indices[modifier_id]]
+                                    modifier["parentId"] = group["reference_handler"]
+                                    logger.debug(f"Set parentId={group['reference_handler']} for modifier {modifier['name']} via raw data subProducts")
+                
+                # Check modifiers array
+                if "modifiers" in raw_group and isinstance(raw_group["modifiers"], list):
+                    for modifier_id in raw_group["modifiers"]:
+                        if modifier_id in modifier_refs:
+                            # Add modifier reference
+                            mod_ref = modifier_refs[modifier_id]
+                            if mod_ref not in group["modifiers"]:
+                                group["modifiers"].append(mod_ref)
+                                
+                                # Also update parentId in the modifier
+                                if modifier_id in modifier_indices:
+                                    modifier = result["modifiers"][modifier_indices[modifier_id]]
+                                    modifier["parentId"] = group["reference_handler"]
+                                    logger.debug(f"Set parentId={group['reference_handler']} for modifier {modifier['name']} via raw data modifiers")
+                                    
+                # Check options array (another common name for modifiers)
+                if "options" in raw_group and isinstance(raw_group["options"], list):
+                    for modifier_id in raw_group["options"]:
+                        if modifier_id in modifier_refs:
+                            # Add modifier reference
+                            mod_ref = modifier_refs[modifier_id]
+                            if mod_ref not in group["modifiers"]:
+                                group["modifiers"].append(mod_ref)
+                                
+                                # Also update parentId in the modifier
+                                if modifier_id in modifier_indices:
+                                    modifier = result["modifiers"][modifier_indices[modifier_id]]
+                                    modifier["parentId"] = group["reference_handler"]
+                                    logger.debug(f"Set parentId={group['reference_handler']} for modifier {modifier['name']} via raw data options")
+        
+        # Log if a group doesn't have any modifiers after all processing
+        if not group["modifiers"]:
+            logger.warning(f"Modifier group '{group.get('name')}' with ID {group_id} has no modifiers after relationship processing")
         
         processed_groups += 1
     
-    # Step 3: Process variant relationships
+    # Step 3: Process inverse modifier -> group relationships
+    # Make sure every modifier has a parentId pointing to its group
+    orphan_modifiers = []
+    for idx, modifier in enumerate(result["modifiers"]):
+        # Skip modifiers that already have a parentId
+        if "parentId" in modifier and modifier["parentId"]:
+            continue
+            
+        # Try to find a parent group by checking groups' modifiers lists
+        found_parent = False
+        for group in result["modifierGroups"]:
+            if modifier.get("reference_handler") in group.get("modifiers", []):
+                modifier["parentId"] = group["reference_handler"]
+                found_parent = True
+                logger.debug(f"Set parentId={group['reference_handler']} for modifier {modifier['name']} via group's modifiers list")
+                break
+                
+        if not found_parent:
+            # This is an orphaned modifier
+            orphan_modifiers.append(modifier)
+    
+    if orphan_modifiers:
+        logger.warning(f"Found {len(orphan_modifiers)} orphaned modifiers with no parent group")
+        
+        # If we have orphans and no modifier groups, create a default one
+        if len(result["modifierGroups"]) == 0 and len(orphan_modifiers) > 0:
+            logger.info("Creating a default modifier group for orphaned modifiers")
+            default_group = {
+                "name": "Additions",
+                "reference_handler": "default-additions",
+                "id": "default-additions",
+                "minAllowed": 0,
+                "maxAllowed": 999,
+                "multiMax": 1,
+                "isVariantGroup": False,
+                "productType": 3,  # 3 = modifier group
+                "modifiers": []
+            }
+            
+            # Add all orphans to this group
+            for modifier in orphan_modifiers:
+                default_group["modifiers"].append(modifier["reference_handler"])
+                modifier["parentId"] = default_group["reference_handler"]
+                
+            # Add the group to the result
+            result["modifierGroups"].append(default_group)
+            logger.info(f"Added default modifier group with {len(default_group['modifiers'])} orphaned modifiers")
+    
+    # Step 4: Process variant relationships
     # Some items are variants with special reference to variant groups
     processed_variants = 0
     for item in result["items"]:
@@ -666,6 +1015,51 @@ def _process_relationships(result):
                     logger.debug(f"Linked variant {item['name']} to variant group {item['variantGroup']} via modifiers list")
                     processed_variants += 1
     
+    # Step 5: Link everything to the menu
+    # Make sure every menu item has at least one modifier group linked
+    # Only if we have modifier groups but some products don't reference them
+    if len(result["modifierGroups"]) > 0:
+        # Find a default "Additions" group if it exists, or create one
+        additions_group = None
+        for group in result["modifierGroups"]:
+            if group["name"] in ["Additions", "Options", "Add-Ons", "Extras"]:
+                additions_group = group
+                break
+                
+        if not additions_group and len(result["modifiers"]) > 0:
+            # Create a default additions group if we have orphaned modifiers
+            logger.info("Creating a default Additions group for all menu items")
+            additions_group = {
+                "name": "Additions",
+                "reference_handler": "default-additions",
+                "id": "default-additions",
+                "minAllowed": 0,
+                "maxAllowed": 999,
+                "multiMax": 1,
+                "isVariantGroup": False,
+                "productType": 3,  # 3 = modifier group
+                "modifiers": []
+            }
+            
+            # Add all modifiers that aren't in any other group
+            for modifier in result["modifiers"]:
+                # Check if modifier is already in another group
+                in_other_group = False
+                for other_group in result["modifierGroups"]:
+                    if modifier["reference_handler"] in other_group.get("modifiers", []):
+                        in_other_group = True
+                        break
+                        
+                # If not in another group, add to this one
+                if not in_other_group:
+                    additions_group["modifiers"].append(modifier["reference_handler"])
+                    modifier["parentId"] = additions_group["reference_handler"]
+                    
+            # Only add the group if it has modifiers
+            if additions_group["modifiers"]:
+                result["modifierGroups"].append(additions_group)
+                logger.info(f"Added default Additions group with {len(additions_group['modifiers'])} modifiers")
+    
     # Log the results
     logger.info(f"Processed relationships for {processed_products} products, {processed_groups} modifier groups, and {processed_variants} variants")
     
@@ -680,11 +1074,11 @@ def _process_relationships(result):
             
     for modifier in result["modifiers"]:
         if "deliverect_modifier_id" in modifier:
-            del item["deliverect_modifier_id"]
+            del modifier["deliverect_modifier_id"]
 
 
 def _process_category(category, result):
-    """Process a category and extract its products."""
+    """Process a category and extract its products, modifiers, and modifier groups."""
     if not isinstance(category, dict):
         return
 
@@ -705,17 +1099,10 @@ def _process_category(category, result):
             # Sometimes Deliverect uses subProducts instead of products for categories
             products = subproducts
 
-    # Skip empty categories
-    if not products:
-        return
-
-    # The test cases expect only products, not categories
-    # Skip adding categories as items in test environments
+    # Add the category itself as a menu item if it has a name and ID (except in test environments)
     import sys
     is_test = "pytest" in sys.modules
-
-    # Add the category itself as a menu item if it has a name and ID
-    # Only in non-test environments
+    
     if category_name and category_id and not is_test:
         category_item = {
             "name": category_name,
@@ -730,14 +1117,108 @@ def _process_category(category, result):
             result["items"].append(category_item)
             _add_name_variants(result["name_variants"], category_name)
 
-    # Process products in the category
+    # Special handling for Extra/Add-on categories - these often contain modifiers
+    is_extras_category = False
+    if category_name and category_name.lower() in ["extras", "add extras", "add-ons", "toppings", "additions"]:
+        is_extras_category = True
+        logger.info(f"Found extras category: {category_name} - checking for modifiers")
+        
+        # Create a default modifier group for this extras category
+        extras_group = {
+            "name": category_name,
+            "reference_handler": f"modgroup-{category_id or 'extras'}",
+            "id": category_id or f"extras-{len(result['modifierGroups'])}",
+            "minAllowed": 0,
+            "maxAllowed": 999,
+            "multiMax": 1,
+            "productType": 3,  # 3 = modifier group
+            "modifiers": [],
+            "deliverect_group_id": category_id,
+        }
+
+    # Process products in the category - either as menu items or as modifiers
+    # based on the category type and cost
     if isinstance(products, list):
+        # For extras categories, these might actually be modifiers in product form
+        if is_extras_category:
+            # Check if we should process these as modifiers based on price
+            all_low_price = True
+            for product in products:
+                if isinstance(product, dict) and product.get("price", 0) > 300:  # > $3.00
+                    all_low_price = False
+                    break
+                    
+            if all_low_price:
+                logger.info(f"Processing extras category {category_name} as modifiers")
+                
+                # Create a modifier group for all these extras
+                extras_group = {
+                    "name": category_name,
+                    "reference_handler": f"modgroup-{category_id or 'extras'}",
+                    "id": category_id or f"extras-{len(result['modifierGroups'])}",
+                    "minAllowed": 0,
+                    "maxAllowed": 999,
+                    "multiMax": 1,
+                    "productType": 3,  # 3 = modifier group
+                    "modifiers": [],
+                    "deliverect_group_id": category_id,
+                }
+                
+                # Add all products as modifiers
+                for product in products:
+                    if _is_valid_product(product):
+                        # Create a modifier from this product
+                        modifier = {
+                            "name": product.get("name", ""),
+                            "reference_handler": product.get("plu", product.get("id", product.get("_id", f"mod-{len(result['modifiers'])}"))),
+                            "id": product.get("id", product.get("_id", f"mod-{len(result['modifiers'])}")),
+                            "price": (product.get("price", 0) / 100) if product.get("price") else 0,  # Convert from cents
+                            "parentId": extras_group["reference_handler"],
+                            "productType": 2,  # 2 = modifier
+                            "deliverect_modifier_id": product.get("id", product.get("_id", "")),
+                            "available": not product.get("snoozed", False),
+                        }
+                        
+                        # Ensure PLU is stored for Deliverect compatibility
+                        if "plu" in product:
+                            modifier["plu"] = product["plu"]
+                            
+                        # Add description if available
+                        if "description" in product:
+                            modifier["description"] = product["description"]
+                            
+                        # Add to modifiers
+                        result["modifiers"].append(modifier)
+                        
+                        # Add reference to the modifier group
+                        extras_group["modifiers"].append(modifier["reference_handler"])
+                        
+                        # Add name variants for modifiers
+                        _add_name_variants(result["name_variants"], modifier["name"])
+                        
+                        # Also store raw modifier data
+                        if isinstance(product, dict) and ("_id" in product or "id" in product):
+                            mod_id = product.get("_id", product.get("id", ""))
+                            if mod_id:
+                                result["_raw_data"]["modifiers"][mod_id] = product
+                                
+                # Add the extras group to modifier groups
+                result["modifierGroups"].append(extras_group)
+                
+                # Store raw modifier group data
+                result["_raw_data"]["modifierGroups"][extras_group["id"]] = extras_group
+                
+                # Exit early since we've processed all products as modifiers
+                return
+            
         # Process each product in the category (traditional format)
         for product in products:
             if _is_valid_product(product):
                 # Store raw product data for relationship processing
                 if isinstance(product, dict) and "_id" in product:
                     result["_raw_data"]["products"][product["_id"]] = product
+                elif isinstance(product, dict) and "id" in product:
+                    result["_raw_data"]["products"][product["id"]] = product
                 
                 # Add category info to the product
                 if category_name and isinstance(product, dict):
@@ -785,13 +1266,57 @@ def _process_category(category, result):
 
 
 def _recursively_find_products(data, result, max_depth=10, current_depth=0):
-    """Recursively search for products in nested structures."""
+    """
+    Recursively search for products, modifiers, and modifier groups in nested structures.
+    This enhanced version more thoroughly scans for all elements in complex nested structures.
+    """
     if current_depth >= max_depth:
         return
 
     if isinstance(data, dict):
-        # Check if this could be a product
-        if "name" in data and ("price" in data or "id" in data):
+        # Check for modifier groups first (since items might be mistakenly identified)
+        is_modifier_group = False
+        if "productType" in data and data["productType"] == 3:
+            # This is a modifier group (productType 3)
+            is_modifier_group = True
+            logger.info(f"Found modifier group in recursion: {data.get('name', 'Unnamed')} with ID {data.get('_id', data.get('id', 'No ID'))}")
+            
+            # Store in raw data for relationship processing
+            if "_id" in data:
+                result["_raw_data"]["modifierGroups"][data["_id"]] = data
+            elif "id" in data:
+                result["_raw_data"]["modifierGroups"][data["id"]] = data
+                
+            # Process it as a modifier group
+            group_data = {'temp': data}  # Wrap in dict for processing
+            _process_modifier_groups(group_data, result)
+            
+        # Check if this is a modifier 
+        is_modifier = False
+        if "productType" in data and data["productType"] == 2:
+            # This is a modifier (productType 2)
+            is_modifier = True
+            logger.info(f"Found modifier in recursion: {data.get('name', 'Unnamed')} with ID {data.get('_id', data.get('id', 'No ID'))}")
+            
+            # Store in raw data for relationship processing
+            if "_id" in data:
+                result["_raw_data"]["modifiers"][data["_id"]] = data
+            elif "id" in data:
+                result["_raw_data"]["modifiers"][data["id"]] = data
+                
+            # Process it as a modifier
+            mod_data = {'temp': data}  # Wrap in dict for processing
+            _process_modifiers(mod_data, result)
+
+        # Check if this could be a product (if not already identified as a modifier or group)
+        if not is_modifier and not is_modifier_group and "name" in data and ("price" in data or "id" in data or "_id" in data):
+            # Store raw data for relationship processing if it has an ID
+            if "_id" in data:
+                result["_raw_data"]["products"][data["_id"]] = data
+            elif "id" in data:
+                result["_raw_data"]["products"][data["id"]] = data
+                
+            # Process as a product if valid
             if _is_valid_product(data):
                 item = _convert_product_to_item(data)
                 if item and not any(
@@ -799,14 +1324,105 @@ def _recursively_find_products(data, result, max_depth=10, current_depth=0):
                 ):
                     result["items"].append(item)
                     _add_name_variants(result["name_variants"], item["name"])
+                    logger.info(f"Added product from recursion: {item['name']}")
 
-        # Look for products, dishes, items, etc.
+        # Handle nested objects specifically looking for modifierGroups or modifiers
+        # This helps find structures that might be nested in unusual ways
         for key, value in data.items():
-            if key in ["products", "dishes", "items", "menuItems"] and isinstance(
-                value, list
-            ):
+            # Check if this key might contain modifier groups or modifiers
+            if key.lower() in ["modifiergroups", "modifier_groups", "groups", "menugroups", "menu_groups"]:
+                if isinstance(value, dict):
+                    # Found modifier groups dictionary
+                    logger.info(f"Found modifier groups dictionary under key '{key}' with {len(value)} groups")
+                    for group_id, group_data in value.items():
+                        if isinstance(group_data, dict):
+                            # Store raw modifier group data
+                            result["_raw_data"]["modifierGroups"][group_id] = group_data
+                            logger.info(f"Added modifier group: {group_data.get('name', f'Group {group_id}')}")
+                    
+                    # Process all modifier groups
+                    _process_modifier_groups(value, result)
+                    
+                elif isinstance(value, list):
+                    # Found modifier groups array
+                    logger.info(f"Found modifier groups array under key '{key}' with {len(value)} groups")
+                    for group in value:
+                        if isinstance(group, dict):
+                            # Store raw modifier group data
+                            group_id = group.get("_id", group.get("id", ""))
+                            if group_id:
+                                result["_raw_data"]["modifierGroups"][group_id] = group
+                                logger.info(f"Added modifier group from array: {group.get('name', f'Group {group_id}')}")
+                    
+                    # Process all modifier groups
+                    _process_modifier_groups_array(value, result)
+            
+            # Check for modifiers collections
+            elif key.lower() in ["modifiers", "products", "options", "additions", "toppings"]:
+                if isinstance(value, dict):
+                    # Found modifiers dictionary
+                    logger.info(f"Found modifiers dictionary under key '{key}' with {len(value)} modifiers")
+                    for mod_id, mod_data in value.items():
+                        if isinstance(mod_data, dict):
+                            # Store raw modifier data
+                            result["_raw_data"]["modifiers"][mod_id] = mod_data
+                            logger.info(f"Added modifier: {mod_data.get('name', f'Modifier {mod_id}')}")
+                    
+                    # Process all modifiers
+                    _process_modifiers(value, result)
+                    
+                elif isinstance(value, list):
+                    # Found modifiers array
+                    logger.info(f"Found modifiers array under key '{key}' with {len(value)} modifiers")
+                    
+                    # Check if this list contains modifier objects or just IDs
+                    contains_objects = False
+                    contains_product_type_2 = False
+                    
+                    for item in value:
+                        if isinstance(item, dict):
+                            contains_objects = True
+                            if item.get("productType") == 2:
+                                contains_product_type_2 = True
+                                break
+                    
+                    # If we have product type 2, these are definitely modifiers
+                    if contains_product_type_2:
+                        logger.info(f"Found confirmed modifiers (productType=2) in array under key '{key}'")
+                        for mod in value:
+                            if isinstance(mod, dict) and mod.get("productType") == 2:
+                                # Store raw modifier data
+                                mod_id = mod.get("_id", mod.get("id", ""))
+                                if mod_id:
+                                    result["_raw_data"]["modifiers"][mod_id] = mod
+                                    logger.info(f"Added confirmed modifier: {mod.get('name', f'Modifier {mod_id}')}")
+                        
+                        # Process all modifiers
+                        _process_modifiers_array(value, result)
+                    
+                    # Otherwise, these might be products or modifiers - check based on context
+                    elif contains_objects and key.lower() in ["modifiers", "options", "additions", "toppings"]:
+                        logger.info(f"Found likely modifiers array based on key name '{key}'")
+                        for mod in value:
+                            if isinstance(mod, dict):
+                                # Store raw modifier data
+                                mod_id = mod.get("_id", mod.get("id", ""))
+                                if mod_id:
+                                    result["_raw_data"]["modifiers"][mod_id] = mod
+                                    logger.info(f"Added likely modifier: {mod.get('name', f'Modifier {mod_id}')}")
+                        
+                        # Process all modifiers
+                        _process_modifiers_array(value, result)
+
+            # Check for products collections
+            elif key in ["products", "dishes", "items", "menuItems"] and isinstance(value, list):
+                logger.info(f"Found products array under key '{key}' with {len(value)} products")
                 for product in value:
                     if _is_valid_product(product):
+                        # Store raw product data for relationship processing
+                        if isinstance(product, dict) and "_id" in product:
+                            result["_raw_data"]["products"][product["_id"]] = product
+                            
                         item = _convert_product_to_item(product)
                         if item and not any(
                             existing["name"] == item["name"]
@@ -814,8 +1430,62 @@ def _recursively_find_products(data, result, max_depth=10, current_depth=0):
                         ):
                             result["items"].append(item)
                             _add_name_variants(result["name_variants"], item["name"])
+                            logger.info(f"Added product: {item['name']}")
+            
+            # Check for subProducts - these could be modifiers or modifier groups
+            elif key == "subProducts" and isinstance(value, list):
+                logger.info(f"Found subProducts array with {len(value)} items")
+                
+                # First check if these are object refs or just IDs
+                if len(value) > 0 and isinstance(value[0], dict):
+                    # These are product objects, check their type
+                    for sub_product in value:
+                        if isinstance(sub_product, dict):
+                            # Check product type to determine if modifier or group
+                            product_type = sub_product.get("productType")
+                            
+                            if product_type == 2:  # Modifier
+                                if "_id" in sub_product:
+                                    result["_raw_data"]["modifiers"][sub_product["_id"]] = sub_product
+                                elif "id" in sub_product:
+                                    result["_raw_data"]["modifiers"][sub_product["id"]] = sub_product
+                                
+                                mod_id = sub_product.get("_id", sub_product.get("id", ""))
+                                logger.info(f"Added modifier from subProducts: {sub_product.get('name', f'Modifier {mod_id}')}")
+                                
+                            elif product_type == 3:  # Modifier Group
+                                if "_id" in sub_product:
+                                    result["_raw_data"]["modifierGroups"][sub_product["_id"]] = sub_product
+                                elif "id" in sub_product:
+                                    result["_raw_data"]["modifierGroups"][sub_product["id"]] = sub_product
+                                
+                                group_id = sub_product.get("_id", sub_product.get("id", ""))
+                                logger.info(f"Added modifier group from subProducts: {sub_product.get('name', f'Group {group_id}')}")
+                            
+                            elif product_type == 1 or not product_type:  # Regular product or unknown type
+                                if "_id" in sub_product:
+                                    result["_raw_data"]["products"][sub_product["_id"]] = sub_product
+                                elif "id" in sub_product:
+                                    result["_raw_data"]["products"][sub_product["id"]] = sub_product
+                                
+                                # Process as a product if valid
+                                if _is_valid_product(sub_product):
+                                    item = _convert_product_to_item(sub_product)
+                                    if item and not any(
+                                        existing["name"] == item["name"] for existing in result["items"]
+                                    ):
+                                        result["items"].append(item)
+                                        _add_name_variants(result["name_variants"], item["name"])
+                                        logger.info(f"Added product from subProducts: {item['name']}")
+                else:
+                    # These are likely just IDs - store them for relationship processing
+                    # The relationships will be handled by _process_relationships later
+                    logger.info(f"Found subProducts array with IDs or references: {value}")
+                    
+                    # We don't need to do anything directly here as these will be
+                    # processed during the relationship processing phase
 
-            # Recursively search deeper
+            # Recursively search deeper in all nested objects and arrays
             _recursively_find_products(value, result, max_depth, current_depth + 1)
 
     elif isinstance(data, list):
