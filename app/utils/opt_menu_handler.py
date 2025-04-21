@@ -74,8 +74,8 @@ def handle_menu_query(user_input):
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout=10,
-            timeout=12,
+            speech_timeout=5,  # Reduced from 10 to 5 for better responsiveness
+            timeout=7,  # Reduced from 12 to 7
         ) as g:
             g.say("I'll take your order now. Please tell me what you would like to order.")
     
@@ -166,8 +166,8 @@ def handle_menu_query(user_input):
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout=10,
-            timeout=12,
+            speech_timeout=5,  # Reduced from 10 to 5 for better responsiveness
+            timeout=7,  # Reduced from 12 to 7
         ) as g:
             g.say("Is there anything else you'd like to know about our menu?")
     
@@ -237,7 +237,8 @@ def handle_menu_query(user_input):
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto",
+            speech_timeout=5,  # Changed from "auto" to 5 seconds for more predictable behavior
+            timeout=7,  # Added fixed timeout instead of default
         ) as g:
             g.say(item_desc + " Is there anything else you'd like to know about our menu?")
     
@@ -249,7 +250,8 @@ def handle_menu_query(user_input):
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto",
+            speech_timeout=5,  # Changed from "auto" to 5 seconds
+            timeout=7,  # Added explicit timeout
             num_digits=1,
         ) as g:
             g.say(

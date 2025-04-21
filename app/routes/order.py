@@ -201,8 +201,8 @@ def take_order():
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
-                speech_timeout=15,  # Much longer timeout
-                timeout=15,  # Give even more time
+                speech_timeout=8,  # Shortened timeout but still longer than initial
+                timeout=10,  # Shortened but still longer than initial
                 hints="california roll, spicy tuna roll, dragon roll, menu",  # Help Twilio recognize common items
             ) as g:
                 g.say(
@@ -219,8 +219,8 @@ def take_order():
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
-                speech_timeout=10,  # Fixed timeout instead of "auto"
-                timeout=12,  # Give more time for the user to think and speak
+                speech_timeout=5,  # Reduced timeout for better responsiveness
+                timeout=7,  # Still give time to think but reduce waiting
                 hints="california roll, spicy tuna roll, dragon roll, menu",  # Help Twilio recognize common items
             ) as g:
                 g.say(
@@ -256,9 +256,9 @@ def take_order():
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
-                speech_timeout="auto",
+                speech_timeout=5,  # Fixed timeout instead of "auto" for more consistency
                 num_digits=1,
-                timeout=8,  # More time
+                timeout=7,  # Adjusted for better responsiveness
             ) as g:
                 g.say(
                     "I'm having trouble understanding your order. You can try again by speaking clearly, press 1 to hear our popular menu items, or press 2 to return to the main menu."
@@ -271,8 +271,8 @@ def take_order():
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
-                speech_timeout="auto",
-                timeout=8,  # More time for the retry
+                speech_timeout=5,  # Fixed timeout for better responsiveness
+                timeout=7,  # Reduced waiting time
             ) as g:
                 g.say(
                     "I'm sorry, I couldn't understand your order. Please tell me again what items you'd like to order from our menu. For example, you can say 'I'd like a California roll and a spicy tuna roll'."

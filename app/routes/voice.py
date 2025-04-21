@@ -125,20 +125,20 @@ def get_adaptive_timeouts(context, retry_count=0):
         speech_timeout = SPEECH_TIMEOUT_MEDIUM
         timeout = TIMEOUT_MEDIUM
     
-    # Adjust based on retry count
+    # Adjust based on retry count but keep timeouts shorter
     if retry_count == 0:
         # First attempt - use base values
         pass
     elif retry_count == 1:
-        # First retry - be a bit more patient
-        speech_timeout = min(speech_timeout + 5, SPEECH_TIMEOUT_EXTENDED)
-        timeout = min(timeout + 5, TIMEOUT_EXTENDED)
+        # First retry - only add a small amount of extra time
+        speech_timeout = min(speech_timeout + 2, SPEECH_TIMEOUT_EXTENDED)
+        timeout = min(timeout + 2, TIMEOUT_EXTENDED)
     elif retry_count >= 2:
         # Second or further retry - start reducing timeouts to prevent excessive waiting
-        speech_timeout = max(speech_timeout - 5, SPEECH_TIMEOUT_SHORT)
-        timeout = max(timeout - 5, TIMEOUT_SHORT)
+        speech_timeout = max(speech_timeout - 1, SPEECH_TIMEOUT_SHORT)
+        timeout = max(timeout - 1, TIMEOUT_SHORT)
     
-    # For complex orders, ensure minimum thresholds
+    # For complex orders, ensure minimum thresholds but keep them reasonable
     if context == "complex_order":
         speech_timeout = max(speech_timeout, SPEECH_TIMEOUT_LONG)
         timeout = max(timeout, TIMEOUT_LONG)
@@ -177,19 +177,19 @@ def handle_silence(response, session_key, action, context, max_retries=MAX_SILEN
     speech_timeout, timeout = get_adaptive_timeouts(context, retry_count)
     logger.info(f"Using adaptive timeouts: speech={speech_timeout}s, timeout={timeout}s")
     
-    # Helper messages based on silence retries
+    # Helper messages based on silence retries - make them shorter and more direct
     if retry_count == 0:
-        message = f"I didn't hear anything. Could you please speak again?"
+        message = f"I didn't hear anything. Please speak again."
     elif retry_count == 1:
-        message = f"I'm still having trouble hearing you. Please speak clearly or try again."
+        message = f"I still can't hear you. Please speak up or press a key."
     else:
-        message = f"If you're speaking, I can't hear you clearly. Please speak loudly and clearly."
+        message = f"If you're there, please speak loudly or press any key to continue."
     
-    # For menu context, add more helpful guidance
+    # For menu context, add more helpful but brief guidance
     if context == "menu":
-        message += " You can ask about our menu items, prices, or popular dishes."
+        message += " Ask about menu items, prices, or popular dishes."
     elif context == "order":
-        message += " You can tell me what you'd like to order from our menu."
+        message += " Tell me what you'd like to order."
     
     # Configure the gather using standardized parameters
     gather_params = setup_gather_params(
@@ -914,7 +914,8 @@ def handle_menu_questions():
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto",
+            speech_timeout=5,  # Changed from "auto" to fixed 5 seconds for better responsiveness
+            timeout=7,  # Added explicit timeout
         ) as g:
             g.say(
                 description
@@ -928,7 +929,8 @@ def handle_menu_questions():
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto",
+            speech_timeout=5,  # Changed from "auto" to fixed 5 seconds
+            timeout=7,  # Added explicit timeout
             num_digits=1,
         ) as g:
             g.say(
