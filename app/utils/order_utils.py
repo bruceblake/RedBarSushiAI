@@ -791,16 +791,20 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
                     
                     if not found_match:
                         # No match found, but create a placeholder reference handler and keep it
-                        # Determine modifier type dynamically based on content
+                        # Use proper Deliverect PLU format based on modifier type
                         mod_lower = mod_name.lower()
+                        # Create PLUs in proper Deliverect format
                         if any(cooking_term in mod_lower for cooking_term in ["cook", "rare", "medium", "well", "done"]):
-                            mod_type = "COOK"
+                            # Cooking preference - COOK-XX format
+                            mod_ref = f"COOK-{len(mod_name) % 100:02d}"
                         elif any(side_term in mod_lower for side_term in ["side", "extra", "add", "fries", "salad"]):
-                            mod_type = "SIDE"
+                            # Side dish - SIDE-XX format
+                            mod_ref = f"SIDE-{len(mod_name) % 100:02d}"
                         else:
-                            mod_type = "GEN"
+                            # General modifier - MOD-XX format
+                            mod_ref = f"MOD-{len(mod_name) % 100:02d}"
                                 
-                        mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                        mod["reference_handler"] = mod_ref
                         mod["price"] = mod.get("price", 0.0)
                         logger.warning(
                             f"[ORDER-VALIDATE] Modifier not found in menu but creating placeholder: {mod.get('name')} → {mod['reference_handler']}"
@@ -859,15 +863,19 @@ def prepare_order_for_deliverect(
                         # Ensure reference_handler exists
                         if "reference_handler" not in mod or not mod["reference_handler"]:
                             mod_name = mod["name"].lower()
-                            # Determine modifier type dynamically based on content
+                            # Use proper Deliverect PLU format based on modifier type
+                            # Create PLUs in proper Deliverect format
                             if any(cooking_term in mod_name for cooking_term in ["cook", "rare", "medium", "well", "done"]):
-                                mod_type = "COOK"
+                                # Cooking preference - COOK-XX format
+                                mod_ref = f"COOK-{len(mod_name) % 100:02d}"
                             elif any(side_term in mod_name for side_term in ["side", "extra", "add", "fries", "salad"]):
-                                mod_type = "SIDE"
+                                # Side dish - SIDE-XX format
+                                mod_ref = f"SIDE-{len(mod_name) % 100:02d}"
                             else:
-                                mod_type = "GEN"
+                                # General modifier - MOD-XX format
+                                mod_ref = f"MOD-{len(mod_name) % 100:02d}"
                                 
-                            mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                            mod["reference_handler"] = mod_ref
                             logger.info(f"[ORDER-PREPARE] Created reference_handler '{mod['reference_handler']}' for modifier '{mod['name']}'")
                         
                         # Ensure price exists

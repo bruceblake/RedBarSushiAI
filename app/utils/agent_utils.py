@@ -1284,16 +1284,20 @@ else:
                                     # Add reference_handler if missing
                                     if "reference_handler" not in mod or not mod.get("reference_handler"):
                                         mod_name = valid_mod["name"].lower()
-                                        # Dynamically determine modifier type by matching common keywords
+                                        # Use proper Deliverect PLU format based on modifier type
                                         mod_lower = mod_name.lower()
+                                        # Create PLUs in proper Deliverect format
                                         if any(cooking_term in mod_lower for cooking_term in ["cook", "rare", "medium", "well", "done"]):
-                                            mod_type = "COOK"
+                                            # Cooking preference - COOK-XX format
+                                            mod_ref = f"COOK-{len(valid_mod['name']) % 100:02d}"
                                         elif any(side_term in mod_lower for side_term in ["side", "extra", "add", "fries", "salad"]):
-                                            mod_type = "SIDE"
+                                            # Side dish - SIDE-XX format
+                                            mod_ref = f"SIDE-{len(valid_mod['name']) % 100:02d}"
                                         else:
-                                            mod_type = "GEN"
+                                            # General modifier - MOD-XX format
+                                            mod_ref = f"MOD-{len(valid_mod['name']) % 100:02d}"
                                             
-                                        valid_mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                                        valid_mod["reference_handler"] = mod_ref
                                     else:
                                         valid_mod["reference_handler"] = mod.get("reference_handler")
                                         
@@ -1371,7 +1375,7 @@ else:
                                         else:
                                             mod_type = "GEN"
                                             
-                                        valid_mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                                        valid_mod["reference_handler"] = mod_ref
                                     else:
                                         valid_mod["reference_handler"] = mod.get("reference_handler")
                                         
@@ -1458,7 +1462,7 @@ else:
                                                 else:
                                                     mod_type = "GEN"
                                                     
-                                                valid_mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                                                valid_mod["reference_handler"] = mod_ref
                                             else:
                                                 valid_mod["reference_handler"] = mod.get("reference_handler")
                                                 
@@ -1664,7 +1668,7 @@ else:
                                                 else:
                                                     mod_type = "GEN"
                                                     
-                                                valid_mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                                                valid_mod["reference_handler"] = mod_ref
                                             else:
                                                 valid_mod["reference_handler"] = mod.get("reference_handler")
                                                 
