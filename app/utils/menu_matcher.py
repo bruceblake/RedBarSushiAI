@@ -58,6 +58,10 @@ class MenuMatcher:
         
         # Try direct match with menu items
         for item in self.menu_data.get("items", []):
+            # Skip category items
+            if item.get("is_category", False):
+                continue
+                
             if item.get("name", "").lower() == cleaned_name:
                 if not check_availability or (
                     item.get("available", True) and not item.get("snoozed", False)
@@ -73,6 +77,10 @@ class MenuMatcher:
             # Prepare menu context
             menu_items = []
             for item in self.menu_data.get("items", []):
+                # Skip category items
+                if item.get("is_category", False):
+                    continue
+                    
                 # Skip unavailable items if we're checking availability
                 if check_availability and (
                     not item.get("available", True) or item.get("snoozed", False)
@@ -97,8 +105,16 @@ class MenuMatcher:
                     "role": "system",
                     "content": """You are an AI assistant for a restaurant that helps match customer requests to menu items.
                     Your goal is to find the best match for a customer's item request based on the available menu items.
-                    Consider item names, categories, and descriptions in your matching.
-                    Return the name of the best matching menu item, exactly as it appears in the menu."""
+                    
+                    Important rules:
+                    1. ONLY match against actual menu items, not category names
+                    2. Consider item names, descriptions, and ingredients in your matching
+                    3. Use fuzzy matching when appropriate (e.g., "cheeseburger" might match "Burger with Cheese")
+                    4. Focus on the customer's intent, not just literal word matching
+                    5. Return the name of the best matching menu item, exactly as it appears in the menu
+                    6. NEVER invent or suggest items that don't exist in the menu
+                    
+                    Always format your response as a single menu item name, exactly as it appears in the menu."""
                 },
                 {
                     "role": "user",
@@ -173,12 +189,29 @@ class MenuMatcher:
         try:
             # Prepare menu categories and some example items
             categories = {}
+            
+            # First, find all category items to create category map
+            category_map = {}
             for item in self.menu_data.get("items", []):
-                category = item.get("category", "Uncategorized")
-                if category not in categories:
-                    categories[category] = []
-                if len(categories[category]) < 3:  # Just get a few examples per category
-                    categories[category].append(item.get("name", ""))
+                if item.get("is_category", True):  # This item IS a category
+                    reference = item.get("reference_handler", "")
+                    if reference:
+                        category_map[reference] = item.get("name", "Unknown Category")
+            
+            # Now process actual menu items
+            for item in self.menu_data.get("items", []):
+                # Skip category headers
+                if item.get("is_category", False):
+                    continue
+                    
+                # Get parent category name from parentId or use "Uncategorized"
+                parent_id = item.get("parentId", "")
+                category_name = category_map.get(parent_id, "Uncategorized")
+                
+                if category_name not in categories:
+                    categories[category_name] = []
+                if len(categories[category_name]) < 3:  # Just get a few examples per category
+                    categories[category_name].append(item.get("name", ""))
                     
             # Build prompt for AI to clarify the order
             messages = [
@@ -186,9 +219,16 @@ class MenuMatcher:
                     "role": "system",
                     "content": """You are an AI assistant for a restaurant that helps customers clarify their orders.
                     Your goal is to understand what the customer wants to order and suggest the appropriate menu items.
-                    Ask clarifying questions when the order is ambiguous.
-                    Be friendly, helpful, and concise in your responses.
-                    Base your suggestions only on the menu categories and items available."""
+                    
+                    Important rules:
+                    1. ONLY suggest actual menu items, not category names
+                    2. Ask clarifying questions when the order is ambiguous
+                    3. Be friendly, helpful, and concise in your responses
+                    4. Base your suggestions ONLY on the menu categories and items available
+                    5. NEVER make up items that aren't in the menu
+                    
+                    When suggesting menu items, be precise and use the exact item names as they appear in the menu.
+                    Focus on understanding the customer's intent and helping them find the right items."""
                 },
                 {
                     "role": "user",
@@ -258,10 +298,29 @@ class MenuMatcher:
             
             # Build a menu summary for the AI
             menu_summary = []
+            
+            # First, find all category items to create category map
+            category_map = {}
             for item in self.menu_data.get("items", []):
+                if item.get("is_category", True):  # This item IS a category
+                    reference = item.get("reference_handler", "")
+                    if reference:
+                        category_map[reference] = item.get("name", "Unknown Category")
+            
+            # Now process actual menu items
+            for item in self.menu_data.get("items", []):
+                # Skip category headers
+                if item.get("is_category", False):
+                    continue
+                    
+                # Get parent category name from parentId or use "Uncategorized"
+                parent_id = item.get("parentId", "")
+                category_name = category_map.get(parent_id, "Uncategorized")
+                       
                 menu_summary.append({
                     "name": item.get("name", ""),
-                    "category": item.get("category", ""),
+                    "category": category_name,
+                    "description": item.get("description", ""),
                     "price": item.get("price", 0.0)
                 })
                 
@@ -271,6 +330,13 @@ class MenuMatcher:
                     "role": "system",
                     "content": """You are an AI assistant for a restaurant that helps customers place orders.
                     Based on the conversation, identify the specific menu items the customer wants to order.
+                    
+                    Important rules:
+                    1. ONLY match against actual menu items, not category names
+                    2. Be precise in identifying menu items - match to exact item names in the menu
+                    3. For ambiguous requests, ask clarifying questions
+                    4. NEVER make up items that don't exist in the menu
+                    
                     Return a JSON object with the following structure:
                     {
                         "items": [
@@ -280,7 +346,9 @@ class MenuMatcher:
                         "resolved": true/false (whether the order is fully resolved),
                         "next_question": "next question to ask if not resolved"
                     }
-                    Only include items that match exactly with menu items. For unclear items, set resolved to false and provide a clarifying question.
+                    
+                    Only include items that match exactly with menu items from the provided list.
+                    For unclear items, set resolved to false and provide a specific clarifying question.
                     """
                 }
             ]
