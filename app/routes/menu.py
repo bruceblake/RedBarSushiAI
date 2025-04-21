@@ -128,9 +128,25 @@ def menu_update():
         # Log data type and basic structure
         data_type = type(data).__name__
         logger.info(f"[MENU-UPDATE] Received data of type {data_type}")
+        
+        # For debugging, log some structure info
+        if isinstance(data, dict):
+            logger.info(f"[MENU-UPDATE] Top-level keys: {list(data.keys())}")
+            # Log some sub-structure details
+            for key in data.keys():
+                if isinstance(data[key], dict):
+                    logger.info(f"[MENU-UPDATE] {key} contains keys: {list(data[key].keys())}")
+                elif isinstance(data[key], list) and len(data[key]) > 0:
+                    logger.info(f"[MENU-UPDATE] {key} is a list with {len(data[key])} items")
+                    if isinstance(data[key][0], dict):
+                        logger.info(f"[MENU-UPDATE] First item in {key} has keys: {list(data[key][0].keys())}")
+        elif isinstance(data, list) and len(data) > 0:
+            logger.info(f"[MENU-UPDATE] Data is a list with {len(data)} items")
+            if isinstance(data[0], dict):
+                logger.info(f"[MENU-UPDATE] First item has keys: {list(data[0].keys())}")
 
-        # Check for Deliverect standard event format (e.g., with "data" and "type" fields)
-        # Structure: {"id": "event-id", "type": "menu.updated", "data": {}, "timestamp": "..."}
+        # The Deliverect menu processor now handles the event format extraction
+        # But we'll keep this code for backward compatibility
         if (
             isinstance(data, dict) 
             and "type" in data 
