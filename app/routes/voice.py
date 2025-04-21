@@ -626,7 +626,7 @@ def handle_menu_questions():
         else:
                     # If no specific items found, include popular items
             from app.utils.menu_utils import get_popular_menu_items
-            popular_items = get_popular_menu_items(5)
+            popular_items = get_popular_menu_items(10)
             if popular_items:
                 menu_context = "Here are our popular menu items:\n"
                 for item in popular_items:
@@ -643,7 +643,7 @@ def handle_menu_questions():
         )
                 
                 # Log the menu context being used
-        logger.info(f"Menu context for query '{menu_query}': {menu_context[:200]}...")
+        logger.info(f"Menu context for query '{menu_query}': {menu_context[:900]}...")
                 
         result = client.chat.completions.create(
                     model="gpt-4.1-mini",
@@ -665,7 +665,8 @@ def handle_menu_questions():
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto"
+            speech_timeout=10,
+            timeout=12,
         ) as g:
             g.say("Is there anything else you'd like to know about our menu?")
             
