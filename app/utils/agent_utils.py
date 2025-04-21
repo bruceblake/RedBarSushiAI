@@ -161,7 +161,7 @@ class SushiMenuTool:
         # Add the query to the conversation context
         self.current_conversation.append({"role": "user", "content": query})
         context = {"conversation": self.current_conversation}
-        
+
         # First try to find exact matches
         item = find_menu_item_by_name(query)
         if item:
@@ -171,10 +171,14 @@ class SushiMenuTool:
         try:
             # Import here to avoid circular imports
             from app.utils.menu_matcher import find_menu_item_ai
-            
-            ai_match = find_menu_item_ai(query, check_availability=False, context=context)
+
+            ai_match = find_menu_item_ai(
+                query, check_availability=False, context=context
+            )
             if ai_match:
-                logger.info(f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{query}'")
+                logger.info(
+                    f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{query}'"
+                )
                 return {"found": True, "items": [ai_match], "query": query}
         except Exception as e:
             logger.error(f"[MENU-TOOL] Error in AI matching: {str(e)}")
@@ -290,32 +294,38 @@ class SushiMenuTool:
     def ai_match_item(self, item_name: str) -> Dict[str, Any]:
         """
         Match an item using AI-based matching.
-        
+
         Args:
             item_name: The name or description of the item to match
-            
+
         Returns:
             dict: The match results
         """
-        self.current_conversation.append({"role": "user", "content": f"Find menu item: {item_name}"})
+        self.current_conversation.append(
+            {"role": "user", "content": f"Find menu item: {item_name}"}
+        )
         context = {"conversation": self.current_conversation}
-        
+
         try:
             # Import here to avoid circular imports
             from app.utils.menu_matcher import find_menu_item_ai
-            
-            ai_match = find_menu_item_ai(item_name, check_availability=False, context=context)
+
+            ai_match = find_menu_item_ai(
+                item_name, check_availability=False, context=context
+            )
             if ai_match:
-                logger.info(f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{item_name}'")
+                logger.info(
+                    f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{item_name}'"
+                )
                 return {
                     "found": True,
                     "item": ai_match,
                     "confidence": "high",
-                    "matching_type": "ai_match"
+                    "matching_type": "ai_match",
                 }
         except Exception as e:
             logger.error(f"[MENU-TOOL] Error in AI matching: {str(e)}")
-            
+
         # If AI matching fails, try exact match as fallback
         item = find_menu_item_by_name(item_name)
         if item:
@@ -323,12 +333,12 @@ class SushiMenuTool:
                 "found": True,
                 "item": item,
                 "confidence": "exact",
-                "matching_type": "exact_match"
+                "matching_type": "exact_match",
             }
-            
+
         # No match found
         return {"found": False, "item_name": item_name}
-    
+
     def get_details(self, item_name: str) -> Dict[str, Any]:
         """
         Get details for a specific item.
@@ -341,13 +351,13 @@ class SushiMenuTool:
         """
         # First try direct lookup
         item = find_menu_item_by_name(item_name)
-        
+
         # If direct lookup fails, try AI matching
         if not item:
             match_result = self.ai_match_item(item_name)
             if match_result.get("found"):
                 item = match_result.get("item")
-                
+
         # If we still don't have an item, return not found
         if not item:
             return {"found": False, "item_name": item_name}
@@ -614,7 +624,7 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                 logger.warning(
                                     f"[AGENT-PRICE] Could not find price for '{item['name']}', using 0.0"
                                 )
-                        
+
                         # Process modifiers array, ensuring each modifier has proper fields
                         if "modifier" not in item:
                             item["modifier"] = []
@@ -634,22 +644,27 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                     logger.info(
                                         f"[AGENT-VALIDATE] Modifier '{mod.get('name')}' missing quantity, defaulting to 1"
                                     )
-                                
+
                                 # Try to find modifier information in the menu
                                 if "reference_handler" not in mod or "price" not in mod:
                                     # Get menu data for looking up modifier details
                                     menu_data = self.menu_tool.menu_data
-                                    
+
                                     # Find the modifier in the menu
                                     found_modifier = None
                                     for menu_mod in menu_data.get("modifiers", []):
-                                        if menu_mod.get("name", "").lower() == mod.get("name", "").lower():
+                                        if (
+                                            menu_mod.get("name", "").lower()
+                                            == mod.get("name", "").lower()
+                                        ):
                                             found_modifier = menu_mod
                                             break
-                                    
+
                                     if found_modifier:
                                         # Set reference handler and price from menu
-                                        mod["reference_handler"] = found_modifier.get("reference_handler", "")
+                                        mod["reference_handler"] = found_modifier.get(
+                                            "reference_handler", ""
+                                        )
                                         mod["price"] = found_modifier.get("price", 0.0)
                                         logger.info(
                                             f"[AGENT-VALIDATE] Found menu data for modifier '{mod.get('name')}'"
@@ -1029,11 +1044,11 @@ else:
                         "No OpenAI API key available - using simple keyword matching"
                     )
                     items = self.menu_tool.menu_data.get("items", [])
-                    
+
                     # Simple keyword matching
                     order_lower = order_text.lower()
                     potential_items = []
-                    
+
                     # Skip name variants - AI agent will handle matching
 
                     # Check direct matches with item names
@@ -1126,11 +1141,10 @@ else:
                         for item_name in still_unverified:
                             item_lower = item_name.get("name").lower()
                             found = False
-                            
+
                             # Skip name variants - AI agent will handle matching for fuzzy matches
 
-
-                                         system_message = """You are a fuzzy finding specialist for Red Bar Sushi.
+                        system_message = """You are a fuzzy finding specialist for Red Bar Sushi.""
 The customer is ordering something that is not exactly word for word on.
 the menu but may be similar. It is your job to figure out what the correct
 item on the menu the customer is trying to order
@@ -1145,62 +1159,59 @@ If you are able to accurately find one then output in this format:
   "modifier": [],
 }
 
-if you are not then output the same with the name as NOT_FOUND""" 
+if you are not then output the same with the name as NOT_FOUND"""
 
+                        res = client.chat.completions.create(
+                            model="gpt-4.1-mini",
+                            messages=[
+                                {"role": "system", "content": system_message},
+                                {
+                                    "role": "user",
+                                    "content": f"Here is the menu: {menu_items}",
+                                },
+                            ],
+                        )
 
-                            res = client.chat.completions.create(
-                                model="gpt-4.1-mini",
-                                messages=[
-                                    {"role": "system", "content": system_message},
-                                    {"role": "user", "content": f"Here is the menu: {menu_items}"},
-                                ]
-                            )
+                        if res.get("name") == "NOT_FOUND":
+                            found = False
+                        else:
 
-                            if res.get("name") == "NOT_FOUND":
-                                found = False
-                            else:
-                                
-                                verified_items.append(res)
-                                found = True
-                            
-
+                            verified_items.append(res)
+                            found = True
 
                             # If still not found, try matching directly against menu items
-                            if not found:
-                                best_match = None
-                                best_match_score = 0
+                        if not found:
+                            best_match = None
+                            best_match_score = 0
 
-                                for menu_item in menu_items:
-                                    menu_item_name = menu_item.get("name", "").lower()
-                                    # Check partial containment in either direction
-                                    if menu_item_name and (
-                                        item_lower in menu_item_name
-                                        or menu_item_name in item_lower
-                                    ):
-                                        # Calculate a simple match score (longer matches are better)
-                                        match_length = min(
-                                            len(item_lower), len(menu_item_name)
-                                        )
-                                        if match_length > best_match_score:
-                                            best_match = menu_item
-                                            best_match_score = match_length
-
-                                if best_match:
-                                    logger.info(
-                                        f"[ORDER-VERIFY-PASS3-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})"
-                                    )
-                                    verified_items.append(
-                                        {
-                                            "name": best_match.get("name"),
-                                            "price": best_match.get("price", 0.0),
-                                            "reference_handler": best_match.get(
-                                                "reference_handler", ""
-                                            ),
-                                            "quantity": 1,
-                                            "modifier": [],
-                                        }
-                                    )
-                                    found = True
+                            for menu_item in menu_items:
+                                menu_item_name = menu_item.get("name", "").lower()
+                                # Check partial containment in either direction
+                            if menu_item_name and (
+                                item_lower in menu_item_name
+                                or menu_item_name in item_lower
+                            ):
+                                # Calculate a simple match score (longer matches are better)
+                                match_length = min(len(item_lower), len(menu_item_name))
+                            if match_length > best_match_score:
+                                best_match = menu_item
+                                best_match_score = match_length
+                            if best_match:
+                                logger.info(
+                                    f"[ORDER-VERIFY-PASS3-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})"
+                                )
+                                verified_items.append(
+                                    {
+                                        "name": best_match.get("name"),
+                                        "price": best_match.get("price", 0.0),
+                                        "reference_handler": best_match.get(
+                                            "reference_handler", ""
+                                        ),
+                                        "quantity": 1,
+                                        "modifier": [],
+                                    }
+                                )
+                                found = True
 
                             if not found:
                                 logger.error(
@@ -1391,12 +1402,12 @@ Return JSON with:
 def analyze_user_input(input_text: str) -> Dict[str, Any]:
     """
     Analyze user input to determine intent and extract order items.
-    
+
     Detects three main intents:
     - order_food: Customer wants to place an order
     - ask_menu: Customer is asking about menu items
     - other: Other types of queries
-    
+
     Args:
         input_text: The user's input text
 
@@ -1406,24 +1417,24 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
     # First, determine if this is a menu question using OpenAI if available
     intent = "other"
     menu_items = []
-    
+
     try:
         if OPENAI_API_KEY:
             # Prepare messages for intent classification
             messages = [
                 {
                     "role": "system",
-                    "content": "You are a restaurant AI assistant that classifies customer queries. Determine if the customer is placing an order or asking about the menu."
+                    "content": "You are a restaurant AI assistant that classifies customer queries. Determine if the customer is placing an order or asking about the menu.",
                 },
                 {
                     "role": "user",
-                    "content": f"Classify this customer query: '{input_text}'\nRespond with JSON containing 'intent' which must be one of: 'order_food', 'ask_menu', or 'other'."
-                }
+                    "content": f"Classify this customer query: '{input_text}'\nRespond with JSON containing 'intent' which must be one of: 'order_food', 'ask_menu', or 'other'.",
+                },
             ]
-            
+
             # Log the API request
             log_openai_request("gpt-4.1-mini", messages, "intent_classification")
-            
+
             try:
                 # Make the classification request
                 response = openai.chat.completions.create(
@@ -1431,46 +1442,45 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
                     messages=messages,
                     response_format={"type": "json_object"},
                 )
-                
+
                 # Log the API response
                 log_openai_response(response, "intent_classification")
-                
+
                 # Extract the intent
                 classification = json.loads(response.choices[0].message.content)
                 intent = classification.get("intent", "other")
                 logger.info(f"[INTENT-CLASSIFICATION] Classified intent as: '{intent}'")
-                
+
             except Exception as e:
                 logger.error(f"[INTENT-ERROR] OpenAI API error: {str(e)}")
                 logger.error(f"[INTENT-TRACEBACK] {traceback.format_exc()}")
                 # Fall back to order parsing
-        
+
         # If intent is still "other" or "order_food", try parsing as an order
         if intent in ["other", "order_food"]:
             # Create an order parsing agent
             agent = OrderParsingAgent()
-            
+
             # Parse the input
             logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{input_text}'")
             parsed_order = agent.parse_order(input_text)
             logger.info(f"[PARSED-ORDER]: {parsed_order}")
-            
+
             # If we found menu items, this is likely an order
             if parsed_order.get("items"):
                 menu_items = parsed_order.get("items", [])
                 intent = "order_food"
-                logger.info(f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'")
-    
+                logger.info(
+                    f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'"
+                )
+
     except Exception as e:
         logger.error(f"[ANALYZE-ERROR] Error in analyze_user_input: {str(e)}")
         logger.error(f"[ANALYZE-TRACEBACK] {traceback.format_exc()}")
-    
+
     # Return a consistent structure for all intents
-    result = {
-        "intent": intent,
-        "menu_items": menu_items
-    }
-    
+    result = {"intent": intent, "menu_items": menu_items}
+
     # Add any intent-specific data
     if intent == "ask_menu":
         # Extract the menu query for ask_menu intent
@@ -1479,8 +1489,10 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
         search_result = menu_tool.search_menu(query)
         result["menu_query"] = query
         result["search_results"] = search_result
-    
-    logger.info(f"[ANALYZE-FINAL] Final intent: '{intent}' with {len(menu_items)} menu items")
+
+    logger.info(
+        f"[ANALYZE-FINAL] Final intent: '{intent}' with {len(menu_items)} menu items"
+    )
     return result
 
 
