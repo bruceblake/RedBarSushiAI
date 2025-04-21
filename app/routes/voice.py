@@ -602,18 +602,18 @@ def handle_menu_questions():
     elif intent == "ask_menu":
         # Use AI agent to answer any menu question; fallback on error
         # Check if OpenAI usage is disabled
-                # First, get actual menu data to provide context
-                agent = OrderParsingAgent()
-                menu_tool = agent.menu_tool
+        # First, get actual menu data to provide context
+        agent = OrderParsingAgent()
+        menu_tool = agent.menu_tool
                 
-                # Get menu data based on the query
-                search_results = []
-                menu_query = user_input.strip()
+        # Get menu data based on the query
+        search_results = []
+        menu_query = user_input.strip()
                 
-                # Use the search_results from the analysis if available
-                if "search_results" in analysis and analysis["search_results"]:
+        # Use the search_results from the analysis if available
+        if "search_results" in analysis and analysis["search_results"]:
                     search_results = analysis["search_results"]
-                else:
+        else:
                     # Otherwise perform a search
                     search_results = menu_tool.search_menu(menu_query)
                 
