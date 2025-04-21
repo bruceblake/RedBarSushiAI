@@ -613,48 +613,47 @@ def handle_menu_questions():
             search_results = menu_tool.search_menu(menu_query)
                 
                 # Format menu items for context
-            menu_context = ""
-            if search_results:
-                menu_context = "Here are relevant menu items:\n"
-                for item in search_results[:5]:  # Limit to 5 items for context
+        menu_context = ""
+        if search_results:
+            menu_context = "Here are relevant menu items:\n"
+            for item in search_results[:5]:  # Limit to 5 items for context
+                price_str = f"${item.get('price', 0):.2f}"
+                desc = item.get('description', 'No description available')
+                menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
+        else:
+                    # If no specific items found, include popular items
+            from app.utils.menu_utils import get_popular_menu_items
+            popular_items = get_popular_menu_items(5)
+            if popular_items:
+                menu_context = "Here are our popular menu items:\n"
+                for item in popular_items:
                     price_str = f"${item.get('price', 0):.2f}"
                     desc = item.get('description', 'No description available')
                     menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
-            else:
-                    # If no specific items found, include popular items
-                from app.utils.menu_utils import get_popular_menu_items
-                popular_items = get_popular_menu_items(5)
-                if popular_items:
-                    menu_context = "Here are our popular menu items:\n"
-                    for item in popular_items:
-                        price_str = f"${item.get('price', 0):.2f}"
-                        desc = item.get('description', 'No description available')
-                        menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
                 
                 # Create OpenAI client and send system+user messages with actual menu data
-                client = openai.OpenAI()
-                system_msg = (
-                    "You are a knowledgeable assistant for Red Bar Sushi. "
-                    "Answer the customer's question concisely using the menu information provided. "
-                    "If the menu information doesn't contain what the customer is asking about, "
-                    "politely explain that you don't have that specific information."
-                )
+        client = openai.OpenAI()
+        system_msg = (
+                "You are a knowledgeable assistant for Red Bar Sushi. "
+                "Answer the customer's question concisely using the menu information provided. "                    "If the menu information doesn't contain what the customer is asking about, "
+                "politely explain that you don't have that specific information."
+        )
                 
                 # Log the menu context being used
-                logger.info(f"Menu context for query '{menu_query}': {menu_context[:200]}...")
+        logger.info(f"Menu context for query '{menu_query}': {menu_context[:200]}...")
                 
-                result = client.chat.completions.create(
+        result = client.chat.completions.create(
                     model="gpt-4.1-mini",
                     messages=[
                         {"role": "system", "content": system_msg},
                         {"role": "user", "content": f"Menu information:\n{menu_context}\n\nCustomer question: {user_input}"}
                     ],
                 )
-                reply = result.choices[0].message.content.strip()
+        reply = result.choices[0].message.content.strip()
         
         # Say the reply and offer to continue the conversation
-                response = VoiceResponse()
-                response.say(reply)
+        response = VoiceResponse()
+        response.say(reply)
         
         # Add a gather to continue the conversation
         with response.gather(
