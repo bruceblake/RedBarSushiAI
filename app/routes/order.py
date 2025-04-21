@@ -614,7 +614,13 @@ def new_modify_order():
 
     # If no valid modifications, ask again
     if not modifications or (
-        "additions" not in modifications and "removals" not in modifications
+        "additions" not in modifications and 
+        "removals" not in modifications and
+        "modifications" not in modifications
+    ) or (
+        len(modifications.get("additions", [])) == 0 and 
+        len(modifications.get("removals", [])) == 0 and
+        len(modifications.get("modifications", [])) == 0
     ):
         with response.gather(
             input="speech",
@@ -661,9 +667,13 @@ def new_modify_order():
 
 def apply_modifications(current_order, modifications):
     """Apply modifications to an order, handling all possible formats"""
-    # Extract additions and removals from modifications
+    # Extract additions, removals, and item modifications from modifications
     additions = modifications.get("additions", [])
     removals = modifications.get("removals", [])
+    item_modifications = modifications.get("modifications", [])
+    
+    # Log the received modifications
+    logger.info(f"[ORDER-MODIFY] Received modifications: additions={len(additions)}, removals={len(removals)}, modifications={len(item_modifications)}")
 
     # Ensure all removals have a "name" field
     for removal in removals:
@@ -691,6 +701,7 @@ def apply_modifications(current_order, modifications):
     logger.info(f"[ORDER-MODIFY] Current order: {json.dumps(current_order)}")
     logger.info(f"[ORDER-MODIFY] Processed additions: {json.dumps(additions)}")
     logger.info(f"[ORDER-MODIFY] Processed removals: {json.dumps(removals)}")
+    logger.info(f"[ORDER-MODIFY] Processed item modifications: {json.dumps(item_modifications)}")
 
     # Process removals
     for removal in removals:
@@ -834,6 +845,82 @@ def apply_modifications(current_order, modifications):
         else:
             # Add new item
             current_order_by_name[item_name] = addition
+
+    # Process modifications to existing items
+    for modification in item_modifications:
+        # Each modification should have an item_name and a modifier array
+        if not isinstance(modification, dict):
+            logger.warning(f"[ORDER-MODIFY] Skipping invalid modification format: {modification}")
+            continue
+            
+        # Get the item name to modify
+        item_name = None
+        if "item_name" in modification:
+            item_name = modification["item_name"].lower()
+        elif "name" in modification:
+            item_name = modification["name"].lower()
+        
+        # Skip if no valid item name
+        if not item_name:
+            logger.warning(f"[ORDER-MODIFY] Skipping modification with no item name: {modification}")
+            continue
+            
+        # Find the item in the current order
+        if item_name in current_order_by_name:
+            # Get the modifiers to add
+            modifiers_to_add = modification.get("modifier", [])
+            
+            # Process each modifier
+            for mod in modifiers_to_add:
+                if not isinstance(mod, dict):
+                    continue
+                    
+                # Get modifier information
+                mod_name = mod.get("name", "").lower()
+                mod_quantity = mod.get("quantity", 1)
+                
+                if not mod_name:
+                    continue
+                    
+                # Find the modifier in the menu to get complete information
+                menu_data = load_menu_data()
+                menu_modifier = None
+                
+                # Search for the modifier in the menu
+                for menu_mod in menu_data.get("modifiers", []):
+                    if menu_mod.get("name", "").lower() == mod_name:
+                        menu_modifier = menu_mod
+                        break
+                
+                # Create or update the modifier with complete information
+                mod_to_add = {
+                    "name": menu_modifier.get("name", mod_name.title()) if menu_modifier else mod_name.title(),
+                    "quantity": mod_quantity,
+                    "price": menu_modifier.get("price", 0.0) if menu_modifier else 0.0,
+                    "reference_handler": menu_modifier.get("reference_handler", "") if menu_modifier else ""
+                }
+                
+                # Check if the modifier already exists in the item
+                current_modifiers = current_order_by_name[item_name].get("modifier", [])
+                mod_found = False
+                
+                for i, existing_mod in enumerate(current_modifiers):
+                    if existing_mod.get("name", "").lower() == mod_name:
+                        # Update existing modifier quantity
+                        current_modifiers[i]["quantity"] += mod_quantity
+                        mod_found = True
+                        break
+                
+                # If modifier not found, add it
+                if not mod_found:
+                    current_modifiers.append(mod_to_add)
+                
+                # Update the item's modifiers
+                current_order_by_name[item_name]["modifier"] = current_modifiers
+                
+                logger.info(f"[ORDER-MODIFY] Added/Updated modifier '{mod_to_add['name']}' to item '{current_order_by_name[item_name]['name']}'")
+        else:
+            logger.warning(f"[ORDER-MODIFY] Cannot modify non-existent item: {item_name}")
 
     # Return the updated order as a list
     return list(current_order_by_name.values())
