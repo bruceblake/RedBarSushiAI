@@ -1059,7 +1059,7 @@ else:
                     logger.info(
                         f"[ORDER-VERIFY-PASS1] Verifying item: '{item_name}' using search_menu"
                     )
-                    search_result = self.menu_tool.search_menu(item_name)
+                    search_result = self.menu_tool.search_menu(item_name.get("name"))
                     if search_result.get("found"):
                         for menu_item in search_result.get("items", []):
                             logger.info(
