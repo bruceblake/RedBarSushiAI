@@ -185,28 +185,8 @@ def get_common_prices():
                     # Build a comprehensive price map from actual menu data
                     result = {}
 
-                    # First check if the menu has a name_variants section
-                    # This is the fastest path to get accurate mappings
-                    name_variants = menu_data.get("name_variants", {})
-                    if name_variants:
-                        logging.info(
-                            f"[MENU-LOAD] Using {len(name_variants)} name variants from menu data"
-                        )
-
-                        # Build a mapping from variants to items with prices
-                        for variant_name, original_name in name_variants.items():
-                            # Find the item with this name
-                            for item in menu_data.get("items", []):
-                                if item.get("name") == original_name:
-                                    # Add to result with full details
-                                    result[variant_name] = {
-                                        "price": item.get("price", 0.0),
-                                        "reference_handler": item.get(
-                                            "reference_handler", ""
-                                        ),
-                                        "full_name": original_name,
-                                    }
-                                    break
+                    # Name variants logic has been removed - AI agent will handle matching
+                    # Direct item processing only
 
                     # Process all items with valid names and prices (fallback or to supplement variants)
                     for item in menu_data.get("items", []):
@@ -231,10 +211,7 @@ def get_common_prices():
                             "full_name": item.get("name", ""),  # Store original case
                         }
 
-                        # Also store name fragments for fuzzy matching if not already in variants
-                        if (
-                            not name_variants
-                        ):  # Only do this if we don't have name_variants
+                        # Always store name fragments for fuzzy matching since name_variants has been removed
                             words = item_name.split()
                             for word in words:
                                 if (

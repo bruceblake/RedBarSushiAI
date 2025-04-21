@@ -242,6 +242,7 @@ def create_app(test_config=None):
     from app.routes.menu import menu_bp
     from app.routes.order import order_bp
     from app.routes.location import location_bp
+    from app.routes.order_ai import order_ai_bp
 
     # Register blueprints with explicit URL prefixes for clarity
     # Register blueprints with original structure for backwards compatibility
@@ -253,6 +254,7 @@ def create_app(test_config=None):
     )  # Keep at root level for existing Deliverect integrations
     app.register_blueprint(order_bp)  # Keep at root level for order webhooks
     app.register_blueprint(location_bp)  # Keep at root level for consistency
+    app.register_blueprint(order_ai_bp)  # AI-powered interactive order resolution
 
     # Configure optimized logging
     # Clear any existing handlers to avoid duplicates
