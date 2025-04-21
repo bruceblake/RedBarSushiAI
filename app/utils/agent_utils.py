@@ -1130,27 +1130,25 @@ else:
                             # Skip name variants - AI agent will handle matching for fuzzy matches
 
 
-                            system_message = ("You are a fuzzy finding specialist for Red Bar Sushi."
-                            "The customer is ordering something that is not exactly word for word on."
-                            "the menu but may be similar. It is your job to figure out what the correct"
-                            "item on the menu the customer is trying to order"
-                            "If you are able to accurately find one then output in this format:"
-                                        "{"
-                                          "  "name": best_match.get("name"),"
-                                           " "price": best_match.get("price", 0.0),"
-                                            ""reference_handler": best_match.get( "
-                                             "   "reference_handler", "" "
-                                           " ),"
-                                            " "quantity": 1, "
-                                            " "modifier": [], "
-                                        "}"
+                        system_message = """You are a fuzzy finding specialist for Red Bar Sushi.""
+The customer is ordering something that is not exactly word for word on.
+the menu but may be similar. It is your job to figure out what the correct
+item on the menu the customer is trying to order
+If you are able to accurately find one then output in this format:
+{
+  "name": best_match.get("name"),
+  "price": best_match.get("price", 0.0),
+  "reference_handler": best_match.get(
+    "reference_handler", ""
+  ),
+  "quantity": 1,
+  "modifier": [],
+}
 
-                            "if you are not then output the same with the name as NOT_FOUND"
-                                    )
-                          
+if you are not then output the same with the name as NOT_FOUND""" 
 
-
-                            res = client.chat.completions.create(
+                        client = openai.OpenAI()
+                        res = client.chat.completions.create(
                                 model="gpt-4.1-mini",
                                 messages=[
                                     {"role": "system", "content": system_message},
@@ -1158,52 +1156,50 @@ else:
                                 ]
                             )
 
-                            if res.get("name") == "NOT_FOUND":
+                        if res.get("name") == "NOT_FOUND":
                                 found = False
-                            else:
+                        else:
                                 
-                                verified_items.append(res)
-                                found = True
+                            verified_items.append(res)
+                            found = True
                             
 
 
                             # If still not found, try matching directly against menu items
-                            if not found:
-                                best_match = None
-                                best_match_score = 0
+                        if not found:
+                            best_match = None
+                            best_match_score = 0
 
-                                for menu_item in menu_items:
-                                    menu_item_name = menu_item.get("name", "").lower()
+                            for menu_item in menu_items:
+                                menu_item_name = menu_item.get("name", "").lower()
                                     # Check partial containment in either direction
-                                    if menu_item_name and (
-                                        item_lower in menu_item_name
-                                        or menu_item_name in item_lower
-                                    ):
-                                        # Calculate a simple match score (longer matches are better)
-                                        match_length = min(
-                                            len(item_lower), len(menu_item_name)
-                                        )
-                                        if match_length > best_match_score:
-                                            best_match = menu_item
-                                            best_match_score = match_length
-
-                                if best_match:
-                                    logger.info(
-                                        f"[ORDER-VERIFY-PASS3-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})"
-                                    )
-                                    verified_items.append(
-                                        {
-                                            "name": best_match.get("name"),
-                                            "price": best_match.get("price", 0.0),
-                                            "reference_handler": best_match.get(
-                                                "reference_handler", ""
-                                            ),
-                                            "quantity": 1,
-                                            "modifier": [],
-                                        }
-                                    )
-                                    found = True
-
+                            if menu_item_name and (
+                                   item_lower in menu_item_name
+                                  or menu_item_name in item_lower):
+                                    # Calculate a simple match score (longer matches are better)
+                                match_length = min(
+                                    len(item_lower), len(menu_item_name)
+                                )
+                                if match_length > best_match_score:
+                                    best_match = menu_item
+                                    best_match_score = match_length
+                            if best_match:
+                                logger.info(
+                                    f"[ORDER-VERIFY-PASS3-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})"
+                                )
+                                verified_items.append(
+                                    {
+                                        "name": best_match.get("name"),
+                                           "price": best_match.get("price", 0.0),
+                                        "reference_handler": best_match.get(
+                                            "reference_handler", ""
+                                        ),
+                                        "quantity": 1,
+                                        "modifier": [],
+                                    }
+                                )
+                                found = True
+        
                             if not found:
                                 logger.error(
                                     f"[ORDER-VERIFY-FAIL] Failed to verify item '{item_name}' after all verification passes"
