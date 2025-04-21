@@ -1175,15 +1175,22 @@ else:
                                     # Skip category items when matching
                                     menu_items = [item for item in menu_items if not item.get("is_category", False)]
                                     
-                                    # Simple fuzzy matching based on string containment
+                                    # Advanced fuzzy matching
                                     item_lower = item_name.lower()
                                     best_match = None
                                     best_match_score = 0
                                     
+                                    # Remove spaces for normalized comparison
+                                    item_normalized = item_lower.replace(" ", "")
+                                    
                                     for menu_item in menu_items:
+                                        # Skip category items (already filtered above, just for safety)
+                                        if menu_item.get("is_category", False):
+                                            continue
+                                            
                                         menu_item_name = menu_item.get("name", "").lower()
                                         
-                                        # Check partial containment in either direction
+                                        # Method 1: Check partial containment in either direction
                                         if menu_item_name and (
                                             item_lower in menu_item_name or 
                                             menu_item_name in item_lower
@@ -1193,6 +1200,29 @@ else:
                                             if match_length > best_match_score:
                                                 best_match = menu_item
                                                 best_match_score = match_length
+                                                logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found substring match: '{item_name}' ↔ '{menu_item.get('name')}'")
+                                        
+                                        # Method 2: Compare without spaces (e.g., "Ham Burger" vs "Hamburger")
+                                        menu_item_normalized = menu_item_name.replace(" ", "")
+                                        if item_normalized == menu_item_normalized:
+                                            # Space-normalized matches are very strong
+                                            best_match = menu_item
+                                            best_match_score = 1000  # Give it a high score to prioritize this match
+                                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found normalized match (removed spaces): '{item_name}' ↔ '{menu_item.get('name')}'")
+                                            break  # This is a very confident match, can stop here
+                                        
+                                        # Method 3: Check if terms appear in both strings regardless of order
+                                        item_terms = item_lower.split()
+                                        menu_item_terms = menu_item_name.split()
+                                        
+                                        common_terms = set(item_terms).intersection(set(menu_item_terms))
+                                        if common_terms:
+                                            # Calculate a score based on how many terms match
+                                            term_score = len(common_terms) / max(len(item_terms), len(menu_item_terms)) * 100
+                                            if term_score > best_match_score:
+                                                best_match = menu_item
+                                                best_match_score = term_score
+                                                logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found term match: '{item_name}' ↔ '{menu_item.get('name')}' (score: {term_score:.1f})")
                                     
                                     if best_match:
                                         logger.info(
@@ -1231,14 +1261,17 @@ else:
                                 item_lower = item_name.lower()
                                 found = False
                                 
-                                # Simple fuzzy matching
+                                # Advanced fuzzy matching
                                 best_match = None
                                 best_match_score = 0
+                                
+                                # Remove spaces for normalized comparison
+                                item_normalized = item_lower.replace(" ", "")
                                 
                                 for menu_item in menu_items:
                                     menu_item_name = menu_item.get("name", "").lower()
                                     
-                                    # Check partial containment in either direction
+                                    # Method 1: Check partial containment in either direction
                                     if menu_item_name and (
                                         item_lower in menu_item_name or 
                                         menu_item_name in item_lower
@@ -1248,6 +1281,29 @@ else:
                                         if match_length > best_match_score:
                                             best_match = menu_item
                                             best_match_score = match_length
+                                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found substring match: '{item_name}' ↔ '{menu_item.get('name')}'")
+                                    
+                                    # Method 2: Compare without spaces (e.g., "Ham Burger" vs "Hamburger")
+                                    menu_item_normalized = menu_item_name.replace(" ", "")
+                                    if item_normalized == menu_item_normalized:
+                                        # Space-normalized matches are very strong
+                                        best_match = menu_item
+                                        best_match_score = 1000  # Give it a high score to prioritize this match
+                                        logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found normalized match (removed spaces): '{item_name}' ↔ '{menu_item.get('name')}'")
+                                        break  # This is a very confident match, can stop here
+                                    
+                                    # Method 3: Check if terms appear in both strings regardless of order
+                                    item_terms = item_lower.split()
+                                    menu_item_terms = menu_item_name.split()
+                                    
+                                    common_terms = set(item_terms).intersection(set(menu_item_terms))
+                                    if common_terms:
+                                        # Calculate a score based on how many terms match
+                                        term_score = len(common_terms) / max(len(item_terms), len(menu_item_terms)) * 100
+                                        if term_score > best_match_score:
+                                            best_match = menu_item
+                                            best_match_score = term_score
+                                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found term match: '{item_name}' ↔ '{menu_item.get('name')}' (score: {term_score:.1f})")
                                 
                                 if best_match:
                                     logger.info(

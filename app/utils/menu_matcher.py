@@ -97,7 +97,34 @@ class MenuMatcher:
             # No items to match against
             if not menu_items:
                 logger.warning("[MENU-MATCHER] No menu items available to match against")
-                return None
+                # Try to reload menu data in case it wasn't loaded properly
+                self.menu_data = load_menu_data(force_refresh=True)
+                
+                # Try building menu_items again
+                menu_items = []
+                for item in self.menu_data.get("items", []):
+                    # Skip category items
+                    if item.get("is_category", False):
+                        continue
+                        
+                    # Skip unavailable items if we're checking availability
+                    if check_availability and (
+                        not item.get("available", True) or item.get("snoozed", False)
+                    ):
+                        continue
+                        
+                    menu_items.append({
+                        "name": item.get("name", ""),
+                        "category": item.get("category", ""),
+                        "description": item.get("description", ""),
+                        "price": item.get("price", 0.0),
+                    })
+                
+                # If still no items, log debug info and return None
+                if not menu_items:
+                    logger.error("[MENU-MATCHER] Failed to find any menu items after reload attempt")
+                    logger.error(f"[MENU-MATCHER] Menu data has {len(self.menu_data.get('items', []))} items")
+                    return None
                 
             # Build the messages for the API call
             messages = [
@@ -110,10 +137,12 @@ class MenuMatcher:
                     1. ONLY match against actual menu items, not category names
                     2. Consider item names, descriptions, and ingredients in your matching
                     3. Use fuzzy matching when appropriate (e.g., "cheeseburger" might match "Burger with Cheese")
-                    4. Focus on the customer's intent, not just literal word matching
-                    5. Return the name of the best matching menu item, exactly as it appears in the menu
-                    6. NEVER invent or suggest items that don't exist in the menu
-                    7. Use your knowledge of Japanese cuisine to better understand customer requests
+                    4. Be especially careful with spaces in words - "hamburger" and "ham burger" should be considered very similar
+                    5. Check for word containment, normalized forms (with spaces removed), and order-independent word matching
+                    6. Focus on the customer's intent, not just literal word matching
+                    7. Return the name of the best matching menu item, exactly as it appears in the menu
+                    8. NEVER invent or suggest items that don't exist in the menu
+                    9. Use your knowledge of Japanese cuisine to better understand customer requests
                        For example:
                        - "California Roll" is a popular sushi roll with crab, avocado, and cucumber
                        - "Dragon Roll" usually contains eel (unagi) and avocado
@@ -122,6 +151,12 @@ class MenuMatcher:
                        - "Tempura" refers to battered and fried items
                        - "Teriyaki" refers to a sweet glazed cooking style
                        - "Maki" refers to rolled sushi
+                    
+                    Specific matching rules:
+                    1. If customer says "hamburger", this should match "Ham Burger" on the menu
+                    2. If customer says "coca cola", this should match "Coca Cola" on the menu
+                    3. Words like "with", "and", "on" might be ignorable when matching
+                    4. Focus on key ingredient terms to find the best match
                     
                     Always format your response as a single menu item name, exactly as it appears in the menu."""
                 },
@@ -166,15 +201,56 @@ class MenuMatcher:
             
             # Find the matched item in the menu
             for item in self.menu_data.get("items", []):
+                # Skip category items
+                if item.get("is_category", False):
+                    continue
+                    
                 if item.get("name", "").lower() == matched_item_name.lower():
                     logger.info(f"[MENU-MATCHER] Found AI-matched item in menu: {item.get('name')}")
                     return item
-                    
-            # If we can't find the exact name the AI returned, try a close match
+            
+            # If we can't find the exact name the AI returned, try advanced fuzzy matching
+            best_match = None
+            best_score = 0
+            
+            # Convert matched_item_name to lowercase and remove spaces for comparison
+            search_term_normalized = matched_item_name.lower().replace(" ", "")
+            
             for item in self.menu_data.get("items", []):
-                if matched_item_name.lower() in item.get("name", "").lower() or item.get("name", "").lower() in matched_item_name.lower():
-                    logger.info(f"[MENU-MATCHER] Found close AI-matched item in menu: {item.get('name')}")
+                # Skip category items
+                if item.get("is_category", False):
+                    continue
+                    
+                item_name = item.get("name", "")
+                item_name_lower = item_name.lower()
+                
+                # Method 1: Direct containment (one is substring of other)
+                if matched_item_name.lower() in item_name_lower or item_name_lower in matched_item_name.lower():
+                    logger.info(f"[MENU-MATCHER] Found direct substring match: '{matched_item_name}' ↔ '{item_name}'")
                     return item
+                
+                # Method 2: Compare without spaces (e.g., "Ham Burger" vs "Hamburger")
+                item_normalized = item_name_lower.replace(" ", "")
+                if search_term_normalized == item_normalized:
+                    logger.info(f"[MENU-MATCHER] Found normalized match (removed spaces): '{matched_item_name}' ↔ '{item_name}'")
+                    return item
+                
+                # Method 3: Check if terms appear in both strings regardless of order
+                search_terms = matched_item_name.lower().split()
+                item_terms = item_name_lower.split()
+                
+                common_terms = set(search_terms).intersection(set(item_terms))
+                if common_terms:
+                    # Calculate a score based on how many terms match
+                    score = len(common_terms) / max(len(search_terms), len(item_terms))
+                    if score > best_score:
+                        best_score = score
+                        best_match = item
+            
+            # Return the best match if it's reasonably good (at least 50% terms match)
+            if best_match and best_score >= 0.5:
+                logger.info(f"[MENU-MATCHER] Found term-based match: '{matched_item_name}' ↔ '{best_match.get('name')}' (score: {best_score:.2f})")
+                return best_match
                     
             logger.warning(f"[MENU-MATCHER] AI suggested '{matched_item_name}' but item not found in menu")
             return None
