@@ -1623,8 +1623,17 @@ def handle_busy_options():
     if not speech_input and not digits:
         # If we've retried too many times, give a helpful message and end
         if retry_count >= 2:
-            response.say("We're having trouble hearing you. Please try calling back later when we're less busy. Thank you for your interest in Red Bar Sushi.")
-            response.hangup()
+            # Instead of hanging up, give them one more chance with simplified options
+            with response.gather(
+                input="dtmf",  # DTMF only for simplicity at this point
+                action="/main_menu",
+                num_digits=1,
+                timeout=10  # Give them extra time
+            ) as g:
+                g.say("We're having trouble with the connection. Press 1 to return to the main menu or stay on the line and we'll try one more time.")
+            
+            # If they don't respond, redirect to the main menu as a last resort
+            response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
         
         # Otherwise retry with the options
@@ -1693,8 +1702,17 @@ def handle_menu_unavailable():
     # Check for silence (no input)
     if not speech_input and not digits:
         if retry_count >= 2:
-            response.say("We're having trouble hearing you. Please call back later when our menu system is back online. Thank you for your interest in Red Bar Sushi.")
-            response.hangup()
+            # Instead of hanging up, give them one more chance with simplified options
+            with response.gather(
+                input="dtmf",  # DTMF only for simplicity at this point
+                action="/main_menu",
+                num_digits=1,
+                timeout=10  # Give them extra time
+            ) as g:
+                g.say("We're having trouble with the connection. Press 1 to return to the main menu or stay on the line and we'll try one more time.")
+            
+            # If they don't respond, redirect to the main menu as a last resort
+            response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
         
         # Retry with options
@@ -1763,8 +1781,17 @@ def handle_technical_difficulties():
     # Check for silence (no input)
     if not speech_input and not digits:
         if retry_count >= 2:
-            response.say("We're having trouble with the connection. Please try calling back in a few minutes. We apologize for the inconvenience.")
-            response.hangup()
+            # Instead of hanging up, offer very simple options
+            with response.gather(
+                input="dtmf",  # DTMF only for simplicity at this point
+                action="/main_menu",
+                num_digits=1,
+                timeout=10  # Give them extra time
+            ) as g:
+                g.say("We're having trouble with the connection. Press 1 to return to the main menu or stay on the line and we'll try one more time.")
+            
+            # If they don't respond, redirect to the main menu as a last resort
+            response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
         
         # Retry with options
@@ -1828,27 +1855,27 @@ def order_completion_options():
     
     # Check for silence or invalid input
     if not speech_input and not digits:
-        # If they don't say anything, just thank them and end the call
+        # If they don't say anything, just thank them and use the graceful exit
         response.say("Thank you for your order at Red Bar Sushi! Goodbye!")
-        response.hangup()
+        response.redirect("/graceful_exit")
         return Response(str(response), mimetype="text/xml")
     
     # Process their choice
     if digits == "1" or "direction" in speech_input or "address" in speech_input or "location" in speech_input:
         # Provide directions
         response.say("Our restaurant is located at 123 Main Street, between 5th and 6th Avenue. Parking is available in the structure across the street. Thank you for your order! Goodbye.")
-        response.hangup()
+        response.redirect("/graceful_exit")
     elif digits == "2" or "hours" in speech_input or "operation" in speech_input or "open" in speech_input:
         # Provide hours
         response.say("Our hours of operation are Monday through Friday from 11 AM to 10 PM, and Saturday and Sunday from 12 PM to 11 PM. Thank you for your order! Goodbye.")
-        response.hangup()
+        response.redirect("/graceful_exit")
     elif digits == "3" or "end" in speech_input or "goodbye" in speech_input or "bye" in speech_input or "nothing" in speech_input:
         response.say("Thank you for your order at Red Bar Sushi! Goodbye!")
-        response.hangup()
+        response.redirect("/graceful_exit")
     else:
         # Unrecognized input, just thank them
         response.say("Thank you for your order at Red Bar Sushi! We look forward to seeing you soon. Goodbye!")
-        response.hangup()
+        response.redirect("/graceful_exit")
     
     return Response(str(response), mimetype="text/xml")
 
@@ -1868,8 +1895,17 @@ def handle_unavailable_order():
     # Check for silence (no input)
     if not speech_input and not digits:
         if retry_count >= 2:
-            response.say("We're having trouble hearing you. Please try calling back to explore our other menu options. Thank you for your interest in Red Bar Sushi.")
-            response.hangup()
+            # Instead of hanging up, give them one more chance with simplified options
+            with response.gather(
+                input="dtmf",  # DTMF only for simplicity at this point
+                action="/main_menu",
+                num_digits=1,
+                timeout=10  # Give them extra time
+            ) as g:
+                g.say("We're having trouble with the connection. Press 1 to return to the main menu, press 2 to try again, or stay on the line to end this call.")
+            
+            # If they don't respond, redirect to the main menu as a last resort
+            response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
         
         # Retry with options
@@ -1896,7 +1932,8 @@ def handle_unavailable_order():
         response.redirect("/handle_transfer_to_human")
     elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
         response.say("We apologize again that your preferred items are unavailable. We hope to see you soon when we have them back in stock. Goodbye!")
-        response.hangup()
+        # Instead of hanging up, redirect to a clean ending
+        response.redirect("/graceful_exit")
     else:
         # Unrecognized input
         with response.gather(
@@ -1931,8 +1968,8 @@ def save_callback_request():
         # No information provided
         response.say("I didn't catch your information. Please call back when you have a moment to provide your contact details. Goodbye!")
     
-    # This is an appropriate place to hang up
-    response.hangup()
+    # Instead of hanging up, redirect to graceful exit
+    response.redirect("/graceful_exit")
     
     return Response(str(response), mimetype="text/xml")
 
@@ -1954,7 +1991,32 @@ def save_contact_info():
         # No information provided
         response.say("I didn't catch your information. Please call back when you have a moment to provide your contact details. Goodbye!")
     
-    # This is an appropriate place to hang up
+    # Instead of hanging up, redirect to graceful exit
+    response.redirect("/graceful_exit")
+    
+    return Response(str(response), mimetype="text/xml")
+
+@order_bp.route("/graceful_exit", methods=["GET", "POST"])
+def graceful_exit():
+    """
+    Provide a graceful exit for the call with a final retry opportunity.
+    This route exists to avoid hanging up on customers and give them one last chance
+    to provide input if they're still there but were having connection issues.
+    """
+    response = VoiceResponse()
+    
+    # Add a brief gather with a simple message
+    with response.gather(
+        input="dtmf",
+        action="/main_menu",
+        num_digits=1,
+        timeout=5  # Short timeout as this is the last chance
+    ) as g:
+        g.say("Thank you for calling Red Bar Sushi. If you'd like to return to the main menu, please press any key now. Goodbye!")
+    
+    # If no input after short timeout, we can safely end the call
+    # This is an appropriate place to hang up as we've given multiple chances
+    response.say("Goodbye from Red Bar Sushi. We look forward to your next call.")
     response.hangup()
     
     return Response(str(response), mimetype="text/xml")
@@ -1980,19 +2042,29 @@ def handle_modifier_suggestion():
     
     # Check for silence (user didn't respond to suggestion)
     if not user_resp and not digits:
-        # No response - ask again but make it easier to skip
-        with response.gather(
-            input="speech dtmf",
-            action="/handle_modifier_suggestion",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout=5,
-            timeout=7,
-            num_digits=1
-        ) as g:
-            g.say(f"If you'd like to add any modifiers to your {current_item}, please say them now. Otherwise, press 1 to continue without modifiers.")
-        return Response(str(response), mimetype="text/xml")
+        # Track silence retries for modifier suggestions
+        mod_silence_retry = session.get("modifier_silence_retry", 0)
+        session["modifier_silence_retry"] = mod_silence_retry + 1
+        
+        # If we've tried multiple times, just continue without modifiers
+        if mod_silence_retry >= 2:
+            logger.info(f"Multiple silence retries for modifier suggestions on {current_item}, continuing without modifiers")
+            # Skip to the next item or continue to confirmation
+            pass  # We'll handle this in the common path below
+        else:
+            # No response - ask again but make it easier to skip
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_modifier_suggestion",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1
+            ) as g:
+                g.say(f"If you'd like to add any modifiers to your {current_item}, please say them now. Otherwise, press 1 to continue without modifiers.")
+            return Response(str(response), mimetype="text/xml")
     
     # Check if user explicitly declined modifiers with DTMF
     if digits == "1" or "no" in user_resp or "skip" in user_resp or "continue" in user_resp:
