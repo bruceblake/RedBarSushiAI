@@ -103,7 +103,7 @@ class MenuMatcher:
             messages = [
                 {
                     "role": "system",
-                    "content": """You are an AI assistant for a restaurant that helps match customer requests to menu items.
+                    "content": """You are an AI assistant for a Japanese restaurant that helps match customer requests to menu items.
                     Your goal is to find the best match for a customer's item request based on the available menu items.
                     
                     Important rules:
@@ -113,6 +113,15 @@ class MenuMatcher:
                     4. Focus on the customer's intent, not just literal word matching
                     5. Return the name of the best matching menu item, exactly as it appears in the menu
                     6. NEVER invent or suggest items that don't exist in the menu
+                    7. Use your knowledge of Japanese cuisine to better understand customer requests
+                       For example:
+                       - "California Roll" is a popular sushi roll with crab, avocado, and cucumber
+                       - "Dragon Roll" usually contains eel (unagi) and avocado
+                       - "Nigiri" refers to slices of fish over rice
+                       - "Sashimi" refers to slices of raw fish served without rice
+                       - "Tempura" refers to battered and fried items
+                       - "Teriyaki" refers to a sweet glazed cooking style
+                       - "Maki" refers to rolled sushi
                     
                     Always format your response as a single menu item name, exactly as it appears in the menu."""
                 },

@@ -138,6 +138,7 @@ if not AGENT_API_AVAILABLE and OPENAI_API_KEY:
         OPENAI_API_KEY = None
 
 from app.utils.menu_utils import load_menu_data, find_menu_item_by_name
+# The menu_matcher will be imported at runtime in the verify function to avoid circular imports
 
 
 class SushiMenuTool:
@@ -1054,12 +1055,20 @@ else:
                 )
 
                 # First pass: Current verification strategy using search_menu
-                for item_name in potential_items:
+                for item_data in potential_items:
+                    # Handle both string items and dictionary items from parsed response
+                    if isinstance(item_data, dict):
+                        item_name = item_data.get("name", "")
+                        item_quantity = item_data.get("quantity", 1)
+                    else:
+                        item_name = item_data
+                        item_quantity = 1
+                        
                     # Search menu for this item
                     logger.info(
                         f"[ORDER-VERIFY-PASS1] Verifying item: '{item_name}' using search_menu"
                     )
-                    search_result = self.menu_tool.search_menu(item_name.get("name"))
+                    search_result = self.menu_tool.search_menu(item_name)
                     if search_result.get("found"):
                         for menu_item in search_result.get("items", []):
                             logger.info(
@@ -1072,7 +1081,7 @@ else:
                                     "reference_handler": menu_item.get(
                                         "reference_handler", ""
                                     ),
-                                    "quantity": 1,  # Default quantity
+                                    "quantity": item_quantity,
                                     "modifier": [],  # Default empty modifiers
                                 }
                             )
@@ -1093,7 +1102,7 @@ else:
                         logger.info(
                             f"[ORDER-VERIFY-PASS2] Verifying item: '{item_name}' using direct lookup"
                         )
-                        menu_item = find_menu_item_by_name(item_name.get("name"))
+                        menu_item = find_menu_item_by_name(item_name)
                         if menu_item:
                             logger.info(
                                 f"[ORDER-VERIFY-PASS2-SUCCESS] Direct lookup found '{item_name}' as '{menu_item.get('name')}' (${menu_item.get('price', 0.0)})"
@@ -1115,95 +1124,150 @@ else:
                             )
                             still_unverified.append(item_name)
 
-                    # Third pass: Partial/fuzzy matching with menu items and variants
+                    # Third pass: AI-powered fuzzy matching with menu_matcher
                     if still_unverified:
                         logger.info(
-                            f"[ORDER-VERIFY-PASS3] Starting third pass verification with fuzzy matching for {len(still_unverified)} items"
+                            f"[ORDER-VERIFY-PASS3] Starting third pass verification with AI fuzzy matching for {len(still_unverified)} items"
                         )
-                        # AI agent will handle menu item matching
-                        menu_items = self.menu_tool.menu_data.get("items", [])
-
-                        for item_name in still_unverified:
-                            item_lower = item_name.get("name").lower()
-                            found = False
+                        
+                        # Import menu_matcher for AI-powered fuzzy matching
+                        try:
+                            from app.utils.menu_matcher import find_menu_item_ai
                             
-                            # Skip name variants - AI agent will handle matching for fuzzy matches
-
-
-                        system_message = """You are a fuzzy finding specialist for Red Bar Sushi.""
-The customer is ordering something that is not exactly word for word on.
-the menu but may be similar. It is your job to figure out what the correct
-item on the menu the customer is trying to order
-If you are able to accurately find one then output in this format:
-{
-  "name": best_match.get("name"),
-  "price": best_match.get("price", 0.0),
-  "reference_handler": best_match.get(
-    "reference_handler", ""
-  ),
-  "quantity": 1,
-  "modifier": [],
-}
-
-if you are not then output the same with the name as NOT_FOUND""" 
-
-                        client = openai.OpenAI()
-                        res = client.chat.completions.create(
-                                model="gpt-4.1-mini",
-                                messages=[
-                                    {"role": "system", "content": system_message},
-                                    {"role": "user", "content": f"Here is the menu: {menu_items}"},
-                                ]
-                            )
-
-                        if res.get("name") == "NOT_FOUND":
-                                found = False
-                        else:
-                                
-                            verified_items.append(res)
-                            found = True
-                            
-
-
-                            # If still not found, try matching directly against menu items
-                        if not found:
-                            best_match = None
-                            best_match_score = 0
-
-                            for menu_item in menu_items:
-                                menu_item_name = menu_item.get("name", "").lower()
-                                    # Check partial containment in either direction
-                            if menu_item_name and (
-                                   item_lower in menu_item_name
-                                  or menu_item_name in item_lower):
-                                    # Calculate a simple match score (longer matches are better)
-                                match_length = min(
-                                    len(item_lower), len(menu_item_name)
-                                )
-                                if match_length > best_match_score:
-                                    best_match = menu_item
-                                    best_match_score = match_length
-                            if best_match:
+                            for item_name in still_unverified:
                                 logger.info(
-                                    f"[ORDER-VERIFY-PASS3-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})"
+                                    f"[ORDER-VERIFY-PASS3] Using AI matcher for item: '{item_name}'"
                                 )
-                                verified_items.append(
-                                    {
-                                        "name": best_match.get("name"),
-                                           "price": best_match.get("price", 0.0),
-                                        "reference_handler": best_match.get(
-                                            "reference_handler", ""
-                                        ),
-                                        "quantity": 1,
-                                        "modifier": [],
-                                    }
-                                )
-                                found = True
-        
-                            if not found:
-                                logger.error(
-                                    f"[ORDER-VERIFY-FAIL] Failed to verify item '{item_name}' after all verification passes"
-                                )
+                                
+                                # Create context with the original order text for better matching
+                                context = {"conversation": [{"role": "user", "content": order_text}]}
+                                
+                                # Use the AI-powered menu matcher
+                                ai_match = find_menu_item_ai(item_name, check_availability=False, context=context)
+                                
+                                if ai_match:
+                                    logger.info(
+                                        f"[ORDER-VERIFY-PASS3-SUCCESS] AI matcher found '{item_name}' as '{ai_match.get('name')}' (${ai_match.get('price', 0.0)})"
+                                    )
+                                    verified_items.append(
+                                        {
+                                            "name": ai_match.get("name"),
+                                            "price": ai_match.get("price", 0.0),
+                                            "reference_handler": ai_match.get("reference_handler", ""),
+                                            "quantity": 1,
+                                            "modifier": [],
+                                        }
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"[ORDER-VERIFY-PASS3-FAIL] AI matcher could not find a match for '{item_name}'"
+                                    )
+                                    
+                                    # Fallback to simple fuzzy matching if AI matching fails
+                                    logger.info(
+                                        f"[ORDER-VERIFY-PASS3-FALLBACK] Trying simple fuzzy matching for '{item_name}'"
+                                    )
+                                    
+                                    # Get the menu items for fallback matching
+                                    menu_items = self.menu_tool.menu_data.get("items", [])
+                                    found = False
+                                    
+                                    # Skip category items when matching
+                                    menu_items = [item for item in menu_items if not item.get("is_category", False)]
+                                    
+                                    # Simple fuzzy matching based on string containment
+                                    item_lower = item_name.lower()
+                                    best_match = None
+                                    best_match_score = 0
+                                    
+                                    for menu_item in menu_items:
+                                        menu_item_name = menu_item.get("name", "").lower()
+                                        
+                                        # Check partial containment in either direction
+                                        if menu_item_name and (
+                                            item_lower in menu_item_name or 
+                                            menu_item_name in item_lower
+                                        ):
+                                            # Calculate a simple match score (longer matches are better)
+                                            match_length = min(len(item_lower), len(menu_item_name))
+                                            if match_length > best_match_score:
+                                                best_match = menu_item
+                                                best_match_score = match_length
+                                    
+                                    if best_match:
+                                        logger.info(
+                                            f"[ORDER-VERIFY-PASS3-FALLBACK-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})"
+                                        )
+                                        verified_items.append(
+                                            {
+                                                "name": best_match.get("name"),
+                                                "price": best_match.get("price", 0.0),
+                                                "reference_handler": best_match.get("reference_handler", ""),
+                                                "quantity": 1,
+                                                "modifier": [],
+                                            }
+                                        )
+                                        found = True
+                                    
+                                    if not found:
+                                        logger.error(
+                                            f"[ORDER-VERIFY-FAIL] Failed to verify item '{item_name}' after all verification passes"
+                                        )
+                                        
+                        except Exception as e:
+                            logger.error(f"[ORDER-VERIFY-PASS3-ERROR] Error in AI matching: {str(e)}")
+                            logger.error(f"[ORDER-VERIFY-PASS3-TRACEBACK] {traceback.format_exc()}")
+                            
+                            # Fallback to simple keyword matching without AI
+                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Falling back to simple matching for {len(still_unverified)} items")
+                            
+                            # Get the menu items
+                            menu_items = self.menu_tool.menu_data.get("items", [])
+                            
+                            # Skip category items
+                            menu_items = [item for item in menu_items if not item.get("is_category", False)]
+                            
+                            for item_name in still_unverified:
+                                item_lower = item_name.lower()
+                                found = False
+                                
+                                # Simple fuzzy matching
+                                best_match = None
+                                best_match_score = 0
+                                
+                                for menu_item in menu_items:
+                                    menu_item_name = menu_item.get("name", "").lower()
+                                    
+                                    # Check partial containment in either direction
+                                    if menu_item_name and (
+                                        item_lower in menu_item_name or 
+                                        menu_item_name in item_lower
+                                    ):
+                                        # Calculate a simple match score (longer matches are better)
+                                        match_length = min(len(item_lower), len(menu_item_name))
+                                        if match_length > best_match_score:
+                                            best_match = menu_item
+                                            best_match_score = match_length
+                                
+                                if best_match:
+                                    logger.info(
+                                        f"[ORDER-VERIFY-PASS3-FALLBACK-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})"
+                                    )
+                                    verified_items.append(
+                                        {
+                                            "name": best_match.get("name"),
+                                            "price": best_match.get("price", 0.0),
+                                            "reference_handler": best_match.get("reference_handler", ""),
+                                            "quantity": 1,
+                                            "modifier": [],
+                                        }
+                                    )
+                                    found = True
+                                
+                                if not found:
+                                    logger.error(
+                                        f"[ORDER-VERIFY-FAIL] Failed to verify item '{item_name}' after all verification passes"
+                                    )
 
                 # Log summary of verification process
                 verification_rate = (
