@@ -673,8 +673,21 @@ def main_menu():
                 "You can ask for the menu, prices, descriptions, or say what you'd like to order."
             )
     elif choice == "real_person":
-        response.say("Please hold, transferring to a real person.")
-        response.hangup()
+        # Store in session that we're transferring to a real person
+        session["transfer_to_human"] = True
+        # Instead of hanging up immediately, gather input first with a message about transferring
+        # This gives us a chance to recover if the transfer doesn't work
+        gather_params = setup_gather_params(
+            context="confirm",
+            include_dtmf=True,
+            action="/handle_transfer_to_human"
+        )
+        
+        with response.gather(**gather_params) as g:
+            g.say("Please hold while I transfer you to a team member. If you aren't connected within a few moments, press any key.")
+        
+        # Fallback if no input is received after the timeout
+        response.redirect("/handle_transfer_to_human")
     else:
         # Use adaptive timeouts for main menu fallback
         gather_params = setup_gather_params(
@@ -1339,6 +1352,153 @@ async def conversation(ws):
         except:
             pass
 
+
+@voice_bp.route("/handle_transfer_to_human", methods=["POST"])
+def handle_transfer_to_human():
+    """
+    Handle the transfer to a human agent with fallback options if human isn't available.
+    This prevents just hanging up on the user if a transfer fails.
+    """
+    # Get any speech input, if present
+    speech_input = request.form.get("SpeechResult", "")
+    digits = request.form.get("Digits", "")
+    
+    # Track transfer attempts
+    transfer_attempts = session.get("transfer_attempts", 0)
+    session["transfer_attempts"] = transfer_attempts + 1
+    
+    response = VoiceResponse()
+    
+    # If this is the first attempt, try to transfer
+    if transfer_attempts == 0:
+        response.say("We're connecting you with a team member now. Please wait a moment.")
+        # In a real implementation, this would use Twilio's <Dial> verb to connect to a real person
+        # Here we'll just pause to simulate the transfer attempt
+        response.pause(length=3)
+        
+        # After the pause, gather input to see if they need more help
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_transfer_to_human",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("I'm sorry, but it seems our team members are busy. Press 1 to keep waiting, 2 to go back to the main menu, or 3 to end the call.")
+    
+    # If we've already tried to transfer once, handle their choice
+    else:
+        # Check their input
+        if digits == "1" or "wait" in speech_input.lower() or "keep" in speech_input.lower():
+            # They want to keep waiting - try another transfer
+            response.say("Thank you for your patience. We're trying to connect you again.")
+            response.pause(length=3)
+            
+            # Gather again after the second attempt
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_transfer_to_human",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1
+            ) as g:
+                g.say("I apologize, but we're still having trouble connecting you. Press 1 to leave a message, 2 to go back to the main menu, or 3 to end the call.")
+        
+        elif digits == "2" or "menu" in speech_input.lower() or "back" in speech_input.lower():
+            # They want to go back to the main menu
+            response.redirect("/main_menu")
+            return Response(str(response), mimetype="text/xml")
+        
+        elif digits == "3" or "end" in speech_input.lower() or "goodbye" in speech_input.lower():
+            # They want to end the call
+            response.say("Thank you for calling Red Bar Sushi. Goodbye!")
+            # This is an intentional hangup requested by the user
+            response.hangup()
+        
+        elif transfer_attempts >= 2:
+            # Too many attempts, offer to take a message
+            response.say("We apologize for the inconvenience. Please call back during our business hours from 11 AM to 10 PM when more staff are available.")
+            
+            # Offer to send them to voicemail or text
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_voicemail",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1
+            ) as g:
+                g.say("Would you like to leave a message? Press 1 for yes or 2 to end the call.")
+        
+        else:
+            # No valid input, default to a friendly message
+            response.say("We're sorry we couldn't connect you with a team member. Please try calling back later when more staff are available. Thank you.")
+            # This is an intentional end of the conversation
+            response.hangup()
+    
+    return Response(str(response), mimetype="text/xml")
+
+@voice_bp.route("/handle_voicemail", methods=["POST"])
+def handle_voicemail():
+    """Handle voicemail/message requests when a human isn't available"""
+    # Get any speech input, if present
+    speech_input = request.form.get("SpeechResult", "").lower()
+    digits = request.form.get("Digits", "")
+    
+    response = VoiceResponse()
+    
+    # Check if they want to leave a message
+    if digits == "1" or "yes" in speech_input or "sure" in speech_input or "okay" in speech_input:
+        with response.gather(
+            input="speech",
+            action="/save_voicemail",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=10,  # Give them more time to leave a message
+            timeout=15
+        ) as g:
+            g.say("Please leave your message after the tone. When you're finished, just stay silent for a few moments.")
+            g.play("https://api.twilio.com/cowbell.mp3")  # A simple "beep" tone
+    else:
+        # They don't want to leave a message
+        response.say("Thank you for calling Red Bar Sushi. Have a great day! Goodbye.")
+        # This is an intentional end of the conversation
+        response.hangup()
+    
+    return Response(str(response), mimetype="text/xml")
+
+@voice_bp.route("/save_voicemail", methods=["POST"])
+def save_voicemail():
+    """Process and save a voicemail message"""
+    # Get the message content
+    message = request.form.get("SpeechResult", "")
+    
+    response = VoiceResponse()
+    
+    if message:
+        # In a real implementation, you would save this message to a database or send it via email/SMS
+        # For now, just log it
+        logger.info(f"Voicemail received from {session.get('caller_name', 'Unknown caller')}: {message}")
+        
+        # Thank them for their message
+        response.say("Thank you for your message. Our team will get back to you as soon as possible. Goodbye!")
+    else:
+        # No message was recorded
+        response.say("We didn't receive a message. Please call back if you'd like to speak with our team. Goodbye!")
+    
+    # This is the proper end of the voicemail flow
+    response.hangup()
+    
+    return Response(str(response), mimetype="text/xml")
 
 @sock.route("/api/ws/text-to-speech")
 async def text_to_speech(ws):

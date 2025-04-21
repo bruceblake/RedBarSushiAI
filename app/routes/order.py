@@ -79,10 +79,26 @@ def take_order():
     # Check if we're in busy mode
     if BUSY_MODE_ACTIVE:
         response = VoiceResponse()
+        # Instead of hanging up, offer options when busy
         response.say(
-            "We're currently busy and not accepting new orders right now. Please call back later."
+            "We're currently busy and not accepting new orders right now."
         )
-        response.hangup()
+        
+        # Gather input to let them choose an option
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_busy_options",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("Press 1 to get menu information, press 2 to leave your name and number for a callback, or press 3 to end the call.")
+        
+        # If they don't input anything, repeat the options
+        response.redirect("/handle_busy_options")
         return Response(str(response), mimetype="text/xml")
 
     # Load menu and check availability - force refresh to ensure we have latest data
@@ -162,18 +178,48 @@ def take_order():
         if not available_items:
             response = VoiceResponse()
             response.say(
-                "I'm sorry, our menu is currently unavailable. Please try again later."
+                "I'm sorry, our menu is currently unavailable."
             )
-            response.hangup()
+            
+            # Instead of hanging up, offer some alternatives
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_menu_unavailable",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1
+            ) as g:
+                g.say("Press 1 to speak with a team member about our daily specials, press 2 to leave your contact information for when our menu is back online, or press 3 to end the call.")
+            
+            # If they don't input anything, redirect to the handler
+            response.redirect("/handle_menu_unavailable")
             return Response(str(response), mimetype="text/xml")
 
     except Exception as e:
         logger.error(f"Error loading menu: {e}")
         response = VoiceResponse()
         response.say(
-            "I'm sorry, we're experiencing technical difficulties. Please try again later."
+            "I'm sorry, we're experiencing technical difficulties."
         )
-        response.hangup()
+        
+        # Instead of hanging up, give them options
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_technical_difficulties",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("Press 1 to speak with a team member who can take your order manually, press 2 to leave your contact information for a callback, or press 3 to end the call.")
+        
+        # Fallback if no input received
+        response.redirect("/handle_technical_difficulties")
         return Response(str(response), mimetype="text/xml")
 
     # Get the user's speech
@@ -505,9 +551,24 @@ def confirm_order_from_initial():
         # Calculate prep time and respond
         time_taken = DEFAULT_PREP_TIME_BASE + (PREP_TIME_PER_ITEM * len(order_items))
         response.say(
-            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status. Thank you!"
+            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status."
         )
-        response.hangup()
+        
+        # Instead of hanging up, ask if they need anything else
+        with response.gather(
+            input="speech dtmf",
+            action="/order_completion_options",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("Is there anything else you'd like help with today? Press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call.")
+        
+        # Fallback if no input received
+        response.redirect("/order_completion_options")
 
     # Handle "no" - go to modification
     elif interpreted == "no":
@@ -1148,9 +1209,24 @@ def confirm_order_after_modification():
 
         # Confirm order
         response.say(
-            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status. Thank you for choosing Red Bar Sushi! Goodbye."
+            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status."
         )
-        response.hangup()
+        
+        # Instead of hanging up, ask if they need anything else
+        with response.gather(
+            input="speech dtmf",
+            action="/order_completion_options",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("Is there anything else you'd like help with today? Press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call.")
+        
+        # Fallback if no input received
+        response.redirect("/order_completion_options")
 
     # Handle "no" - go back to modification
     elif interpreted == "no":
@@ -1378,9 +1454,24 @@ def handle_newly_snoozed_in_checkout():
         # If order is now empty, cancel
         if not updated_items:
             response.say(
-                f"All items in your order including {snoozed_items_str} are now unavailable. We apologize for the inconvenience. Goodbye."
+                f"All items in your order including {snoozed_items_str} are now unavailable. We apologize for the inconvenience."
             )
-            response.hangup()
+            
+            # Instead of hanging up, offer alternatives
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_unavailable_order",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1
+            ) as g:
+                g.say("Press 1 to explore other menu options, press 2 to speak with a team member about today's specials, or press 3 to end the call.")
+            
+            # Fallback if no input received
+            response.redirect("/handle_unavailable_order")
             return Response(str(response), mimetype="text/xml")
 
         # Update session with modified order
@@ -1409,12 +1500,382 @@ def handle_newly_snoozed_in_checkout():
     # Handle "no" - cancel order
     else:
         response.say(
-            f"We're sorry that {snoozed_items_str} is unavailable. Your order has been cancelled. Goodbye."
+            f"We're sorry that {snoozed_items_str} is unavailable. Your order has been cancelled."
         )
-        response.hangup()
+        
+        # Instead of hanging up, offer alternatives
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_unavailable_order",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("Press 1 to explore other menu options, press 2 to speak with a team member about today's specials, or press 3 to end the call.")
+        
+        # Fallback if no input received
+        response.redirect("/handle_unavailable_order")
 
     return Response(str(response), mimetype="text/xml")
 
+
+# ====== New handler routes for smart silence handling and fallbacks ======
+
+@order_bp.route("/handle_busy_options", methods=["POST"])
+def handle_busy_options():
+    """Handle options when restaurant is in busy mode"""
+    # Get user input
+    speech_input = request.form.get("SpeechResult", "").lower()
+    digits = request.form.get("Digits", "")
+    
+    response = VoiceResponse()
+    
+    # Track retry counter
+    retry_count = session.get("busy_options_retry", 0)
+    session["busy_options_retry"] = retry_count + 1
+    
+    # Check for silence (no input)
+    if not speech_input and not digits:
+        # If we've retried too many times, give a helpful message and end
+        if retry_count >= 2:
+            response.say("We're having trouble hearing you. Please try calling back later when we're less busy. Thank you for your interest in Red Bar Sushi.")
+            response.hangup()
+            return Response(str(response), mimetype="text/xml")
+        
+        # Otherwise retry with the options
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_busy_options",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("I didn't catch that. Press 1 to get menu information, press 2 to leave your name and number for a callback, or press 3 to end the call.")
+            
+        return Response(str(response), mimetype="text/xml")
+    
+    # Process their choice
+    if digits == "1" or "menu" in speech_input:
+        # Redirect to menu questions
+        response.redirect("/handle_menu_questions")
+    elif digits == "2" or "callback" in speech_input or "call back" in speech_input or "leave" in speech_input:
+        # Gather their callback information
+        with response.gather(
+            input="speech",
+            action="/save_callback_request",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=7,
+            timeout=10
+        ) as g:
+            g.say("Please tell me your name and the best time to call you back.")
+    elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
+        response.say("Thank you for your understanding. Please call back later when we're less busy. Goodbye!")
+        response.hangup()
+    else:
+        # Unrecognized input, give them another chance
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_busy_options",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("I didn't understand. Press 1 for menu information, 2 to request a callback, or 3 to end the call.")
+    
+    return Response(str(response), mimetype="text/xml")
+
+@order_bp.route("/handle_menu_unavailable", methods=["POST"])
+def handle_menu_unavailable():
+    """Handle options when the menu is unavailable"""
+    # Get user input
+    speech_input = request.form.get("SpeechResult", "").lower()
+    digits = request.form.get("Digits", "")
+    
+    response = VoiceResponse()
+    
+    # Track retry counter
+    retry_count = session.get("menu_unavailable_retry", 0)
+    session["menu_unavailable_retry"] = retry_count + 1
+    
+    # Check for silence (no input)
+    if not speech_input and not digits:
+        if retry_count >= 2:
+            response.say("We're having trouble hearing you. Please call back later when our menu system is back online. Thank you for your interest in Red Bar Sushi.")
+            response.hangup()
+            return Response(str(response), mimetype="text/xml")
+        
+        # Retry with options
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_menu_unavailable",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("I didn't catch that. Press 1 to speak with a team member about our daily specials, press 2 to leave your contact information, or press 3 to end the call.")
+            
+        return Response(str(response), mimetype="text/xml")
+    
+    # Process their choice
+    if digits == "1" or "speak" in speech_input or "team" in speech_input or "specials" in speech_input:
+        # Redirect to human agent handler
+        response.redirect("/handle_transfer_to_human")
+    elif digits == "2" or "contact" in speech_input or "information" in speech_input:
+        # Gather their contact information
+        with response.gather(
+            input="speech",
+            action="/save_contact_info",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=7,
+            timeout=10
+        ) as g:
+            g.say("Please tell me your name and the best way to contact you when our menu is back online.")
+    elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
+        response.say("Thank you for your understanding. Please call back later when our menu system is available. Goodbye!")
+        response.hangup()
+    else:
+        # Unrecognized input
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_menu_unavailable",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("I didn't understand. Press 1 to speak with a team member, 2 to leave your contact info, or 3 to end the call.")
+    
+    return Response(str(response), mimetype="text/xml")
+
+@order_bp.route("/handle_technical_difficulties", methods=["POST"])
+def handle_technical_difficulties():
+    """Handle options when there are technical difficulties"""
+    # Get user input
+    speech_input = request.form.get("SpeechResult", "").lower()
+    digits = request.form.get("Digits", "")
+    
+    response = VoiceResponse()
+    
+    # Track retry counter
+    retry_count = session.get("tech_difficulties_retry", 0)
+    session["tech_difficulties_retry"] = retry_count + 1
+    
+    # Check for silence (no input)
+    if not speech_input and not digits:
+        if retry_count >= 2:
+            response.say("We're having trouble with the connection. Please try calling back in a few minutes. We apologize for the inconvenience.")
+            response.hangup()
+            return Response(str(response), mimetype="text/xml")
+        
+        # Retry with options
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_technical_difficulties",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("I didn't catch that. Press 1 to speak with a team member, press 2 to leave your contact information, or press 3 to end the call.")
+            
+        return Response(str(response), mimetype="text/xml")
+    
+    # Process their choice
+    if digits == "1" or "speak" in speech_input or "team" in speech_input:
+        # Transfer to a real person
+        response.redirect("/handle_transfer_to_human")
+    elif digits == "2" or "contact" in speech_input or "callback" in speech_input:
+        # Gather their contact information
+        with response.gather(
+            input="speech",
+            action="/save_callback_request",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=7,
+            timeout=10
+        ) as g:
+            g.say("Please tell me your name and the best way to contact you once our system is working again.")
+    elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
+        response.say("We apologize for the technical difficulties. Please try calling back in a few minutes. Goodbye!")
+        response.hangup()
+    else:
+        # Unrecognized input
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_technical_difficulties",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("I didn't understand. Press 1 to speak with a team member, 2 to leave your contact info, or 3 to end the call.")
+    
+    return Response(str(response), mimetype="text/xml")
+
+@order_bp.route("/order_completion_options", methods=["POST"])
+def order_completion_options():
+    """Handle additional options after order completion"""
+    # Get user input
+    speech_input = request.form.get("SpeechResult", "").lower()
+    digits = request.form.get("Digits", "")
+    
+    response = VoiceResponse()
+    
+    # Check for silence or invalid input
+    if not speech_input and not digits:
+        # If they don't say anything, just thank them and end the call
+        response.say("Thank you for your order at Red Bar Sushi! Goodbye!")
+        response.hangup()
+        return Response(str(response), mimetype="text/xml")
+    
+    # Process their choice
+    if digits == "1" or "direction" in speech_input or "address" in speech_input or "location" in speech_input:
+        # Provide directions
+        response.say("Our restaurant is located at 123 Main Street, between 5th and 6th Avenue. Parking is available in the structure across the street. Thank you for your order! Goodbye.")
+        response.hangup()
+    elif digits == "2" or "hours" in speech_input or "operation" in speech_input or "open" in speech_input:
+        # Provide hours
+        response.say("Our hours of operation are Monday through Friday from 11 AM to 10 PM, and Saturday and Sunday from 12 PM to 11 PM. Thank you for your order! Goodbye.")
+        response.hangup()
+    elif digits == "3" or "end" in speech_input or "goodbye" in speech_input or "bye" in speech_input or "nothing" in speech_input:
+        response.say("Thank you for your order at Red Bar Sushi! Goodbye!")
+        response.hangup()
+    else:
+        # Unrecognized input, just thank them
+        response.say("Thank you for your order at Red Bar Sushi! We look forward to seeing you soon. Goodbye!")
+        response.hangup()
+    
+    return Response(str(response), mimetype="text/xml")
+
+@order_bp.route("/handle_unavailable_order", methods=["POST"])
+def handle_unavailable_order():
+    """Handle options when items in an order are unavailable"""
+    # Get user input
+    speech_input = request.form.get("SpeechResult", "").lower()
+    digits = request.form.get("Digits", "")
+    
+    response = VoiceResponse()
+    
+    # Track retry counter
+    retry_count = session.get("unavailable_retry", 0)
+    session["unavailable_retry"] = retry_count + 1
+    
+    # Check for silence (no input)
+    if not speech_input and not digits:
+        if retry_count >= 2:
+            response.say("We're having trouble hearing you. Please try calling back to explore our other menu options. Thank you for your interest in Red Bar Sushi.")
+            response.hangup()
+            return Response(str(response), mimetype="text/xml")
+        
+        # Retry with options
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_unavailable_order",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("I didn't catch that. Press 1 to explore other menu options, press 2 to speak with a team member, or press 3 to end the call.")
+            
+        return Response(str(response), mimetype="text/xml")
+    
+    # Process their choice
+    if digits == "1" or "menu" in speech_input or "explore" in speech_input or "other" in speech_input:
+        # Redirect to menu questions
+        response.redirect("/handle_menu_questions")
+    elif digits == "2" or "speak" in speech_input or "team" in speech_input or "specials" in speech_input:
+        # Redirect to human agent handler
+        response.redirect("/handle_transfer_to_human")
+    elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
+        response.say("We apologize again that your preferred items are unavailable. We hope to see you soon when we have them back in stock. Goodbye!")
+        response.hangup()
+    else:
+        # Unrecognized input
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_unavailable_order",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say("I didn't understand. Press 1 to explore other menu options, 2 to speak with a team member, or 3 to end the call.")
+    
+    return Response(str(response), mimetype="text/xml")
+
+@order_bp.route("/save_callback_request", methods=["POST"])
+def save_callback_request():
+    """Save a callback request from a customer"""
+    # Get their information
+    contact_info = request.form.get("SpeechResult", "")
+    
+    response = VoiceResponse()
+    
+    if contact_info:
+        # In a real implementation, this would be saved to a database
+        logger.info(f"Callback request received: {contact_info}")
+        
+        # Thank them for the information
+        response.say("Thank you for your information. A team member will contact you as soon as possible. Goodbye!")
+    else:
+        # No information provided
+        response.say("I didn't catch your information. Please call back when you have a moment to provide your contact details. Goodbye!")
+    
+    # This is an appropriate place to hang up
+    response.hangup()
+    
+    return Response(str(response), mimetype="text/xml")
+
+@order_bp.route("/save_contact_info", methods=["POST"])
+def save_contact_info():
+    """Save contact information when menu is unavailable"""
+    # Get their information
+    contact_info = request.form.get("SpeechResult", "")
+    
+    response = VoiceResponse()
+    
+    if contact_info:
+        # In a real implementation, this would be saved to a database
+        logger.info(f"Contact info received for menu notification: {contact_info}")
+        
+        # Thank them for the information
+        response.say("Thank you for your information. We'll contact you when our menu is back online. Goodbye!")
+    else:
+        # No information provided
+        response.say("I didn't catch your information. Please call back when you have a moment to provide your contact details. Goodbye!")
+    
+    # This is an appropriate place to hang up
+    response.hangup()
+    
+    return Response(str(response), mimetype="text/xml")
 
 @order_bp.route("/order_status", methods=["POST"])
 def order_status():
