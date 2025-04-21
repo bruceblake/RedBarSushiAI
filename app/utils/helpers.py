@@ -212,18 +212,16 @@ def get_common_prices():
                         }
 
                         # Always store name fragments for fuzzy matching since name_variants has been removed
-                            words = item_name.split()
-                            for word in words:
-                                if (
-                                    len(word) > 3 and word not in result
-                                ):  # Only meaningful words
-                                    result[word] = {
-                                        "price": price,
-                                        "reference_handler": ref_handler,
-                                        "full_name": item.get(
-                                            "name", ""
-                                        ),  # Store original case
-                                    }
+                        words = item_name.split()
+                        for word in words:
+                            if ( len(word) > 3 and word not in result):  # Only meaningful words
+                                result[word] = {
+                                    "price": price,
+                                    "reference_handler": ref_handler,
+                                    "full_name": item.get(
+                                        "name", ""
+                                    ),  # Store original case
+                                }
 
                     # Only return the built dictionary if it has items
                     if result:
