@@ -589,7 +589,8 @@ def handle_menu_questions():
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto",
+            speech_timeout=10,
+            timeout=12,
         ) as g:
             g.say(
                 "I'll take your order now. Please tell me what you would like to order."
