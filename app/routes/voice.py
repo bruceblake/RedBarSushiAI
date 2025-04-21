@@ -325,11 +325,6 @@ def extract_name_with_agent(speech_text):
     except ImportError:
         logger.warning("OpenAI module not available for name extraction")
 
-    # Fall back to regex-based extraction
-    logger.info("Falling back to regex-based name extraction")
-    return extract_name_from_speech(speech_text)
-
-
 @voice_bp.route("/main_menu_fallback", methods=["POST", "GET"])
 def main_menu_fallback():
     """
