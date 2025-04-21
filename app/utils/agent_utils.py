@@ -212,12 +212,6 @@ class SushiMenuTool:
                     )
                     score = max(score, word_score)
 
-            # Special case for terms like "veggie burger"
-            if "veggie" in query_lower and "burger" in item_name:
-                if "veggie" in item_name:
-                    # Boost veggie burger for veggie queries
-                    score += 20
-
             # Only include reasonably good matches
             if score >= 30:
                 scored_items.append((item, score))
