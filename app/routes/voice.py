@@ -609,7 +609,6 @@ def handle_menu_questions():
     if cached_response:
         logger.info(f"Using cached full response for '{cleaned_input[:30]}...'")
         return Response(str(cached_response[0]), mimetype="text/xml")
-            return Response(str(cached_response), mimetype="text/xml")
 
     # Start processing user input
     # Use the agent-based analysis

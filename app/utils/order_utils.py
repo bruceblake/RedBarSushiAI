@@ -5,6 +5,7 @@ Ensures orders sent to Deliverect contain only valid menu items with proper refe
 """
 
 import logging
+import json
 from typing import List, Dict, Any, Optional, Tuple
 from flask import session
 from Levenshtein import distance as levenshtein_distance
