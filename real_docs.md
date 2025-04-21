@@ -1,58 +1,59 @@
-# Project Documentation: AI Restaurant Phone Agent (Condensed Core w/ Full Deliverect API)
+# Project Documentation: AI Restaurant Phone Agent (Enhanced Integration Narrative)
 
-**Version:** 1.1-full-deliverect
+**Version:** 1.1-enhanced
 **Date:** 2025-04-18
-**Purpose:** Provide essential technical details and complete Deliverect API specifications for AI assistants to understand and modify the AI Restaurant Phone Agent codebase. This system handles inbound calls, takes orders via conversational AI, integrates with Deliverect for POS submission, and sends SMS updates.
-**Target Audience:** AI Development Assistants (e.g., Gemini, Claude, GPT-4).
-**Note:** Core sections are condensed. Deliverect API section is comprehensive based on provided input. Appendix A provides detailed menu structure examples.
+**Primary Audience:** AI Development Assistants (e.g., Gemini, Claude, GPT-4) for code generation, feature implementation, updates, and debugging.
+**Goal:** To provide a comprehensive, technically accurate, and contextually rich overview of the AI Restaurant Phone Agent system. This document details the architecture, component interactions, data flow, API specifications (including full Deliverect details), and menu structure to enable AI assistants to effectively understand, modify, and enhance the codebase.
+**Note:** This document integrates detailed API specifications with descriptive context. Appendix A provides crucial menu structure examples.
 
 ---
 
-## 1. Project Overview
+## 1. Project Overview & Mission
 
-- **Goal:** Automate phone ordering using conversational AI, reducing staff load and improving accuracy.
-- **Core Technologies:**
-  - **AI:** OpenAI Agents API (Assistants API)
-  - **Telephony/SMS:** Twilio API
-  - **Order Injection:** Deliverect API
-  - **Backend:** Python (Flask/FastAPI/Django TBD) on Render
-  - **Tasks:** Celery
-  - **DB:** PostgreSQL (Render)
-  - **Cache/State:** Redis (Render)
+**Name:** AI Restaurant Phone Agent (Internal Codename: TBD)
 
----
+**Mission:** To create a seamless, intelligent, and efficient conversational AI bridge between restaurant customers calling in and the restaurant's operational workflow (via Deliverect). This system aims to provide a natural and helpful ordering experience for customers while offloading the cognitive burden of phone order management from restaurant staff, ultimately improving accuracy, efficiency, and customer satisfaction.
 
-## 2. Core Features Summary
+**Core Technologies:**
 
-- Handle inbound Twilio calls.
-- Conversational order taking & menu queries using OpenAI Agents API.
-- Access restaurant/menu info from Postgres.
-- Maintain conversation/order state in Redis.
-- Place orders via Deliverect API using PLUs.
-- Send order status SMS updates via Twilio (triggered by Deliverect webhooks/Celery).
-- Handle Deliverect webhooks for menu sync, store status (busy/open), and item availability (snooze).
+- **AI Conversation:** OpenAI Agents API (Assistants API) - The reasoning and dialogue engine.
+- **Telephony & SMS:** Twilio API - The ears, mouth, and messenger to the outside world.
+- **Order Injection:** Deliverect API - The crucial link into the restaurant's Point-of-Sale (POS) ecosystem.
+- **Backend:** Python (Framework: TBD - e.g., Flask, FastAPI) hosted on Render - The central nervous system.
+- **Task Queue:** Celery - The asynchronous workhorse.
+- **Database:** PostgreSQL on Render - The long-term memory.
+- **Cache/State/Broker:** Redis on Render - The short-term memory and message hub.
 
 ---
 
-## 3. System Architecture (API-Driven Agent w/ Background Processing)
+## 2. Core Features: The Agent's Capabilities
 
-1.  **Twilio:** Handles calls (PSTN), STT/TTS (via TwiML), SMS. Sends webhooks to Render backend.
-2.  **Render Web Service (Python Backend):** Central orchestrator.
-    - Hosts HTTP endpoints for Twilio & Deliverect webhooks.
-    - Manages conversation state (Redis, keyed by `CallSid`).
-    - Interacts with OpenAI Agents API (sending user input, handling tool calls).
-    - Implements Python **Tools (Functions)** callable by the OpenAI Agent.
-    * Generates TwiML for Twilio responses.
-    * Queries/Writes Postgres DB (menu, orders).
-    * Calls Deliverect API (order placement).
-    * Enqueues Celery tasks.
-3.  **OpenAI Agents API:** NLU, dialogue management, decision-making, tool triggering.
-4.  **PostgreSQL:** Persistent storage (menu, orders, restaurant info). **PLU** is critical identifier. See Appendix A for menu structure details.
-5.  **Redis:** Stores active conversation state (cart, context), Celery broker/backend.
-6.  **Celery Workers:** Execute async tasks (SMS sending, polling).
-7.  **Deliverect API:** External service for POS order injection & menu/status sync. Called by Render backend; sends webhooks to Render backend.
+- **Warm Welcome & Call Management:** Gracefully answers incoming calls via Twilio, managing the audio stream and basic call lifecycle.
+- **Intelligent Dialogue Engine:** Leverages the OpenAI Agents API to engage callers in natural, context-aware conversations, understanding intents beyond simple commands.
+- **Restaurant Concierge:** Accesses stored information (Postgres) to answer questions about hours, location, policies, etc., acting as a knowledgeable virtual staff member.
+- **Interactive Menu Guide:** Discusses menu items dynamically, referencing details (descriptions, prices, options, availability) stored in Postgres. Can answer questions like "Do you have vegetarian options?" or "What's in the cheeseburger?".
+- **Effortless Order Building:** Guides users conversationally through constructing their order, handling item additions, quantities, modifications (like "extra cheese" or "no onions"), and special requests, while temporarily storing the in-progress order in Redis.
+- **Seamless Order Placement:** Upon confirmation, validates the order details stored in Redis and translates them into the precise format required by the Deliverect API (using critical PLU identifiers), injecting the order directly into the restaurant's workflow.
+- **Clear Confirmation:** Verbally confirms successful order placement via Twilio's TTS and triggers an SMS confirmation via Celery and Twilio for customer records.
+- **Proactive Communication (Status Updates):** Listens for status change webhooks from Deliverect (e.g., "Accepted by Kitchen," "Ready for Pickup," "Out for Delivery"), updates the order record in Postgres, and triggers timely SMS notifications to the customer via Celery/Twilio.
+- **Operational Awareness:** Responds intelligently to real-time store conditions by processing Deliverect webhooks for store closures (`busyModeURL`) or temporary item unavailability (`snoozeUnsnoozeURL`), preventing orders for unavailable items or closed stores.
+- **Dynamic Menu Knowledge:** Keeps its internal menu representation (Postgres) up-to-date by processing menu update webhooks (`menuUpdateURL`) from Deliverect.
 
-**Conceptual Flow:** Call -> Twilio -> Render Backend <-> OpenAI Agent (using Tools) -> Render Backend -> Twilio (TwiML). Order Placement: Agent Tool -> Render Backend -> Deliverect API. Status: Deliverect Webhook -> Render Backend -> Celery -> Twilio SMS.
+---
+
+## 3. System Architecture: A Symphony of Services
+
+The system operates as an **API-Driven Agent Architecture with Background Processing**, a carefully choreographed dance between specialized services:
+
+1.  **The Voice Gateway (Twilio):** Acts as the system's interface to the phone network. It _listens_ for incoming calls, _translates_ spoken words to text (STT) based on instructions, _speaks_ the AI's responses (TTS) by following TwiML "scripts" provided by the backend, and _delivers_ SMS messages. It communicates events (like new calls or user speech) to the backend via webhooks.
+2.  **The Central Conductor (Render Web Service - Python Backend):** This is the heart of the operation, orchestrating the entire process. It _fields_ incoming requests from Twilio and Deliverect (webhooks), _maintains_ the state of each ongoing conversation in Redis, _mediates_ the dialogue with the OpenAI Agent, _interprets_ the Agent's requests to use tools, _executes_ those tools (querying the database, modifying the Redis cart, calling Deliverect), _generates_ the TwiML scripts for Twilio, and _dispatches_ longer-running tasks (like SMS notifications) to the Celery workers.
+3.  **The Brain (OpenAI Agents API):** This performs the heavy lifting of understanding natural language (NLU), managing the conversational flow, reasoning about the user's needs, and deciding on the next action. Crucially, it doesn't perform external actions directly; instead, it _requests_ the execution of specific **Tools (Functions)** implemented in the Render backend when it needs to interact with the outside world (like looking up a menu item or placing the final order).
+4.  **The Long-Term Memory (PostgreSQL Database):** Reliably _remembers_ structured, persistent information: the detailed restaurant menu (items, modifiers, prices, **PLUs**), restaurant details (hours, address), historical order records (linked via **`deliverect_channel_order_id`**), and customer information if applicable. It's the source of truth for menu data and order history.
+5.  **The Short-Term Memory & Message Hub (Redis):** Provides high-speed access to volatile data. It _tracks_ the state of each active conversation (what's currently in the user's cart, the last few things said), identified by the Twilio `CallSid`. It also acts as the _dispatch center_ (broker) for Celery, holding tasks waiting to be processed.
+6.  **The Background Assistant (Celery Workers):** Runs as separate processes, diligently _working_ on tasks that don't require immediate user interaction. This includes sending SMS confirmations via Twilio or potentially polling external APIs if webhooks are unreliable, ensuring the main web service remains responsive.
+7.  **The POS Bridge (Deliverect API):** _Connects_ the AI agent's finalized order to the restaurant's actual Point-of-Sale system. The Render service _translates_ the order into Deliverect's required format (using PLUs) and sends it via API call. Deliverect also communicates back via webhooks, informing the system about menu changes, order status updates from the POS, and store availability.
+
+**Conceptual Flow:** A customer call initiates a flow where Twilio informs the Render Backend. The Backend manages state in Redis and converses with the OpenAI Agent. The Agent uses Tools (executed by the Backend, potentially accessing Postgres or Redis) to gather information or build the order. When ready, an Agent Tool triggers the Backend to call the Deliverect API (using PLUs). Status updates flow back from Deliverect via webhooks, triggering Backend logic, Celery tasks, and finally Twilio SMS notifications.
 
 ---
 
@@ -66,64 +67,76 @@
 
 ---
 
-## 5. Data Storage Essentials
+## 5. Data Storage: Remembering and Tracking
 
-**5.1. PostgreSQL Schema Highlights**
+**5.1. The Long-Term Memory (PostgreSQL Schema Highlights)**
 
-(Reflects structure seen in Appendix A)
+Stores the structured, persistent truth of the restaurant and its orders. Reflects the structure received from Deliverect (see Appendix A).
 
 - `restaurants`: Basic info.
-- `menu_categories`: `id`, `deliverect_category_id` (UNIQUE, e.g., "67209bfb174a0e5384d4db4f"), `name`, `description`.
-- `menu_items`: `id`, `category_id` (FK), `name`, `description`, `price`, **`plu`** (UNIQUE, CRITICAL), `deliverect_item_id` (UNIQUE, e.g., "6721daafc33216a11b4e239d"), `is_available`, `is_combo`, `is_variant`, `image_url`, `snoozed_until`.
-- `modifiers`: `id`, `modifier_group_id` (FK), `name`, `price_change`, **`plu`** (UNIQUE, CRITICAL), `deliverect_modifier_id` (UNIQUE, e.g., "67209bb4174a0e5384d4d9fd"), `is_available`, `snoozed_until`.
-- `modifier_groups`: `id`, `deliverect_group_id` (UNIQUE, e.g., "67209bb4174a0e5384d4d9fb"), `name`, `min_selection`, `max_selection`, `multiMax`, `plu` (Group PLU), `is_variant_group`.
-- `item_modifier_groups`: Links `menu_items` to `modifier_groups` (M2M).
-- `group_modifiers`: Links `modifier_groups` to `modifiers` (M2M, representing `subProducts` in groups).
-- `orders`: `id`, **`deliverect_channel_order_id`** (UNIQUE, CRITICAL), `customer_phone`, `order_type`, `status`, `total_price`, `placed_at`, `estimated_time`, `delivery_address` (JSON/structured), `notes`.
+- `menu_categories`: `id`, `deliverect_category_id`, `name`, `description`.
+- `menu_items`: `id`, `category_id`, `name`, `description`, `price`, **`plu`** (UNIQUE, CRITICAL link to POS/Deliverect), `deliverect_item_id`, `is_available`, `is_combo`, `is_variant`, `image_url`, `snoozed_until`.
+- `modifiers`: `id`, `modifier_group_id`, `name`, `price_change`, **`plu`** (UNIQUE, CRITICAL), `deliverect_modifier_id`, `is_available`, `snoozed_until`.
+- `modifier_groups`: `id`, `deliverect_group_id`, `name`, `min_selection`, `max_selection`, `multiMax`, `plu`, `is_variant_group`.
+- `item_modifier_groups`: Links `menu_items` to `modifier_groups`.
+- `group_modifiers`: Links `modifier_groups` to `modifiers`.
+- `orders`: `id`, **`deliverect_channel_order_id`** (UNIQUE, CRITICAL link to Deliverect order), `customer_phone`, `order_type`, `status`, `total_price`, `placed_at`, `estimated_time`, `delivery_address`.
 - `order_items`: Links `orders` to `menu_items` via `menu_item_plu`, stores quantity.
 - `order_item_modifiers`: Links `order_items` to `modifiers` via `modifier_plu`.
-- `menu_name_variants`: `variant_phrase` (lowercase), `canonical_name`, `target_plu` (FK to item/modifier PLU).
+- `menu_name_variants`: `variant_phrase` (lowercase), `canonical_name`, `target_plu` (FK). **Essential for mapping natural language ("fries") to specific item PLUs ("P-FRS-L").** Populated from menu data and potentially synonyms.
 
-**5.2. Redis Usage**
+**5.2. The Short-Term Memory & Message Hub (Redis)**
 
-- **Conversation State:** Key: Twilio `CallSid`. Stores JSON/Hash: current cart (items/modifiers by PLU), user info, conversation context. TTL ~1-2 hours.
-- **Celery Broker/Backend.**
-- **Optional Caching.**
+Handles fast-changing, temporary data for active interactions and task queuing.
+
+- **Conversation State:** Keyed by Twilio `CallSid`. Stores JSON/Hash containing the _current_ state of an ongoing call:
+  - Partially built order (items/modifiers identified by their **PLUs**, quantities).
+  - User details gathered during the call.
+  - Contextual flags or history needed for the OpenAI Agent.
+  - _Must have a TTL (e.g., 1-2 hours) to automatically clear stale sessions._
+- **Celery Broker/Backend:** Acts as the queue holding tasks for the background workers.
+- **Optional Caching:** Can store frequently accessed menu data for faster lookups by the Agent Tools.
 
 ---
 
-## 6. API Integrations Essentials (Excluding Deliverect)
+## 6. API Integrations: The System's Dialogue
 
-**6.1. Twilio API**
+**6.1. The Ears and Mouth (Twilio API)**
 
-- **Purpose:** Voice I/O (STT/TTS via TwiML), SMS.
-- **Interaction:** Inbound webhooks (`/webhook/voice`) from Twilio; Backend responds with TwiML. Outbound SMS API calls from Celery worker.
-- **Auth:** Account SID/Auth Token (Env Vars). Recommend webhook signature validation.
-- **Key ID:** `CallSid`.
+- **Purpose:** Connects to the phone network for voice calls and SMS.
+- **Interaction:**
+  - **Voice:** Twilio receives calls -> Sends webhook to `/webhook/voice`. Backend responds with TwiML (XML instructions telling Twilio what to `<Say>`, `<Gather>` speech for, `<Hangup>`, etc.). Twilio performs STT and includes transcription in subsequent webhooks.
+  - **SMS:** Backend (via Celery) calls Twilio's REST API to send outbound messages.
+- **Auth:** Account SID/Auth Token (Env Vars). Webhook validation using Twilio signatures is vital for security.
+- **Key ID:** `CallSid` uniquely identifies an active call leg and is used as the key for conversation state in Redis.
 - **Relevant Docs:** See Twilio Documentation.
 
-**6.2. OpenAI Agents API (Assistants API)**
+**6.2. The Conversational Core (OpenAI Agents API - Assistants API)**
 
-- **Purpose:** Conversation logic, Tool/Function Calling.
-- **Interaction:** Backend makes REST API calls (Create/Run Thread/Assistant, Add Message, Submit Tool Outputs). Handles `requires_action` status to execute local Python tools.
+- **Purpose:** Provides the natural language understanding, reasoning, and dialogue management.
+- **Interaction:** The Render backend acts as the client to the OpenAI API.
+  - It manages the Assistant and Thread lifecycle.
+  - Sends user transcriptions (from Twilio) as Messages to the Thread.
+  - Runs the Assistant on the Thread.
+  - **Tool Belt:** When the Agent needs external info or action, it responds with `requires_action`, specifying a **Tool (Function)** name and arguments. The backend _executes_ this tool (as a local Python function) and submits the results back to the Agent, allowing the conversation to proceed. This is how the Agent "looks up" menu items or "places" an order – by asking the backend to do it.
 - **Auth:** OpenAI API Key (Env Var).
-- **Key Concepts:** Assistant, Thread, Message, Run, Tool Calling.
+- **Key Concepts:** Assistant (the configured AI personality/capabilities), Thread (a single conversation), Message (user input or AI response), Run (an execution of the Assistant on the Thread), Tool/Function Calling (the mechanism for the Agent to request backend actions).
 - **Required Tools (Python functions implemented in Render backend):**
-  - `lookup_menu_item(item_name: str)`: Resolves `item_name` using `menu_name_variants` DB table (derived from Appendix A `name_variants`), returns item details (name, desc, price, PLU).
-  - `get_restaurant_info(query: str)`: Returns text info (hours, etc.) from DB.
-  - `add_item_to_cart(plu: str, quantity: int, modifiers: List[str] = None)`: Updates cart in Redis state (uses PLUs). Returns status/summary. Modifiers list contains PLUs.
-  - `get_current_cart()`: Returns current cart JSON from Redis state.
-  - `place_order(customer_details: dict, delivery_details: dict = None, order_type: int)`: Retrieves cart from Redis, calls Deliverect Create Order API using PLUs. Returns { success: bool, channelOrderId: str | None, message: str }.
+  - `lookup_menu_item(item_name: str)`: **Translates user request** (e.g., "curly fries") into a specific item PLU using the `menu_name_variants` table, then fetches details (name, desc, price, PLU) from the `menu_items` table. Returns JSON details or "not found".
+  - `get_restaurant_info(query: str)`: **Retrieves static info** (hours, address) from the `restaurants` table. Returns text.
+  - `add_item_to_cart(plu: str, quantity: int, modifiers: List[str] = None)`: **Modifies the current order state** stored in Redis for the active `CallSid`. Uses PLUs for items and modifiers. Returns confirmation/summary.
+  - `get_current_cart()`: **Reads the current order state** from Redis for the active `CallSid`. Returns JSON.
+  - `place_order(customer_details: dict, delivery_details: dict = None, order_type: int)`: **Initiates the final order submission.** Retrieves the complete cart from Redis, generates a unique `channelOrderId`, formats the payload using PLUs, and calls the Deliverect Create Order API. Returns success/failure status and the `channelOrderId`.
   - _(Other tools like get_categories, remove_item, clear_cart as needed)_
 - **Relevant Docs:** See OpenAI Assistants API Documentation.
 
----
+**6.3. The POS Bridge (Deliverect API - Full Details)**
 
-## 6.3. Deliverect API (Full Details)
+Connects the AI's understanding of the order to the restaurant's operational system via the POS. The Render backend acts as the translator, using PLUs.
 
 - **Base URL (Staging):** `https://api.staging.deliverect.com`
-- **Authentication:** Likely via API keys or OAuth tokens associated with the `channelName` (Scope). Store credentials securely as environment variables.
-- **Key Identifiers:** `channelName` (Scope), `channelLinkId` (Specific store instance), `channelOrderId` (Unique order ID generated by _this_ application), `_id` (Deliverect's internal IDs), `plu` (Product/Modifier ID from menu data - see Appendix A).
+- **Authentication:** API Key/OAuth (TBD, Env Vars). Associated with `channelName`.
+- **Key IDs:** `channelName` (Scope), `channelLinkId` (Store instance), `channelOrderId` (App-generated unique order ID), `plu` (Item/Modifier ID from menu data - see Appendix A).
 
 ### Endpoints Used (Calls FROM Application TO Deliverect)
 
@@ -237,7 +250,7 @@ _These require dedicated HTTP endpoints on the Render Web Service._
 
 - **Method:** `POST`
 - **Your Endpoint URL:** `/webhook/deliverect/register` (Configured in Deliverect)
-- **Purpose:** Called by Deliverect when a new store link is registered (`register`), activated (`active`), or deactivated (`inactive`).
+- **Purpose:** Called by Deliverect when a new store link is registered (`register`), activated (`active`), or deactivated (`inactive`). Establishes the link.
 - **Request Body from Deliverect:**
   - `status` (string): "register", "active", or "inactive".
   - `channelLocationId` (string): Merchant's ID on the channel platform (if applicable).
@@ -264,7 +277,7 @@ _These require dedicated HTTP endpoints on the Render Web Service._
 
 - **Method:** `POST`
 - **Your Endpoint URL:** `/webhook/deliverect/menu_update`
-- **Purpose:** Receives the full menu structure or updates from Deliverect when a customer publishes changes. See **Appendix A** for detailed structure examples and the **Menu Glossary** below for field definitions.
+- **Purpose:** Receives the full menu structure or updates from Deliverect when a customer publishes changes. This is the source of truth for the menu data. See **Appendix A** for detailed structure examples and the **Menu Glossary** (Appendix B) for field definitions.
 - **Request Body from Deliverect (Async Example):**
   ```json
   {
@@ -276,7 +289,7 @@ _These require dedicated HTTP endpoints on the Render Web Service._
   }
   ```
   _(Sync format differs: payload is directly the array of menu properties)_
-- **Action:** Parse the menu structure (categories, items with PLUs, modifiers with PLUs, prices, availability, subProducts links, etc.). Update the PostgreSQL database accordingly (tables like `menu_items`, `modifiers`, `modifier_groups`, `menu_name_variants`). If async, store the `callback` URL and call the "Menu Update Callback" API endpoint once processing is complete.
+- **Action:** Parse the complex menu structure (categories, items with PLUs, modifiers with PLUs, prices, availability, subProducts links, etc.). Update the PostgreSQL database accordingly (tables like `menu_items`, `modifiers`, `modifier_groups`, `menu_name_variants`). If async, store the `callback` URL and call the "Menu Update Callback" API endpoint once processing is complete.
 - **Success Response Code:** `200 OK`.
 - **Error Response Code:** `400`.
 
@@ -284,7 +297,7 @@ _These require dedicated HTTP endpoints on the Render Web Service._
 
 - **Method:** `POST`
 - **Your Endpoint URL:** `/webhook/deliverect/order_status`
-- **Purpose:** Receives status changes for orders previously submitted via the Create Order API. **This is the primary way to know if an order was accepted by the POS and its subsequent progress.**
+- **Purpose:** Receives status changes for orders previously submitted via the Create Order API. **This is the primary way to know if an order was accepted by the POS and its subsequent progress.** Critical for triggering customer SMS updates.
 - **Request Body from Deliverect:**
   ```json
   {
@@ -307,7 +320,7 @@ _These require dedicated HTTP endpoints on the Render Web Service._
 
 - **Method:** `POST`
 - **Your Endpoint URL:** `/webhook/deliverect/snooze`
-- **Purpose:** Notifies when specific items (identified by PLU) should be marked as temporarily unavailable (snoozed) or available again (unsnoozed). Triggered only for items in active/published menus.
+- **Purpose:** Notifies when specific items (identified by PLU) should be marked as temporarily unavailable (snoozed) or available again (unsnoozed). Triggered only for items in active/published menus. Allows the AI to know item availability.
 - **Request Body from Deliverect:**
   ```json
   {
@@ -337,7 +350,7 @@ _These require dedicated HTTP endpoints on the Render Web Service._
 
 - **Method:** `POST`
 - **Your Endpoint URL:** `/webhook/deliverect/busy_mode`
-- **Purpose:** Notifies when the restaurant enables/disables busy mode _from their POS/Deliverect_.
+- **Purpose:** Notifies when the restaurant enables/disables busy mode _from their POS/Deliverect_. Allows the AI to manage customer expectations or prevent orders.
 - **Request Body from Deliverect:**
   ```json
   {
@@ -357,7 +370,7 @@ _These require dedicated HTTP endpoints on the Render Web Service._
 
 - **Method:** `POST`
 - **Your Endpoint URL:** `/webhook/deliverect/prep_time`
-- **Purpose:** Notifies of an updated estimated pickup/preparation time from the POS for a specific order.
+- **Purpose:** Notifies of an updated estimated pickup/preparation time from the POS for a specific order. Allows for more accurate customer updates.
 - **Request Body from Deliverect:**
   ```json
   {
@@ -390,44 +403,119 @@ _These require dedicated HTTP endpoints on the Render Web Service._
 
 ---
 
-## 7. Internal Component Summary
+## 7. Internal Application Components: The Supporting Cast
 
-- **Render Web Service (Python):** Handles webhooks (Twilio, Deliverect), orchestrates OpenAI API calls, implements Agent Tools, manages state (Redis), calls Deliverect API, queues Celery tasks.
-- **Render Background Worker (Celery):** Executes async tasks: `send_sms_notification`, `process_deliverect_menu_update`, etc.
+**7.1. The Master Orchestrator (Render Web Service - Python)**
+
+- **Responsibilities:**
+  - Fielding incoming calls via Twilio webhooks.
+  - Receiving and processing crucial updates via Deliverect webhooks.
+  - Validating incoming requests.
+  - Generating dynamic TwiML scripts to guide Twilio's actions.
+  - Maintaining the dialogue flow by interacting with the OpenAI Agents API.
+  - Executing Agent requests (Tools/Functions) by interacting with the database, Redis cache, and Deliverect API.
+  - Managing the lifecycle of conversation state in Redis.
+  - Dispatching non-blocking tasks to the Celery queue.
+- **Key Modules/Packages:** Web framework (Flask/FastAPI/Django), Twilio Python Helper Library, OpenAI Python Library, Requests/HTTPX (for Deliverect API calls), Celery client, Database ORM (SQLAlchemy/Django ORM), Redis client.
+
+**7.2. The Background Assistant (Celery Worker)**
+
+- **Responsibilities:**
+  - Executing tasks asynchronously, ensuring the web service remains responsive. Handles operations that don't require immediate feedback to the user or calling system.
+- **Key Tasks:**
+  - `send_sms_notification`: Composing and sending order confirmations/updates via the Twilio Messaging API.
+  - `process_deliverect_menu_update`: Handling potentially large menu updates received via webhook, parsing, and updating the Postgres DB. Includes calling the Deliverect Menu Update Callback API upon completion if needed.
+  - `poll_deliverect_order_status`: (Optional backup) Periodically checking the Deliverect API for status updates if webhooks are deemed unreliable.
+  - `update_order_status_and_notify`: A task potentially triggered by the status webhook handler to decouple DB updates and notification logic.
+- **Key Modules/Packages:** Celery, Twilio Python Helper Library, Requests/HTTPX, Database ORM, Redis client.
 
 ---
 
-## 8. Key Workflow Summaries
+## 8. Key Workflows: Bringing It All Together
 
-- **Conversation Turn:** Twilio webhook -> Get state (Redis) -> Call OpenAI Agent -> Handle response (TwiML text or execute Tool) -> Update state (Redis) -> Respond TwiML to Twilio. Tool execution involves local Python function (DB/Redis/Deliverect interaction using PLUs/variants) and submitting result back to Agent.
-- **Order Placement:** User confirms -> Agent calls `place_order` tool -> Backend function retrieves cart (Redis), generates `channelOrderId`, calls Deliverect `/order` API with PLUs -> On success, saves order (Postgres), clears cart (Redis), queues SMS task (Celery), returns success to Agent -> Agent confirms to user via TwiML.
-- **Status Update:** Deliverect `/order_status` webhook received -> Backend finds order by `channelOrderId` (Postgres), updates status -> Queues SMS task (Celery) if needed -> Responds 200 OK to Deliverect.
+**8.1. Handling a Conversation Turn:**
+
+1.  **Initiation:** Twilio receives user speech, performs STT, and sends a POST request to the Render backend's `/webhook/voice` endpoint, including the transcription and the unique `CallSid`.
+2.  **State Retrieval:** The backend uses the `CallSid` to retrieve the current conversation state (e.g., existing cart items, context) from Redis. If no state exists, it initializes a new one.
+3.  **Agent Invocation:** The backend adds the user's transcription as a new message to the appropriate OpenAI Agent Thread and initiates a Run.
+4.  **Agent Processing:** The OpenAI Agent processes the input, considering history and available Tools. It formulates a response.
+5.  **Response Handling:**
+    - **Text Response:** If the Agent provides text, the backend updates the Redis state, generates TwiML containing `<Say>` and `<Gather>` tags, and sends this XML back to Twilio.
+    - **Tool Call Required:** If the Agent responds with `requires_action`, the backend parses the requested tool name (e.g., `lookup_menu_item`) and arguments.
+6.  **Tool Execution Cycle (If Required):**
+    - The backend executes the corresponding local Python function (e.g., querying the DB using `menu_name_variants` and PLUs, updating the Redis cart).
+    - The backend submits the tool's output back to the OpenAI Agent Run.
+    - The Agent processes the tool's result and generates its final text response for this turn.
+    - The backend receives this text, updates Redis state, generates TwiML (`<Say>`, `<Gather>`), and sends it to Twilio.
+7.  **Continuation:** Twilio executes the TwiML (speaks the response, listens for the next user utterance), restarting the cycle from step 1.
+
+**8.2. Placing an Order:**
+
+1.  **Confirmation:** Through conversation, the user confirms they are ready to place the order.
+2.  **Agent Decision:** The OpenAI Agent determines the intent is to finalize and calls the `place_order` tool, potentially passing gathered customer/delivery details.
+3.  **Backend Execution (`place_order` function):**
+    - Retrieves the complete, validated order details (items/modifiers identified by PLU) from Redis state using the `CallSid`.
+    - Generates a unique `channelOrderId` for this transaction.
+    - Formats the order payload meticulously according to Deliverect API specifications, ensuring correct PLUs are used for all items and modifiers.
+    - Makes a `POST` request to the Deliverect `/order` endpoint.
+4.  **Deliverect Acknowledgment:** Deliverect responds (e.g., `201 Created` if the format is valid).
+5.  **Backend Post-Processing:**
+    - **On Success (201):** Records the order (with `channelOrderId` and an initial status like 'pending_confirmation') in the Postgres database. Clears the temporary cart from Redis. Enqueues a Celery task (`send_sms_notification`) to inform the customer via Twilio SMS. Returns a success status (including the `channelOrderId`) back to the OpenAI Agent as the tool output.
+    - **On Failure:** Logs the error details. Returns a failure status and message back to the OpenAI Agent.
+6.  **Final Confirmation:** The OpenAI Agent receives the tool's result and formulates a final verbal confirmation or error message for the user.
+7.  **Call Conclusion:** The backend sends the final TwiML response (e.g., "Okay, your order [ID] is placed! You'll receive SMS updates. Goodbye.") often including `<Hangup>` to Twilio.
+
+**8.3. Handling Order Status Update (Webhook):**
+
+1.  **External Trigger:** The restaurant's POS updates an order's status (e.g., accepts it, marks it ready).
+2.  **Deliverect Notification:** Deliverect sends a POST request to the Render backend's `/webhook/deliverect/order_status` endpoint, containing the `channelOrderId` and the new integer `status` code.
+3.  **Backend Processing:**
+    - The endpoint handler parses the request.
+    - It uses the `channelOrderId` to find the corresponding order record in the Postgres database.
+    - It updates the `status` field in the database record.
+    - It checks if this new status warrants notifying the customer (e.g., status 20 'Accepted', 70 'Ready for Pickup', 80 'Delivered', 110 'Cancelled').
+    - If notification is needed, it enqueues a Celery task (`send_sms_notification`) with the customer's phone number and an appropriate message.
+    - It responds immediately to Deliverect with `200 OK` and `{"result": "OK"}` to acknowledge receipt.
+4.  **Notification Delivery:** The Celery worker picks up the task and uses the Twilio API to send the SMS update to the customer.
 
 ---
 
 ## 9. Configuration Management
 
-- **Environment Variables:** Used exclusively for secrets (API keys, DB URL) and settings. Render manages these.
-- **Examples:** `DATABASE_URL`, `REDIS_URL`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `OPENAI_API_KEY`, `OPENAI_ASSISTANT_ID`, `DELIVERECT_CHANNEL_NAME`, `DELIVERECT_API_KEY`.
+- **Environment Variables:** The exclusive method for managing secrets (API Keys, Database URLs, Secret Keys) and environment-specific settings (e.g., `PYTHON_ENV`, `APP_BASE_URL`).
+- **Platform:** Render.io provides secure environment variable management for Web Services and Background Workers.
+- **Required Examples:** `DATABASE_URL`, `REDIS_URL`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `OPENAI_API_KEY`, `OPENAI_ASSISTANT_ID`, `DELIVERECT_CHANNEL_NAME`, `DELIVERECT_API_KEY` / `DELIVERECT_AUTH_DETAILS`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`.
 
 ---
 
 ## 10. Testing Strategy Summary
 
-- **Staging Environment:** Essential on Render with test keys/DB/Redis.
-- **Unit Tests:** Test functions/classes in isolation (mock dependencies).
-- **Integration Tests:** Test component interactions within staging (e.g., webhook -> DB write).
-- **E2E/Simulation:** Simulate conversations against staging env. Verify flow, tool execution (using PLUs/variants), mocked/real Deliverect interaction, state changes.
+- **Staging Environment:** A mandatory, isolated replica of production on Render (separate services, DB, Redis) using dedicated test/staging API keys.
+- **Unit Tests (`pytest`):** Focus on isolating and testing individual Python functions/classes (e.g., tool implementations, utility functions, webhook parsing logic). Mock external dependencies (DB, Redis, API calls) heavily using libraries like `unittest.mock` or `pytest-mock`.
+- **Integration Tests (`pytest`):** Verify interactions between components within the staging environment. Examples: Test a Deliverect webhook handler correctly updates the staging DB; test if placing an order via a simulated tool call correctly interacts with Redis and (mocked or staging) Deliverect. Use HTTP clients (`requests`, `httpx`) and direct checks against staging DB/Redis.
+- **End-to-End (E2E) / Simulation Tests:** Simulate complete user conversations against the _staging_ application.
+  - Use scripts or test frameworks to send sequences of inputs (simulating user speech via text passed to the Agent).
+  - Verify the conversational flow progresses as expected.
+  - Assert that the correct Agent Tools are called with appropriate arguments (check logs or mock interactions).
+  - Verify interactions with the staging Deliverect environment (if feasible and using test credentials) or a mocked Deliverect endpoint.
+  - Check final state in staging Postgres (order created correctly) and Redis (state cleared).
+  - Verify SMS tasks are queued in Celery (or check Twilio logs if hitting staging Twilio).
 
 ---
 
 ## 11. Future Considerations / Roadmap (Placeholder)
 
-- Direct payment handling.
-- Multi-location support.
-- Advanced ambiguity handling.
-- Delivery fleet integration.
-- Web UI/Analytics.
+- Implementing direct payment processing over the phone (requires significant security/PCI compliance effort).
+- Scaling to support multiple restaurant locations (requires changes to configuration, potentially DB schema, and `channelLinkId` management).
+- Enhancing NLU to handle more complex or ambiguous user requests gracefully.
+- Integrating with third-party delivery fleet management APIs.
+- Developing a web-based dashboard for restaurant staff to view incoming orders and statuses.
+- Adding analytics to track usage patterns, common issues, and order success rates.
+- Refining handling of nested modifiers and complex product configurations during order taking.
+
+---
+
+**Document Maintenance:** This document requires regular updates to reflect changes in architecture, features, API contracts (especially Deliverect), data models, or core workflows. Accuracy is paramount for effective AI-assisted development.
 
 ---
 
@@ -624,8 +712,12 @@ const name_variants_example = {
   "diet coke": { "canonical_name": "Diet Coke", "target_plu": "DRNK-02" },
   // ... many more mappings derived from item/modifier names and potential synonyms ...
 };
+
+
+```
+
 Appendix B: Deliverect Menu Glossary (Selected Fields)
-This glossary defines key fields found within the Deliverect Menu Update payload (referenced in Appendix A). Fields marked with * are always present.
+This glossary defines key fields found within the Deliverect Menu Update payload (referenced in Appendix A). Fields marked with \* are always present.
 
 Top Level:
 
@@ -638,28 +730,28 @@ availabilities (array[object]): Store opening times.
 dayOfWeek (integer): 1=Monday to 7=Sunday.
 startTime, endTime (string): "HH:MM" format, local time.
 categories (array[object]): List of menu categories.
-products (object): Dictionary mapping item _id to product details.
-modifierGroups (object): Dictionary mapping group _id to group details.
-modifiers (object): Dictionary mapping modifier _id to modifier details.
+products (object): Dictionary mapping item \_id to product details.
+modifierGroups (object): Dictionary mapping group \_id to group details.
+modifiers (object): Dictionary mapping modifier \_id to modifier details.
 snoozedProducts (object): Dictionary mapping PLU to details for currently snoozed items.
 Categories:
 
-_id (string): Deliverect category ID.
+\_id (string): Deliverect category ID.
 name (string): Category name.
-subProducts (array[string]): List of item _ids belonging to this category.
+subProducts (array[string]): List of item \_ids belonging to this category.
 Items (Products/Modifiers/Groups - Common Fields):
 
-_id (string): Deliverect's internal ID for this specific item instance in the menu structure.
+\_id (string): Deliverect's internal ID for this specific item instance in the menu structure.
 name (string): Item/Group/Modifier name.
 description (string): Description text.
 plu (string): CRITICAL unique identifier used for ordering.
 price (integer): Price in cents (often 0 for modifiers/variants, representing a price difference).
 productType (integer): 1=Product, 2=Modifier, 3=Modifier Group.
 imageUrl (string): URL for an image.
-subProducts (array[string]): For Products, lists associated Modifier Group _ids. For Groups, lists associated Modifier or Variant Item _ids.
+subProducts (array[string]): For Products, lists associated Modifier Group \_ids. For Groups, lists associated Modifier or Variant Item \_ids.
 snoozed (boolean): Whether the item is currently snoozed.
 deliveryTax, takeawayTax, eatInTax (integer): Tax rates (e.g., 5000 = 5.000%).
-parentId (string): The _id of the group or product this item belongs to within the subProducts list.
+parentId (string): The \_id of the group or product this item belongs to within the subProducts list.
 Modifier Groups Specific:
 
 min (integer): Minimum number of selections required from the group.
@@ -673,4 +765,8 @@ isVariant (boolean): True if this product's price/options are determined by sele
 Modifiers Specific:
 
 defaultQuantity (integer): If > 0, this modifier is pre-selected (usually 1).
+(Note: Many other fields exist for translations, nutritional info, tags, POS IDs etc., but the above are most critical for core ordering and display logic).
+
+```
+
 ```
