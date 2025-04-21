@@ -724,10 +724,6 @@ def handle_menu_questions():
             context="menu"
         )
 
-            # Add fallback in case this gather fails too
-            response.redirect("/handle_menu_questions")
-            return Response(str(response), mimetype="text/xml")
-
     # Reset silence counter when we get speech
     session["menu_question_silence"] = 0
 

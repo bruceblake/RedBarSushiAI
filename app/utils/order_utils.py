@@ -291,6 +291,7 @@ def mark_unavailable_items(
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Mark items that don't exist on the menu or are unavailable.
+    Also ensures items have required reference_handlers.
 
     Args:
         order_items: List of order items to evaluate
@@ -328,7 +329,40 @@ def mark_unavailable_items(
             item["reason"] = "Temporarily unavailable"
             unavailable_items.append(item)
         else:
-            # Item is available
+            # Item is available - copy reference handler and other essential fields
+            if "reference_handler" not in item and menu_item.get("reference_handler"):
+                item["reference_handler"] = menu_item["reference_handler"]
+                logger.info(f"[MARK-ITEMS] Added reference_handler '{menu_item['reference_handler']}' to item '{name}'")
+
+            if "price" not in item and menu_item.get("price") is not None:
+                item["price"] = menu_item["price"]
+
+            # Process modifiers to ensure they have reference handlers
+            if "modifier" in item and isinstance(item["modifier"], list):
+                for mod in item["modifier"]:
+                    if isinstance(mod, dict) and "name" in mod and "reference_handler" not in mod:
+                        # Try to find modifier in menu and get its reference handler
+                        menu_data = load_menu_data()
+                        mod_name_lower = mod["name"].lower()
+                        
+                        # Look through all menu modifiers
+                        found_modifier = None
+                        for menu_mod in menu_data.get("modifiers", []):
+                            menu_mod_name = menu_mod.get("name", "").lower()
+                            if menu_mod_name == mod_name_lower or mod_name_lower in menu_mod_name or menu_mod_name in mod_name_lower:
+                                found_modifier = menu_mod
+                                break
+                        
+                        if found_modifier:
+                            mod["reference_handler"] = found_modifier["reference_handler"]
+                            mod["price"] = found_modifier.get("price", 0.0)
+                            logger.info(f"[MARK-ITEMS] Added reference_handler '{found_modifier['reference_handler']}' to modifier '{mod['name']}'")
+                        else:
+                            # Create a placeholder reference handler
+                            mod["reference_handler"] = f"MOD-{mod_name_lower.replace(' ', '-')}"
+                            mod["price"] = mod.get("price", 0.0)
+                            logger.warning(f"[MARK-ITEMS] Created placeholder reference_handler '{mod['reference_handler']}' for modifier '{mod['name']}'")
+            
             available_items.append(item)
 
     return available_items, unavailable_items
@@ -624,6 +658,7 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
     """
     Validates that all modifiers in the order exist in the menu, are available,
     and have proper reference handlers for Deliverect.
+    Allows custom modifiers (not in menu) to pass through with placeholder reference handlers.
 
     Args:
         order_items: List of order items with modifiers
@@ -670,31 +705,53 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
             # If it already has a reference handler, check it directly
             if "reference_handler" in mod and mod["reference_handler"]:
                 if mod["reference_handler"] in valid_modifiers:
-                    # Modifier exists and is available
+                    # Modifier exists and is available in the menu
+                    logger.info(f"[ORDER-VALIDATE] Found valid menu modifier: {mod.get('name')} with reference {mod['reference_handler']}")
                     valid_modifiers_for_item.append(mod)
                 else:
-                    # Modifier doesn't exist or isn't available
+                    # Modifier doesn't exist in menu but has a reference handler
+                    # We'll keep it anyway and log a warning, rather than dropping it
                     logger.warning(
-                        f"[ORDER-VALIDATE] Modifier with reference '{mod.get('reference_handler')}' not found in menu or unavailable: {mod.get('name')}"
+                        f"[ORDER-VALIDATE] Modifier with reference '{mod.get('reference_handler')}' not found in menu but keeping it: {mod.get('name')}"
                     )
+                    valid_modifiers_for_item.append(mod)
 
             # Otherwise look it up by name
             elif "name" in mod and mod["name"]:
                 mod_name = mod["name"].lower()
+                # Try exact match first
                 if mod_name in modifiers_by_name:
-                    # Found a match - fill in the reference handler
+                    # Found an exact match - fill in the reference handler
                     menu_mod = modifiers_by_name[mod_name]
                     mod["reference_handler"] = menu_mod["reference_handler"]
                     mod["price"] = menu_mod.get("price", 0.0)
                     logger.info(
-                        f"[ORDER-VALIDATE] Found modifier by name: {mod['name']} → {mod['reference_handler']}"
+                        f"[ORDER-VALIDATE] Found exact modifier match by name: {mod['name']} → {mod['reference_handler']}"
                     )
                     valid_modifiers_for_item.append(mod)
                 else:
-                    # No match found
-                    logger.warning(
-                        f"[ORDER-VALIDATE] Modifier not found in menu: {mod.get('name')}"
-                    )
+                    # Try fuzzy matching
+                    found_match = False
+                    for menu_mod_name, menu_mod in modifiers_by_name.items():
+                        # Check for partial matches in either direction
+                        if mod_name in menu_mod_name or menu_mod_name in mod_name:
+                            mod["reference_handler"] = menu_mod["reference_handler"]
+                            mod["price"] = menu_mod.get("price", 0.0)
+                            logger.info(
+                                f"[ORDER-VALIDATE] Found fuzzy modifier match: {mod['name']} ≈ {menu_mod['name']} → {mod['reference_handler']}"
+                            )
+                            valid_modifiers_for_item.append(mod)
+                            found_match = True
+                            break
+                    
+                    if not found_match:
+                        # No match found, but create a placeholder reference handler and keep it
+                        mod["reference_handler"] = f"MOD-{mod_name.replace(' ', '-')}"
+                        mod["price"] = mod.get("price", 0.0)
+                        logger.warning(
+                            f"[ORDER-VALIDATE] Modifier not found in menu but creating placeholder: {mod.get('name')} → {mod['reference_handler']}"
+                        )
+                        valid_modifiers_for_item.append(mod)
             else:
                 logger.warning(
                     "[ORDER-VALIDATE] Modifier has no name or reference handler, skipping"
@@ -703,8 +760,14 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
         # Update the item with valid modifiers
         if len(valid_modifiers_for_item) < len(item["modifier"]):
             logger.warning(
-                f"[ORDER-VALIDATE] Removed {len(item['modifier']) - len(valid_modifiers_for_item)} invalid modifiers from item {item.get('name')}"
+                f"[ORDER-VALIDATE] {len(item['modifier']) - len(valid_modifiers_for_item)} modifiers could not be processed for item {item.get('name')}"
             )
+        
+        # Log all the modifiers we're keeping
+        if valid_modifiers_for_item:
+            logger.info(f"[ORDER-VALIDATE] Keeping {len(valid_modifiers_for_item)} modifiers for {item.get('name')}")
+            mod_names = [f"{mod.get('name')}({mod.get('reference_handler')})" for mod in valid_modifiers_for_item]
+            logger.info(f"[ORDER-VALIDATE] Modifiers: {', '.join(mod_names)}")
 
         item["modifier"] = valid_modifiers_for_item
 
@@ -723,14 +786,32 @@ def prepare_order_for_deliverect(
     Returns:
         List of validated order items ready for Deliverect
     """
+    # Log initial order items
+    if order_items:
+        logger.info(f"[ORDER-PREPARE] Preparing {len(order_items)} items for Deliverect")
+        for item in order_items:
+            mod_count = len(item.get("modifier", []))
+            logger.info(f"[ORDER-PREPARE] Initial item: {item.get('name')} with {mod_count} modifiers")
+            if mod_count > 0:
+                mod_names = [mod.get('name', 'unnamed') for mod in item.get("modifier", [])]
+                logger.info(f"[ORDER-PREPARE] Modifiers: {', '.join(mod_names)}")
+    
     # Step 1: Validate items exist in menu and are available
     valid_items = validate_order_items(order_items)
+    
+    # Log items after first validation
+    logger.info(f"[ORDER-PREPARE] After item validation: {len(valid_items)} valid items")
 
     # Step 2: Validate modifiers exist and are available
     valid_items_with_modifiers = validate_modifiers(valid_items)
+    
+    # Log items after modifier validation
+    logger.info(f"[ORDER-PREPARE] After modifier validation: {len(valid_items_with_modifiers)} valid items")
+    for item in valid_items_with_modifiers:
+        mod_count = len(item.get("modifier", []))
+        logger.info(f"[ORDER-PREPARE] Item after modifier validation: {item.get('name')} with {mod_count} modifiers")
 
     # Step 3: Perform comprehensive availability validation using snooze_validator
-
     fully_validated_items = validate_items_availability(valid_items_with_modifiers)
 
     # Log any items that were filtered out in the final validation
@@ -745,6 +826,7 @@ def prepare_order_for_deliverect(
         )
 
     # Step 4: Ensure all items have reference handlers before returning
+    final_items = []
     for item in fully_validated_items:
         if not item.get("reference_handler"):
             # Try to find it again by name as a last resort
@@ -755,12 +837,25 @@ def prepare_order_for_deliverect(
                 logger.info(
                     f"[ORDER-VALIDATE-FINAL] Found missing reference handler for {item.get('name')}"
                 )
+                final_items.append(item)
             else:
-                # If we still can't find a reference handler, log it and remove the item
+                # If we still can't find a reference handler, create a placeholder and keep it anyway
+                item["reference_handler"] = f"ITEM-{item.get('name', '').lower().replace(' ', '-')}"
                 logger.warning(
-                    f"[ORDER-VALIDATE-FINAL] Item {item.get('name')} has no reference handler, removing from order"
+                    f"[ORDER-VALIDATE-FINAL] Created placeholder reference handler for {item.get('name')}: {item['reference_handler']}"
                 )
-                fully_validated_items.remove(item)
+                final_items.append(item)
+        else:
+            final_items.append(item)
+
+    # Log the final order
+    logger.info(f"[ORDER-VALIDATE-FINAL] Final order has {len(final_items)} items")
+    for item in final_items:
+        mod_count = len(item.get("modifier", []))
+        logger.info(f"[ORDER-VALIDATE-FINAL] Final item: {item.get('name')} ({item.get('reference_handler')}) with {mod_count} modifiers")
+        if mod_count > 0:
+            mod_details = [f"{mod.get('name')}({mod.get('reference_handler')})" for mod in item.get("modifier", [])]
+            logger.info(f"[ORDER-VALIDATE-FINAL] Final modifiers: {', '.join(mod_details)}")
 
     # Return the fully validated order
-    return fully_validated_items
+    return final_items
