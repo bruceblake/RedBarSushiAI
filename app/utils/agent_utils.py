@@ -1124,7 +1124,7 @@ else:
                         menu_items = self.menu_tool.menu_data.get("items", [])
 
                         for item_name in still_unverified:
-                            item_lower = item_name.lower()
+                            item_lower = item_name.get("name").lower()
                             found = False
                             
                             # Skip name variants - AI agent will handle matching for fuzzy matches
