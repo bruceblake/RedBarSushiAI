@@ -615,26 +615,26 @@ def handle_menu_questions():
                     search_results = analysis["search_results"]
         else:
                     # Otherwise perform a search
-                    search_results = menu_tool.search_menu(menu_query)
+            search_results = menu_tool.search_menu(menu_query)
                 
                 # Format menu items for context
-                menu_context = ""
-                if search_results:
-                    menu_context = "Here are relevant menu items:\n"
-                    for item in search_results[:5]:  # Limit to 5 items for context
+            menu_context = ""
+            if search_results:
+                menu_context = "Here are relevant menu items:\n"
+                for item in search_results[:5]:  # Limit to 5 items for context
+                    price_str = f"${item.get('price', 0):.2f}"
+                    desc = item.get('description', 'No description available')
+                    menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
+            else:
+                    # If no specific items found, include popular items
+                from app.utils.menu_utils import get_popular_menu_items
+                popular_items = get_popular_menu_items(5)
+                if popular_items:
+                    menu_context = "Here are our popular menu items:\n"
+                    for item in popular_items:
                         price_str = f"${item.get('price', 0):.2f}"
                         desc = item.get('description', 'No description available')
                         menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
-                else:
-                    # If no specific items found, include popular items
-                    from app.utils.menu_utils import get_popular_menu_items
-                    popular_items = get_popular_menu_items(5)
-                    if popular_items:
-                        menu_context = "Here are our popular menu items:\n"
-                        for item in popular_items:
-                            price_str = f"${item.get('price', 0):.2f}"
-                            desc = item.get('description', 'No description available')
-                            menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
                 
                 # Create OpenAI client and send system+user messages with actual menu data
                 client = openai.OpenAI()
