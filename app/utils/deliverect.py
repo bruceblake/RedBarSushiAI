@@ -37,7 +37,18 @@ def process_deliverect_menu(menu_data):
     logger.info("Processing Deliverect menu data")
 
     # Initialize the result structure
-    result = {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
+    result = {
+        "items": [], 
+        "modifiers": [], 
+        "modifierGroups": [], 
+        "name_variants": {},
+        # Store raw data for processing relationships
+        "_raw_data": {
+            "products": {},
+            "modifierGroups": {},
+            "modifiers": {}
+        }
+    }
 
     # Handle the case where menu_data is a list
     if isinstance(menu_data, list):
@@ -49,6 +60,10 @@ def process_deliverect_menu(menu_data):
             # Process direct list of products
             for product in menu_data:
                 if _is_valid_product(product):
+                    # Store raw product data for relationship processing
+                    if "_id" in product:
+                        result["_raw_data"]["products"][product["_id"]] = product
+                    
                     item = _convert_product_to_item(product)
                     if item:
                         result["items"].append(item)
@@ -71,6 +86,47 @@ def process_deliverect_menu(menu_data):
                             for category in menu_categories:
                                 _process_category(category, result)
 
+                    # Extract products directly if available
+                    products = item.get("products", {})
+                    if isinstance(products, dict) and products:
+                        logger.info(f"Found {len(products)} products in Deliverect format")
+                        for prod_id, prod_data in products.items():
+                            # Store raw product for relationship processing
+                            result["_raw_data"]["products"][prod_id] = prod_data
+                            
+                            # Process the product
+                            if _is_valid_product(prod_data):
+                                # Ensure the product has an _id field for reference
+                                if "_id" not in prod_data:
+                                    prod_data["_id"] = prod_id
+                                
+                                item = _convert_product_to_item(prod_data)
+                                if item and not any(
+                                    existing["name"] == item["name"] for existing in result["items"]
+                                ):
+                                    result["items"].append(item)
+                                    _add_name_variants(result["name_variants"], item["name"])
+                                    
+                    # Extract modifier groups directly if available
+                    mod_groups = item.get("modifierGroups", {})
+                    if isinstance(mod_groups, dict) and mod_groups:
+                        logger.info(f"Found {len(mod_groups)} modifier groups in Deliverect format")
+                        # Store raw modifier groups for relationship processing
+                        for group_id, group_data in mod_groups.items():
+                            result["_raw_data"]["modifierGroups"][group_id] = group_data
+                        
+                        _process_modifier_groups(mod_groups, result)
+                    
+                    # Extract modifiers directly if available
+                    mods = item.get("modifiers", {})
+                    if isinstance(mods, dict) and mods:
+                        logger.info(f"Found {len(mods)} modifiers in Deliverect format")
+                        # Store raw modifiers for relationship processing
+                        for mod_id, mod_data in mods.items():
+                            result["_raw_data"]["modifiers"][mod_id] = mod_data
+                            
+                        _process_modifiers(mods, result)
+                    
                     # Recursively scan for products in any structure
                     _recursively_find_products(item, result)
 
@@ -79,6 +135,10 @@ def process_deliverect_menu(menu_data):
         # Check if this is a direct product
         if "name" in menu_data and "price" in menu_data:
             if _is_valid_product(menu_data):
+                # Store raw product data for relationship processing
+                if "_id" in menu_data:
+                    result["_raw_data"]["products"][menu_data["_id"]] = menu_data
+                
                 item = _convert_product_to_item(menu_data)
                 if item:
                     result["items"].append(item)
@@ -98,34 +158,77 @@ def process_deliverect_menu(menu_data):
                     for category in menu_categories:
                         _process_category(category, result)
 
+            # Process products directly if available
+            products = menu_data.get("products", {})
+            if isinstance(products, dict) and products:
+                logger.info(f"Found {len(products)} products in Deliverect format")
+                for prod_id, prod_data in products.items():
+                    # Store raw product for relationship processing
+                    result["_raw_data"]["products"][prod_id] = prod_data
+                    
+                    # Process the product
+                    if _is_valid_product(prod_data):
+                        # Ensure the product has an _id field for reference
+                        if "_id" not in prod_data:
+                            prod_data["_id"] = prod_id
+                        
+                        item = _convert_product_to_item(prod_data)
+                        if item and not any(
+                            existing["name"] == item["name"] for existing in result["items"]
+                        ):
+                            result["items"].append(item)
+                            _add_name_variants(result["name_variants"], item["name"])
+            
             # Process modifiers and modifier groups if present
             # First check for nested modifierGroups dictionary
             modifier_groups = menu_data.get("modifierGroups", {})
             if isinstance(modifier_groups, dict) and modifier_groups:
                 logger.info(f"Found {len(modifier_groups)} modifier groups in Deliverect format")
+                # Store raw modifier groups for relationship processing
+                for group_id, group_data in modifier_groups.items():
+                    result["_raw_data"]["modifierGroups"][group_id] = group_data
+                
                 _process_modifier_groups(modifier_groups, result)
             
             # Check if modifierGroups is an array
             elif isinstance(menu_data.get("modifierGroups"), list):
                 logger.info(f"Found {len(menu_data.get('modifierGroups'))} modifier groups as array")
+                # Store raw modifier groups for relationship processing
+                for group in menu_data.get("modifierGroups", []):
+                    if isinstance(group, dict) and "_id" in group:
+                        result["_raw_data"]["modifierGroups"][group["_id"]] = group
+                
                 _process_modifier_groups_array(menu_data.get("modifierGroups"), result)
 
             # Process modifiers if present
             modifiers = menu_data.get("modifiers", {})
             if isinstance(modifiers, dict) and modifiers:
                 logger.info(f"Found {len(modifiers)} modifiers in Deliverect format")
+                # Store raw modifiers for relationship processing
+                for mod_id, mod_data in modifiers.items():
+                    result["_raw_data"]["modifiers"][mod_id] = mod_data
+                
                 _process_modifiers(modifiers, result)
             
             # Check if modifiers is an array
             elif isinstance(menu_data.get("modifiers"), list):
                 logger.info(f"Found {len(menu_data.get('modifiers'))} modifiers as array")
+                # Store raw modifiers for relationship processing
+                for mod in menu_data.get("modifiers", []):
+                    if isinstance(mod, dict) and "_id" in mod:
+                        result["_raw_data"]["modifiers"][mod["_id"]] = mod
+                
                 _process_modifiers_array(menu_data.get("modifiers"), result)
 
             # Recursively scan for products in any structure
             _recursively_find_products(menu_data, result)
 
-    # Ensure modifier groups reference valid modifiers
-    _link_modifier_groups_to_modifiers(result)
+    # Process relationships between products, modifier groups, and modifiers
+    _process_relationships(result)
+    
+    # Clean up temporary data
+    if "_raw_data" in result:
+        del result["_raw_data"]
 
     logger.info(f"Processed Deliverect menu: found {len(result['items'])} items, {len(result['modifiers'])} modifiers, {len(result['modifierGroups'])} modifier groups")
     return result
@@ -345,154 +448,270 @@ def _process_modifiers_array(modifiers_array, result):
         _add_name_variants(result["name_variants"], modifier["name"])
 
 
-def _link_modifier_groups_to_modifiers(result):
+def _process_relationships(result):
     """
-    Ensure that modifier groups reference valid modifiers and items reference valid
-    modifier groups. This links the items, modifier groups, and modifiers together.
+    Process relationships between products, modifier groups, and modifiers based on the
+    raw Deliverect data. This ensures proper linking between all components.
     
     Args:
-        result: Result dictionary to update
+        result: Result dictionary to update with proper relationships
     """
-    # Create maps of all entities for easy lookup
-    modifier_map = {}  # id -> reference_handler
-    modifier_group_map = {}  # id -> reference_handler
-    item_map = {}  # id/deliverect_item_id -> index in items array
+    logger.info("Processing relationships between products, modifier groups, and modifiers")
     
-    # Build modifier map
-    for modifier in result["modifiers"]:
-        modifier_id = modifier.get("id", "")
-        deliverect_id = modifier.get("deliverect_modifier_id", modifier_id)
-        reference = modifier.get("reference_handler", "")
-        
-        if modifier_id:
-            modifier_map[modifier_id] = reference
-        if deliverect_id and deliverect_id != modifier_id:
-            modifier_map[deliverect_id] = reference
+    # Skip if no raw data is available
+    if "_raw_data" not in result:
+        logger.warning("No raw data available for relationship processing")
+        return
     
-    # Build modifier group map
-    for group in result["modifierGroups"]:
-        group_id = group.get("id", "")
-        deliverect_id = group.get("deliverect_group_id", group_id)
-        reference = group.get("reference_handler", "")
-        
-        if group_id:
-            modifier_group_map[group_id] = reference
-        if deliverect_id and deliverect_id != group_id:
-            modifier_group_map[deliverect_id] = reference
+    # First, build maps for easier lookups
+    # ID -> Object index in the output arrays
+    product_indices = {}   # _id -> index in items array
+    group_indices = {}     # _id -> index in modifierGroups array
+    modifier_indices = {}  # _id -> index in modifiers array
     
-    # Build item map (for linking modifier groups to items)
+    # ID -> reference_handler map for PLU references
+    product_refs = {}      # _id -> reference_handler (PLU)
+    group_refs = {}        # _id -> reference_handler (PLU)
+    modifier_refs = {}     # _id -> reference_handler (PLU)
+    
+    # Build maps for products
     for idx, item in enumerate(result["items"]):
-        item_id = item.get("reference_handler", "")
-        deliverect_id = item.get("deliverect_item_id", "")
-        
-        if item_id:
-            item_map[item_id] = idx
-        if deliverect_id and deliverect_id != item_id:
-            item_map[deliverect_id] = idx
-    
-    # Update modifier references in groups
-    for group in result["modifierGroups"]:
-        if "modifiers" in group and isinstance(group["modifiers"], list):
-            # Convert modifier IDs to reference_handlers
-            valid_modifiers = []
-            for modifier_id in group["modifiers"]:
-                if modifier_id in modifier_map:
-                    valid_modifiers.append(modifier_map[modifier_id])
-                    
-                    # Also update parent IDs in modifiers to create the child->parent link
-                    for modifier in result["modifiers"]:
-                        if (modifier.get("id") == modifier_id or 
-                            modifier.get("deliverect_modifier_id") == modifier_id):
-                            modifier["parentId"] = group.get("reference_handler", group.get("id", ""))
-                            break
-                    
-            group["modifiers"] = valid_modifiers
-    
-    # Link items to their modifier groups using subProducts if available
-    # Check item->modifier group relationships
-    if "product_modifier_groups" in result:
-        for relation in result["product_modifier_groups"]:
-            product_id = relation.get("product_id")
-            group_id = relation.get("group_id")
+        # Store the index by both reference_handler and deliverect_item_id
+        if "reference_handler" in item:
+            product_indices[item["reference_handler"]] = idx
+            product_refs[item["reference_handler"]] = item["reference_handler"]
             
-            # Skip if either ID is missing
-            if not product_id or not group_id:
-                continue
-                
-            # Find the item by ID
-            if product_id in item_map:
-                item_idx = item_map[product_id]
-                item = result["items"][item_idx]
-                
-                # Find the modifier group reference
-                if group_id in modifier_group_map:
-                    group_ref = modifier_group_map[group_id]
-                    
-                    # Add the group to the item's modifierGroups if not already there
-                    if "modifierGroups" not in item:
-                        item["modifierGroups"] = []
-                        
+        if "deliverect_item_id" in item:
+            product_indices[item["deliverect_item_id"]] = idx
+            product_refs[item["deliverect_item_id"]] = item["reference_handler"]
+            
+        # Also store by PLU if different
+        if "plu" in item and item["plu"] != item.get("reference_handler"):
+            product_indices[item["plu"]] = idx
+            product_refs[item["plu"]] = item["reference_handler"]
+    
+    # Build maps for modifier groups
+    for idx, group in enumerate(result["modifierGroups"]):
+        # Store the index by both reference_handler and deliverect_group_id
+        if "reference_handler" in group:
+            group_indices[group["reference_handler"]] = idx
+            group_refs[group["reference_handler"]] = group["reference_handler"]
+            
+        if "deliverect_group_id" in group:
+            group_indices[group["deliverect_group_id"]] = idx
+            group_refs[group["deliverect_group_id"]] = group["reference_handler"]
+            
+        # Also store by ID if present and different
+        if "id" in group and group["id"] != group.get("reference_handler"):
+            group_indices[group["id"]] = idx
+            group_refs[group["id"]] = group["reference_handler"]
+            
+        # Also store by PLU if different
+        if "plu" in group and group["plu"] != group.get("reference_handler"):
+            group_indices[group["plu"]] = idx
+            group_refs[group["plu"]] = group["reference_handler"]
+    
+    # Build maps for modifiers
+    for idx, modifier in enumerate(result["modifiers"]):
+        # Store the index by both reference_handler and deliverect_modifier_id
+        if "reference_handler" in modifier:
+            modifier_indices[modifier["reference_handler"]] = idx
+            modifier_refs[modifier["reference_handler"]] = modifier["reference_handler"]
+            
+        if "deliverect_modifier_id" in modifier:
+            modifier_indices[modifier["deliverect_modifier_id"]] = idx
+            modifier_refs[modifier["deliverect_modifier_id"]] = modifier["reference_handler"]
+            
+        # Also store by ID if present and different
+        if "id" in modifier and modifier["id"] != modifier.get("reference_handler"):
+            modifier_indices[modifier["id"]] = idx
+            modifier_refs[modifier["id"]] = modifier["reference_handler"]
+            
+        # Also store by PLU if different
+        if "plu" in modifier and modifier["plu"] != modifier.get("reference_handler"):
+            modifier_indices[modifier["plu"]] = idx
+            modifier_refs[modifier["plu"]] = modifier["reference_handler"]
+    
+    # Log mapping sizes for debugging
+    logger.info(f"Built maps for {len(product_indices)} products, " +
+                f"{len(group_indices)} modifier groups, and {len(modifier_indices)} modifiers")
+    
+    # Step 1: Process product -> modifier group relationships
+    # In Deliverect, products reference modifier groups through subProducts
+    processed_products = 0
+    for item in result["items"]:
+        # Skip non-product items or items without subProducts
+        if not item.get("deliverect_subProducts") and not item.get("deliverect_modifierGroups"):
+            continue
+        
+        # Initialize modifierGroups if not present
+        if "modifierGroups" not in item:
+            item["modifierGroups"] = []
+        
+        # Process direct modifierGroups references if available
+        if item.get("deliverect_modifierGroups"):
+            for group_id in item["deliverect_modifierGroups"]:
+                if group_id in group_refs:
+                    # Add to modifierGroups using the reference_handler
+                    group_ref = group_refs[group_id]
                     if group_ref not in item["modifierGroups"]:
                         item["modifierGroups"].append(group_ref)
-    
-    # Now check items that have modifierGroups references and ensure all references are valid
-    for item in result["items"]:
-        if "modifierGroups" in item and isinstance(item["modifierGroups"], list):
-            valid_groups = []
-            for group_id in item["modifierGroups"]:
-                # Check if the group_id is a direct reference_handler
-                group_exists = any(group["reference_handler"] == group_id for group in result["modifierGroups"])
-                
-                # If not, try to convert from ID to reference_handler
-                if not group_exists and group_id in modifier_group_map:
-                    group_ref = modifier_group_map[group_id]
-                    valid_groups.append(group_ref)
-                elif group_exists:
-                    valid_groups.append(group_id)
-                    
-            # Update with valid references only
-            item["modifierGroups"] = valid_groups
+                        logger.debug(f"Linked product {item['name']} to modifier group ID {group_id} via modifierGroups")
+        
+        # Process subProducts which may reference modifier groups
+        if item.get("deliverect_subProducts"):
+            # Process each subProduct which in Deliverect is a reference to a modifier group
+            for group_id in item["deliverect_subProducts"]:
+                # Check if this is a reference to a valid modifier group
+                if group_id in group_refs:
+                    # Add to modifierGroups using the reference_handler
+                    group_ref = group_refs[group_id]
+                    if group_ref not in item["modifierGroups"]:
+                        item["modifierGroups"].append(group_ref)
+                        logger.debug(f"Linked product {item['name']} to modifier group ID {group_id} via subProducts")
+        
+        # Look up the raw product data to get more relationship info if needed
+        if item.get("deliverect_item_id") and item.get("deliverect_item_id") in result["_raw_data"]["products"]:
+            raw_product = result["_raw_data"]["products"][item["deliverect_item_id"]]
             
-    # Process variant groups specially - ensure variant items link to their variant groups
+            # If we still don't have any modifier groups, check the raw data for more references
+            if not item["modifierGroups"] and "subProducts" in raw_product:
+                for group_id in raw_product["subProducts"]:
+                    if group_id in group_refs:
+                        # Add to modifierGroups using the reference_handler
+                        group_ref = group_refs[group_id]
+                        if group_ref not in item["modifierGroups"]:
+                            item["modifierGroups"].append(group_ref)
+                            logger.debug(f"Linked product {item['name']} to modifier group ID {group_id} via raw data")
+        
+        # Clean up temporary fields
+        if "deliverect_subProducts" in item:
+            del item["deliverect_subProducts"]
+        if "deliverect_modifierGroups" in item:
+            del item["deliverect_modifierGroups"]
+            
+        processed_products += 1
+    
+    # Step 2: Process modifier group -> modifier relationships
+    # In Deliverect, modifier groups reference modifiers through subProducts
+    processed_groups = 0
+    for group in result["modifierGroups"]:
+        # Skip groups without modifiers list
+        if "modifiers" not in group or not isinstance(group["modifiers"], list):
+            group["modifiers"] = []
+        
+        # Process ID references to convert to reference_handlers
+        processed_modifiers = []
+        for modifier_id in group["modifiers"]:
+            if modifier_id in modifier_refs:
+                # Convert to reference_handler
+                mod_ref = modifier_refs[modifier_id]
+                if mod_ref not in processed_modifiers:
+                    processed_modifiers.append(mod_ref)
+                    
+                    # Also update parentId in the modifier to create bidirectional link
+                    if modifier_id in modifier_indices:
+                        modifier = result["modifiers"][modifier_indices[modifier_id]]
+                        modifier["parentId"] = group["reference_handler"]
+                        logger.debug(f"Set parentId={group['reference_handler']} for modifier {modifier['name']}")
+        
+        # Update with processed list
+        group["modifiers"] = processed_modifiers
+        
+        # Look up raw group data to get more relationships if needed
+        if group.get("deliverect_group_id") and group.get("deliverect_group_id") in result["_raw_data"]["modifierGroups"]:
+            raw_group = result["_raw_data"]["modifierGroups"][group["deliverect_group_id"]]
+            
+            # If we don't have any modifiers yet, check raw data
+            if not group["modifiers"] and "subProducts" in raw_group:
+                for modifier_id in raw_group["subProducts"]:
+                    if modifier_id in modifier_refs:
+                        # Add modifier reference
+                        mod_ref = modifier_refs[modifier_id]
+                        if mod_ref not in group["modifiers"]:
+                            group["modifiers"].append(mod_ref)
+                            
+                            # Also update parentId in the modifier
+                            if modifier_id in modifier_indices:
+                                modifier = result["modifiers"][modifier_indices[modifier_id]]
+                                modifier["parentId"] = group["reference_handler"]
+                                logger.debug(f"Set parentId={group['reference_handler']} for modifier {modifier['name']} via raw data")
+        
+        processed_groups += 1
+    
+    # Step 3: Process variant relationships
+    # Some items are variants with special reference to variant groups
+    processed_variants = 0
     for item in result["items"]:
         if item.get("isVariant", False):
-            # Find variant groups in modifierGroups
-            variant_groups = [
-                group for group in result["modifierGroups"]
-                if group.get("isVariantGroup", False) and 
-                group.get("reference_handler") in item.get("modifierGroups", [])
-            ]
+            # Find the variant group for this item using parentId
+            if "parentId" in item and item["parentId"] in group_refs:
+                # This is the variant group for this variant item
+                variant_group_ref = group_refs[item["parentId"]]
+                item["variantGroup"] = variant_group_ref
+                logger.debug(f"Linked variant {item['name']} to variant group {variant_group_ref} via parentId")
+                processed_variants += 1
+            else:
+                # Try to find the variant group by looking at modifier groups with isVariantGroup=true
+                variant_groups = []
+                for g_idx, group in enumerate(result["modifierGroups"]):
+                    if group.get("isVariantGroup", False):
+                        # Check if this item is referenced in the group's modifiers
+                        if item.get("reference_handler") in group.get("modifiers", []):
+                            variant_groups.append(group)
+                
+                # If we found variant groups, link to the first one
+                if variant_groups:
+                    item["variantGroup"] = variant_groups[0]["reference_handler"]
+                    logger.debug(f"Linked variant {item['name']} to variant group {item['variantGroup']} via modifiers list")
+                    processed_variants += 1
+    
+    # Log the results
+    logger.info(f"Processed relationships for {processed_products} products, {processed_groups} modifier groups, and {processed_variants} variants")
+    
+    # Clean up any leftover temporary data
+    for item in result["items"]:
+        if "deliverect_item_id" in item:
+            del item["deliverect_item_id"]
             
-            # If found, mark the item as using this variant group
-            if variant_groups:
-                item["variantGroup"] = variant_groups[0].get("reference_handler", "")
-                logger.info(f"Linked variant item {item.get('name')} to variant group {item.get('variantGroup')}")
-    
-    # For debugging, log some stats
-    logger.info(f"Linked {len(modifier_map)} modifiers, {len(modifier_group_map)} groups, and {len(item_map)} items")
-    
-    # Clean up temporary mapping data
-    if "product_modifier_groups" in result:
-        del result["product_modifier_groups"]
+    for group in result["modifierGroups"]:
+        if "deliverect_group_id" in group:
+            del group["deliverect_group_id"]
+            
+    for modifier in result["modifiers"]:
+        if "deliverect_modifier_id" in modifier:
+            del item["deliverect_modifier_id"]
 
 
 def _process_category(category, result):
-    """Process a category and extract its products and modifiers."""
+    """Process a category and extract its products."""
     if not isinstance(category, dict):
         return
 
-    products = category.get("products", [])
+    # Get the category information
     category_name = category.get("name", "")
-    category_id = category.get("id", "")
+    category_id = category.get("id", category.get("_id", ""))
+    
+    # Get the products from this category
+    products = category.get("products", [])
+    subproducts = category.get("subProducts", [])
+    
+    # Store the category ID for products from this category
+    posCategoryId = category.get("posCategoryId", "")
 
-    # Skip if products is not a list
-    if not isinstance(products, list):
+    # Skip if products is not a list or object
+    if isinstance(products, list) and not products:
+        if isinstance(subproducts, list) and subproducts:
+            # Sometimes Deliverect uses subProducts instead of products for categories
+            products = subproducts
+
+    # Skip empty categories
+    if not products:
         return
 
     # The test cases expect only products, not categories
     # Skip adding categories as items in test environments
     import sys
-
     is_test = "pytest" in sys.modules
 
     # Add the category itself as a menu item if it has a name and ID
@@ -503,6 +722,7 @@ def _process_category(category, result):
             "reference_handler": category_id,
             "available": True,
             "is_category": True,
+            "posCategoryId": posCategoryId,
             "price": 0,
         }
         # Only add if it doesn't already exist
@@ -510,38 +730,58 @@ def _process_category(category, result):
             result["items"].append(category_item)
             _add_name_variants(result["name_variants"], category_name)
 
-    # Process each product in the category
-    for product in products:
-        if _is_valid_product(product):
-            # Add category info to the product
-            if category_name and isinstance(product, dict):
-                product["category"] = category_name
-
-            # Check if this product has modifiers or modifier groups
-            if isinstance(product, dict):
-                # Process product's modifier groups if present
-                if "modifierGroups" in product and isinstance(product["modifierGroups"], list):
-                    for group_ref in product["modifierGroups"]:
-                        # Store the association between product and modifier group for later linking
-                        if "product_modifier_groups" not in result:
-                            result["product_modifier_groups"] = []
-                        
-                        # Store the relationship between product and modifier group
-                        result["product_modifier_groups"].append({
-                            "product_id": product.get("id", product.get("_id", "")),
-                            "group_id": group_ref
-                        })
-
-            item = _convert_product_to_item(product)
-            if item and not any(
-                existing["name"] == item["name"] for existing in result["items"]
-            ):
-                # Add modifier group references to the item if available
-                if isinstance(product, dict) and "modifierGroups" in product:
-                    item["modifierGroups"] = product["modifierGroups"]
+    # Process products in the category
+    if isinstance(products, list):
+        # Process each product in the category (traditional format)
+        for product in products:
+            if _is_valid_product(product):
+                # Store raw product data for relationship processing
+                if isinstance(product, dict) and "_id" in product:
+                    result["_raw_data"]["products"][product["_id"]] = product
                 
-                result["items"].append(item)
-                _add_name_variants(result["name_variants"], item["name"])
+                # Add category info to the product
+                if category_name and isinstance(product, dict):
+                    product["category"] = category_name
+                
+                # Add posCategoryId to the product if available
+                if posCategoryId and isinstance(product, dict):
+                    product["posCategoryId"] = posCategoryId
+
+                # Process the product
+                item = _convert_product_to_item(product)
+                if item and not any(
+                    existing["name"] == item["name"] for existing in result["items"]
+                ):
+                    result["items"].append(item)
+                    _add_name_variants(result["name_variants"], item["name"])
+    
+    elif isinstance(products, dict):
+        # Some Deliverect formats have products as a dictionary instead of a list
+        for prod_id, product in products.items():
+            if _is_valid_product(product):
+                # Store raw product data for relationship processing
+                result["_raw_data"]["products"][prod_id] = product
+                
+                # Ensure the product has its ID
+                if isinstance(product, dict):
+                    if "_id" not in product:
+                        product["_id"] = prod_id
+                    
+                    # Add category info to the product
+                    if category_name:
+                        product["category"] = category_name
+                    
+                    # Add posCategoryId to the product if available
+                    if posCategoryId:
+                        product["posCategoryId"] = posCategoryId
+                
+                # Process the product
+                item = _convert_product_to_item(product)
+                if item and not any(
+                    existing["name"] == item["name"] for existing in result["items"]
+                ):
+                    result["items"].append(item)
+                    _add_name_variants(result["name_variants"], item["name"])
 
 
 def _recursively_find_products(data, result, max_depth=10, current_depth=0):
@@ -622,44 +862,60 @@ def _convert_product_to_item(product):
     # Store the original Deliverect ID for future reference
     if "_id" in product:
         item["deliverect_item_id"] = product["_id"]
+    elif "id" in product:
+        item["deliverect_item_id"] = product["id"]
 
     # Add category if available
     if "category" in product:
         item["category"] = product["category"]
-
-    # Process and add modifier groups if available
-    if "subProducts" in product and isinstance(product["subProducts"], list):
-        # Store the modifier group references as modifierGroups for our internal use
-        item["modifierGroups"] = product["subProducts"]
         
-    elif "modifierGroups" in product and isinstance(product["modifierGroups"], list):
-        item["modifierGroups"] = product["modifierGroups"]
+    # Add posCategoryId if available
+    if "posCategoryId" in product:
+        item["posCategoryId"] = product["posCategoryId"]
+
+    # Store subProducts to process relationships later
+    # In Deliverect, products reference modifier groups through subProducts
+    if "subProducts" in product and isinstance(product["subProducts"], list):
+        item["deliverect_subProducts"] = product["subProducts"]
+        
+    # Also store direct modifierGroups references if available
+    if "modifierGroups" in product and isinstance(product["modifierGroups"], list):
+        item["deliverect_modifierGroups"] = product["modifierGroups"]
 
     # Process variant information
     if "isVariant" in product:
         item["isVariant"] = product["isVariant"]
         
+    # Check for variant indicators in PLU
+    if "plu" in product and (
+        product.get("plu", "").startswith("VAR-") or 
+        "#V" in product.get("plu", "")
+    ):
+        item["isVariant"] = True
+        
         # Extract variant price information from PLU if available
         # Format: VAR-2-#V300#- (where 300 means $3.00 price difference)
-        if "plu" in product and "#V" in product["plu"]:
-            try:
-                # Extract the price difference from the PLU
-                import re
-                price_match = re.search(r"#V(\d+)#", product["plu"])
-                if price_match:
-                    price_diff = int(price_match.group(1)) / 100
-                    item["variant_price_diff"] = price_diff
-                    logger.info(f"Extracted variant price difference: {price_diff} from PLU {product['plu']}")
-            except Exception as e:
-                logger.warning(f"Failed to extract variant price from PLU {product.get('plu')}: {e}")
+        try:
+            # Extract the price difference from the PLU
+            import re
+            price_match = re.search(r"#V(\d+)#", product.get("plu", ""))
+            if price_match:
+                price_diff = int(price_match.group(1)) / 100
+                item["variant_price_diff"] = price_diff
+                logger.info(f"Extracted variant price difference: {price_diff} from PLU {product['plu']}")
+        except Exception as e:
+            logger.warning(f"Failed to extract variant price from PLU {product.get('plu')}: {e}")
+
+    # Handle parent product reference for variants
+    if "parentId" in product:
+        item["parentId"] = product["parentId"]
 
     # Add default selection information
     if "defaultQuantity" in product and product["defaultQuantity"] > 0:
         item["defaultQuantity"] = product["defaultQuantity"]
 
-    # Add product type
-    if "productType" in product:
-        item["productType"] = product["productType"]
+    # Add product type information - default to 1 for menu items
+    item["productType"] = product.get("productType", 1)  # 1=product, 2=modifier, 3=group
 
     # Add menu metadata fields
     if "channelLinkId" in product:
