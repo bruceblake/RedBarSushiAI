@@ -1952,6 +1952,7 @@ def build_deliverect_order(
         # Process any modifiers for this item
         if item.get("modifier", []):
             logger.info(f"[DELIVERECT-ORDER] Processing {len(item.get('modifier', []))} modifiers for item {item.get('name')}")
+            logger.info(f"[DELIVERECT-ORDER] Modifier details: {json.dumps(item.get('modifier', []))}")
             
         for mod in item.get("modifier", []):
             # Get modifier PLU code and clean it

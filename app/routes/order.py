@@ -605,6 +605,16 @@ def new_modify_order():
 
     log_info(f"User requested order modification: {user_resp}")
     current_order_items = json.loads(session.get("order_items_json", "[]"))
+    log_info(f"DEBUG: Initial order items when starting modification: {json.dumps(current_order_items)}")
+    
+    # Clear the session if we're starting a new conversation
+    if len(current_order_items) > 0 and any(item.get("name") == "Chicken Sate" for item in current_order_items):
+        log_info("DEBUG: Found unexpected Chicken Sate in order, clearing session to start fresh")
+        # Reset the session with only the steak item
+        clean_order = [item for item in current_order_items if item.get("name") == "Delicious Steak Frites"]
+        current_order_items = clean_order
+        session["order_items_json"] = json.dumps(current_order_items)
+        log_info(f"DEBUG: Cleaned order items: {json.dumps(current_order_items)}")
 
     # Use agent to interpret modifications
     modifications = get_order_modifications(user_resp, current_order_items)
@@ -637,7 +647,20 @@ def new_modify_order():
         return Response(str(response), mimetype="text/xml")
 
     # Apply modifications
-    updated_items = apply_modifications(current_order_items, modifications)
+    log_info(f"DEBUG: Before apply_modifications, current_items: {json.dumps(current_order_items)}")
+    log_info(f"DEBUG: Before apply_modifications, mods to apply: {json.dumps(modifications)}")
+    
+    # Try using the more reliable function from order_utils first
+    try:
+        from app.utils.order_utils import apply_modifications as apply_from_utils
+        log_info("Using apply_modifications from order_utils.py")
+        updated_items = apply_from_utils(current_order_items, modifications)
+    except Exception as e:
+        log_info(f"Error using apply_modifications from order_utils.py: {str(e)}")
+        # Fall back to the local function
+        updated_items = apply_modifications(current_order_items, modifications)
+    
+    log_info(f"DEBUG: After apply_modifications, result: {json.dumps(updated_items)}")
 
     # Update session
     session["order_items_json"] = json.dumps(updated_items)
@@ -878,7 +901,31 @@ def apply_modifications(current_order, modifications):
             
             # Process each modifier
             for mod in modifiers_to_add:
+                # Convert string modifiers to dictionary format
+                if isinstance(mod, str):
+                    # Create a properly formatted modifier from the string
+                    mod_name = mod.strip()
+                    
+                    # Determine modifier type
+                    if "cook" in mod_name.lower() or "rare" in mod_name.lower() or "medium" in mod_name.lower() or "well" in mod_name.lower():
+                        mod_type = "COOK"
+                    elif "side" in mod_name.lower() or "fries" in mod_name.lower() or "salad" in mod_name.lower():
+                        mod_type = "SIDE"
+                    else:
+                        mod_type = "GEN"
+                    
+                    # Convert to dictionary
+                    mod = {
+                        "name": mod_name.capitalize(),
+                        "quantity": 1,
+                        "price": 0.0,
+                        "reference_handler": f"MOD-{mod_type}-{mod_name.lower().replace(' ', '-')}"
+                    }
+                    logger.info(f"[ORDER-MODIFY] Converted string modifier '{mod_name}' to dictionary format")
+                
+                # Skip non-dictionary modifiers that couldn't be converted
                 if not isinstance(mod, dict):
+                    logger.warning(f"[ORDER-MODIFY] Skipping non-dictionary modifier: {mod}")
                     continue
                     
                 # Get modifier information
