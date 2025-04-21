@@ -613,6 +613,8 @@ def handle_menu_questions():
             search_results = menu_tool.search_menu(menu_query)
                 
                 # Format menu items for context
+        logger.info(f"search_results type: {type(search_results)}")
+        logger.info(f"search_results content: {search_results}")
         menu_context = ""
         if search_results:
             menu_context = "Here are relevant menu items:\n"
