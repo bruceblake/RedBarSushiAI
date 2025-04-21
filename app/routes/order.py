@@ -23,6 +23,7 @@ from app.utils.order_utils import (
 )
 from app.utils.menu_utils import load_menu_data
 from app.utils.helpers import log_info, commit_with_retry
+from app.utils.agent_utils import OrderParsingAgent
 from twilio.twiml.messaging_response import MessagingResponse
 from sqlalchemy import text
 from app.models import Order
