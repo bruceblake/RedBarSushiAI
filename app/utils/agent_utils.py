@@ -148,6 +148,7 @@ class SushiMenuTool:
         """Initialize the tool with menu data."""
         self.menu_data = load_menu_data()
         self.current_conversation = []  # To track conversation context
+        self.last_refresh_time = time.time()
 
     def search_menu(self, query: str) -> Dict[str, Any]:
         """
@@ -288,6 +289,244 @@ class SushiMenuTool:
 
         return results
 
+    def get_details(self, item_name: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a menu item with its modifiers.
+
+        Args:
+            item_name: The menu item name
+
+        Returns:
+            dict: Detailed item information including all available modifiers
+        """
+        # Ensure we have fresh menu data
+        if time.time() - self.last_refresh_time > 300:  # Refresh every 5 minutes
+            self.menu_data = load_menu_data(force_refresh=True)
+            self.last_refresh_time = time.time()
+            
+        # First find the item 
+        result = self.search_menu(item_name)
+        if not result.get("found"):
+            return {"found": False}
+            
+        menu_item = result.get("items", [])[0]
+        
+        # Get modifiers for this item
+        modifiers = []
+        mod_groups = []
+        
+        # Add available modifiers based on modifierGroupIds
+        if menu_item.get("modifierGroupIds"):
+            for group_id in menu_item.get("modifierGroupIds", []):
+                # Find modifier group
+                for group in self.menu_data.get("modifierGroups", []):
+                    if group.get("id") == group_id:
+                        group_mods = []
+                        for mod_id in group.get("modifierIds", []):
+                            # Find modifier
+                            for mod in self.menu_data.get("modifiers", []):
+                                if mod.get("id") == mod_id:
+                                    group_mods.append(mod)
+                        
+                        if group_mods:
+                            mod_group = {
+                                "name": group.get("name"),
+                                "id": group.get("id"),
+                                "min": group.get("min", 0),
+                                "max": group.get("max", 0),
+                                "modifiers": group_mods
+                            }
+                            mod_groups.append(mod_group)
+                            modifiers.append(group_mods)
+        
+        return {
+            "found": True,
+            "item": menu_item,
+            "modifiers": mod_groups
+        }
+        
+    def suggest_modifiers(self, item_name: str) -> Dict[str, Any]:
+        """
+        Intelligently suggest modifiers for a menu item. Returns appropriate suggestions
+        based on the menu item type and available modifier groups.
+        
+        Args:
+            item_name: The menu item name to get suggestions for
+            
+        Returns:
+            dict: Suggested modifiers with friendly descriptions
+        """
+        # Get item details including available modifiers
+        item_details = self.get_details(item_name)
+        
+        if not item_details.get("found"):
+            return {"found": False, "suggestions": []}
+            
+        item = item_details.get("item", {})
+        modifier_groups = item_details.get("modifiers", [])
+        
+        if not modifier_groups:
+            return {"found": True, "item": item, "suggestions": []}
+            
+        # Build smart suggestions based on modifier groups
+        suggestions = []
+        item_type = item.get("category", "").lower()
+        item_name_lower = item.get("name", "").lower()
+        
+        # Get item details for better context
+        item_description = item.get("description", "")
+        
+        for group in modifier_groups:
+            group_name = group.get("name", "")
+            group_required = group.get("min", 0) > 0
+            group_type = group_name.lower()
+            mods = group.get("modifiers", [])
+            
+            # Skip if no modifiers
+            if not mods:
+                continue
+                
+            # Create appropriate suggestion based on modifier group type
+            if "cook" in group_type or "temperature" in group_type:
+                # Cooking preference suggestion
+                if "roll" in item_name_lower or "sushi" in item_name_lower:
+                    # No cooking suggestions for sushi/rolls
+                    continue
+                elif "steak" in item_name_lower or "burger" in item_name_lower or "meat" in item_name_lower:
+                    suggestion = {
+                        "type": "cooking_preference",
+                        "prompt": f"How would you like your {item.get('name')} cooked?",
+                        "group": group_name,
+                        "required": group_required,
+                        "options": [mod.get("name") for mod in mods]
+                    }
+                    suggestions.append(suggestion)
+            
+            elif "sauce" in group_type or "dressing" in group_type:
+                # Sauce suggestion
+                suggestion = {
+                    "type": "sauce",
+                    "prompt": f"Would you like any special sauce with your {item.get('name')}?",
+                    "group": group_name,
+                    "required": group_required,
+                    "options": [mod.get("name") for mod in mods]
+                }
+                suggestions.append(suggestion)
+                
+            elif "side" in group_type or "add" in group_type:
+                # Side dish suggestion
+                suggestion = {
+                    "type": "side",
+                    "prompt": f"Would you like to add any sides to your {item.get('name')}?",
+                    "group": group_name,
+                    "required": group_required,
+                    "options": [mod.get("name") for mod in mods]
+                }
+                suggestions.append(suggestion)
+                
+            elif "spic" in group_type or "heat" in group_type:
+                # Spice level suggestion
+                suggestion = {
+                    "type": "spice",
+                    "prompt": f"How spicy would you like your {item.get('name')}?",
+                    "group": group_name,
+                    "required": group_required,
+                    "options": [mod.get("name") for mod in mods]
+                }
+                suggestions.append(suggestion)
+                
+            else:
+                # Generic modifier suggestion
+                suggestion = {
+                    "type": "general",
+                    "prompt": f"Would you like to customize your {item.get('name')} with any {group_name}?",
+                    "group": group_name,
+                    "required": group_required,
+                    "options": [mod.get("name") for mod in mods]
+                }
+                suggestions.append(suggestion)
+        
+        # Sort suggestions - required first, then by type importance
+        # (cooking preferences, spice levels, sides, sauces, generic)
+        type_order = {"cooking_preference": 0, "spice": 1, "side": 2, "sauce": 3, "general": 4}
+        
+        # Sort by required status first, then by type importance
+        suggestions.sort(key=lambda x: (not x.get("required"), type_order.get(x.get("type"), 5)))
+        
+        return {
+            "found": True,
+            "item": item,
+            "suggestions": suggestions
+        }
+    
+    def generate_modifier_prompt(self, item_name: str) -> str:
+        """
+        Generate a natural language prompt to suggest modifiers for an item.
+        Uses AI to create a conversational, friendly suggestion based on available modifiers.
+        
+        Args:
+            item_name: The menu item name
+            
+        Returns:
+            str: Natural language prompt suggesting modifiers
+        """
+        # Get structured modifier suggestions
+        suggestion_data = self.suggest_modifiers(item_name)
+        
+        if not suggestion_data.get("found") or not suggestion_data.get("suggestions"):
+            return ""
+            
+        item = suggestion_data.get("item", {})
+        suggestions = suggestion_data.get("suggestions", [])
+        
+        # Use OpenAI to generate a natural language prompt if available
+        if OPENAI_API_KEY:
+            try:
+                # Prepare prompt for OpenAI
+                system_msg = (
+                    "You are a friendly restaurant server helping customers customize their order. "
+                    "Create a brief, conversational prompt suggesting modifiers for a menu item. "
+                    "Be concise but helpful. Only suggest the top 2-3 most important modifiers. "
+                    "Avoid being too pushy or sales-y. Response should be 1-2 sentences only."
+                )
+                
+                # Prepare modifier suggestion data
+                sugg_data = json.dumps(suggestions)
+                item_data = json.dumps(item)
+                
+                prompt = f"Menu item: {item.get('name')}\nItem data: {item_data}\nAvailable modifier suggestions: {sugg_data}"
+                
+                messages = [
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": prompt}
+                ]
+                
+                response = openai.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=100
+                )
+                
+                natural_prompt = response.choices[0].message.content.strip()
+                return natural_prompt
+                
+            except Exception as e:
+                logger.error(f"Error generating natural modifier prompt: {e}")
+                # Fall back to template-based prompt on error
+        
+        # Template-based prompt if OpenAI is unavailable
+        prompts = []
+        
+        # Add up to 2 suggestion prompts (prioritize required modifiers)
+        for suggestion in suggestions[:2]:
+            prompts.append(suggestion.get("prompt"))
+            
+        if prompts:
+            return " ".join(prompts)
+        
+        return ""
+        
     def ai_match_item(self, item_name: str) -> Dict[str, Any]:
         """
         Match an item using AI-based matching.

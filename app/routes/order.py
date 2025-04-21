@@ -56,6 +56,50 @@ channel_status = 1  # 0: registered, 1: active, 2: inactive
 BUSY_MODE_ACTIVE = False
 recent_actions = defaultdict(lambda: {"timestamp": 0, "lock": threading.Lock()})
 
+# Function to check for menu items that need modifier suggestions
+def check_for_missing_modifiers(order_items):
+    """
+    Check if any order items don't have modifiers but should.
+    Returns a list of items that would benefit from modifier suggestions.
+    """
+    # Initialize agent for checking item details
+    agent = OrderParsingAgent()
+    items_needing_modifiers = []
+    
+    for item in order_items:
+        # Skip if item already has modifiers
+        if item.get("modifier") and len(item.get("modifier", [])) > 0:
+            continue
+            
+        # Get details for this item
+        item_name = item.get("name", "")
+        item_details = agent.menu_tool.get_details(item_name)
+        
+        # Check if item has available modifiers and would benefit from suggestions
+        if item_details.get("found") and item_details.get("modifiers"):
+            # Check if any modifiers are required
+            has_required_modifiers = False
+            has_recommended_modifiers = False
+            
+            for mod_group in item_details.get("modifiers", []):
+                # Check if this is a required modifier group
+                if mod_group.get("min", 0) > 0:
+                    has_required_modifiers = True
+                    break
+                    
+                # Check if this is a common/recommended modifier
+                group_name = mod_group.get("name", "").lower()
+                if ("cook" in group_name or "temperature" in group_name or 
+                    "sauce" in group_name or "spice" in group_name or 
+                    "side" in group_name):
+                    has_recommended_modifiers = True
+            
+            # Add item to the list if it has required or recommended modifiers
+            if has_required_modifiers or has_recommended_modifiers:
+                items_needing_modifiers.append(item)
+    
+    return items_needing_modifiers
+
 # Constants
 COOLDOWN_PERIOD = 60  # seconds
 DEFAULT_PREP_TIME_BASE = 20  # minutes
@@ -359,6 +403,43 @@ def take_order():
     # (unavailable items will be shown separately in the order description)
     order_items = available_items + unavailable_items
 
+    # Check if any items need modifier suggestions
+    # Before proceeding to order confirmation, check if we should suggest modifiers
+    items_needing_modifiers = check_for_missing_modifiers(available_items)
+    
+    if items_needing_modifiers:
+        # Store current order in session for the modifier suggestion flow
+        session["order_items_without_modifiers_json"] = json.dumps(order_items)
+        
+        # Get the first item that needs modifiers
+        item_to_modify = items_needing_modifiers[0]
+        item_name = item_to_modify.get("name", "")
+        
+        # Store which item we're currently suggesting modifiers for
+        session["current_modifier_item"] = item_name
+        session["remaining_modifier_items"] = json.dumps(items_needing_modifiers[1:]) if len(items_needing_modifiers) > 1 else "[]"
+        
+        # Get modifier suggestions using the agent
+        agent = OrderParsingAgent()
+        modifier_prompt = agent.menu_tool.generate_modifier_prompt(item_name)
+        
+        # If we have a good prompt, ask the customer
+        if modifier_prompt:
+            logger.info(f"Suggesting modifiers for {item_name}: {modifier_prompt}")
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_modifier_suggestion",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1,
+            ) as g:
+                g.say(modifier_prompt)
+            return Response(str(response), mimetype="text/xml")
+    
+    # If no items need modifiers, or we couldn't generate a prompt, continue with standard flow
     # Calculate total and prepare confirmation
     calculate_bill_amount(order_items)
     order_description = build_order_description(order_items)
@@ -375,7 +456,8 @@ def take_order():
         enhanced=True,
         speech_model="phone_call",
         language="en-US",
-        speech_timeout="auto",
+        speech_timeout=5,
+        timeout=7,
         num_digits=1,
     ) as g:
         g.say(
@@ -1874,6 +1956,142 @@ def save_contact_info():
     
     # This is an appropriate place to hang up
     response.hangup()
+    
+    return Response(str(response), mimetype="text/xml")
+
+@order_bp.route("/handle_modifier_suggestion", methods=["POST"])
+def handle_modifier_suggestion():
+    """
+    Handle customer responses to modifier suggestions.
+    This route processes the customer's response when we suggest modifiers for an item,
+    updates the order with selected modifiers, and either continues to the next item
+    or proceeds to order confirmation.
+    """
+    # Get user response to modifier suggestion
+    user_resp = request.form.get("SpeechResult", "").lower()
+    digits = request.form.get("Digits", "")
+    
+    # Get current state from session
+    current_item = session.get("current_modifier_item", "")
+    remaining_items = json.loads(session.get("remaining_modifier_items", "[]"))
+    order_items = json.loads(session.get("order_items_without_modifiers_json", "[]"))
+    
+    response = VoiceResponse()
+    
+    # Check for silence (user didn't respond to suggestion)
+    if not user_resp and not digits:
+        # No response - ask again but make it easier to skip
+        with response.gather(
+            input="speech dtmf",
+            action="/handle_modifier_suggestion",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+            num_digits=1
+        ) as g:
+            g.say(f"If you'd like to add any modifiers to your {current_item}, please say them now. Otherwise, press 1 to continue without modifiers.")
+        return Response(str(response), mimetype="text/xml")
+    
+    # Check if user explicitly declined modifiers with DTMF
+    if digits == "1" or "no" in user_resp or "skip" in user_resp or "continue" in user_resp:
+        # User declined modifiers for this item - move to next item or confirmation
+        pass  # We'll handle this below in the common path
+    else:
+        # User provided modifier choices - process them
+        # Use the OrderParsingAgent to analyze the modifier response
+        agent = OrderParsingAgent()
+        
+        # Let's intelligently extract modifiers using the agent
+        try:
+            # Analyze user input to identify modifiers
+            analysis = analyze_user_input(f"I'd like a {current_item} with {user_resp}")
+            
+            # Get the menu items from the analysis
+            extracted_items = analysis.get("menu_items", [])
+            
+            # If we found the main item, check for modifiers
+            for item in extracted_items:
+                if current_item.lower() in item.get("name", "").lower():
+                    # Found our current item in the parsed result
+                    modifiers = item.get("modifier", [])
+                    
+                    # If modifiers are found, add them to the order
+                    if modifiers:
+                        # Update the relevant item in the order
+                        for order_item in order_items:
+                            if order_item.get("name", "") == current_item:
+                                # Add these modifiers to the item
+                                if "modifier" not in order_item:
+                                    order_item["modifier"] = []
+                                order_item["modifier"].extend(modifiers)
+                                
+                                # Log the modifiers being added
+                                mod_names = [mod.get("name", "unknown") for mod in modifiers]
+                                logger.info(f"Adding modifiers to {current_item}: {', '.join(mod_names)}")
+                                
+                                # Update the session with modified order
+                                session["order_items_without_modifiers_json"] = json.dumps(order_items)
+                                break
+        except Exception as e:
+            logger.error(f"Error processing modifier response: {e}")
+            # Continue with the flow even if modifier processing fails
+    
+    # Check if there are more items to suggest modifiers for
+    if remaining_items:
+        # Get the next item that needs modifiers
+        next_item = remaining_items[0]
+        next_item_name = next_item.get("name", "")
+        
+        # Update the session state
+        session["current_modifier_item"] = next_item_name
+        session["remaining_modifier_items"] = json.dumps(remaining_items[1:]) if len(remaining_items) > 1 else "[]"
+        
+        # Get modifier suggestions for this next item
+        agent = OrderParsingAgent()
+        modifier_prompt = agent.menu_tool.generate_modifier_prompt(next_item_name)
+        
+        # If we have a good prompt, ask the customer
+        if modifier_prompt:
+            with response.gather(
+                input="speech",
+                action="/handle_modifier_suggestion",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+            ) as g:
+                g.say(modifier_prompt)
+            return Response(str(response), mimetype="text/xml")
+    
+    # No more items need modifiers - proceed to order confirmation
+    # Update the final order in session
+    session["order_items_json"] = session["order_items_without_modifiers_json"]
+    
+    # Calculate total and prepare confirmation message
+    order_items = json.loads(session["order_items_json"])
+    calculate_bill_amount(order_items)
+    order_description = build_order_description(order_items)
+    session["bill_amount"] = int(session.get("total_price", 0) * 100)
+    session["order_message"] = f"{order_description}\nYour total is ${session.get('total_price', 0):.2f}."
+    
+    # Ask for confirmation of complete order with modifiers
+    with response.gather(
+        input="speech dtmf",
+        action="/confirm_order_from_initial",
+        enhanced=True,
+        speech_model="phone_call",
+        language="en-US",
+        speech_timeout=5,
+        timeout=7,
+        num_digits=1,
+    ) as g:
+        g.say(
+            session["order_message"]
+            + " If correct, say yes or press 1. If you need changes, say no or press 2."
+        )
     
     return Response(str(response), mimetype="text/xml")
 
