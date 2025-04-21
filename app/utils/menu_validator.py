@@ -711,6 +711,21 @@ def validate_and_fix_menu_data(menu_data):
             index = menu_data.get("items", []).index(item)
             item["name"] = f"Unnamed Item {index + 1}"
         logger.info(f"[MENU-FIX] Fixed {empty_count} items with empty string names")
+    
+    # Mark category items clearly to prevent them from being matched as orderable items
+    category_count = 0
+    for item in menu_data.get("items", []):
+        if item.get("is_category", False):
+            # Make sure this is correctly flagged as a category
+            item["is_category"] = True
+            
+            # For extra clarity, add a prefix to category names if missing
+            if not item["name"].startswith("[CATEGORY]"):
+                item["name"] = f"[CATEGORY] {item['name']}"
+                category_count += 1
+    
+    if category_count > 0:
+        logger.info(f"[MENU-FIX] Marked {category_count} categories with [CATEGORY] prefix for clarity")
 
     # Set fixes to log instead of adding as attribute, since in Python dictionaries
     # can't have arbitrary attributes set (menu_data is a dict, not an object)

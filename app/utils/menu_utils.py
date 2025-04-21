@@ -550,6 +550,10 @@ def find_menu_item_by_name(
     
     # Step 1: Try exact matching first for efficiency
     for item in menu_data.get("items", []):
+        # Skip category items - they are not orderable
+        if item.get("is_category", False):
+            continue
+            
         if item.get("name", "").lower() == item_name_lower:
             # Verify this item is available if required
             if not check_availability or (
@@ -860,9 +864,13 @@ def get_popular_menu_items(count=5):
     if not items:
         return []
 
-    # Filter out any items that are not currently available
+    # Filter out categories and items that are not currently available
     available_items = []
     for item in items:
+        # Skip category items - they are not orderable
+        if item.get("is_category", False):
+            continue
+            
         if item.get("available", True) and not is_item_snoozed(item):
             available_items.append(item)
 
