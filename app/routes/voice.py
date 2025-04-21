@@ -649,7 +649,7 @@ def handle_menu_questions():
                         {"role": "user", "content": f"Menu information:\n{menu_context}\n\nCustomer question: {user_input}"}
                     ],
                 )
-                reply = result.choices[0].message.content.strip()
+        reply = result.choices[0].message.content.strip()
         
         # Say the reply and offer to continue the conversation
         response = VoiceResponse()
