@@ -146,6 +146,7 @@ class SushiMenuTool:
     def __init__(self):
         """Initialize the tool with menu data."""
         self.menu_data = load_menu_data()
+        self.current_conversation = []  # To track conversation context
 
     def search_menu(self, query: str) -> Dict[str, Any]:
         """
@@ -157,12 +158,29 @@ class SushiMenuTool:
         Returns:
             dict: The search results
         """
-        # First try to find exact matches using our enhanced matching system
+        # Add the query to the conversation context
+        self.current_conversation.append({"role": "user", "content": query})
+        context = {"conversation": self.current_conversation}
+        
+        # First try to find exact matches
         item = find_menu_item_by_name(query)
         if item:
             return {"found": True, "items": [item], "query": query}
 
-        # If exact match fails, let's do a more thorough search with scoring
+        # If exact match fails, try AI matching
+        try:
+            # Import here to avoid circular imports
+            from app.utils.menu_matcher import find_menu_item_ai
+            
+            ai_match = find_menu_item_ai(query, check_availability=False, context=context)
+            if ai_match:
+                logger.info(f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{query}'")
+                return {"found": True, "items": [ai_match], "query": query}
+        except Exception as e:
+            logger.error(f"[MENU-TOOL] Error in AI matching: {str(e)}")
+            # Continue with fallback if AI matching fails
+
+        # Fallback to traditional scoring system
         results = []
         scored_items = []
         query_lower = query.lower().strip()
@@ -269,6 +287,48 @@ class SushiMenuTool:
 
         return results
 
+    def ai_match_item(self, item_name: str) -> Dict[str, Any]:
+        """
+        Match an item using AI-based matching.
+        
+        Args:
+            item_name: The name or description of the item to match
+            
+        Returns:
+            dict: The match results
+        """
+        self.current_conversation.append({"role": "user", "content": f"Find menu item: {item_name}"})
+        context = {"conversation": self.current_conversation}
+        
+        try:
+            # Import here to avoid circular imports
+            from app.utils.menu_matcher import find_menu_item_ai
+            
+            ai_match = find_menu_item_ai(item_name, check_availability=False, context=context)
+            if ai_match:
+                logger.info(f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{item_name}'")
+                return {
+                    "found": True,
+                    "item": ai_match,
+                    "confidence": "high",
+                    "matching_type": "ai_match"
+                }
+        except Exception as e:
+            logger.error(f"[MENU-TOOL] Error in AI matching: {str(e)}")
+            
+        # If AI matching fails, try exact match as fallback
+        item = find_menu_item_by_name(item_name)
+        if item:
+            return {
+                "found": True,
+                "item": item,
+                "confidence": "exact",
+                "matching_type": "exact_match"
+            }
+            
+        # No match found
+        return {"found": False, "item_name": item_name}
+    
     def get_details(self, item_name: str) -> Dict[str, Any]:
         """
         Get details for a specific item.
@@ -279,7 +339,16 @@ class SushiMenuTool:
         Returns:
             dict: The item details
         """
+        # First try direct lookup
         item = find_menu_item_by_name(item_name)
+        
+        # If direct lookup fails, try AI matching
+        if not item:
+            match_result = self.ai_match_item(item_name)
+            if match_result.get("found"):
+                item = match_result.get("item")
+                
+        # If we still don't have an item, return not found
         if not item:
             return {"found": False, "item_name": item_name}
 
@@ -342,6 +411,23 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                 }
                             },
                             "required": ["query"],
+                        },
+                    },
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "ai_match_item",
+                        "description": "Match a menu item using AI when the item name might not be exact",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "item_name": {
+                                    "type": "string",
+                                    "description": "The name or description of the item to match",
+                                }
+                            },
+                            "required": ["item_name"],
                         },
                     },
                 },
@@ -413,6 +499,7 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
 
             # Register the tool implementations
             agent.tools.search_menu = self.menu_tool.search_menu
+            agent.tools.ai_match_item = self.menu_tool.ai_match_item
             agent.tools.get_menu_categories = self.menu_tool.get_menu_categories
             agent.tools.get_items_by_category = self.menu_tool.get_items_by_category
             agent.tools.get_details = self.menu_tool.get_details

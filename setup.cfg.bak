@@ -23,6 +23,7 @@ filterwarnings =
     ignore::pytest.PytestConfigWarning:.*asyncio_mode.*
     ignore::pytest.PytestConfigWarning:.*asyncio_default_fixture_loop_scope.*
     ignore::pytest.PytestDeprecationWarning:.*asyncio_default_fixture_loop_scope.*
+    # ignore::sqlalchemy.exc.SAWarning:.*
     ignore::RuntimeWarning:.*
     ignore::DeprecationWarning:.*socket.*
     ignore::DeprecationWarning:.*ssl.*
