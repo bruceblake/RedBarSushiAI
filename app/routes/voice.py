@@ -616,7 +616,7 @@ def handle_menu_questions():
         logger.info(f"search_results type: {type(search_results)}")
         logger.info(f"search_results content: {search_results}")
         menu_context = ""
-        if search_results:
+        if search_results.get("found"):
             menu_context = "Here are relevant menu items:\n"
             for item in search_results[:5]:  # Limit to 5 items for context
                 price_str = f"${item.get('price', 0):.2f}"
