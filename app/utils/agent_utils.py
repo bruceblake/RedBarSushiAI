@@ -1129,6 +1129,44 @@ else:
                             
                             # Skip name variants - AI agent will handle matching for fuzzy matches
 
+
+                            system_message = ("You are a fuzzy finding specialist for Red Bar Sushi."
+                            "The customer is ordering something that is not exactly word for word on."
+                            "the menu but may be similar. It is your job to figure out what the correct"
+                            "item on the menu the customer is trying to order"
+                            "If you are able to accurately find one then output in this format:"
+                                        "{"
+                                          "  "name": best_match.get("name"),"
+                                           " "price": best_match.get("price", 0.0),"
+                                            ""reference_handler": best_match.get( "
+                                             "   "reference_handler", "" "
+                                           " ),"
+                                            " "quantity": 1, "
+                                            " "modifier": [], "
+                                        "}"
+
+                            "if you are not then output the same with the name as NOT_FOUND"
+                                    )
+                          
+
+
+                            res = client.chat.completions.create(
+                                model="gpt-4.1-mini",
+                                messages=[
+                                    {"role": "system", "content": system_message},
+                                    {"role": "user", "content": f"Here is the menu: {menu_items}"},
+                                ]
+                            )
+
+                            if res.get("name") == "NOT_FOUND":
+                                found = False
+                            else:
+                                
+                                verified_items.append(res)
+                                found = True
+                            
+
+
                             # If still not found, try matching directly against menu items
                             if not found:
                                 best_match = None
