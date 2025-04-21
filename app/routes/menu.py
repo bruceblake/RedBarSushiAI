@@ -129,7 +129,21 @@ def menu_update():
         data_type = type(data).__name__
         logger.info(f"[MENU-UPDATE] Received data of type {data_type}")
 
-        # Check for Deliverect Async format
+        # Check for Deliverect standard event format (e.g., with "data" and "type" fields)
+        # Structure: {"id": "event-id", "type": "menu.updated", "data": {}, "timestamp": "..."}
+        if (
+            isinstance(data, dict) 
+            and "type" in data 
+            and "data" in data 
+            and isinstance(data["data"], dict)
+            and "menu" in data["data"]
+        ):
+            logger.info("[MENU-UPDATE] Found Deliverect standard event format")
+            # Extract the menu data from the event
+            data = data["data"]["menu"]
+            logger.info("[MENU-UPDATE] Extracted menu data from event")
+
+        # Check for Deliverect Async format with body.menus structure
         callback_url = None
         stores = None
 
@@ -638,14 +652,116 @@ def menu_update():
 
 @menu_bp.route("/snoozeUnsnooze", methods=["POST"])
 def snooze_unsnooze():
+    """
+    Handle snooze/unsnooze operations from Deliverect.
+    
+    Deliverect webhooks can be received in two formats:
+    1. Legacy format with {"operations": [{item, action}]}
+    2. Deliverect format with allSnoozedItems (PLU-based) and operations
+    
+    Returns:
+        JSON response with success status
+    """
     data = request.get_json() or {}
     logger.info(f"Received snooze/unsnooze data: {data}")
+    
+    # Detect format - check if this is Deliverect format (PLU-based)
+    is_deliverect_format = ("allSnoozedItems" in data or 
+                            (isinstance(data.get("operations", []), list) and 
+                             all(isinstance(op, dict) and "plu" in op for op in data.get("operations", []))))
+    
+    if is_deliverect_format:
+        logger.info("Processing Deliverect format snooze/unsnooze webhook")
+        return _process_deliverect_snooze_unsnooze(data)
+    else:
+        logger.info("Processing legacy format snooze/unsnooze webhook")
+        return _process_legacy_snooze_unsnooze(data)
+    
+
+def _process_deliverect_snooze_unsnooze(data):
+    """Process a Deliverect-format snooze/unsnooze webhook."""
+    # Load current menu data
+    menu_data = load_menu_data()
+    
+    # Keep track of changes for logging
+    snooze_count = 0
+    unsnooze_count = 0
+    
+    # Process allSnoozedItems if present (full sync)
+    if "allSnoozedItems" in data and isinstance(data["allSnoozedItems"], list):
+        snoozed_plus = set(data["allSnoozedItems"])
+        
+        # First reset all items to available
+        for item in menu_data.get("items", []):
+            # If PLU is in the snoozed list, snooze it
+            if item.get("plu") in snoozed_plus or item.get("reference_handler") in snoozed_plus:
+                item["snoozed"] = True
+                item["available"] = False
+                snooze_count += 1
+            else:
+                # Not in the snooze list, so unsnooze it
+                item["snoozed"] = False
+                # Only set available if schedule allows
+                if item.get("scheduleAvailable", True):
+                    item["available"] = True
+                    unsnooze_count += 1
+        
+        logger.info(f"Processed allSnoozedItems: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
+    
+    # Process individual operations
+    operations = data.get("operations", [])
+    if operations:
+        for op in operations:
+            plu = op.get("plu", "")
+            action = op.get("action", "").lower()  # 'snooze' or 'unsnooze'
+            
+            if not plu or not action:
+                logger.warning(f"Skipping invalid operation: {op}")
+                continue
+            
+            # Find the item by PLU
+            found = False
+            for item in menu_data.get("items", []):
+                if item.get("plu") == plu or item.get("reference_handler") == plu:
+                    if action == "snooze":
+                        item["snoozed"] = True
+                        item["available"] = False
+                        snooze_count += 1
+                    elif action == "unsnooze":
+                        item["snoozed"] = False
+                        # Only set available if schedule allows
+                        if item.get("scheduleAvailable", True):
+                            item["available"] = True
+                            unsnooze_count += 1
+                    found = True
+                    break
+            
+            if not found:
+                logger.warning(f"Item with PLU {plu} not found for {action} operation")
+    
+    # Save updated menu
+    write_menu_file(menu_data)
+    # Refresh the cache to load new data
+    from flask import current_app, has_app_context
+    if has_app_context() and not current_app.config.get("TESTING", False):
+        load_menu_data(force_refresh=True)
+    
+    logger.info(f"Processed snooze/unsnooze operations: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
+    return jsonify({"status": "success", "snoozed": snooze_count, "unsnoozed": unsnooze_count}), 200
+
+
+def _process_legacy_snooze_unsnooze(data):
+    """Process the legacy format snooze/unsnooze webhook."""
     operations = data.get("operations", [])
     if not operations:
         return jsonify({"error": "No operations found"}), 400
 
     # Load current menu data
     menu_data = load_menu_data()
+
+    # Track changes
+    snooze_count = 0
+    unsnooze_count = 0
 
     # Process each operation
     for op in operations:
@@ -658,11 +774,13 @@ def snooze_unsnooze():
                 if action == "snooze":
                     item["snoozed"] = True
                     item["available"] = False
+                    snooze_count += 1
                 elif action == "unsnooze":
                     item["snoozed"] = False
                     # Only set available if schedule allows
                     if item.get("scheduleAvailable", True):
                         item["available"] = True
+                        unsnooze_count += 1
                 break
 
     # Save updated menu
@@ -674,8 +792,8 @@ def snooze_unsnooze():
     if has_app_context() and not current_app.config.get("TESTING", False):
         load_menu_data(force_refresh=True)
 
-    logger.info("Processed snooze/unsnooze operations.")
-    return jsonify({"status": "ok"}), 200
+    logger.info(f"Processed legacy snooze/unsnooze operations: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
+    return jsonify({"status": "success", "snoozed": snooze_count, "unsnoozed": unsnooze_count}), 200
 
 
 @menu_bp.route("/busy_mode", methods=["POST"])

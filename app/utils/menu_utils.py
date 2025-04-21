@@ -1285,15 +1285,24 @@ def validate_modifier_constraints(order_items):
             # Get min/max constraints
             min_allowed = group.get("minAllowed", 0)
             max_allowed = group.get("maxAllowed", 999)
+            multi_max = group.get("multiMax", 1)  # Maximum quantity of any single modifier
+            is_variant_group = group.get("isVariantGroup", False)
 
             # Count modifiers from this group
             group_mods = group.get("modifiers", [])
             mod_count = 0
+            mod_counts_by_ref = {}  # Track individual modifier counts
 
             for mod in modifiers:
                 mod_ref = mod.get("reference_handler")
                 if mod_ref in group_mods:
-                    mod_count += mod.get("quantity", 1)
+                    mod_quantity = mod.get("quantity", 1)
+                    mod_count += mod_quantity
+                    
+                    # Track individual modifier quantities for multiMax constraint
+                    if mod_ref not in mod_counts_by_ref:
+                        mod_counts_by_ref[mod_ref] = 0
+                    mod_counts_by_ref[mod_ref] += mod_quantity
 
             # Check constraints
             if mod_count < min_allowed:
@@ -1306,6 +1315,28 @@ def validate_modifier_constraints(order_items):
                 return (
                     False,
                     f"Item '{item_name}' allows at most {max_allowed} modifiers from group {group_name}",
+                )
+                
+            # Check multiMax constraint - maximum quantity of any single modifier
+            for mod_ref, count in mod_counts_by_ref.items():
+                if count > multi_max:
+                    # Get modifier name for better error message
+                    mod_name = mod_ref
+                    for mod in menu_data.get("modifiers", []):
+                        if mod.get("reference_handler") == mod_ref:
+                            mod_name = mod.get("name", mod_ref)
+                            break
+                            
+                    return (
+                        False,
+                        f"Modifier '{mod_name}' in group '{group_name}' allows at most {multi_max} quantity per item",
+                    )
+                    
+            # Special handling for variant groups
+            if is_variant_group and mod_count != 1:
+                return (
+                    False,
+                    f"Variant group '{group_name}' for item '{item_name}' requires exactly 1 selection",
                 )
 
     return True, ""
