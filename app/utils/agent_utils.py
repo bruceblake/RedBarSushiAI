@@ -1120,118 +1120,51 @@ else:
                         logger.info(
                             f"[ORDER-VERIFY-PASS3] Starting third pass verification with fuzzy matching for {len(still_unverified)} items"
                         )
-                         # --- Pass 3: AI Fuzzy Matching (Only if OpenAI key exists and items remain) ---
-            if OPENAI_API_KEY and unverified_items_with_context:
-                logger.info(f"[ORDER-VERIFY-PASS3] Starting AI fuzzy matching for {len(unverified_items_with_context)} items")
+                        # AI agent will handle menu item matching
+                        menu_items = self.menu_tool.menu_data.get("items", [])
 
-                # Prepare menu context for AI (Include details AI needs to return)
-                # Build this ONCE before the loop for efficiency
-                menu_context_items = []
-                all_items_for_context = self.menu_tool.menu_data.get("items", []) + self.menu_tool.menu_data.get("modifiers", [])
-                for item in all_items_for_context:
-                    name = item.get("name")
-                    price = item.get("price", 0.0)
-                    ref_handler = item.get("reference_handler", item.get("plu", "")) # Use PLU as fallback ref handler
-                    if name and ref_handler: # Only include items with name and some identifier
-                        menu_context_items.append(f"Name: {name}, Price: {price}, RefHandler: {ref_handler}")
-                menu_context_str = "\n".join(menu_context_items)
+                        for item_name in still_unverified:
+                            item_lower = item_name.get("name").lower()
+                            found = False
+                            
+                            # Skip name variants - AI agent will handle matching for fuzzy matches
 
-                # Optional: Limit context size if necessary
-                MAX_CONTEXT_CHARS = 15000 # Adjust based on model limits and typical menu size
-                if len(menu_context_str) > MAX_CONTEXT_CHARS:
-                     menu_context_str = menu_context_str[:MAX_CONTEXT_CHARS] + "... (truncated)"
-                     logger.warning(f"[ORDER-VERIFY-PASS3] Truncated menu context sent to AI to {MAX_CONTEXT_CHARS} chars.")
 
-                # --- Corrected System Prompt ---
-                # Ask AI to return the *values* it finds, not Python code
-                system_message = """You are a fuzzy finding specialist for Red Bar Sushi's menu.
-The user mentioned an item that doesn't exactly match the menu items provided below.
-Your task is to find the single *most likely* menu item (product or modifier) the user intended, based ONLY on the provided menu context (Name, Price, RefHandler).
-Consider synonyms, slight misspellings, and partial matches.
-If you find a likely match, respond ONLY with the following JSON format:
-{"match_found": true, "name": "MATCHED_ITEM_NAME", "price": MATCHED_ITEM_PRICE_AS_NUMBER, "reference_handler": "MATCHED_ITEM_REF_HANDLER"}
-If you are uncertain or cannot find a reasonable match within the provided context, respond ONLY with the following JSON format:
-{"match_found": false}
-Do not add any explanation or other text outside the JSON structure."""
+                                         system_message = """You are a fuzzy finding specialist for Red Bar Sushi.
+The customer is ordering something that is not exactly word for word on.
+the menu but may be similar. It is your job to figure out what the correct
+item on the menu the customer is trying to order
+If you are able to accurately find one then output in this format:
+{
+  "name": best_match.get("name"),
+  "price": best_match.get("price", 0.0),
+  "reference_handler": best_match.get(
+    "reference_handler", ""
+  ),
+  "quantity": 1,
+  "modifier": [],
+}
 
-                items_verified_in_pass3 = []
-                items_failed_in_pass3_context = [] # Keep context for failed items
+if you are not then output the same with the name as NOT_FOUND""" 
 
-                # Assume 'client' is your initialized OpenAI client instance
-                # Ensure 'client' is defined in the appropriate scope
 
-                for item_dict in unverified_items_with_context:
-                    item_name_to_match = item_dict.get("name")
-                    if not item_name_to_match: continue # Skip if name is missing
+                            res = client.chat.completions.create(
+                                model="gpt-4.1-mini",
+                                messages=[
+                                    {"role": "system", "content": system_message},
+                                    {"role": "user", "content": f"Here is the menu: {menu_items}"},
+                                ]
+                            )
 
-                    logger.info(f"[ORDER-VERIFY-PASS3] Attempting AI match for: '{item_name_to_match}'")
-                    found_in_pass3 = False
-                    ai_result_str = "{}" # Default empty JSON string
-
-                    try:
-                        messages = [
-                            {"role": "system", "content": system_message},
-                            {"role": "user", "content": f"Available Menu Items (Name, Price, RefHandler):\n{menu_context_str}\n\nUser mentioned: '{item_name_to_match}'. Find the best match and respond ONLY with the specified JSON format."}
-                        ]
-                        log_openai_request("gpt-4.1-mini", messages, "fuzzy_match_item")
-
-                        # Make the API call
-                        response = client.chat.completions.create( # Use your initialized client instance
-                            model="gpt-4.1-mini",
-                            messages=messages,
-                            response_format={"type": "json_object"}, # Request JSON output
-                            temperature=0.2
-                        )
-                        log_openai_response(response, "fuzzy_match_item")
-
-                        # --- Corrected Response Handling ---
-                        ai_result_str = response.choices[0].message.content
-                        ai_result = json.loads(ai_result_str) # Parse the JSON *content*
-
-                        # Check the 'match_found' key in the parsed JSON
-                        if ai_result.get("match_found"):
-                            # Extract details *from the AI's response*
-                            matched_name = ai_result.get("name")
-                            matched_price = ai_result.get("price") # Should be a number
-                            matched_ref_handler = ai_result.get("reference_handler")
-
-                            # Basic validation that we got the expected fields
-                            if matched_name and matched_price is not None and matched_ref_handler is not None:
-                                logger.info(f"[ORDER-VERIFY-PASS3-SUCCESS] AI matched '{item_name_to_match}' to '{matched_name}'")
-                                # --- Format Consistently using AI output ---
-                                verified_item_data = {
-                                    "name": matched_name,
-                                    "price": float(matched_price), # Ensure price is float
-                                    "reference_handler": matched_ref_handler,
-                                    "quantity": item_dict.get("quantity", 1), # Use original quantity
-                                    "modifier": item_dict.get("modifier", []), # Use original modifiers
-                                    # Note: We don't get PLU directly this way unless AI includes it based on context
-                                    # You might need to look up PLU based on the matched_name/ref_handler if needed later
-                                }
-                                items_verified_in_pass3.append(verified_item_data)
-                                found_in_pass3 = True
+                            if res.get("name") == "NOT_FOUND":
+                                found = False
                             else:
-                                logger.warning(f"[ORDER-VERIFY-PASS3-WARN] AI claimed match found for '{item_name_to_match}' but response JSON was incomplete: {ai_result_str}")
-                        else:
-                            # AI explicitly said no match found
-                            logger.info(f"[ORDER-VERIFY-PASS3-INFO] AI did not find a confident match for '{item_name_to_match}'.")
-                            # found_in_pass3 remains False
+                                
+                                verified_items.append(res)
+                                found = True
+                            
 
-                    except json.JSONDecodeError as json_err:
-                         logger.error(f"[ORDER-VERIFY-PASS3-ERROR] Failed to parse AI JSON response for '{item_name_to_match}': {json_err}. Response: {ai_result_str}")
-                    except Exception as e:
-                         logger.error(f"[ORDER-VERIFY-PASS3-ERROR] OpenAI API call failed for '{item_name_to_match}': {str(e)}")
-                         logger.error(f"[ORDER-VERIFY-PASS3-TRACEBACK] {traceback.format_exc()}")
 
-                    # --- Handle items that failed this pass ---
-                    if not found_in_pass3:
-                        items_failed_in_pass3_context.append(item_dict)
-                        logger.error(f"[ORDER-VERIFY-FAIL] Failed to verify item '{item_dict.get('name')}' after AI fuzzy matching pass.")
-
-                # Add items verified in pass 3 to the main list
-                verified_items.extend(items_verified_in_pass3)
-                # Update the list of items still unverified (keeping context)
-                unverified_items_with_context = items_failed_in_pass3_context
                             # If still not found, try matching directly against menu items
                             if not found:
                                 best_match = None
