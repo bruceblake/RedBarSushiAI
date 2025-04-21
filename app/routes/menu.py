@@ -128,8 +128,38 @@ def menu_update():
         # Log data type and basic structure
         data_type = type(data).__name__
         logger.info(f"[MENU-UPDATE] Received data of type {data_type}")
+        
+        # For debugging, log some structure info
+        if isinstance(data, dict):
+            logger.info(f"[MENU-UPDATE] Top-level keys: {list(data.keys())}")
+            # Log some sub-structure details
+            for key in data.keys():
+                if isinstance(data[key], dict):
+                    logger.info(f"[MENU-UPDATE] {key} contains keys: {list(data[key].keys())}")
+                elif isinstance(data[key], list) and len(data[key]) > 0:
+                    logger.info(f"[MENU-UPDATE] {key} is a list with {len(data[key])} items")
+                    if isinstance(data[key][0], dict):
+                        logger.info(f"[MENU-UPDATE] First item in {key} has keys: {list(data[key][0].keys())}")
+        elif isinstance(data, list) and len(data) > 0:
+            logger.info(f"[MENU-UPDATE] Data is a list with {len(data)} items")
+            if isinstance(data[0], dict):
+                logger.info(f"[MENU-UPDATE] First item has keys: {list(data[0].keys())}")
 
-        # Check for Deliverect Async format
+        # The Deliverect menu processor now handles the event format extraction
+        # But we'll keep this code for backward compatibility
+        if (
+            isinstance(data, dict) 
+            and "type" in data 
+            and "data" in data 
+            and isinstance(data["data"], dict)
+            and "menu" in data["data"]
+        ):
+            logger.info("[MENU-UPDATE] Found Deliverect standard event format")
+            # Extract the menu data from the event
+            data = data["data"]["menu"]
+            logger.info("[MENU-UPDATE] Extracted menu data from event")
+
+        # Check for Deliverect Async format with body.menus structure
         callback_url = None
         stores = None
 
@@ -256,7 +286,11 @@ def menu_update():
             items_count = len(processed_data.get("items", []))
             modifiers_count = len(processed_data.get("modifiers", []))
             groups_count = len(processed_data.get("modifierGroups", []))
-            variants_count = len(processed_data.get("name_variants", {}))
+            
+            # Remove name_variants field if it exists - AI agent will handle matching
+            if "name_variants" in processed_data:
+                logger.info("[MENU-UPDATE] Removing name_variants field - AI agent will handle matching")
+                processed_data.pop("name_variants", None)
 
             logger.info(
                 f"[MENU-UPDATE] Processed menu with {items_count} items, {modifiers_count} modifiers, {groups_count} groups"
@@ -388,15 +422,12 @@ def menu_update():
                             f"[MENU-UPDATE] Merged menu now has {len(updated_items)} items"
                         )
 
-                # Carry over name variants from current menu if not in processed data
-                if (
-                    "name_variants" not in processed_data
-                    or not processed_data["name_variants"]
-                ):
-                    logger.info("[MENU-UPDATE] Preserving existing name variants")
-                    processed_data["name_variants"] = current_menu.get(
-                        "name_variants", {}
-                    )
+                # Remove name_variants field if it exists - AI agent will handle matching
+                if "name_variants" in processed_data:
+                    logger.info("[MENU-UPDATE] Removing name_variants field - AI agent will handle matching")
+                    processed_data.pop("name_variants", None)
+                if "name_variants" in current_menu:
+                    logger.info("[MENU-UPDATE] Current menu has name_variants but we're removing it - AI agent will handle matching")
 
             # Detailed logging before attempting to write
             logger.info(
@@ -444,7 +475,7 @@ def menu_update():
             # Verify the menu was saved correctly
             reloaded_menu = load_menu_data(force_refresh=True)
             reloaded_count = len(reloaded_menu.get("items", []))
-            reloaded_variants = len(reloaded_menu.get("name_variants", {}))
+            # No need to check name_variants - AI agent will handle matching
 
             if reloaded_count == 0:
                 logger.warning(
@@ -524,37 +555,13 @@ def menu_update():
                 except Exception as callback_e:
                     logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
 
-            # Add name variants if needed
-            if "name_variants" in processed_data and processed_data["name_variants"]:
-                logger.info(
-                    f"[MENU-UPDATE] Menu already has {variants_count} name variants"
-                )
-            else:
-                # Generate name variants for all items
-                logger.info("[MENU-UPDATE] Generating name variants for menu items")
-                variants_dict = {}
-                for item in processed_data.get("items", []):
-                    item_name = item.get("name", "")
-                    if item_name:
-                        from app.utils.menu_utils import add_name_variants
-
-                        variants_dict = add_name_variants(item_name, variants_dict)
-
-                # Update the processed data with variants
-                processed_data["name_variants"] = variants_dict
-                logger.info(
-                    f"[MENU-UPDATE] Generated {len(variants_dict)} name variants"
-                )
-
-                # Save again with the variants
-                if write_menu_file(processed_data):
-                    logger.info(
-                        "[MENU-UPDATE] Successfully wrote menu with name variants"
-                    )
-                else:
-                    logger.error(
-                        "[MENU-UPDATE] Failed to write menu with name variants"
-                    )
+            # Remove name_variants field if it exists - AI agent will handle matching
+            if "name_variants" in processed_data:
+                logger.info("[MENU-UPDATE] Removing name_variants field - AI agent will handle matching")
+                processed_data.pop("name_variants", None)
+                
+            # No name variants generation needed - AI agent will handle menu item matching
+            logger.info("[MENU-UPDATE] No name variants needed - AI agent will handle menu item matching")
 
             # Return success response
             return (
@@ -564,7 +571,7 @@ def menu_update():
                         "items": len(processed_data.get("items", [])),
                         "modifiers": len(processed_data.get("modifiers", [])),
                         "modifierGroups": len(processed_data.get("modifierGroups", [])),
-                        "name_variants": len(processed_data.get("name_variants", {})),
+                        "ai_matching": True,  # Indicate that AI agent will handle matching
                         "source": "deliverect" if is_deliverect else "custom",
                         "has_backup": (
                             os.path.exists(backup_path)
@@ -638,14 +645,116 @@ def menu_update():
 
 @menu_bp.route("/snoozeUnsnooze", methods=["POST"])
 def snooze_unsnooze():
+    """
+    Handle snooze/unsnooze operations from Deliverect.
+    
+    Deliverect webhooks can be received in two formats:
+    1. Legacy format with {"operations": [{item, action}]}
+    2. Deliverect format with allSnoozedItems (PLU-based) and operations
+    
+    Returns:
+        JSON response with success status
+    """
     data = request.get_json() or {}
     logger.info(f"Received snooze/unsnooze data: {data}")
+    
+    # Detect format - check if this is Deliverect format (PLU-based)
+    is_deliverect_format = ("allSnoozedItems" in data or 
+                            (isinstance(data.get("operations", []), list) and 
+                             all(isinstance(op, dict) and "plu" in op for op in data.get("operations", []))))
+    
+    if is_deliverect_format:
+        logger.info("Processing Deliverect format snooze/unsnooze webhook")
+        return _process_deliverect_snooze_unsnooze(data)
+    else:
+        logger.info("Processing legacy format snooze/unsnooze webhook")
+        return _process_legacy_snooze_unsnooze(data)
+    
+
+def _process_deliverect_snooze_unsnooze(data):
+    """Process a Deliverect-format snooze/unsnooze webhook."""
+    # Load current menu data
+    menu_data = load_menu_data()
+    
+    # Keep track of changes for logging
+    snooze_count = 0
+    unsnooze_count = 0
+    
+    # Process allSnoozedItems if present (full sync)
+    if "allSnoozedItems" in data and isinstance(data["allSnoozedItems"], list):
+        snoozed_plus = set(data["allSnoozedItems"])
+        
+        # First reset all items to available
+        for item in menu_data.get("items", []):
+            # If PLU is in the snoozed list, snooze it
+            if item.get("plu") in snoozed_plus or item.get("reference_handler") in snoozed_plus:
+                item["snoozed"] = True
+                item["available"] = False
+                snooze_count += 1
+            else:
+                # Not in the snooze list, so unsnooze it
+                item["snoozed"] = False
+                # Only set available if schedule allows
+                if item.get("scheduleAvailable", True):
+                    item["available"] = True
+                    unsnooze_count += 1
+        
+        logger.info(f"Processed allSnoozedItems: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
+    
+    # Process individual operations
+    operations = data.get("operations", [])
+    if operations:
+        for op in operations:
+            plu = op.get("plu", "")
+            action = op.get("action", "").lower()  # 'snooze' or 'unsnooze'
+            
+            if not plu or not action:
+                logger.warning(f"Skipping invalid operation: {op}")
+                continue
+            
+            # Find the item by PLU
+            found = False
+            for item in menu_data.get("items", []):
+                if item.get("plu") == plu or item.get("reference_handler") == plu:
+                    if action == "snooze":
+                        item["snoozed"] = True
+                        item["available"] = False
+                        snooze_count += 1
+                    elif action == "unsnooze":
+                        item["snoozed"] = False
+                        # Only set available if schedule allows
+                        if item.get("scheduleAvailable", True):
+                            item["available"] = True
+                            unsnooze_count += 1
+                    found = True
+                    break
+            
+            if not found:
+                logger.warning(f"Item with PLU {plu} not found for {action} operation")
+    
+    # Save updated menu
+    write_menu_file(menu_data)
+    # Refresh the cache to load new data
+    from flask import current_app, has_app_context
+    if has_app_context() and not current_app.config.get("TESTING", False):
+        load_menu_data(force_refresh=True)
+    
+    logger.info(f"Processed snooze/unsnooze operations: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
+    return jsonify({"status": "success", "snoozed": snooze_count, "unsnoozed": unsnooze_count}), 200
+
+
+def _process_legacy_snooze_unsnooze(data):
+    """Process the legacy format snooze/unsnooze webhook."""
     operations = data.get("operations", [])
     if not operations:
         return jsonify({"error": "No operations found"}), 400
 
     # Load current menu data
     menu_data = load_menu_data()
+
+    # Track changes
+    snooze_count = 0
+    unsnooze_count = 0
 
     # Process each operation
     for op in operations:
@@ -658,11 +767,13 @@ def snooze_unsnooze():
                 if action == "snooze":
                     item["snoozed"] = True
                     item["available"] = False
+                    snooze_count += 1
                 elif action == "unsnooze":
                     item["snoozed"] = False
                     # Only set available if schedule allows
                     if item.get("scheduleAvailable", True):
                         item["available"] = True
+                        unsnooze_count += 1
                 break
 
     # Save updated menu
@@ -674,8 +785,8 @@ def snooze_unsnooze():
     if has_app_context() and not current_app.config.get("TESTING", False):
         load_menu_data(force_refresh=True)
 
-    logger.info("Processed snooze/unsnooze operations.")
-    return jsonify({"status": "ok"}), 200
+    logger.info(f"Processed legacy snooze/unsnooze operations: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
+    return jsonify({"status": "success", "snoozed": snooze_count, "unsnoozed": unsnooze_count}), 200
 
 
 @menu_bp.route("/busy_mode", methods=["POST"])
@@ -794,8 +905,14 @@ def get_menu():
                 f"[GET-MENU] Item {idx+1}: {item.get('name', 'No name')} -> {item.get('reference_handler', 'No ref')}"
             )
 
+    # Remove name_variants if it exists - AI agent will handle matching
+    if "name_variants" in menu_data:
+        logger.info("[GET-MENU] Removing name_variants field - AI agent will handle matching")
+        menu_data.pop("name_variants", None)
+        
     # Add file location to response for debugging
     menu_data["_debug"] = {"file_path": MENU_FILE_PATH}
+    menu_data["ai_matching"] = True  # Indicate that AI agent will handle matching
 
     # Return menu data
     return jsonify(menu_data), 200

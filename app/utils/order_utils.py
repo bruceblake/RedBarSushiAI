@@ -15,6 +15,7 @@ from app.utils.menu_utils import (
     load_menu_data,
     is_item_snoozed_timebased,
 )
+from app.utils.menu_matcher import find_menu_item_ai
 from app.utils.snooze_validator import is_item_available, validate_items_availability
 
 logger = logging.getLogger(__name__)
@@ -23,15 +24,16 @@ logger = logging.getLogger(__name__)
 
 
 def find_menu_item(
-    item_name: str, threshold: int = 35
+    item_name: str, threshold: int = 35, context: Optional[Dict[str, Any]] = None
 ) -> Tuple[Optional[Dict[str, Any]], Optional[int]]:
     """
-    Find a menu item based on the given name, using fuzzy matching if needed.
+    Find a menu item based on the given name, using AI matching if needed.
     Only returns available items (not snoozed or unavailable).
 
     Args:
         item_name: Name of the item to find
-        threshold: Maximum Levenshtein distance for fuzzy matching
+        threshold: Maximum Levenshtein distance for fuzzy matching (used as fallback)
+        context: Additional context about the order/conversation for AI matching
 
     Returns:
         Tuple of (menu_item, distance) if found, (None, None) otherwise
@@ -45,23 +47,7 @@ def find_menu_item(
     # Load menu data
     menu_data = load_menu_data()
 
-    # First try exact match with name variants
-    name_variants = menu_data.get("name_variants", {})
-    if cleaned_name in name_variants:
-        exact_name = name_variants[cleaned_name]
-        # Find the actual menu item
-        for item in menu_data.get("items", []):
-            if (
-                item.get("name") == exact_name
-                and item.get("available", True)
-                and not item.get("snoozed", False)
-            ):
-                logger.info(
-                    f"[FIND-ITEM] Found exact match through variant: {cleaned_name} -> {exact_name}"
-                )
-                return item, 0
-
-    # Try direct name match
+    # First try direct name match to avoid unnecessary API calls
     for item in menu_data.get("items", []):
         if (
             item.get("name", "").lower() == cleaned_name
@@ -71,7 +57,14 @@ def find_menu_item(
             logger.info(f"[FIND-ITEM] Found exact match: {cleaned_name}")
             return item, 0
 
-    # Try fuzzy matching if exact match fails
+    # Try AI matching
+    ai_match = find_menu_item_ai(item_name, check_availability=True, context=context)
+    if ai_match:
+        logger.info(f"[FIND-ITEM] Found AI match: {cleaned_name} -> {ai_match.get('name')}")
+        return ai_match, 10  # Use a standard distance for AI matches
+    
+    # As a fallback, try fuzzy matching if AI matching fails
+    # This is especially useful if there are API issues or rate limiting
     best_match = None
     best_distance = float("inf")
 
@@ -93,7 +86,7 @@ def find_menu_item(
 
     if best_match:
         logger.info(
-            f"[FIND-ITEM] Found fuzzy match: {cleaned_name} -> {best_match['name']} (distance: {best_distance})"
+            f"[FIND-ITEM] Found fuzzy match (fallback): {cleaned_name} -> {best_match['name']} (distance: {best_distance})"
         )
         return best_match, best_distance
 
@@ -102,14 +95,15 @@ def find_menu_item(
 
 
 def find_menu_item_any_status(
-    item_name: str, threshold: int = 35
+    item_name: str, threshold: int = 35, context: Optional[Dict[str, Any]] = None
 ) -> Tuple[Optional[Dict[str, Any]], Optional[int]]:
     """
     Find a menu item based on the given name, regardless of availability status.
 
     Args:
         item_name: Name of the item to find
-        threshold: Maximum Levenshtein distance for fuzzy matching
+        threshold: Maximum Levenshtein distance for fuzzy matching (used as fallback)
+        context: Additional context about the order/conversation for AI matching
 
     Returns:
         Tuple of (menu_item, distance) if found, (None, None) otherwise
@@ -123,25 +117,19 @@ def find_menu_item_any_status(
     # Load menu data
     menu_data = load_menu_data()
 
-    # First try exact match with name variants
-    name_variants = menu_data.get("name_variants", {})
-    if cleaned_name in name_variants:
-        exact_name = name_variants[cleaned_name]
-        # Find the actual menu item
-        for item in menu_data.get("items", []):
-            if item.get("name") == exact_name:
-                logger.info(
-                    f"[FIND-ITEM-ANY] Found exact match through variant: {cleaned_name} -> {exact_name}"
-                )
-                return item, 0
-
-    # Try direct name match
+    # First try direct name match to avoid unnecessary API calls
     for item in menu_data.get("items", []):
         if item.get("name", "").lower() == cleaned_name:
             logger.info(f"[FIND-ITEM-ANY] Found exact match: {cleaned_name}")
             return item, 0
 
-    # Try fuzzy matching if exact match fails
+    # Try AI matching without availability check
+    ai_match = find_menu_item_ai(item_name, check_availability=False, context=context)
+    if ai_match:
+        logger.info(f"[FIND-ITEM-ANY] Found AI match: {cleaned_name} -> {ai_match.get('name')}")
+        return ai_match, 10  # Use a standard distance for AI matches
+    
+    # As a fallback, try fuzzy matching if AI matching fails
     best_match = None
     best_distance = float("inf")
 
@@ -160,7 +148,7 @@ def find_menu_item_any_status(
 
     if best_match:
         logger.info(
-            f"[FIND-ITEM-ANY] Found fuzzy match: {cleaned_name} -> {best_match['name']} (distance: {best_distance})"
+            f"[FIND-ITEM-ANY] Found fuzzy match (fallback): {cleaned_name} -> {best_match['name']} (distance: {best_distance})"
         )
         return best_match, best_distance
 

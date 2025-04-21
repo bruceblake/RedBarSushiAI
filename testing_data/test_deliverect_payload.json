@@ -18,14 +18,16 @@
               "name": "Extra Wasabi",
               "description": "Additional wasabi on the side",
               "price": 0.50,
-              "available": true
+              "available": true,
+              "productType": 2
             },
             {
               "id": "ginger-extra",
               "name": "Extra Ginger",
               "description": "Additional ginger on the side",
               "price": 0.50,
-              "available": true
+              "available": true,
+              "productType": 2
             }
           ]
         },
@@ -58,21 +60,24 @@
               "name": "California Roll",
               "description": "Crab, avocado, and cucumber",
               "price": 7.95,
-              "available": true
+              "available": true,
+              "modifierGroups": ["toppings-group"]
             },
             {
               "id": "spicy-tuna",
               "name": "Spicy Tuna Roll",
               "description": "Fresh tuna with spicy mayo",
               "price": 8.95,
-              "available": true
+              "available": true,
+              "modifierGroups": ["toppings-group"]
             },
             {
               "id": "rainbow-roll",
               "name": "Rainbow Roll",
               "description": "California roll topped with assorted fish",
               "price": 12.95,
-              "available": true
+              "available": true,
+              "modifierGroups": ["toppings-group"]
             }
           ]
         },
@@ -89,7 +94,34 @@
             }
           ]
         }
-      ]
+      ],
+      "modifierGroups": {
+        "toppings-group": {
+          "id": "toppings-group",
+          "name": "Extra Toppings",
+          "min": 0,
+          "max": 5,
+          "multiMax": 2,
+          "productType": 3,
+          "subProducts": ["wasabi-extra", "ginger-extra"]
+        }
+      },
+      "modifiers": {
+        "wasabi-extra": {
+          "id": "wasabi-extra",
+          "name": "Extra Wasabi",
+          "price": 50,
+          "productType": 2,
+          "parentId": "toppings-group"
+        },
+        "ginger-extra": {
+          "id": "ginger-extra",
+          "name": "Extra Ginger",
+          "price": 50,
+          "productType": 2,
+          "parentId": "toppings-group"
+        }
+      }
     }
   }
 }

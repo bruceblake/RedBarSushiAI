@@ -11,59 +11,62 @@ from app.config import *
 from datetime import datetime
 
 # Check if we're in testing mode
-is_testing = os.environ.get('TESTING') == 'True' or os.environ.get('TESTING') == 'true'
+is_testing = os.environ.get("TESTING") == "True" or os.environ.get("TESTING") == "true"
 
 # Mock celery and related modules for test environments to avoid dependency issues
 if is_testing:
     # Create mock module for celery to use in tests
     class MockCelery:
         def __init__(self, *args, **kwargs):
-            self.conf = type('conf', (), {
-                'update': lambda x: None,
-                'imports': [],
-                'beat_schedule': {},
-            })
-            
+            self.conf = type(
+                "conf",
+                (),
+                {
+                    "update": lambda x: None,
+                    "imports": [],
+                    "beat_schedule": {},
+                },
+            )
+
         def task(self, *args, **kwargs):
             def decorator(func):
                 def wrapper(*args, **kwargs):
                     return func(*args, **kwargs)
+
                 return wrapper
+
             return decorator
-    
+
     class MockTask:
         def __call__(self, *args, **kwargs):
             return None
-    
+
     # Mock the celery module for test environments
-    sys.modules['celery'] = type('celery', (), {
-        'Celery': MockCelery,
-        'Task': MockTask
-    })
-    
+    sys.modules["celery"] = type("celery", (), {"Celery": MockCelery, "Task": MockTask})
+
     # Create a mock tasks module
     class MockTasks:
         @staticmethod
         def send_confirmation_sms_task(*args, **kwargs):
             return None
-            
+
         @staticmethod
         def send_order_status_update_task(*args, **kwargs):
             return None
-            
+
         @staticmethod
         def sync_menu_references(*args, **kwargs):
             return None
-    
+
     # Mock the tasks module
-    sys.modules['tasks'] = MockTasks()
-    
+    sys.modules["tasks"] = MockTasks()
+
     # Mock the celery_app module to avoid circular imports
     class MockCeleryApp:
         celery = MockCelery()
-    
+
     # Mock the celery_app module
-    sys.modules['celery_app'] = MockCeleryApp()
+    sys.modules["celery_app"] = MockCeleryApp()
 
 # Initialize X11 environment variables depending on whether virtual X server is available
 # Check if we have a virtual X server by looking for the X11_SETUP_SUCCESS environment variable
@@ -190,25 +193,27 @@ def create_app(test_config=None):
     # Default configuration with timeouts
     app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = SQLALCHEMY_TRACK_MODIFICATIONS
-    
+
     # Configure SQLAlchemy engine options based on database type
     engine_options = {
         "pool_recycle": 280,
         "pool_pre_ping": True,
     }
-    
+
     # Only add options compatible with the specific database type
     if SQLALCHEMY_DATABASE_URI:
-        if 'sqlite' in SQLALCHEMY_DATABASE_URI:
+        if "sqlite" in SQLALCHEMY_DATABASE_URI:
             # SQLite doesn't support pool_timeout or connect_timeout
             pass
         else:
             # For MySQL, PostgreSQL and other full DB engines
-            engine_options.update({
-                "pool_timeout": 20,
-                "connect_args": {"connect_timeout": 10},
-            })
-    
+            engine_options.update(
+                {
+                    "pool_timeout": 20,
+                    "connect_args": {"connect_timeout": 10},
+                }
+            )
+
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_options
     app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour session timeout
     app.secret_key = APP_SECRET_KEY
@@ -219,13 +224,13 @@ def create_app(test_config=None):
 
     # Initialize the database, but handle API schema validation better in testing environments
     skip_db_init = False
-    
+
     # Skip database initialization in API schema validation mode to avoid connection failures
-    if is_testing and os.environ.get('SKIP_DB_INIT') == 'true':
+    if is_testing and os.environ.get("SKIP_DB_INIT") == "true":
         skip_db_init = True
         logger = logging.getLogger(__name__)
         logger.info("Skipping database initialization in API schema validation mode")
-    
+
     if not skip_db_init:
         db.init_app(app)
 
@@ -237,6 +242,7 @@ def create_app(test_config=None):
     from app.routes.menu import menu_bp
     from app.routes.order import order_bp
     from app.routes.location import location_bp
+    from app.routes.order_ai import order_ai_bp
 
     # Register blueprints with explicit URL prefixes for clarity
     # Register blueprints with original structure for backwards compatibility
@@ -248,6 +254,7 @@ def create_app(test_config=None):
     )  # Keep at root level for existing Deliverect integrations
     app.register_blueprint(order_bp)  # Keep at root level for order webhooks
     app.register_blueprint(location_bp)  # Keep at root level for consistency
+    app.register_blueprint(order_ai_bp)  # AI-powered interactive order resolution
 
     # Configure optimized logging
     # Clear any existing handlers to avoid duplicates

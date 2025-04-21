@@ -8,30 +8,20 @@ import time
 import os
 import traceback
 import uuid
+import openai
 
 # Import WebSocket handler from Flask-Sock
 from app import sock
 
 # Try to import from the original module first
-try:
-    from app.utils.agent_utils import (
-        analyze_user_input,
-        get_order_modifications,
-        OrderParsingAgent,
-    )
+from app.utils.agent_utils import (
+    analyze_user_input,
+    get_order_modifications,
+    OrderParsingAgent,
+)
 
-    logger = logging.getLogger(__name__)
-    logger.info("Successfully imported OpenAI agent utilities")
-except ImportError:
-    # If that fails, use our simplified implementation
-    from app.utils.agent_utils_simple import (
-        analyze_user_input,
-        get_order_modifications,
-        OrderParsingAgent,
-    )
-
-    logger = logging.getLogger(__name__)
-    logger.warning("Using simplified agent utilities (OpenAI not available)")
+logger = logging.getLogger(__name__)
+logger.info("Successfully imported OpenAI agent utilities")
 
 # Import real-time audio processing utilities
 from app.utils.realtime_audio import get_audio_processor
@@ -335,99 +325,6 @@ def extract_name_with_agent(speech_text):
     except ImportError:
         logger.warning("OpenAI module not available for name extraction")
 
-    # Fall back to regex-based extraction
-    logger.info("Falling back to regex-based name extraction")
-    return extract_name_from_speech(speech_text)
-
-
-def extract_name_from_speech(speech_text):
-    """
-    Intelligently extract a name from speech text using regex patterns.
-
-    Args:
-        speech_text: The raw speech text from the user
-
-    Returns:
-        str: The extracted name, or empty string if no name found
-    """
-    if not speech_text:
-        return ""
-
-    # Common name introduction patterns
-    name_patterns = [
-        # "My name is John"
-        r"(?:my|this is|it'?s|the|i'm|i am|is|they call me|call me|you can call me)\s+(?:name\s+is\s+)?([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
-        # Just the name alone "John Smith"
-        r"^([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})$",
-        # Patterns for different cultures and formats
-        r"(?:i'm called|i am called|i go by|people call me)\s+([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
-        r"(?:the name's|names|my name's)\s+([A-Za-z\-\.']+(?:\s+[A-Za-z\-\.']+){0,2})",
-    ]
-
-    # Normalize the text
-    text = (
-        speech_text.lower().strip().replace(".", "").replace("?", "").replace("!", "")
-    )
-
-    # Try each pattern
-    for pattern in name_patterns:
-        import re
-
-        matches = re.search(pattern, text, re.IGNORECASE)
-        if matches:
-            name = matches.group(1).strip()
-            # Capitalize each part of the name
-            return " ".join(part.capitalize() for part in name.split())
-
-    # If no pattern matches, just return the first 2-3 words if they look like a name
-    words = text.split()
-    if len(words) <= 3:
-        return " ".join(word.capitalize() for word in words)
-    else:
-        # Take the first two words if they seem like a name (not common speech fillers)
-        common_fillers = [
-            "um",
-            "uh",
-            "so",
-            "well",
-            "like",
-            "yes",
-            "no",
-            "yeah",
-            "hi",
-            "hello",
-            "hey",
-            "this",
-            "the",
-            "a",
-            "an",
-            "what",
-            "where",
-            "when",
-            "who",
-            "why",
-            "how",
-        ]
-        potential_name = []
-
-        for word in words[:3]:  # Look at first 3 words at most
-            if word not in common_fillers and len(word) > 1:
-                potential_name.append(word.capitalize())
-            if len(potential_name) >= 2:  # Stop at first and last name
-                break
-
-        if potential_name:
-            return " ".join(potential_name)
-
-    # If everything else fails, return the raw text (limited to first few words)
-    words = speech_text.split()
-    if words:
-        return " ".join(words[:2]).capitalize()
-
-    # No name found
-    return ""
-
-
 @voice_bp.route("/main_menu_fallback", methods=["POST", "GET"])
 def main_menu_fallback():
     """
@@ -649,7 +546,6 @@ def handle_menu_questions():
                 speech_timeout=12,
                 timeout=15,
                 num_digits=1,
-                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls",  # Help Twilio recognize common items
             ) as g:
                 g.say(
                     "I'm having trouble hearing you. You can ask about our menu items by speaking clearly, or press 1 to hear our most popular items, press 2 to return to the main menu."
@@ -668,11 +564,8 @@ def handle_menu_questions():
                 language="en-US",
                 speech_timeout=10,  # Use fixed timeout
                 timeout=12,  # Give more time
-                hints="california roll, spicy tuna roll, dragon roll, menu, prices, special rolls",  # Help Twilio recognize common items
             ) as g:
-                g.say(
-                    "I didn't hear your question. You can ask about our menu items, prices, or special rolls. What would you like to know?"
-                )
+                g.say("I didn't hear your question. What would you like to know?")
 
             # Add fallback in case this gather fails too
             response.redirect("/handle_menu_questions")
@@ -702,29 +595,80 @@ def handle_menu_questions():
                 "I'll take your order now. Please tell me what you would like to order."
             )
     elif intent == "ask_menu":
-        # Generic menu information
+        # Use AI agent to answer any menu question; fallback on error
+        # Check if OpenAI usage is disabled
+        # First, get actual menu data to provide context
+        agent = OrderParsingAgent()
+        menu_tool = agent.menu_tool
+                
+        # Get menu data based on the query
+        search_results = []
+        menu_query = user_input.strip()
+                
+        # Use the search_results from the analysis if available
+        if "search_results" in analysis and analysis["search_results"]:
+            search_results = analysis["search_results"]
+        else:
+                    # Otherwise perform a search
+            search_results = menu_tool.search_menu(menu_query)
+                
+                # Format menu items for context
+        logger.info(f"search_results type: {type(search_results)}")
+        logger.info(f"search_results content: {search_results}")
+        menu_context = ""
+        if search_results.get("found"):
+            menu_context = "Here are relevant menu items:\n"
+            for item in search_results.get("items"):  # Limit to 5 items for context
+                price_str = f"${item.get('price', 0):.2f}"
+                desc = item.get('description', 'No description available')
+                menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
+        else:
+                    # If no specific items found, include popular items
+            from app.utils.menu_utils import get_popular_menu_items
+            popular_items = get_popular_menu_items(5)
+            if popular_items:
+                menu_context = "Here are our popular menu items:\n"
+                for item in popular_items:
+                    price_str = f"${item.get('price', 0):.2f}"
+                    desc = item.get('description', 'No description available')
+                    menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
+                
+                # Create OpenAI client and send system+user messages with actual menu data
+        client = openai.OpenAI()
+        system_msg = (
+                "You are a knowledgeable assistant for Red Bar Sushi. "
+                "Answer the customer's question concisely using the menu information provided. "                    "If the menu information doesn't contain what the customer is asking about, "
+                "politely explain that you don't have that specific information."
+        )
+                
+                # Log the menu context being used
+        logger.info(f"Menu context for query '{menu_query}': {menu_context[:200]}...")
+                
+        result = client.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": f"Menu information:\n{menu_context}\n\nCustomer question: {user_input}"}
+                    ],
+                )
+        reply = result.choices[0].message.content.strip()
+        
+        # Say the reply and offer to continue the conversation
+        response = VoiceResponse()
+        response.say(reply)
+        
+        # Add a gather to continue the conversation
         with response.gather(
             input="speech",
             action="/handle_menu_questions",
             enhanced=True,
             speech_model="phone_call",
             language="en-US",
-            speech_timeout="auto",
+            speech_timeout="auto"
         ) as g:
-            # Use agent.menu_tool to get categories for more accurate information
-            menu_categories = []
-            try:
-                agent = OrderParsingAgent()
-                menu_categories = agent.menu_tool.get_menu_categories()
-                cat_text = ", ".join(menu_categories[:5]) + " and more"
-            except:
-                cat_text = "sushi rolls, nigiri, sashimi, and special rolls"
-
-            g.say(
-                f"Our menu features a variety of {cat_text}. "
-                + "We have popular items like California Roll, Spicy Tuna Roll, Dragon Roll, and more. "
-                + "Would you like to know about specific items, prices, or would you like to place an order now?"
-            )
+            g.say("Is there anything else you'd like to know about our menu?")
+            
+        return Response(str(response), mimetype="text/xml")
     elif intent == "get_menu_item_price" or intent == "describe_menu_item":
         # Look up the specific item using agent
         agent = OrderParsingAgent()

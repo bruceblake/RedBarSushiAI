@@ -146,6 +146,7 @@ class SushiMenuTool:
     def __init__(self):
         """Initialize the tool with menu data."""
         self.menu_data = load_menu_data()
+        self.current_conversation = []  # To track conversation context
 
     def search_menu(self, query: str) -> Dict[str, Any]:
         """
@@ -157,12 +158,29 @@ class SushiMenuTool:
         Returns:
             dict: The search results
         """
-        # First try to find exact matches using our enhanced matching system
+        # Add the query to the conversation context
+        self.current_conversation.append({"role": "user", "content": query})
+        context = {"conversation": self.current_conversation}
+        
+        # First try to find exact matches
         item = find_menu_item_by_name(query)
         if item:
             return {"found": True, "items": [item], "query": query}
 
-        # If exact match fails, let's do a more thorough search with scoring
+        # If exact match fails, try AI matching
+        try:
+            # Import here to avoid circular imports
+            from app.utils.menu_matcher import find_menu_item_ai
+            
+            ai_match = find_menu_item_ai(query, check_availability=False, context=context)
+            if ai_match:
+                logger.info(f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{query}'")
+                return {"found": True, "items": [ai_match], "query": query}
+        except Exception as e:
+            logger.error(f"[MENU-TOOL] Error in AI matching: {str(e)}")
+            # Continue with fallback if AI matching fails
+
+        # Fallback to traditional scoring system
         results = []
         scored_items = []
         query_lower = query.lower().strip()
@@ -211,12 +229,6 @@ class SushiMenuTool:
                         (word_match_ratio * 0.4 + query_coverage * 0.6) * 50
                     )
                     score = max(score, word_score)
-
-            # Special case for terms like "veggie burger"
-            if "veggie" in query_lower and "burger" in item_name:
-                if "veggie" in item_name:
-                    # Boost veggie burger for veggie queries
-                    score += 20
 
             # Only include reasonably good matches
             if score >= 30:
@@ -275,6 +287,48 @@ class SushiMenuTool:
 
         return results
 
+    def ai_match_item(self, item_name: str) -> Dict[str, Any]:
+        """
+        Match an item using AI-based matching.
+        
+        Args:
+            item_name: The name or description of the item to match
+            
+        Returns:
+            dict: The match results
+        """
+        self.current_conversation.append({"role": "user", "content": f"Find menu item: {item_name}"})
+        context = {"conversation": self.current_conversation}
+        
+        try:
+            # Import here to avoid circular imports
+            from app.utils.menu_matcher import find_menu_item_ai
+            
+            ai_match = find_menu_item_ai(item_name, check_availability=False, context=context)
+            if ai_match:
+                logger.info(f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{item_name}'")
+                return {
+                    "found": True,
+                    "item": ai_match,
+                    "confidence": "high",
+                    "matching_type": "ai_match"
+                }
+        except Exception as e:
+            logger.error(f"[MENU-TOOL] Error in AI matching: {str(e)}")
+            
+        # If AI matching fails, try exact match as fallback
+        item = find_menu_item_by_name(item_name)
+        if item:
+            return {
+                "found": True,
+                "item": item,
+                "confidence": "exact",
+                "matching_type": "exact_match"
+            }
+            
+        # No match found
+        return {"found": False, "item_name": item_name}
+    
     def get_details(self, item_name: str) -> Dict[str, Any]:
         """
         Get details for a specific item.
@@ -285,7 +339,16 @@ class SushiMenuTool:
         Returns:
             dict: The item details
         """
+        # First try direct lookup
         item = find_menu_item_by_name(item_name)
+        
+        # If direct lookup fails, try AI matching
+        if not item:
+            match_result = self.ai_match_item(item_name)
+            if match_result.get("found"):
+                item = match_result.get("item")
+                
+        # If we still don't have an item, return not found
         if not item:
             return {"found": False, "item_name": item_name}
 
@@ -354,6 +417,23 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 {
                     "type": "function",
                     "function": {
+                        "name": "ai_match_item",
+                        "description": "Match a menu item using AI when the item name might not be exact",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "item_name": {
+                                    "type": "string",
+                                    "description": "The name or description of the item to match",
+                                }
+                            },
+                            "required": ["item_name"],
+                        },
+                    },
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "get_menu_categories",
                         "description": "Get all menu categories",
                         "parameters": {"type": "object", "properties": {}},
@@ -401,24 +481,38 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 instructions="""
                 You are an assistant that helps parse customer food orders for a sushi restaurant. 
                 Your job is to:
-                1. Identify menu items in customer orders
+                1. Identify main menu items in customer orders
                 2. Extract quantity information
-                3. Parse any modifiers or special requests
+                3. Properly identify and group modifiers with their parent items
                 4. Verify all items exist in the actual menu
                 5. Return the full order in a structured format
+
+                IMPORTANT: Pay special attention to detecting modifiers vs. main items. For example:
+                - "a build a poke bowl with sushi rice, and add spicy tofu and smashed avocado" should be
+                  understood as ONE main item (poke bowl) with THREE modifiers (sushi rice, spicy tofu,
+                  smashed avocado), not as four separate items.
+                - Use the context and language cues to distinguish when a customer is adding modifiers
+                  to a main item vs. ordering separate items
                 
+                When determining if something is a modifier:
+                1. Look for phrases like "with", "add", "extra", "no", "without", "on the side" 
+                2. Consider if the item is typically a standalone dish or a component/addition
+                3. Check menu data for modifier groups and their relationships to menu items
+                4. Group related items together based on natural language structure
+
                 Only respond with items that are actually on the menu. If an item requested is not found,
                 try to find the closest match or recommend alternatives. 
                 
                 Always return:
                 - List of items, each with: name (exactly as in menu), quantity, reference_handler, and price
-                - Any modifiers for each item with their quantities
+                - For each item, include its modifiers in the "modifier" array with their quantities and reference_handlers
                 """,
                 tools=tools,
             )
 
             # Register the tool implementations
             agent.tools.search_menu = self.menu_tool.search_menu
+            agent.tools.ai_match_item = self.menu_tool.ai_match_item
             agent.tools.get_menu_categories = self.menu_tool.get_menu_categories
             agent.tools.get_items_by_category = self.menu_tool.get_items_by_category
             agent.tools.get_details = self.menu_tool.get_details
@@ -492,7 +586,7 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                             "[AGENT-VALIDATE] Missing 'items' key in parsed order, adding empty items list"
                         )
 
-                    # Verify all items have required fields
+                    # Verify all items have required fields and process their modifiers
                     for item in parsed_order["items"]:
                         if "name" not in item:
                             item["name"] = "Unknown Item"
@@ -520,11 +614,55 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                 logger.warning(
                                     f"[AGENT-PRICE] Could not find price for '{item['name']}', using 0.0"
                                 )
+                        
+                        # Process modifiers array, ensuring each modifier has proper fields
                         if "modifier" not in item:
                             item["modifier"] = []
                             logger.info(
                                 f"[AGENT-VALIDATE] Added empty modifier list for '{item['name']}'"
                             )
+                        else:
+                            # Process each modifier to ensure it has required fields
+                            for mod in item["modifier"]:
+                                if "name" not in mod:
+                                    mod["name"] = "Unknown Modifier"
+                                    logger.warning(
+                                        f"[AGENT-VALIDATE] Modifier for '{item['name']}' missing name"
+                                    )
+                                if "quantity" not in mod:
+                                    mod["quantity"] = 1
+                                    logger.info(
+                                        f"[AGENT-VALIDATE] Modifier '{mod.get('name')}' missing quantity, defaulting to 1"
+                                    )
+                                
+                                # Try to find modifier information in the menu
+                                if "reference_handler" not in mod or "price" not in mod:
+                                    # Get menu data for looking up modifier details
+                                    menu_data = self.menu_tool.menu_data
+                                    
+                                    # Find the modifier in the menu
+                                    found_modifier = None
+                                    for menu_mod in menu_data.get("modifiers", []):
+                                        if menu_mod.get("name", "").lower() == mod.get("name", "").lower():
+                                            found_modifier = menu_mod
+                                            break
+                                    
+                                    if found_modifier:
+                                        # Set reference handler and price from menu
+                                        mod["reference_handler"] = found_modifier.get("reference_handler", "")
+                                        mod["price"] = found_modifier.get("price", 0.0)
+                                        logger.info(
+                                            f"[AGENT-VALIDATE] Found menu data for modifier '{mod.get('name')}'"
+                                        )
+                                    else:
+                                        # Set defaults if not found
+                                        if "reference_handler" not in mod:
+                                            mod["reference_handler"] = ""
+                                        if "price" not in mod:
+                                            mod["price"] = 0.0
+                                        logger.warning(
+                                            f"[AGENT-VALIDATE] Could not find menu data for modifier '{mod.get('name')}'"
+                                        )
 
                     return parsed_order
 
@@ -600,15 +738,22 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 Your job is to:
                 1. Understand the current order
                 2. Parse the customer's modification request
-                3. Identify items to add, remove, or modify
+                3. Identify items to add, remove, or modify (including modifiers)
                 4. Return the updated order in a structured format
+                
+                IMPORTANT: Pay special attention to modifiers vs. main items:
+                - Adding a modifier to an existing item should be represented as a modification to that item,
+                  not as a new separate menu item
+                - Look for phrases like "add avocado to my roll" which indicate adding a modifier to an existing item
+                - Use context to determine if a mentioned item is a modifier for an existing item or a new main item
                 
                 Only include items that are actually on the menu. If an item requested is not found,
                 try to find the closest match or recommend alternatives.
                 
                 Always return the full modified order with:
-                - 'additions': List of items to add
+                - 'additions': List of items to add, including any modifiers for each item
                 - 'removals': List of items to remove
+                - 'modifications': List of modifications to existing items (like adding a modifier to an item)
                 """,
                 tools=tools,
             )
@@ -699,6 +844,11 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                         modifications["removals"] = []
                         logger.warning(
                             "[AGENT-VALIDATE] Missing 'removals' key in modifications, adding empty list"
+                        )
+                    if "modifications" not in modifications:
+                        modifications["modifications"] = []
+                        logger.warning(
+                            "[AGENT-VALIDATE] Missing 'modifications' key in modifications, adding empty list"
                         )
 
                     # Verify additions have required fields
@@ -795,11 +945,50 @@ else:
                     messages = [
                         {
                             "role": "system",
-                            "content": "You are a restaurant order parser. Extract menu items from customer orders into JSON.",
+                            "content": """You are a restaurant order parser for a sushi restaurant. 
+                            Your job is to extract menu items and their modifiers from customer orders.
+                            
+                            IMPORTANT: Pay special attention to detecting modifiers vs. main items. For example:
+                            - "a build a poke bowl with sushi rice, and add spicy tofu and smashed avocado" should be
+                              understood as ONE main item (poke bowl) with THREE modifiers (sushi rice, spicy tofu,
+                              smashed avocado), not as four separate items.
+                            - Use the context and language cues to distinguish when a customer is adding modifiers
+                              to a main item vs. ordering separate items
+                            
+                            When determining if something is a modifier:
+                            1. Look for phrases like "with", "add", "extra", "no", "without", "on the side" 
+                            2. Consider if the item is typically a standalone dish or a component/addition
+                            3. Group related items together based on natural language structure
+                            """,
                         },
                         {
                             "role": "user",
-                            "content": f"Extract menu items from this order: {order_text}\nOur menu has these categories: {', '.join(categories)}\nRespond with a JSON object containing an 'items' array of item names.",
+                            "content": f"""Extract menu items from this order: {order_text}
+                            Our menu has these categories: {', '.join(categories)}
+                            
+                            Respond with a JSON object containing an 'items' array, where each item has:
+                            - name: The name of the main menu item
+                            - quantity: The quantity ordered (default to 1 if not specified)
+                            - modifier: An array of modifiers for this item, each with a name and quantity
+                            
+                            Example response for "I want a California Roll with extra wasabi and a spicy tuna roll":
+                            {{
+                              "items": [
+                                {{
+                                  "name": "California Roll",
+                                  "quantity": 1,
+                                  "modifier": [
+                                    {{ "name": "Extra Wasabi", "quantity": 1 }}
+                                  ]
+                                }},
+                                {{
+                                  "name": "Spicy Tuna Roll",
+                                  "quantity": 1,
+                                  "modifier": []
+                                }}
+                              ]
+                            }}
+                            """,
                         },
                     ]
 
@@ -840,16 +1029,12 @@ else:
                         "No OpenAI API key available - using simple keyword matching"
                     )
                     items = self.menu_tool.menu_data.get("items", [])
-                    name_variants = self.menu_tool.menu_data.get("name_variants", {})
-
+                    
                     # Simple keyword matching
                     order_lower = order_text.lower()
                     potential_items = []
-
-                    # Check direct matches with name variants
-                    for variant, item_name in name_variants.items():
-                        if variant in order_lower:
-                            potential_items.append(item_name)
+                    
+                    # Skip name variants - AI agent will handle matching
 
                     # Check direct matches with item names
                     for item in items:
@@ -874,7 +1059,7 @@ else:
                     logger.info(
                         f"[ORDER-VERIFY-PASS1] Verifying item: '{item_name}' using search_menu"
                     )
-                    search_result = self.menu_tool.search_menu(item_name)
+                    search_result = self.menu_tool.search_menu(item_name.get("name"))
                     if search_result.get("found"):
                         for menu_item in search_result.get("items", []):
                             logger.info(
@@ -935,43 +1120,14 @@ else:
                         logger.info(
                             f"[ORDER-VERIFY-PASS3] Starting third pass verification with fuzzy matching for {len(still_unverified)} items"
                         )
-                        name_variants = self.menu_tool.menu_data.get(
-                            "name_variants", {}
-                        )
+                        # AI agent will handle menu item matching
                         menu_items = self.menu_tool.menu_data.get("items", [])
 
                         for item_name in still_unverified:
                             item_lower = item_name.lower()
                             found = False
-
-                            # Try fuzzy matching with name variants
-                            for variant, menu_item_name in name_variants.items():
-                                # Check if item name is contained in variant or variant is contained in item name
-                                if (
-                                    item_lower in variant.lower()
-                                    or variant.lower() in item_lower
-                                ):
-                                    logger.info(
-                                        f"[ORDER-VERIFY-PASS3-FUZZY] Found partial match: '{item_name}' ~ '{variant}' → '{menu_item_name}'"
-                                    )
-                                    menu_item = find_menu_item_by_name(menu_item_name)
-                                    if menu_item:
-                                        logger.info(
-                                            f"[ORDER-VERIFY-PASS3-SUCCESS] Fuzzy match found '{item_name}' as '{menu_item.get('name')}' (${menu_item.get('price', 0.0)})"
-                                        )
-                                        verified_items.append(
-                                            {
-                                                "name": menu_item.get("name"),
-                                                "price": menu_item.get("price", 0.0),
-                                                "reference_handler": menu_item.get(
-                                                    "reference_handler", ""
-                                                ),
-                                                "quantity": 1,
-                                                "modifier": [],
-                                            }
-                                        )
-                                        found = True
-                                        break
+                            
+                            # Skip name variants - AI agent will handle matching for fuzzy matches
 
                             # If still not found, try matching directly against menu items
                             if not found:
@@ -1073,11 +1229,28 @@ else:
                     messages = [
                         {
                             "role": "system",
-                            "content": "You are a sushi restaurant order modifier. Process order changes and return JSON.",
+                            "content": """You are a sushi restaurant order modifier. Process order changes and return JSON.
+                            
+                            IMPORTANT: Pay special attention to modifiers vs. main items:
+                            - Adding a modifier to an existing item should be represented as a modification to that item,
+                              not as a new separate menu item
+                            - Look for phrases like "add avocado to my roll" which indicate adding a modifier to an existing item
+                            - Use context to determine if a mentioned item is a modifier for an existing item or a new main item
+                            """,
                         },
                         {
                             "role": "user",
-                            "content": f"Current order:\n{current_items}\n\nModification request: {modification_text}\n\nReturn JSON with 'additions' and 'removals' arrays.",
+                            "content": f"""Current order:
+{current_items}
+
+Modification request: {modification_text}
+
+Return JSON with:
+- 'additions': List of new items to add, each with name, quantity, and modifier array
+- 'removals': List of items to remove, each with name and quantity
+- 'modifications': List of modifications to existing items (like adding a modifier to an item), 
+  each with item_name, and a modifier array
+""",
                         },
                     ]
 
@@ -1125,7 +1298,7 @@ else:
                     # Extract possible add/remove keywords
                     mod_lower = modification_text.lower()
                     self.menu_tool.menu_data.get("items", [])
-                    name_variants = self.menu_tool.menu_data.get("name_variants", {})
+                    # Skip name variants - AI agent will handle matching
 
                     # Very simple add/remove detection
                     is_addition = any(
@@ -1145,34 +1318,17 @@ else:
                                     {"name": item.get("name"), "quantity": 1}
                                 )
 
-                    # Check all menu items for potential additions
-                    if is_addition:
-                        for variant, item_name in name_variants.items():
-                            if variant in mod_lower:
-                                # Only add it if not already in the list
-                                if not any(
-                                    add_item.get("name") == item_name
-                                    for add_item in modifications["additions"]
-                                ):
-                                    menu_item = find_menu_item_by_name(item_name)
-                                    if menu_item:
-                                        modifications["additions"].append(
-                                            {
-                                                "name": item_name,
-                                                "quantity": 1,
-                                                "price": menu_item.get("price", 0.0),
-                                                "reference_handler": menu_item.get(
-                                                    "reference_handler", ""
-                                                ),
-                                                "modifier": [],
-                                            }
-                                        )
+                    # Skip name variants for additions - AI agent will handle matching
+                    # Check all menu items for potential additions using direct matching only
+                    # This is a simple fallback - the proper AI agent will do better matching
 
                 # Ensure required structure
                 if "additions" not in modifications:
                     modifications["additions"] = []
                 if "removals" not in modifications:
                     modifications["removals"] = []
+                if "modifications" not in modifications:
+                    modifications["modifications"] = []
 
                 # Verify and enhance additions (only if OpenAI API available)
                 for item in modifications.get("additions", []):
@@ -1199,31 +1355,97 @@ else:
 def analyze_user_input(input_text: str) -> Dict[str, Any]:
     """
     Analyze user input to determine intent and extract order items.
-
+    
+    Detects three main intents:
+    - order_food: Customer wants to place an order
+    - ask_menu: Customer is asking about menu items
+    - other: Other types of queries
+    
     Args:
         input_text: The user's input text
 
     Returns:
-        dict: The analysis results
+        dict: The analysis results with consistent structure across all intents
     """
-    # Create an order parsing agent
-    agent = OrderParsingAgent()
-
-    # Parse the input
-    logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{input_text}'")
-    parsed_order = agent.parse_order(input_text)
-    logger.info(f"[PARSED-ORDER]: {parsed_order}")
-
-    # Determine intent based on the parsed order
-    if parsed_order.get("items"):
-        logger.info(
-            f"[ANALYZE-RESULT] Found {len(parsed_order.get('items', []))} items, intent: 'order_food'"
-        )
-        return {"intent": "order_food", "menu_items": parsed_order.get("items", [])}
-
-    # Default to "other" intent if no clear intent is determined
-    logger.info("[ANALYZE-RESULT] No items found, intent: 'other'")
-    return {"intent": "other"}
+    # First, determine if this is a menu question using OpenAI if available
+    intent = "other"
+    menu_items = []
+    
+    try:
+        if OPENAI_API_KEY:
+            # Prepare messages for intent classification
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a restaurant AI assistant that classifies customer queries. Determine if the customer is placing an order or asking about the menu."
+                },
+                {
+                    "role": "user",
+                    "content": f"Classify this customer query: '{input_text}'\nRespond with JSON containing 'intent' which must be one of: 'order_food', 'ask_menu', or 'other'."
+                }
+            ]
+            
+            # Log the API request
+            log_openai_request("gpt-4.1-mini", messages, "intent_classification")
+            
+            try:
+                # Make the classification request
+                response = openai.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                )
+                
+                # Log the API response
+                log_openai_response(response, "intent_classification")
+                
+                # Extract the intent
+                classification = json.loads(response.choices[0].message.content)
+                intent = classification.get("intent", "other")
+                logger.info(f"[INTENT-CLASSIFICATION] Classified intent as: '{intent}'")
+                
+            except Exception as e:
+                logger.error(f"[INTENT-ERROR] OpenAI API error: {str(e)}")
+                logger.error(f"[INTENT-TRACEBACK] {traceback.format_exc()}")
+                # Fall back to order parsing
+        
+        # If intent is still "other" or "order_food", try parsing as an order
+        if intent in ["other", "order_food"]:
+            # Create an order parsing agent
+            agent = OrderParsingAgent()
+            
+            # Parse the input
+            logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{input_text}'")
+            parsed_order = agent.parse_order(input_text)
+            logger.info(f"[PARSED-ORDER]: {parsed_order}")
+            
+            # If we found menu items, this is likely an order
+            if parsed_order.get("items"):
+                menu_items = parsed_order.get("items", [])
+                intent = "order_food"
+                logger.info(f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'")
+    
+    except Exception as e:
+        logger.error(f"[ANALYZE-ERROR] Error in analyze_user_input: {str(e)}")
+        logger.error(f"[ANALYZE-TRACEBACK] {traceback.format_exc()}")
+    
+    # Return a consistent structure for all intents
+    result = {
+        "intent": intent,
+        "menu_items": menu_items
+    }
+    
+    # Add any intent-specific data
+    if intent == "ask_menu":
+        # Extract the menu query for ask_menu intent
+        menu_tool = SushiMenuTool()
+        query = input_text.strip()
+        search_result = menu_tool.search_menu(query)
+        result["menu_query"] = query
+        result["search_results"] = search_result
+    
+    logger.info(f"[ANALYZE-FINAL] Final intent: '{intent}' with {len(menu_items)} menu items")
+    return result
 
 
 def get_order_modifications(
@@ -1252,6 +1474,6 @@ def get_order_modifications(
     modifications = agent.modify_order(current_order, user_input)
 
     logger.info(
-        f"[ORDER-MODIFICATIONS] Found modifications: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}"
+        f"[ORDER-MODIFICATIONS] Found modifications: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}, modifications={len(modifications.get('modifications', []))}"
     )
     return modifications
