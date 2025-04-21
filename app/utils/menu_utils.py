@@ -1125,14 +1125,7 @@ def get_popular_menu_items(count=5):
         if item.get("available", True) and not is_item_snoozed(item):
             available_items.append(item)
 
-    # If we have a popularity field, use it
-    if available_items and "popularity" in available_items[0]:
-        popular_items = sorted(
-            available_items, key=lambda x: x.get("popularity", 0), reverse=True
-        )
-    else:
-        # Otherwise just take the first few items
-        popular_items = available_items
+    popular_items = available_items
 
     # Return the top N items with name and price
     result = []
