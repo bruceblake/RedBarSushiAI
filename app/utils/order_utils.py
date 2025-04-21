@@ -150,7 +150,7 @@ def find_menu_item_any_status(
         logger.info(
             f"[FIND-ITEM-ANY] Found fuzzy match (fallback): {cleaned_name} -> {best_match['name']} (distance: {best_distance})"
         )
-        return best_match, best_distance
+        return best_match, best_distance 
 
     logger.warning(f"[FIND-ITEM-ANY] No match found for: {cleaned_name}")
     return None, None
