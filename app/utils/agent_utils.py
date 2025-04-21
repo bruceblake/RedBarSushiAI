@@ -1093,7 +1093,7 @@ else:
                         logger.info(
                             f"[ORDER-VERIFY-PASS2] Verifying item: '{item_name}' using direct lookup"
                         )
-                        menu_item = find_menu_item_by_name(item_name)
+                        menu_item = find_menu_item_by_name(item_name.get("name"))
                         if menu_item:
                             logger.info(
                                 f"[ORDER-VERIFY-PASS2-SUCCESS] Direct lookup found '{item_name}' as '{menu_item.get('name')}' (${menu_item.get('price', 0.0)})"
