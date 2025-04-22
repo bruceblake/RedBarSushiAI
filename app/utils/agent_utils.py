@@ -973,19 +973,70 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                 found_modifier = None
                                 mod_name_lower = mod.get("name", "").lower()
                                 
+                                # Standard valid cooking terms to allow even if not in menu
+                                valid_cooking_terms = [
+                                    "rare", "medium rare", "medium", "medium well", "well done", 
+                                    "cooked rare", "cooked medium", "cooked well done"
+                                ]
+                                
+                                # Standard valid side terms to allow even if not in menu
+                                valid_side_terms = [
+                                    "side of fries", "extra fries", "side salad", "no sides",
+                                    "fries on the side", "rice on the side"
+                                ]
+                                
+                                # First try exact match
                                 for menu_mod in menu_data.get("modifiers", []):
                                     menu_mod_name = menu_mod.get("name", "").lower()
                                     if menu_mod_name == mod_name_lower:
                                         found_modifier = menu_mod
                                         break
                                         
-                                    # Try fuzzy matching for modifiers like "Rare" cooking preference
-                                    # that might not be in the modifier list but are important
-                                    if (menu_mod_name in mod_name_lower or 
-                                        mod_name_lower in menu_mod_name):
-                                        found_modifier = menu_mod
-                                        logger.info(f"[AGENT-VALIDATE] Found fuzzy match for modifier: {mod.get('name')} → {menu_mod.get('name')}")
-                                        break
+                                # If not found, try fuzzy matching
+                                if not found_modifier:
+                                    for menu_mod in menu_data.get("modifiers", []):
+                                        menu_mod_name = menu_mod.get("name", "").lower()
+                                        # Try fuzzy matching for modifiers
+                                        if (menu_mod_name in mod_name_lower or 
+                                            mod_name_lower in menu_mod_name):
+                                            found_modifier = menu_mod
+                                            logger.info(f"[AGENT-VALIDATE] Found fuzzy match for modifier: {mod.get('name')} → {menu_mod.get('name')}")
+                                            break
+                                
+                                # If still not found, check against standard common modifiers
+                                if not found_modifier:
+                                    is_valid_standard_mod = False
+                                    
+                                    # Check against cooking preference terms
+                                    if any(term in mod_name_lower for term in valid_cooking_terms) or any(mod_name_lower in term for term in valid_cooking_terms):
+                                        mod["reference_handler"] = f"COOK-{hash(mod_name_lower) % 100:02d}"
+                                        mod["price"] = 0.0
+                                        logger.info(f"[AGENT-VALIDATE] Recognized standard cooking modifier: {mod.get('name')}")
+                                        is_valid_standard_mod = True
+                                    
+                                    # Check against side dish terms
+                                    elif any(term in mod_name_lower for term in valid_side_terms) or any(mod_name_lower in term for term in valid_side_terms):
+                                        mod["reference_handler"] = f"SIDE-{hash(mod_name_lower) % 100:02d}"
+                                        mod["price"] = 0.0
+                                        logger.info(f"[AGENT-VALIDATE] Recognized standard side modifier: {mod.get('name')}")
+                                        is_valid_standard_mod = True
+                                    
+                                    # Check for other common terms
+                                    elif any(common_term in mod_name_lower for common_term in ["spicy", "sauce", "dressing", "no ice", "extra"]):
+                                        mod["reference_handler"] = f"MOD-{hash(mod_name_lower) % 100:02d}"
+                                        mod["price"] = 0.0
+                                        logger.info(f"[AGENT-VALIDATE] Recognized common modifier type: {mod.get('name')}")
+                                        is_valid_standard_mod = True
+                                    
+                                    # If not a recognized standard modifier, mark for validation at the order level
+                                    if not is_valid_standard_mod:
+                                        mod["requires_validation"] = True
+                                        # Set temporary reference handler
+                                        if "reference_handler" not in mod:
+                                            mod["reference_handler"] = f"TEMP-{mod_name_lower.replace(' ', '-')}"
+                                        if "price" not in mod:
+                                            mod["price"] = 0.0
+                                        logger.warning(f"[AGENT-VALIDATE] Unrecognized modifier '{mod.get('name')}', marking for validation")
                                 
                                 if found_modifier:
                                     # Set reference handler and price from menu
@@ -993,15 +1044,6 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                     mod["price"] = found_modifier.get("price", 0.0)
                                     logger.info(
                                         f"[AGENT-VALIDATE] Found menu data for modifier '{mod.get('name')}'"
-                                    )
-                                else:
-                                    # Set defaults if not found, but keep the modifier
-                                    if "reference_handler" not in mod:
-                                        mod["reference_handler"] = f"MOD-{mod_name_lower.replace(' ', '-')}"
-                                    if "price" not in mod:
-                                        mod["price"] = 0.0
-                                    logger.warning(
-                                        f"[AGENT-VALIDATE] Created placeholder reference handler for modifier '{mod.get('name')}'"
                                     )
 
                     return parsed_order

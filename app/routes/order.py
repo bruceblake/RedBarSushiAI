@@ -2090,19 +2090,54 @@ def handle_modifier_suggestion():
                     # Found our current item in the parsed result
                     modifiers = item.get("modifier", [])
                     
-                    # If modifiers are found, add them to the order
+                    # If modifiers are found, validate them before adding to the order
                     if modifiers:
-                        # Update the relevant item in the order
+                        # First, pre-validate modifiers to check if any are invalid
+                        # Create a temporary item with modifiers for validation
+                        from app.utils.order_utils import validate_modifiers
+                        temp_item = {"name": current_item, "modifier": modifiers}
+                        validated_item = validate_modifiers([temp_item])[0]
+                        valid_modifiers = validated_item.get("modifier", [])
+                        
+                        # Check if we lost any modifiers during validation
+                        rejected_modifiers = []
+                        if len(valid_modifiers) < len(modifiers):
+                            # Find which modifiers were rejected
+                            valid_mod_names = {mod.get("name", "").lower() for mod in valid_modifiers}
+                            for mod in modifiers:
+                                if mod.get("name", "").lower() not in valid_mod_names:
+                                    rejected_modifiers.append(mod.get("name", "unknown"))
+                        
+                        # If some modifiers were rejected, inform the user
+                        if rejected_modifiers:
+                            # Log the rejected modifiers
+                            logger.warning(f"Rejected invalid modifiers for {current_item}: {', '.join(rejected_modifiers)}")
+                            
+                            # Inform the user about invalid modifiers and ask for valid ones
+                            with response.gather(
+                                input="speech dtmf",
+                                action="/handle_modifier_suggestion",
+                                enhanced=True,
+                                speech_model="phone_call",
+                                language="en-US",
+                                speech_timeout=5,
+                                timeout=7,
+                                num_digits=1
+                            ) as g:
+                                g.say(f"I'm sorry, we don't have {', '.join(rejected_modifiers)} available for your {current_item}. Please specify a different modifier, or press 1 to continue with your order.")
+                            return Response(str(response), mimetype="text/xml")
+                        
+                        # Update the relevant item in the order with valid modifiers
                         for order_item in order_items:
                             if order_item.get("name", "") == current_item:
                                 # Add these modifiers to the item
                                 if "modifier" not in order_item:
                                     order_item["modifier"] = []
-                                order_item["modifier"].extend(modifiers)
+                                order_item["modifier"].extend(valid_modifiers)
                                 
                                 # Log the modifiers being added
-                                mod_names = [mod.get("name", "unknown") for mod in modifiers]
-                                logger.info(f"Adding modifiers to {current_item}: {', '.join(mod_names)}")
+                                mod_names = [mod.get("name", "unknown") for mod in valid_modifiers]
+                                logger.info(f"Adding validated modifiers to {current_item}: {', '.join(mod_names)}")
                                 
                                 # Update the session with modified order
                                 session["order_items_without_modifiers_json"] = json.dumps(order_items)

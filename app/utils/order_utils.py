@@ -703,7 +703,9 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
     """
     Validates that all modifiers in the order exist in the menu, are available,
     and have proper reference handlers for Deliverect.
-    Allows custom modifiers (not in menu) to pass through with placeholder reference handlers.
+    
+    Adds validation to ensure modifiers are actually in the menu or valid standard 
+    cooking preferences, sides, etc. Prevents arbitrarily adding non-existent modifiers.
 
     Args:
         order_items: List of order items with modifiers
@@ -731,6 +733,21 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
         and mod.get("available", True)
         and not mod.get("snoozed", False)
     }
+    
+    # Get a list of all modifier names for more extensive validation
+    all_modifier_names = [mod.get("name", "").lower() for mod in menu_data.get("modifiers", [])]
+    
+    # Standard valid cooking terms to allow even if not in menu
+    valid_cooking_terms = [
+        "rare", "medium rare", "medium", "medium well", "well done", 
+        "cooked rare", "cooked medium", "cooked well done"
+    ]
+    
+    # Standard valid side terms to allow even if not in menu
+    valid_side_terms = [
+        "side of fries", "extra fries", "side salad", "no sides",
+        "fries on the side", "rice on the side"
+    ]
 
     # Process each item's modifiers
     for item in order_items:
@@ -739,6 +756,7 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
             continue
 
         valid_modifiers_for_item = []
+        invalid_modifiers = []
 
         for mod in item["modifier"]:
             if not isinstance(mod, dict):
@@ -754,16 +772,43 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
                     logger.info(f"[ORDER-VALIDATE] Found valid menu modifier: {mod.get('name')} with reference {mod['reference_handler']}")
                     valid_modifiers_for_item.append(mod)
                 else:
-                    # Modifier doesn't exist in menu but has a reference handler
-                    # We'll keep it anyway and log a warning, rather than dropping it
-                    logger.warning(
-                        f"[ORDER-VALIDATE] Modifier with reference '{mod.get('reference_handler')}' not found in menu but keeping it: {mod.get('name')}"
-                    )
-                    valid_modifiers_for_item.append(mod)
+                    # Modifier doesn't exist in menu by reference handler
+                    # Try to validate it by name before rejecting
+                    mod_name = mod.get("name", "").lower()
+                    if mod_name in modifiers_by_name:
+                        # Found a match by name, update reference handler
+                        menu_mod = modifiers_by_name[mod_name]
+                        mod["reference_handler"] = menu_mod["reference_handler"]
+                        mod["price"] = menu_mod.get("price", 0.0)
+                        logger.info(
+                            f"[ORDER-VALIDATE] Fixed reference handler for modifier: {mod['name']} → {mod['reference_handler']}"
+                        )
+                        valid_modifiers_for_item.append(mod)
+                    elif any(mod_name == term for term in valid_cooking_terms):
+                        # It's a standard cooking preference term
+                        mod["reference_handler"] = f"COOK-{hash(mod_name) % 100:02d}"
+                        logger.info(
+                            f"[ORDER-VALIDATE] Validated standard cooking modifier: {mod['name']} → {mod['reference_handler']}"
+                        )
+                        valid_modifiers_for_item.append(mod)
+                    elif any(mod_name == term for term in valid_side_terms):
+                        # It's a standard side term
+                        mod["reference_handler"] = f"SIDE-{hash(mod_name) % 100:02d}"
+                        logger.info(
+                            f"[ORDER-VALIDATE] Validated standard side modifier: {mod['name']} → {mod['reference_handler']}"
+                        )
+                        valid_modifiers_for_item.append(mod)
+                    else:
+                        # Truly invalid modifier
+                        logger.warning(
+                            f"[ORDER-VALIDATE] Rejecting invalid modifier with reference '{mod.get('reference_handler')}': {mod.get('name')}"
+                        )
+                        invalid_modifiers.append(mod.get('name', 'unknown'))
 
             # Otherwise look it up by name
             elif "name" in mod and mod["name"]:
                 mod_name = mod["name"].lower()
+                
                 # Try exact match first
                 if mod_name in modifiers_by_name:
                     # Found an exact match - fill in the reference handler
@@ -775,10 +820,12 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
                     )
                     valid_modifiers_for_item.append(mod)
                 else:
-                    # Try fuzzy matching
+                    # Try fuzzy matching for close matches
                     found_match = False
+                    
+                    # Check against existing menu modifiers
                     for menu_mod_name, menu_mod in modifiers_by_name.items():
-                        # Check for partial matches in either direction
+                        # Check for exact substring matches in either direction
                         if mod_name in menu_mod_name or menu_mod_name in mod_name:
                             mod["reference_handler"] = menu_mod["reference_handler"]
                             mod["price"] = menu_mod.get("price", 0.0)
@@ -788,42 +835,64 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
                             valid_modifiers_for_item.append(mod)
                             found_match = True
                             break
+                            
+                    # If not found in menu, check against standard terms
+                    if not found_match:
+                        # Check against standard cooking terms
+                        if any(mod_name in term for term in valid_cooking_terms) or any(term in mod_name for term in valid_cooking_terms):
+                            # Standard cooking preference
+                            mod["reference_handler"] = f"COOK-{hash(mod_name) % 100:02d}"
+                            mod["price"] = 0.0
+                            logger.info(
+                                f"[ORDER-VALIDATE] Recognized standard cooking modifier: {mod['name']} → {mod['reference_handler']}"
+                            )
+                            valid_modifiers_for_item.append(mod)
+                            found_match = True
+                        
+                        # Check against standard side terms
+                        elif any(mod_name in term for term in valid_side_terms) or any(term in mod_name for term in valid_side_terms):
+                            # Standard side
+                            mod["reference_handler"] = f"SIDE-{hash(mod_name) % 100:02d}"
+                            mod["price"] = 0.0
+                            logger.info(
+                                f"[ORDER-VALIDATE] Recognized standard side modifier: {mod['name']} → {mod['reference_handler']}"
+                            )
+                            valid_modifiers_for_item.append(mod)
+                            found_match = True
+                        
+                        # Check for very common terms not captured above
+                        elif any(common_term in mod_name for common_term in ["spicy", "sauce", "dressing", "no ice", "extra"]):
+                            # Common modifier types
+                            mod["reference_handler"] = f"MOD-{hash(mod_name) % 100:02d}"
+                            mod["price"] = 0.0
+                            logger.info(
+                                f"[ORDER-VALIDATE] Recognized common modifier: {mod['name']} → {mod['reference_handler']}"
+                            )
+                            valid_modifiers_for_item.append(mod)
+                            found_match = True
                     
                     if not found_match:
-                        # No match found, but create a placeholder reference handler and keep it
-                        # Use proper Deliverect PLU format based on modifier type
-                        mod_lower = mod_name.lower()
-                        # Create PLUs in proper Deliverect format
-                        if any(cooking_term in mod_lower for cooking_term in ["cook", "rare", "medium", "well", "done"]):
-                            # Cooking preference - COOK-XX format
-                            mod_ref = f"COOK-{len(mod_name) % 100:02d}"
-                        elif any(side_term in mod_lower for side_term in ["side", "extra", "add", "fries", "salad"]):
-                            # Side dish - SIDE-XX format
-                            mod_ref = f"SIDE-{len(mod_name) % 100:02d}"
-                        else:
-                            # General modifier - MOD-XX format
-                            mod_ref = f"MOD-{len(mod_name) % 100:02d}"
-                                
-                        mod["reference_handler"] = mod_ref
-                        mod["price"] = mod.get("price", 0.0)
+                        # Truly invalid modifier - reject it
                         logger.warning(
-                            f"[ORDER-VALIDATE] Modifier not found in menu but creating placeholder: {mod.get('name')} → {mod['reference_handler']}"
+                            f"[ORDER-VALIDATE] Invalid modifier not found in menu: {mod['name']}"
                         )
-                        valid_modifiers_for_item.append(mod)
+                        invalid_modifiers.append(mod.get('name', 'unknown'))
             else:
                 logger.warning(
                     "[ORDER-VALIDATE] Modifier has no name or reference handler, skipping"
                 )
+                if mod:
+                    invalid_modifiers.append(str(mod))
 
         # Update the item with valid modifiers
-        if len(valid_modifiers_for_item) < len(item["modifier"]):
+        if len(invalid_modifiers) > 0:
             logger.warning(
-                f"[ORDER-VALIDATE] {len(item['modifier']) - len(valid_modifiers_for_item)} modifiers could not be processed for item {item.get('name')}"
+                f"[ORDER-VALIDATE] Rejected {len(invalid_modifiers)} invalid modifiers for item {item.get('name')}: {', '.join(invalid_modifiers)}"
             )
         
         # Log all the modifiers we're keeping
         if valid_modifiers_for_item:
-            logger.info(f"[ORDER-VALIDATE] Keeping {len(valid_modifiers_for_item)} modifiers for {item.get('name')}")
+            logger.info(f"[ORDER-VALIDATE] Keeping {len(valid_modifiers_for_item)} valid modifiers for {item.get('name')}")
             mod_names = [f"{mod.get('name')}({mod.get('reference_handler')})" for mod in valid_modifiers_for_item]
             logger.info(f"[ORDER-VALIDATE] Modifiers: {', '.join(mod_names)}")
 
