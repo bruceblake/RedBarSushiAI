@@ -609,16 +609,6 @@ def confirm_order_from_initial():
     dtmf_input = request.form.get("Digits", "")
     log_info(f"Order confirmation: Speech='{user_resp}', DTMF='{dtmf_input}'")
 
-    # Interpret response
-    interpreted = None
-    if dtmf_input:
-        interpreted = dtmf_yes_no(dtmf_input)
-    else:
-        if user_said_yes(user_resp):
-            interpreted = "yes"
-        elif user_said_no(user_resp):
-            interpreted = "no"
-
     # Get order data from session
     order_items = json.loads(session.get("order_items_json", "[]"))
     order_id = session.get("order_id", "") or str(uuid.uuid4())
@@ -628,6 +618,56 @@ def confirm_order_from_initial():
 
     # Create voice response
     response = VoiceResponse()
+    
+    # Check for silence (no input detected)
+    if not user_resp and not dtmf_input:
+        # Track confirmation silence retries
+        confirm_silence_retry = session.get("confirm_silence_retry", 0)
+        session["confirm_silence_retry"] = confirm_silence_retry + 1
+        
+        logger.info(f"Silence detected in initial order confirmation (attempt {confirm_silence_retry+1})")
+        
+        if confirm_silence_retry >= 2:
+            # After multiple silent attempts, provide simple DTMF-only options
+            with response.gather(
+                input="dtmf",
+                action="/confirm_order_from_initial",
+                timeout=10,
+                num_digits=1,
+            ) as g:
+                g.say(
+                    "I didn't hear your response. Please press 1 on your keypad to confirm your order, or press 2 to modify it."
+                )
+        else:
+            # First or second silence, prompt again with both speech and DTMF
+            with response.gather(
+                input="speech dtmf",
+                action="/confirm_order_from_initial",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1,
+            ) as g:
+                g.say(
+                    "I didn't hear your response. Please say yes or press 1 to confirm your order, or say no or press 2 to modify it."
+                )
+        return Response(str(response), mimetype="text/xml")
+        
+    # Interpret response
+    interpreted = None
+    if dtmf_input:
+        interpreted = dtmf_yes_no(dtmf_input)
+    else:
+        if user_said_yes(user_resp):
+            interpreted = "yes"
+        elif user_said_no(user_resp):
+            interpreted = "no"
+            
+    # Reset silence counter if we received input
+    session["confirm_silence_retry"] = 0
+    
     log_info(f"User confirmation interpreted as: {interpreted}")
 
     # Handle "yes" - process the order
@@ -1373,16 +1413,6 @@ def confirm_order_after_modification():
         f"Final confirmation after modification: Speech='{user_resp}', DTMF='{dtmf_input}'"
     )
 
-    # Interpret response
-    interpreted = None
-    if dtmf_input:
-        interpreted = dtmf_yes_no(dtmf_input)
-    else:
-        if user_said_yes(user_resp):
-            interpreted = "yes"
-        elif user_said_no(user_resp):
-            interpreted = "no"
-
     # Get order data
     order_items = json.loads(session.get("order_items_json", "[]"))
     order_id = session.get("order_id", "") or str(uuid.uuid4())
@@ -1392,6 +1422,56 @@ def confirm_order_after_modification():
 
     # Create response
     response = VoiceResponse()
+    
+    # Check for silence (no input detected)
+    if not user_resp and not dtmf_input:
+        # Track final confirmation silence retries
+        final_silence_retry = session.get("final_silence_retry", 0)
+        session["final_silence_retry"] = final_silence_retry + 1
+        
+        logger.info(f"Silence detected in final order confirmation (attempt {final_silence_retry+1})")
+        
+        if final_silence_retry >= 2:
+            # After multiple silent attempts, provide simple DTMF-only options with extended timeout
+            with response.gather(
+                input="dtmf",
+                action="/confirm_order_after_modification",
+                timeout=12,
+                num_digits=1,
+            ) as g:
+                g.say(
+                    "I haven't heard your response. Please press 1 on your keypad to confirm your final order, or press 2 if you want to modify it again."
+                )
+        else:
+            # First or second silence, prompt again with both speech and DTMF
+            with response.gather(
+                input="speech dtmf",
+                action="/confirm_order_after_modification",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=8,
+                num_digits=1,
+            ) as g:
+                g.say(
+                    "I didn't hear your response. Please say yes or press 1 to confirm your final order, or say no or press 2 to make more changes."
+                )
+        return Response(str(response), mimetype="text/xml")
+
+    # Interpret response
+    interpreted = None
+    if dtmf_input:
+        interpreted = dtmf_yes_no(dtmf_input)
+    else:
+        if user_said_yes(user_resp):
+            interpreted = "yes"
+        elif user_said_no(user_resp):
+            interpreted = "no"
+            
+    # Reset silence counter if we received input
+    session["final_silence_retry"] = 0
+    
     log_info(f"User final decision: {interpreted}")
 
     # Handle "yes" - process the order
@@ -1702,7 +1782,45 @@ def understanding_fallback():
 
     # Create response
     response = VoiceResponse()
+    
+    # Check for silence (no input detected)
+    if not user_resp and not dtmf_input:
+        # Track silence during understanding fallback
+        understand_silence_retry = session.get("understand_silence_retry", 0)
+        session["understand_silence_retry"] = understand_silence_retry + 1
+        
+        logger.info(f"Silence detected in understanding fallback (attempt {understand_silence_retry+1})")
+        
+        if understand_silence_retry >= 1:
+            # After silence in understanding fallback, provide more guidance and clear options
+            logger.info("Multiple silences in understanding fallback - redirecting to main menu")
+            session["understand_silence_retry"] = 0
+            session["understanding_attempt"] = 0
+            
+            # Give the user a clear message and redirect to main menu
+            response.say("I notice you're not responding. Let me help you with our main menu options instead.")
+            response.redirect("/main_menu_fallback")
+            return Response(str(response), mimetype="text/xml")
+        else:
+            # First silence, try once more with clear options and extended timeout
+            with response.gather(
+                input="speech dtmf",
+                action="/understanding_fallback",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=7,
+                timeout=10,
+                num_digits=1
+            ) as g:
+                g.say(
+                    "I didn't hear your response. Press 1 or say 'menu' to hear our popular menu options. Press 2 or say 'main menu' to go back to the main menu."
+                )
+            return Response(str(response), mimetype="text/xml")
 
+    # Reset silence counter if we got a response
+    session["understand_silence_retry"] = 0
+    
     # After too many fallbacks, force back to main menu
     if understanding_attempt >= 2:
         logger.info("Too many understanding fallbacks - forcing back to main menu")
@@ -1770,6 +1888,47 @@ def modification_silence_fallback():
 
     # Create response
     response = VoiceResponse()
+    
+    # Check for silence (no input detected)
+    if not user_resp and not dtmf_input:
+        # Track silence in modification fallback
+        mod_silence_count = session.get("mod_silence_count", 0)
+        session["mod_silence_count"] = mod_silence_count + 1
+        
+        logger.info(f"Silence detected in modification fallback (attempt {mod_silence_count+1})")
+        
+        # After silence, confirm with user before proceeding with order as-is
+        if mod_silence_count >= 1:
+            logger.warning("Multiple silences in modification fallback - proceeding with order as is")
+            session["mod_silence_count"] = 0
+            session["mod_fallback_count"] = 0
+            session["modify_silence_retry"] = 0
+            
+            # Give clear spoken confirmation before proceeding
+            response.say(
+                "I'll keep your order as is since I'm not hearing your modifications. Let's continue with your order confirmation."
+            )
+            response.redirect("/confirm_order_after_modification")
+            return Response(str(response), mimetype="text/xml")
+        else:
+            # First silence, ask one more time with simplified options
+            with response.gather(
+                input="speech dtmf",
+                action="/modification_silence_fallback",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=8,
+                num_digits=1
+            ) as g:
+                g.say(
+                    "I didn't hear your response. Press 1 or say 'continue' to keep your order as is, or press 2 or say 'cancel' to cancel the order."
+                )
+            return Response(str(response), mimetype="text/xml")
+    
+    # Reset silence counter if we got a response
+    session["mod_silence_count"] = 0
 
     # After too many attempts, just keep the order as is
     if mod_fallback_count >= 2:
@@ -1784,10 +1943,12 @@ def modification_silence_fallback():
         return Response(str(response), mimetype="text/xml")
 
     # If they pressed 1 or said to keep order, confirm as is
-    if dtmf_input == "1" or "keep" in user_resp or "as is" in user_resp:
+    if dtmf_input == "1" or "keep" in user_resp or "as is" in user_resp or "continue" in user_resp:
         # Reset modification silence counter
         session["modify_silence_retry"] = 0
         session["mod_fallback_count"] = 0
+        
+        logger.info("User chose to keep order as is")
 
         # Redirect to confirmation
         response.redirect("/confirm_order_after_modification")
