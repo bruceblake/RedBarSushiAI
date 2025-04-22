@@ -442,9 +442,27 @@ def apply_modifications(
         # Make sure quantity is set
         if "quantity" not in addition:
             addition["quantity"] = 1
+        
+        # Before adding the item, validate its modifiers
+        if addition.get("modifier"):
+            # Create a copy for validation
+            item_for_validation = addition.copy()
+            # Validate the modifiers
+            validated_items = validate_modifiers([item_for_validation])
             
-        # Add the new item
-        logger.info(f"[APPLY-MODS] Adding item: {addition.get('name')} with {len(addition.get('modifier', []))} modifiers")
+            if validated_items:
+                # Replace with validated version
+                addition = validated_items[0]
+                
+                # Check if any modifiers were rejected
+                orig_modifier_count = len(item_for_validation.get("modifier", []))
+                new_modifier_count = len(addition.get("modifier", []))
+                
+                if new_modifier_count < orig_modifier_count:
+                    logger.warning(f"[APPLY-MODS] Rejected {orig_modifier_count - new_modifier_count} invalid modifiers for new item {addition.get('name')}")
+        
+        # Add the new item (with validated modifiers)
+        logger.info(f"[APPLY-MODS] Adding item: {addition.get('name')} with {len(addition.get('modifier', []))} validated modifiers")
         updated_items.append(addition)
 
     # Handle item-specific modifications (adding modifiers to existing items)
@@ -470,7 +488,11 @@ def apply_modifications(
         if "modifier" not in target_item:
             target_item["modifier"] = []
             
-        # Apply the modifiers to the target item
+        # Apply the modifiers to the target item, after validation
+        # First collect all modifiers for validation
+        modifiers_to_validate = []
+        
+        # Convert and format all modifiers
         for mod in modification.get("modifier", []):
             # Check if the modifier is a string or already a dictionary
             if isinstance(mod, str):
@@ -491,9 +513,8 @@ def apply_modifications(
                     "reference_handler": f"MOD-{mod_type}-{mod_name.lower().replace(' ', '-')}"
                 }
                 
-                # Add the properly formatted modifier
-                target_item["modifier"].append(mod_obj)
-                logger.info(f"[APPLY-MODS] Added string modifier '{mod_name}' as object to {item_name}")
+                modifiers_to_validate.append(mod_obj)
+                logger.info(f"[APPLY-MODS] Formatted string modifier '{mod_name}' for validation")
             else:
                 # Ensure the dictionary modifier has all required fields
                 if isinstance(mod, dict):
@@ -507,8 +528,36 @@ def apply_modifications(
                         mod_name = mod["name"].lower()
                         mod["reference_handler"] = f"MOD-{mod_name.replace(' ', '-')}"
                     
-                    target_item["modifier"].append(mod)
-                    logger.info(f"[APPLY-MODS] Added modifier {mod.get('name')} to {item_name}")
+                    modifiers_to_validate.append(mod)
+                    logger.info(f"[APPLY-MODS] Formatted dictionary modifier {mod.get('name')} for validation")
+        
+        # Now validate the modifiers
+        if modifiers_to_validate:
+            # Create a temporary item for validation
+            temp_item = {"name": item_name, "modifier": modifiers_to_validate}
+            # Validate all modifiers at once
+            validated_items = validate_modifiers([temp_item])
+            
+            if validated_items:
+                # Get the validated modifiers
+                valid_modifiers = validated_items[0].get("modifier", [])
+                
+                # Check which modifiers were rejected
+                if len(valid_modifiers) < len(modifiers_to_validate):
+                    valid_mod_names = {mod.get("name", "").lower() for mod in valid_modifiers}
+                    rejected_mods = []
+                    
+                    for mod in modifiers_to_validate:
+                        if mod.get("name", "").lower() not in valid_mod_names:
+                            rejected_mods.append(mod.get("name", "unknown"))
+                    
+                    if rejected_mods:
+                        logger.warning(f"[APPLY-MODS] Rejected invalid modifiers for {item_name}: {', '.join(rejected_mods)}")
+                
+                # Add only the valid modifiers to the target item
+                for valid_mod in valid_modifiers:
+                    target_item["modifier"].append(valid_mod)
+                    logger.info(f"[APPLY-MODS] Added validated modifier {valid_mod.get('name')} to {item_name}")
 
     # Handle removals
     for removal in modifications.get("removals", []):

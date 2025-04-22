@@ -20,6 +20,7 @@ from app.utils.order_utils import (
     dtmf_yes_no,
     user_said_yes,
     user_said_no,
+    validate_modifiers,
 )
 from app.utils.menu_utils import load_menu_data
 from app.utils.helpers import log_info, commit_with_retry
@@ -28,6 +29,45 @@ from twilio.twiml.messaging_response import MessagingResponse
 from sqlalchemy import text
 from app.models import Order
 from app import db
+
+# Helper function to get recent log entries
+def get_last_log_lines(num_lines=20):
+    """Get the last N lines from the log file."""
+    # Create an empty list for lines
+    lines = []
+    try:
+        # First try reading from a standard log location
+        log_paths = [
+            '/app/progress.log',  # Docker container location
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'progress.log'),  # Project root
+            '/var/log/app.log',   # Common Linux log location
+            'app.log'             # Local directory
+        ]
+        
+        # Try each possible log path
+        for log_path in log_paths:
+            if os.path.exists(log_path):
+                with open(log_path, 'r') as f:
+                    # Read all lines and get the last N
+                    all_lines = f.readlines()
+                    lines = all_lines[-num_lines:] if len(all_lines) >= num_lines else all_lines
+                break
+        
+        # If no log file found, try getting the log from the logging module's handlers
+        if not lines:
+            root_logger = logging.getLogger()
+            for handler in root_logger.handlers:
+                if hasattr(handler, 'baseFilename'):
+                    with open(handler.baseFilename, 'r') as f:
+                        all_lines = f.readlines()
+                        lines = all_lines[-num_lines:] if len(all_lines) >= num_lines else all_lines
+                    break
+    except Exception as e:
+        # If we can't read the log file, return an empty list
+        logging.warning(f"Could not read log file: {e}")
+        return []
+    
+    return lines
 
 # Try to import from the original module first
 from app.utils.agent_utils import analyze_user_input, get_order_modifications
@@ -794,6 +834,43 @@ def new_modify_order():
     log_info(f"DEBUG: Before apply_modifications, current_items: {json.dumps(current_order_items)}")
     log_info(f"DEBUG: Before apply_modifications, mods to apply: {json.dumps(modifications)}")
     
+    # First, check if there are any potentially invalid modifiers
+    invalid_modifiers = []
+    
+    # Check for potentially invalid modifiers in additions
+    for addition in modifications.get("additions", []):
+        for mod in addition.get("modifier", []):
+            mod_name = mod.get("name", "").lower() if isinstance(mod, dict) else mod.lower()
+            # Flag unusual or unlikely modifiers for verification
+            if any(unusual in mod_name for unusual in ["5,000", "1000", "500", "special", "extra specia"]):
+                invalid_modifiers.append(mod.get("name") if isinstance(mod, dict) else mod)
+    
+    # Check for potentially invalid modifiers in modifications
+    for modification in modifications.get("modifications", []):
+        for mod in modification.get("modifier", []):
+            mod_name = mod.get("name", "").lower() if isinstance(mod, dict) else mod.lower()
+            # Flag unusual or unlikely modifiers for verification
+            if any(unusual in mod_name for unusual in ["5,000", "1000", "500", "special", "extra specia"]):
+                invalid_modifiers.append(mod.get("name") if isinstance(mod, dict) else mod)
+    
+    # If there are potentially invalid modifiers, ask for confirmation
+    if invalid_modifiers:
+        log_info(f"Detected potentially invalid modifiers: {invalid_modifiers}")
+        response = VoiceResponse()
+        with response.gather(
+            input="speech dtmf",
+            action="/new_modify_order",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            num_digits=1,
+        ) as g:
+            # Create a more readable modifier list
+            modifier_text = ", ".join(invalid_modifiers)
+            g.say(f"I'm not sure if we have '{modifier_text}' available. Please specify a different modifier or say 'continue' to proceed without it.")
+        return Response(str(response), mimetype="text/xml")
+    
     # Try using the more reliable function from order_utils first
     try:
         from app.utils.order_utils import apply_modifications as apply_from_utils
@@ -806,7 +883,44 @@ def new_modify_order():
     
     log_info(f"DEBUG: After apply_modifications, result: {json.dumps(updated_items)}")
 
-    # Update session
+    # Check for rejected modifiers in the logs
+    rejected_modifiers = []
+    # Check the last few log entries for rejected modifiers
+    for line in reversed(get_last_log_lines(20)):
+        if "[APPLY-MODS] Rejected" in line and "invalid modifiers" in line:
+            # Extract the rejected modifiers from the log
+            match = re.search(r"Rejected .* invalid modifiers for .* (.*?)$", line)
+            if match:
+                rejected_text = match.group(1)
+                # Split by commas and remove the trailing period if present
+                rejected_list = [mod.strip().rstrip('.') for mod in rejected_text.split(",")]
+                rejected_modifiers.extend(rejected_list)
+    
+    # If modifiers were rejected during validation, inform the user
+    if rejected_modifiers:
+        log_info(f"Rejected modifiers found in logs: {rejected_modifiers}")
+        # Create a response that informs about invalid modifiers but continues with the order
+        response = VoiceResponse()
+        with response.gather(
+            input="speech dtmf",
+            action="/confirm_order_after_modification",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout="auto",
+            num_digits=1,
+        ) as g:
+            # First, inform about the rejected modifiers
+            modifier_text = ", ".join(rejected_modifiers)
+            order_description = build_order_description(updated_items)
+            g.say(f"We don't have '{modifier_text}' available. Your order is now: {order_description} Total: ${session.get('total_price', 0):.2f}. If correct, say yes or press 1. If you need changes, say no or press 2.")
+        
+        # Update session
+        session["order_items_json"] = json.dumps(updated_items)
+        calculate_bill_amount(updated_items)
+        session["bill_amount"] = int(session.get("total_price", 0) * 100)
+        # Return the response to exit this function
+        return Response(str(response), mimetype="text/xml")
     session["order_items_json"] = json.dumps(updated_items)
     calculate_bill_amount(updated_items)
     session["bill_amount"] = int(session.get("total_price", 0) * 100)
