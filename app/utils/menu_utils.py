@@ -1522,7 +1522,7 @@ def process_meal_deal(meal_deal_item, selections=None):
                         
                         # Check for leading number pattern
                         import re
-                        quantity_match = re.match(r'^(\d+)\s+(.+)$', mod)$', mod)
+                        quantity_match = re.match(r'^(\d+)\s+(.+)$', mod)
                         if quantity_match:
                             try:
                                 mod_quantity = int(quantity_match.group(1))
@@ -1556,7 +1556,7 @@ def process_meal_deal(meal_deal_item, selections=None):
                     # Check for quantity in name "3 Scoops of Rice"
                     if isinstance(mod_name, str):
                         import re
-                        quantity_match = re.match(r'^(\d+)\s+(.+)$', mod_name)$', mod_name)
+                        quantity_match = re.match(r'^(\d+)\s+(.+)$', mod_name)
                         if quantity_match:
                             try:
                                 name_quantity = int(quantity_match.group(1))
@@ -1639,7 +1639,7 @@ def process_meal_deal(meal_deal_item, selections=None):
                 
                 # Check for quantity pattern
                 import re
-                quantity_match = re.match(r'^(\d+)\s+(.+)$', mod)$', mod)
+                quantity_match = re.match(r'^(\d+)\s+(.+)$', mod)
                 if quantity_match:
                     try:
                         mod_quantity = int(quantity_match.group(1))
