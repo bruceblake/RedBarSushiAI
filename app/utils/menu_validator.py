@@ -27,19 +27,16 @@ def analyze_menu_item_modifiers(menu_data):
         logger.warning("[MENU-AI] Invalid menu data provided")
         return menu_data
     
-    # Import OrderParsingAgent only when needed to avoid circular imports
-    from app.utils.agent_utils import OrderParsingAgent
-    
+    # Using simple pattern matching as a fallback if AI agent is unavailable
     try:
-        # Initialize the agent for menu analysis
-        agent = OrderParsingAgent()
-        logger.info("[MENU-AI] Initialized OrderParsingAgent for menu analysis")
+        # Import OrderParsingAgent - will use the stub if real one unavailable
+        from app.utils.agent import OrderParsingAgent
         
-        # Process each menu item to identify required modifiers
+        # Track items that need modifications
         menu_items = menu_data.get('items', [])
-        logger.info(f"[MENU-AI] Analyzing {len(menu_items)} menu items for appropriate modifiers")
+        logger.info(f"[MENU-AI] Analyzing {len(menu_items)} menu items for modifiers")
         
-        # Keep track of existing modifier groups for reuse
+        # First organize existing modifier groups by type for easy reference
         modifier_group_mapping = {}
         for group in menu_data.get('modifierGroups', []):
             group_name = group.get('name', '').lower()
@@ -52,69 +49,86 @@ def analyze_menu_item_modifiers(menu_data):
                 modifier_group_mapping.setdefault('sauces', []).append(group)
             else:
                 modifier_group_mapping.setdefault('other', []).append(group)
-                
-        # Track items that need modifications
+        
+        # If no cooking groups exist, we can't link items to them
+        if not modifier_group_mapping.get('cooking'):
+            logger.info("[MENU-AI] No cooking preference groups found in menu")
+            return menu_data
+            
         updated_items = 0
         
-        # For each menu item, use agent to determine appropriate modifiers
+        # Try to initialize the agent for menu analysis
+        try:
+            agent = OrderParsingAgent()
+            agent_available = True
+            logger.info("[MENU-AI] Initialized OrderParsingAgent for menu analysis")
+        except Exception as e:
+            agent_available = False
+            logger.warning(f"[MENU-AI] OrderParsingAgent not available: {e}")
+        
+        # For each menu item, check if it needs cooking preferences
         for item in menu_items:
             item_name = item.get('name', '')
             if not item_name:
                 continue
                 
-            # Use agent to get details and check if modifiers are needed
-            item_details = agent.menu_tool.get_details(item_name)
-            if not item_details.get('found'):
-                continue
-                
             # Skip if item already has modifiers
             if item.get('modifierGroups') and len(item.get('modifierGroups')) > 0:
                 continue
-                
-            # Use AI to determine if item needs cooking preferences
-            needs_cooking_mods = False
-            try:
-                # Get a smart suggestion for this item
-                modifier_suggestions = agent.get_modifier_suggestions(item_name)
-                
-                # Check if any of the suggestion groups are related to cooking
-                for group_name, group_info in modifier_suggestions.get('modifiers', {}).items():
-                    group_name_lower = group_name.lower()
-                    if ('cook' in group_name_lower or 
-                        'temperature' in group_name_lower or 
-                        'doneness' in group_name_lower):
-                        needs_cooking_mods = True
-                        break
-                        
-                # Additional item-specific AI analysis
-                if not needs_cooking_mods:
-                    item_description = item.get('description', '')
-                    if item_description:
-                        # Items that typically need cooking preferences
-                        cooking_terms = ['steak', 'beef', 'filet', 'ribeye', 'burger', 'meat', 'fish']
-                        if any(term in item_name.lower() or term in item_description.lower() 
-                              for term in cooking_terms):
-                            # Double check with more context - rely on existing modifier data
-                            if modifier_group_mapping.get('cooking'):
-                                needs_cooking_mods = True
-                                logger.info(f"[MENU-AI] Determined {item_name} needs cooking preferences")
-            except Exception as e:
-                logger.error(f"[MENU-AI] Error analyzing {item_name}: {str(e)}")
-                continue
             
-            # If item needs cooking preferences, link it to appropriate modifier group
-            if needs_cooking_mods:
-                # Find existing cooking preference group or use first one
-                cooking_group = None
-                if modifier_group_mapping.get('cooking'):
-                    cooking_group = modifier_group_mapping['cooking'][0]
+            # This flag determines if we should add cooking preferences
+            needs_cooking_mods = False
+            
+            # Try AI approach first if available
+            if agent_available:
+                try:
+                    # Use agent to get details and check if modifiers are needed
+                    item_details = agent.menu_tool.get_details(item_name)
+                    if not item_details.get('found'):
+                        logger.warning(f"[MENU-AI] Agent couldn't find item: {item_name}")
+                    else:
+                        # Try to get modifier suggestions
+                        modifier_suggestions = agent.get_modifier_suggestions(item_name)
+                        
+                        # Check if any of the suggestion groups are related to cooking
+                        for group_name, group_info in modifier_suggestions.get('modifiers', {}).items():
+                            group_name_lower = group_name.lower()
+                            if ('cook' in group_name_lower or 
+                                'temperature' in group_name_lower or 
+                                'doneness' in group_name_lower):
+                                needs_cooking_mods = True
+                                logger.info(f"[MENU-AI] AI determined {item_name} needs cooking preferences")
+                                break
+                except Exception as e:
+                    logger.error(f"[MENU-AI] Error with AI analysis for {item_name}: {str(e)}")
+                    # Will fall back to pattern matching
+            
+            # If AI didn't determine needed modifiers, fall back to pattern matching
+            if not needs_cooking_mods:
+                item_name_lower = item_name.lower()
+                item_description = item.get('description', '').lower()
                 
-                # Link item to cooking group
-                if cooking_group:
-                    cooking_group_id = cooking_group.get('id')
-                    item.setdefault('modifierGroups', []).append(cooking_group_id)
-                    updated_items += 1
-                    logger.info(f"[MENU-AI] Linked {item_name} to cooking preferences group {cooking_group.get('name')}")
+                # Simple pattern matching for items that typically need cooking preferences
+                cooking_items = [
+                    'steak', 'beef', 'filet', 'ribeye', 'burger', 'meat', 'fish',
+                    'tuna', 'salmon', 'frites'
+                ]
+                
+                if any(term in item_name_lower for term in cooking_items) or \
+                   any(term in item_description for term in cooking_items):
+                    needs_cooking_mods = True
+                    logger.info(f"[MENU-AI] Pattern matching determined {item_name} needs cooking preferences")
+            
+            # If this item needs cooking preferences, link it to a cooking group
+            if needs_cooking_mods:
+                # Get the first cooking preference group
+                cooking_group = modifier_group_mapping['cooking'][0]
+                cooking_group_id = cooking_group.get('id')
+                
+                # Link the item to this group
+                item.setdefault('modifierGroups', []).append(cooking_group_id)
+                updated_items += 1
+                logger.info(f"[MENU-AI] Linked {item_name} to cooking preferences group {cooking_group.get('name')}")
         
         logger.info(f"[MENU-AI] Updated {updated_items} items with appropriate modifiers")
         return menu_data
