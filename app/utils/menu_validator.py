@@ -5,9 +5,124 @@ This ensures consistent PLU and price handling throughout the application.
 """
 
 import logging
+import re
+import hashlib
 from app.utils.helpers import get_common_prices
 
 logger = logging.getLogger(__name__)
+
+def analyze_menu_item_modifiers(menu_data):
+    """
+    Analyzes menu items to ensure appropriate modifiers are associated with each item.
+    This function uses natural language understanding to determine appropriate modifiers
+    that should be associated with menu items based on the item description and nature.
+    
+    Args:
+        menu_data: Dict containing the complete menu data structure
+        
+    Returns:
+        Dict: Updated menu data with appropriate modifiers added to items
+    """
+    if not menu_data or not isinstance(menu_data, dict):
+        logger.warning("[MENU-AI] Invalid menu data provided")
+        return menu_data
+    
+    # Import OrderParsingAgent only when needed to avoid circular imports
+    from app.utils.agent_utils import OrderParsingAgent
+    
+    try:
+        # Initialize the agent for menu analysis
+        agent = OrderParsingAgent()
+        logger.info("[MENU-AI] Initialized OrderParsingAgent for menu analysis")
+        
+        # Process each menu item to identify required modifiers
+        menu_items = menu_data.get('items', [])
+        logger.info(f"[MENU-AI] Analyzing {len(menu_items)} menu items for appropriate modifiers")
+        
+        # Keep track of existing modifier groups for reuse
+        modifier_group_mapping = {}
+        for group in menu_data.get('modifierGroups', []):
+            group_name = group.get('name', '').lower()
+            # Categorize by type
+            if any(term in group_name for term in ['cook', 'temperature', 'doneness']):
+                modifier_group_mapping.setdefault('cooking', []).append(group)
+            elif any(term in group_name for term in ['side', 'addition']):
+                modifier_group_mapping.setdefault('sides', []).append(group)
+            elif any(term in group_name for term in ['sauce', 'dressing']):
+                modifier_group_mapping.setdefault('sauces', []).append(group)
+            else:
+                modifier_group_mapping.setdefault('other', []).append(group)
+                
+        # Track items that need modifications
+        updated_items = 0
+        
+        # For each menu item, use agent to determine appropriate modifiers
+        for item in menu_items:
+            item_name = item.get('name', '')
+            if not item_name:
+                continue
+                
+            # Use agent to get details and check if modifiers are needed
+            item_details = agent.menu_tool.get_details(item_name)
+            if not item_details.get('found'):
+                continue
+                
+            # Skip if item already has modifiers
+            if item.get('modifierGroups') and len(item.get('modifierGroups')) > 0:
+                continue
+                
+            # Use AI to determine if item needs cooking preferences
+            needs_cooking_mods = False
+            try:
+                # Get a smart suggestion for this item
+                modifier_suggestions = agent.get_modifier_suggestions(item_name)
+                
+                # Check if any of the suggestion groups are related to cooking
+                for group_name, group_info in modifier_suggestions.get('modifiers', {}).items():
+                    group_name_lower = group_name.lower()
+                    if ('cook' in group_name_lower or 
+                        'temperature' in group_name_lower or 
+                        'doneness' in group_name_lower):
+                        needs_cooking_mods = True
+                        break
+                        
+                # Additional item-specific AI analysis
+                if not needs_cooking_mods:
+                    item_description = item.get('description', '')
+                    if item_description:
+                        # Items that typically need cooking preferences
+                        cooking_terms = ['steak', 'beef', 'filet', 'ribeye', 'burger', 'meat', 'fish']
+                        if any(term in item_name.lower() or term in item_description.lower() 
+                              for term in cooking_terms):
+                            # Double check with more context - rely on existing modifier data
+                            if modifier_group_mapping.get('cooking'):
+                                needs_cooking_mods = True
+                                logger.info(f"[MENU-AI] Determined {item_name} needs cooking preferences")
+            except Exception as e:
+                logger.error(f"[MENU-AI] Error analyzing {item_name}: {str(e)}")
+                continue
+            
+            # If item needs cooking preferences, link it to appropriate modifier group
+            if needs_cooking_mods:
+                # Find existing cooking preference group or use first one
+                cooking_group = None
+                if modifier_group_mapping.get('cooking'):
+                    cooking_group = modifier_group_mapping['cooking'][0]
+                
+                # Link item to cooking group
+                if cooking_group:
+                    cooking_group_id = cooking_group.get('id')
+                    item.setdefault('modifierGroups', []).append(cooking_group_id)
+                    updated_items += 1
+                    logger.info(f"[MENU-AI] Linked {item_name} to cooking preferences group {cooking_group.get('name')}")
+        
+        logger.info(f"[MENU-AI] Updated {updated_items} items with appropriate modifiers")
+        return menu_data
+        
+    except Exception as e:
+        logger.error(f"[MENU-AI] Error in menu analysis: {str(e)}")
+        # Return original menu data if any error occurs
+        return menu_data
 
 
 def validate_and_fix_menu_data(menu_data):
@@ -739,5 +854,9 @@ def validate_and_fix_menu_data(menu_data):
     if fixed_modifier_count > 0:
         fixes.append(f"Fixed {fixed_modifier_count} modifiers")
         logger.info(f"[MENU-FIX] Fixed {fixed_modifier_count} modifiers")
+    
+    # Analyze menu items and associate appropriate modifiers using AI
+    logger.info("[MENU-FIX] Analyzing menu items for appropriate modifiers using AI...")
+    menu_data = analyze_menu_item_modifiers(menu_data)
 
     return menu_data

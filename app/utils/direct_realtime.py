@@ -1199,7 +1199,7 @@ def process_audio(audio_data, callback=None):
         Use the menu data to accurately quote prices and menu options."""
 
         # Create a basic user message
-        user_message = "Welcome to Red Bar Sushi, how may I help you today?"
+        user_message = "Welcome to Red Bar Sushi"
 
         # Create a chat completion - use the module instead of client
         # This allows the tests to mock the API calls
