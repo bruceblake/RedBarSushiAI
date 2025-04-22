@@ -523,7 +523,7 @@ def handle_main_menu_selection():
     if digits:
         if digits == "1":  # Order
             response.say("I'll help you place an order.")
-            response.redirect("/greeting")  # Redirect to order system
+            response.redirect("/take_order")  # Redirect to order system
             return Response(str(response), mimetype="text/xml")
         elif digits == "2":  # Menu info
             response.say("Let me tell you about our menu.")

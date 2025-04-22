@@ -112,24 +112,7 @@ def handle_menu_questions():
         # Log the query
         logger.info(f"Menu question - Speech: '{spoken_query}', DTMF: '{digits}'")
         
-        # Handle digits as shortcut for common queries
-        if digits:
-            if digits == "1":  # Popular items
-                spoken_query = "What are your most popular items?"
-            elif digits == "2":  # Vegetarian options
-                spoken_query = "What vegetarian options do you have?"
-            elif digits == "3":  # Special rolls
-                spoken_query = "What are your special rolls?"
-            elif digits == "0":  # Return to main menu
-                response.say("Returning to the main menu.")
-                response.redirect("/main_menu")
-                return Response(str(response), mimetype="text/xml")
-            else:
-                # Unknown digit command
-                response.say("I didn't recognize that command. Let me help you with our menu.")
-                response.redirect("/handle_menu_questions?asked=false")
-                return Response(str(response), mimetype="text/xml")
-        
+        # Handle digits as shortcut for common queries        
         # Empty query handling
         if not spoken_query:
             # Handle as silence
