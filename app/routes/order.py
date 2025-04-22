@@ -660,130 +660,73 @@ def confirm_order_from_initial():
                     + ". Press 1 to remove them, 2 to cancel."
                 )
             return Response(str(response), mimetype="text/xml")
-
-        # Check cooldown
-        if not can_process_action(sender, "order_food", 60):
-            response.say(
-                "You're placing orders too quickly. Please wait a moment and try again."
-            )
+            
+        # CRITICAL: Check for invalid modifiers that aren't in the menu
+        # Get all valid modifiers from the menu
+        menu_data = load_menu_data(force_refresh=True)
+        valid_modifiers = {
+            mod.get("name", "").lower(): mod
+            for mod in menu_data.get("modifiers", [])
+            if mod.get("name") and mod.get("available", True) and not mod.get("snoozed", False)
+        }
+        
+        # Check each item for invalid modifiers
+        invalid_item_modifiers = []
+        
+        for item in order_items:
+            item_name = item.get("name", "")
+            invalid_mods = []
+            
+            # Check each modifier against the menu
+            for mod in item.get("modifier", []):
+                mod_name = mod.get("name", "").lower()
+                # Skip standard cooking terms - these are the only exceptions
+                if mod_name in ["rare", "medium rare", "medium", "medium well", "well done"]:
+                    continue
+                
+                # Check if modifier exists in the menu
+                if mod_name not in valid_modifiers:
+                    invalid_mods.append(mod.get("name", "unknown"))
+            
+            # If invalid modifiers found for this item, add to the list
+            if invalid_mods:
+                invalid_item_modifiers.append({
+                    "item": item_name,
+                    "invalid_modifiers": invalid_mods
+                })
+        
+        # If any items have invalid modifiers, alert the user
+        if invalid_item_modifiers:
+            # Create a readable message about the invalid modifiers
+            alert_message = "I'm sorry, but some of your order items have modifiers that are not on our menu. "
+            
+            for invalid_item in invalid_item_modifiers[:2]:  # Limit to first 2 items for brevity
+                item_name = invalid_item["item"]
+                invalid_mods = ", ".join(invalid_item["invalid_modifiers"])
+                alert_message += f"Your {item_name} has invalid modifiers: {invalid_mods}. "
+            
+            alert_message += "Would you like to continue without these modifiers, or modify your order? Press 1 to continue without invalid modifiers, or press 2 to modify your order."
+            
+            # Prompt the user to decide what to do
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_invalid_modifiers",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1
+            ) as g:
+                g.say(alert_message)
+            
+            # Store the invalid modifiers in session for handling
+            session["invalid_item_modifiers"] = json.dumps(invalid_item_modifiers)
+            
             return Response(str(response), mimetype="text/xml")
 
-        # Save to database
-        try:
-            text_msg = session.get("order_message", "")
-            new_order = Order(
-                id=order_id, sender=sender, caller_name=caller_name, message=text_msg
-            )
-            db.session.add(new_order)
-            if not commit_with_retry(db.session):
-                raise Exception("Commit failed")
-            log_info(f"Order {order_id} saved successfully.")
-        except Exception:
-            db.session.rollback()
-            response.say(
-                "Sorry, we encountered a database issue. Please try again later."
-            )
-            return Response(str(response), mimetype="text/xml")
-
-        # Get total price
-        total_price = session.get("total_price", 0.0)
-
-        # Build and send to Deliverect
-        try:
-            # Import the validation function to ensure all items have reference handlers
-            from app.utils.order_utils import prepare_order_for_deliverect
-
-            # Validate order items before building order
-            validated_items = prepare_order_for_deliverect(order_items)
-
-            # Check if we still have valid items after validation
-            if not validated_items:
-                log_info(
-                    "No valid items with reference handlers in order, cannot submit to Deliverect"
-                )
-                # Don't fail here since we still want to save the order in our system
-            else:
-                # Build the order with validated items
-                deliverect_payload = build_deliverect_order(
-                    sender=sender,
-                    caller_name=caller_name,
-                    order_items=validated_items,
-                    total_price=total_price,
-                    order_id=order_id,
-                )
-
-                response_deliv = requests.post(
-                    DELIVERECT_API_URL,
-                    json=deliverect_payload,
-                    headers=get_deliverect_headers(),
-                    timeout=10,
-                )
-
-                if response_deliv.status_code != 200:
-                    log_info(
-                        f"Deliverect API error: Status {response_deliv.status_code}, Response: {response_deliv.text}"
-                    )
-                else:
-                    log_info(
-                        f"Deliverect order successfully submitted: {response_deliv.text}"
-                    )
-        except Exception as e:
-            log_info(f"Error sending order to Deliverect: {str(e)}")
-
-        # Send SMS confirmation
-        import tasks
-
-        try:
-            log_info(
-                f"Attempting to send SMS confirmation task directly for order {order_id}"
-            )
-            # Call task directly for now until Redis/Celery is properly setup
-            tasks.send_confirmation_sms_task(
-                order_id,
-                session.get("order_message", ""),
-                sender,
-                caller_name,
-                session.get("bill_amount", 0),
-                order_items,
-            )
-            log_info(
-                f"SMS confirmation task executed successfully for order {order_id}"
-            )
-        except Exception as task_error:
-            log_info(f"Error sending SMS confirmation: {task_error}")
-            # Fall back to direct SMS sending
-            try:
-                # Send a simpler message directly
-                session.get("order_message", "")
-                simple_msg = f"Thank you for your order! Your order ID is {order_id[:8]}. A confirmation will be sent shortly."
-                twilio_client.messages.create(
-                    body=simple_msg, from_=TWILIO_PHONE_NUMBER, to=sender
-                )
-                log_info(f"Sent simple order confirmation directly via SMS to {sender}")
-            except Exception as sms_error:
-                log_info(f"Error sending direct SMS confirmation: {sms_error}")
-
-        # Calculate prep time and respond
-        time_taken = DEFAULT_PREP_TIME_BASE + (PREP_TIME_PER_ITEM * len(order_items))
-        response.say(
-            f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status."
-        )
-        
-        # Instead of hanging up, ask if they need anything else
-        with response.gather(
-            input="speech dtmf",
-            action="/order_completion_options",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout=5,
-            timeout=7,
-            num_digits=1
-        ) as g:
-            g.say("Is there anything else you'd like help with today? Press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call.")
-        
-        # Fallback if no input received
-        response.redirect("/order_completion_options")
+        # Redirect to the order checkout process which will handle everything
+        response.redirect("/process_order_checkout")
 
     # Handle "no" - go to modification
     elif interpreted == "no":
@@ -835,7 +778,13 @@ def confirm_order_from_initial():
 
 @order_bp.route("/new_modify_order", methods=["POST"])
 def new_modify_order():
-    """Handle order modifications"""
+    """
+    Handle order modifications with strict validation.
+    
+    This route handles order changes including additions, removals, and modifications.
+    It verifies all modifiers against the menu to ensure they exist and are available,
+    rejecting any that don't meet these criteria.
+    """
     # Get user's modification request
     user_resp = request.form.get("SpeechResult", "").strip()
 
@@ -879,18 +828,18 @@ def new_modify_order():
                 )
         return Response(str(response), mimetype="text/xml")
 
-    log_info(f"User requested order modification: {user_resp}")
+    logger.info(f"User requested order modification: {user_resp}")
     current_order_items = json.loads(session.get("order_items_json", "[]"))
-    log_info(f"DEBUG: Initial order items when starting modification: {json.dumps(current_order_items)}")
+    logger.info(f"Initial order items when starting modification: {len(current_order_items)} items")
     
     # Clear the session if we're starting a new conversation
     if len(current_order_items) > 0 and any(item.get("name") == "Chicken Sate" for item in current_order_items):
-        log_info("DEBUG: Found unexpected Chicken Sate in order, clearing session to start fresh")
+        logger.info("Found unexpected Chicken Sate in order, clearing session to start fresh")
         # Reset the session with only the steak item
         clean_order = [item for item in current_order_items if item.get("name") == "Delicious Steak Frites"]
         current_order_items = clean_order
         session["order_items_json"] = json.dumps(current_order_items)
-        log_info(f"DEBUG: Cleaned order items: {json.dumps(current_order_items)}")
+        logger.info(f"Cleaned order items: {len(current_order_items)} items")
 
     # Use agent to interpret modifications
     modifications = get_order_modifications(user_resp, current_order_items)
@@ -922,33 +871,132 @@ def new_modify_order():
             )
         return Response(str(response), mimetype="text/xml")
 
-    # Apply modifications
-    log_info(f"DEBUG: Before apply_modifications, current_items: {json.dumps(current_order_items)}")
-    log_info(f"DEBUG: Before apply_modifications, mods to apply: {json.dumps(modifications)}")
+    # Load the menu for modifier validation
+    menu_data = load_menu_data(force_refresh=True)
     
-    # First, check if there are any potentially invalid modifiers
+    # Get all valid modifiers from the menu
+    valid_menu_modifiers = {
+        mod.get("name", "").lower(): mod
+        for mod in menu_data.get("modifiers", [])
+        if mod.get("name") and mod.get("available", True) and not mod.get("snoozed", False)
+    }
+    
+    # Standard cooking terms that should always be accepted
+    cooking_terms = ["rare", "medium rare", "medium", "medium well", "well done"]
+    
+    logger.info(f"Found {len(valid_menu_modifiers)} valid modifiers in menu")
+    
+    # Apply strict validation to all modifiers in additions and modifications
     invalid_modifiers = []
     
-    # Check for potentially invalid modifiers in additions
+    # Validate modifiers in additions
     for addition in modifications.get("additions", []):
-        for mod in addition.get("modifier", []):
-            mod_name = mod.get("name", "").lower() if isinstance(mod, dict) else mod.lower()
-            # Flag unusual or unlikely modifiers for verification
-            if any(unusual in mod_name for unusual in ["5,000", "1000", "500", "special", "extra specia"]):
-                invalid_modifiers.append(mod.get("name") if isinstance(mod, dict) else mod)
+        if "modifier" in addition and addition["modifier"]:
+            valid_addition_mods = []
+            
+            for mod in addition["modifier"]:
+                mod_name = mod.get("name", "").lower() if isinstance(mod, dict) else mod.lower()
+                
+                # Validation priority:
+                # 1. First check exact match by name in menu
+                # 2. Then allow only standard cooking terms as exceptions
+                # 3. Reject everything else
+                
+                if mod_name in valid_menu_modifiers:
+                    # Valid menu modifier
+                    if isinstance(mod, dict):
+                        # Update reference handler and price from menu
+                        menu_mod = valid_menu_modifiers[mod_name]
+                        mod["reference_handler"] = menu_mod.get("reference_handler")
+                        mod["price"] = menu_mod.get("price", 0.0)
+                    else:
+                        # Convert string to proper modifier dict
+                        menu_mod = valid_menu_modifiers[mod_name]
+                        mod = {
+                            "name": menu_mod.get("name"),
+                            "reference_handler": menu_mod.get("reference_handler"),
+                            "price": menu_mod.get("price", 0.0),
+                            "quantity": 1
+                        }
+                    valid_addition_mods.append(mod)
+                    logger.info(f"Validated modifier with exact menu match: {mod_name}")
+                elif mod_name in cooking_terms:
+                    # Standard cooking term
+                    if isinstance(mod, dict):
+                        mod["reference_handler"] = f"COOK-{hash(mod_name) % 100:02d}"
+                    else:
+                        mod = {
+                            "name": mod_name.capitalize(),
+                            "reference_handler": f"COOK-{hash(mod_name) % 100:02d}",
+                            "price": 0.0,
+                            "quantity": 1
+                        }
+                    valid_addition_mods.append(mod)
+                    logger.info(f"Validated standard cooking modifier: {mod_name}")
+                else:
+                    # Invalid modifier - reject it
+                    invalid_modifiers.append(mod_name)
+                    logger.warning(f"Rejected invalid modifier in addition: {mod_name}")
+            
+            # Replace with only valid modifiers
+            addition["modifier"] = valid_addition_mods
     
-    # Check for potentially invalid modifiers in modifications
+    # Validate modifiers in item-specific modifications
     for modification in modifications.get("modifications", []):
-        for mod in modification.get("modifier", []):
-            mod_name = mod.get("name", "").lower() if isinstance(mod, dict) else mod.lower()
-            # Flag unusual or unlikely modifiers for verification
-            if any(unusual in mod_name for unusual in ["5,000", "1000", "500", "special", "extra specia"]):
-                invalid_modifiers.append(mod.get("name") if isinstance(mod, dict) else mod)
+        if "modifier" in modification and modification["modifier"]:
+            valid_mod_mods = []
+            
+            for mod in modification["modifier"]:
+                mod_name = mod.get("name", "").lower() if isinstance(mod, dict) else mod.lower()
+                
+                # Same validation priority as above
+                if mod_name in valid_menu_modifiers:
+                    # Valid menu modifier
+                    if isinstance(mod, dict):
+                        # Update reference handler and price from menu
+                        menu_mod = valid_menu_modifiers[mod_name]
+                        mod["reference_handler"] = menu_mod.get("reference_handler")
+                        mod["price"] = menu_mod.get("price", 0.0)
+                    else:
+                        # Convert string to proper modifier dict
+                        menu_mod = valid_menu_modifiers[mod_name]
+                        mod = {
+                            "name": menu_mod.get("name"),
+                            "reference_handler": menu_mod.get("reference_handler"),
+                            "price": menu_mod.get("price", 0.0),
+                            "quantity": 1
+                        }
+                    valid_mod_mods.append(mod)
+                    logger.info(f"Validated modifier with exact menu match: {mod_name}")
+                elif mod_name in cooking_terms:
+                    # Standard cooking term
+                    if isinstance(mod, dict):
+                        mod["reference_handler"] = f"COOK-{hash(mod_name) % 100:02d}"
+                    else:
+                        mod = {
+                            "name": mod_name.capitalize(),
+                            "reference_handler": f"COOK-{hash(mod_name) % 100:02d}",
+                            "price": 0.0,
+                            "quantity": 1
+                        }
+                    valid_mod_mods.append(mod)
+                    logger.info(f"Validated standard cooking modifier: {mod_name}")
+                else:
+                    # Invalid modifier - reject it
+                    invalid_modifiers.append(mod_name)
+                    logger.warning(f"Rejected invalid modifier in modification: {mod_name}")
+            
+            # Replace with only valid modifiers
+            modification["modifier"] = valid_mod_mods
     
-    # If there are potentially invalid modifiers, ask for confirmation
+    # If invalid modifiers were detected, inform the user
     if invalid_modifiers:
-        log_info(f"Detected potentially invalid modifiers: {invalid_modifiers}")
-        response = VoiceResponse()
+        logger.warning(f"Detected invalid modifiers: {invalid_modifiers}")
+        
+        # Get menu suggestions for alternatives
+        suggested_alternatives = list(valid_menu_modifiers.keys())[:5]  # Take first 5 valid modifiers
+        
+        # Create a response informing about invalid modifiers
         with response.gather(
             input="speech dtmf",
             action="/new_modify_order",
@@ -958,72 +1006,58 @@ def new_modify_order():
             speech_timeout="auto",
             num_digits=1,
         ) as g:
-            # Create a more readable modifier list
+            # First, inform about the rejected modifiers
             modifier_text = ", ".join(invalid_modifiers)
-            g.say(f"I'm not sure if we have '{modifier_text}' available. Please specify a different modifier or say 'continue' to proceed without it.")
+            suggestion_text = ""
+            if suggested_alternatives:
+                suggestion_text = f" Some available modifiers include: {', '.join(suggested_alternatives)}."
+                
+            g.say(f"I'm sorry, but we don't have '{modifier_text}' on our menu.{suggestion_text} Please specify a different modifier or press 1 to continue without these modifiers.")
         return Response(str(response), mimetype="text/xml")
     
-    # Try using the more reliable function from order_utils first
+    # Apply modifications using the validated data
     try:
         from app.utils.order_utils import apply_modifications as apply_from_utils
-        log_info("Using apply_modifications from order_utils.py")
+        logger.info("Using apply_modifications from order_utils.py")
         updated_items = apply_from_utils(current_order_items, modifications)
     except Exception as e:
-        log_info(f"Error using apply_modifications from order_utils.py: {str(e)}")
+        logger.error(f"Error using apply_modifications from order_utils.py: {str(e)}")
         # Fall back to the local function
         updated_items = apply_modifications(current_order_items, modifications)
     
-    log_info(f"DEBUG: After apply_modifications, result: {json.dumps(updated_items)}")
+    logger.info(f"Order updated: {len(updated_items)} items with modifications applied")
 
-    # Check for rejected modifiers in the logs
-    rejected_modifiers = []
-    # Check the last few log entries for rejected modifiers
-    for line in reversed(get_last_log_lines(20)):
-        if "[APPLY-MODS] Rejected" in line and "invalid modifiers" in line:
-            # Extract the rejected modifiers from the log
-            match = re.search(r"Rejected .* invalid modifiers for .* (.*?)$", line)
-            if match:
-                rejected_text = match.group(1)
-                # Split by commas and remove the trailing period if present
-                rejected_list = [mod.strip().rstrip('.') for mod in rejected_text.split(",")]
-                rejected_modifiers.extend(rejected_list)
+    # CRITICAL: Perform one final validation to ensure all items and modifiers are valid
+    from app.utils.order_utils import prepare_order_for_deliverect
     
-    # If modifiers were rejected during validation, inform the user
-    if rejected_modifiers:
-        log_info(f"Rejected modifiers found in logs: {rejected_modifiers}")
-        # Create a response that informs about invalid modifiers but continues with the order
-        response = VoiceResponse()
-        with response.gather(
-            input="speech dtmf",
-            action="/confirm_order_after_modification",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout="auto",
-            num_digits=1,
-        ) as g:
-            # First, inform about the rejected modifiers
-            modifier_text = ", ".join(rejected_modifiers)
-            order_description = build_order_description(updated_items)
-            g.say(f"We don't have '{modifier_text}' available. Your order is now: {order_description} Total: ${session.get('total_price', 0):.2f}. If correct, say yes or press 1. If you need changes, say no or press 2.")
+    try:
+        # This is the most strict validation that ensures only valid menu items with valid modifiers remain
+        validated_items = prepare_order_for_deliverect(updated_items)
         
-        # Update session
-        session["order_items_json"] = json.dumps(updated_items)
-        calculate_bill_amount(updated_items)
-        session["bill_amount"] = int(session.get("total_price", 0) * 100)
-        # Return the response to exit this function
-        return Response(str(response), mimetype="text/xml")
+        # Update order with strictly validated items
+        updated_items = validated_items
+        logger.info(f"Final validation completed: {len(validated_items)} valid items remain")
+        
+        # Check for items or modifiers that were removed during validation
+        if len(validated_items) < len(updated_items):
+            logger.warning(f"Validation removed {len(updated_items) - len(validated_items)} invalid items")
+    except Exception as e:
+        logger.error(f"Error during final validation: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        # Continue with the order as-is if validation fails
+    
+    # Update session with the validated order
     session["order_items_json"] = json.dumps(updated_items)
     calculate_bill_amount(updated_items)
     session["bill_amount"] = int(session.get("total_price", 0) * 100)
     order_description = build_order_description(updated_items)
     
     # Log detailed order information including modifiers
-    log_info(f"Order updated after modification: {updated_items}")
+    logger.info(f"Final order after complete validation: {len(updated_items)} items")
     for item in updated_items:
         if "modifier" in item and item["modifier"]:
-            mod_list = [f"{mod.get('name', 'unknown')} (ref: {mod.get('reference_handler', 'none')})" for mod in item["modifier"]]
-            log_info(f"Item {item.get('name')} has {len(item['modifier'])} modifiers: {', '.join(mod_list)}")
+            mod_list = [f"{mod.get('name', 'unknown')}" for mod in item["modifier"]]
+            logger.info(f"Item {item.get('name')} has {len(item['modifier'])} modifiers: {', '.join(mod_list)}")
 
     # Confirm updated order
     confirmation_message = (
@@ -1418,9 +1452,98 @@ def confirm_order_after_modification():
         # Send to Deliverect and SMS confirmation
         try:
             # Import the validation function to ensure all items have reference handlers
-            from app.utils.order_utils import prepare_order_for_deliverect
+            from app.utils.order_utils import prepare_order_for_deliverect, validate_modifiers
+            from app.utils.menu_utils import load_menu_data
 
-            # Validate order items before building order
+            # CRITICAL: First validate all modifiers strictly against the menu
+            # Load the current menu data to get valid modifiers
+            menu_data = load_menu_data(force_refresh=True)
+            
+            # Get all valid modifiers from the menu (only available, non-snoozed modifiers)
+            valid_menu_modifiers = {
+                mod.get("name", "").lower(): mod
+                for mod in menu_data.get("modifiers", [])
+                if mod.get("name") and mod.get("available", True) and not mod.get("snoozed", False)
+            }
+            
+            # Validate modifiers first
+            logger.info(f"Performing strict modifier validation on {len(order_items)} items before final submission")
+            
+            # Standard cooking terms that are always allowed
+            cooking_terms = ["rare", "medium rare", "medium", "medium well", "well done"]
+            
+            # Track any rejected modifiers to inform the user
+            all_rejected_modifiers = []
+            
+            # For each item, perform strict validation of modifiers
+            for item in order_items:
+                if "modifier" in item and item["modifier"]:
+                    valid_item_mods = []
+                    rejected_item_mods = []
+                    
+                    for mod in item["modifier"]:
+                        if not isinstance(mod, dict) or "name" not in mod:
+                            continue
+                            
+                        mod_name = mod.get("name", "").lower()
+                        
+                        # Validation priority:
+                        # 1. First check exact match by name in menu
+                        # 2. Then allow only standard cooking terms as exceptions
+                        # 3. Reject everything else
+                        
+                        if mod_name in valid_menu_modifiers:
+                            # Found exact match by name in menu
+                            menu_mod = valid_menu_modifiers[mod_name]
+                            mod["reference_handler"] = menu_mod.get("reference_handler")
+                            mod["price"] = menu_mod.get("price", 0.0)
+                            valid_item_mods.append(mod)
+                            logger.info(f"Validated modifier with exact menu match: {mod_name}")
+                        elif mod_name in cooking_terms:
+                            # Special case for cooking preferences (these are the ONLY exceptions allowed)
+                            mod["reference_handler"] = f"COOK-{hash(mod_name) % 100:02d}"
+                            valid_item_mods.append(mod)
+                            logger.info(f"Validated standard cooking modifier: {mod_name}")
+                        else:
+                            # Not in menu - reject it!
+                            rejected_item_mods.append(mod_name)
+                            all_rejected_modifiers.append(mod_name)
+                            logger.warning(f"Rejected non-menu modifier in final confirmation: {mod_name}")
+                    
+                    # Update with only valid modifiers
+                    item["modifier"] = valid_item_mods
+                    
+                    if rejected_item_mods:
+                        logger.warning(f"Removed {len(rejected_item_mods)} invalid modifiers from {item.get('name')}: {', '.join(rejected_item_mods)}")
+            
+            # If we found invalid modifiers, inform the user
+            if all_rejected_modifiers:
+                # Create a deduplicated list of rejected modifiers
+                unique_rejected = list(set(all_rejected_modifiers))
+                logger.warning(f"Found {len(unique_rejected)} invalid modifiers: {', '.join(unique_rejected)}")
+                
+                # Store rejected modifiers in session to reference later if needed
+                session["rejected_modifiers"] = json.dumps(unique_rejected)
+                
+                # Route through the standard invalid modifier handler with the updated order items
+                session["order_items_json"] = json.dumps(order_items)
+                
+                with response.gather(
+                    input="speech dtmf",
+                    action="/handle_invalid_modifiers",
+                    enhanced=True,
+                    speech_model="phone_call",
+                    language="en-US",
+                    speech_timeout="auto",
+                    num_digits=1,
+                ) as g:
+                    g.say(
+                        f"I'm sorry, but the following modifiers aren't on our menu: {', '.join(unique_rejected)}. "
+                        "Press 1 or say 'continue' to remove them and continue with your order, or press 2 or say 'modify' to make changes."
+                    )
+                return Response(str(response), mimetype="text/xml")
+            
+            # Now perform full validation through prepare_order_for_deliverect
             validated_items = prepare_order_for_deliverect(order_items)
 
             # Check if we still have valid items after validation
@@ -2203,6 +2326,333 @@ def save_contact_info():
     
     return Response(str(response), mimetype="text/xml")
 
+@order_bp.route("/process_order_checkout", methods=["GET", "POST"])
+def process_order_checkout():
+    """
+    Process the final order checkout after all validations.
+    This endpoint handles the actual order submission to Deliverect.
+    
+    IMPORTANT: This is the final validation point that ensures only valid order items
+    with valid modifiers are sent to Deliverect. All invalid items or modifiers are
+    strictly filtered out.
+    """
+    # Get order data from session
+    order_items = json.loads(session.get("order_items_json", "[]"))
+    order_id = session.get("order_id", "") or str(uuid.uuid4())
+    session["order_id"] = order_id
+    sender = session.get("sender", "")
+    caller_name = session.get("caller_name", "Valued Customer")
+    
+    # Create voice response
+    response = VoiceResponse()
+    
+    # Log starting checkout process
+    logger.info(f"Starting checkout process for order {order_id} with {len(order_items)} items")
+    
+    # Check cooldown
+    if not can_process_action(sender, "order_food", 60):
+        response.say(
+            "You're placing orders too quickly. Please wait a moment and try again."
+        )
+        return Response(str(response), mimetype="text/xml")
+
+    # CRITICAL: Comprehensive validation of all order items and modifiers
+    # This is the final validation gate before the order is processed
+    try:
+        # Import the validation function to ensure all items have reference handlers
+        from app.utils.order_utils import prepare_order_for_deliverect
+        
+        # Log original order details before validation
+        for item in order_items:
+            mod_count = len(item.get("modifier", []))
+            logger.info(f"Original order item: {item.get('name')} with {mod_count} modifiers")
+            if mod_count > 0:
+                mod_names = [mod.get('name', 'unknown') for mod in item.get("modifier", [])]
+                logger.info(f"Original modifiers for {item.get('name')}: {', '.join(mod_names)}")
+        
+        # Full strict validation - this ensures only menu items with valid modifiers remain
+        validated_items = prepare_order_for_deliverect(order_items)
+        
+        # Update the session with the fully validated items
+        session["order_items_json"] = json.dumps(validated_items)
+        
+        # Log validation results
+        if len(validated_items) < len(order_items):
+            logger.warning(f"Validation removed {len(order_items) - len(validated_items)} invalid items")
+            
+        # Log final validated order details
+        logger.info(f"Final validated order has {len(validated_items)} items")
+        for item in validated_items:
+            mod_count = len(item.get("modifier", []))
+            logger.info(f"Validated order item: {item.get('name')} with {mod_count} modifiers")
+            if mod_count > 0:
+                mod_names = [mod.get('name', 'unknown') for mod in item.get("modifier", [])]
+                logger.info(f"Validated modifiers for {item.get('name')}: {', '.join(mod_names)}")
+        
+        # Update order_items to use the validated version for the rest of this function
+        order_items = validated_items
+        
+        # Check if we still have valid items after validation
+        if not validated_items:
+            logger.error("No valid items remain after validation - cannot continue")
+            response.say(
+                "I'm sorry, but there are issues with your order. Let me transfer you to a team member who can help."
+            )
+            response.redirect("/handle_transfer_to_human")
+            return Response(str(response), mimetype="text/xml")
+            
+    except Exception as e:
+        logger.error(f"Error during order validation: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        # If validation fails, we'll continue with the original order as a fallback
+        logger.warning("Proceeding with original order due to validation error")
+
+    # Save to database
+    try:
+        # Rebuild the order message with validated items
+        calculate_bill_amount(order_items)
+        session["bill_amount"] = int(session.get("total_price", 0) * 100)
+        order_description = build_order_description(order_items)
+        session["order_message"] = f"{order_description}\nYour total is ${session.get('total_price', 0):.2f}."
+        
+        text_msg = session.get("order_message", "")
+        new_order = Order(
+            id=order_id, sender=sender, caller_name=caller_name, message=text_msg
+        )
+        db.session.add(new_order)
+        if not commit_with_retry(db.session):
+            raise Exception("Commit failed")
+        logger.info(f"Order {order_id} saved successfully to database.")
+    except Exception as db_error:
+        db.session.rollback()
+        logger.error(f"Database error: {db_error}")
+        response.say(
+            "Sorry, we encountered a database issue. Please try again later."
+        )
+        return Response(str(response), mimetype="text/xml")
+
+    # Get total price
+    total_price = session.get("total_price", 0.0)
+
+    # Build and send to Deliverect
+    try:
+        # Check if we still have valid items after validation
+        if not order_items:
+            logger.error("No valid items to send to Deliverect")
+            # Don't fail here since we still want to save the order in our system
+        else:
+            # Build the order with validated items
+            deliverect_payload = build_deliverect_order(
+                sender=sender,
+                caller_name=caller_name,
+                order_items=order_items,
+                total_price=total_price,
+                order_id=order_id,
+            )
+
+            logger.info(f"Sending order to Deliverect: {order_id}")
+            response_deliv = requests.post(
+                DELIVERECT_API_URL,
+                json=deliverect_payload,
+                headers=get_deliverect_headers(),
+                timeout=10,
+            )
+
+            if response_deliv.status_code != 200:
+                logger.error(
+                    f"Deliverect API error: Status {response_deliv.status_code}, Response: {response_deliv.text}"
+                )
+            else:
+                logger.info(
+                    f"Deliverect order successfully submitted: {response_deliv.text}"
+                )
+    except Exception as e:
+        logger.error(f"Error sending order to Deliverect: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+
+    # Send SMS confirmation
+    import tasks
+
+    try:
+        logger.info(
+            f"Attempting to send SMS confirmation task directly for order {order_id}"
+        )
+        # Call task directly for now until Redis/Celery is properly setup
+        tasks.send_confirmation_sms_task(
+            order_id,
+            session.get("order_message", ""),
+            sender,
+            caller_name,
+            session.get("bill_amount", 0),
+            order_items,
+        )
+        logger.info(
+            f"SMS confirmation task executed successfully for order {order_id}"
+        )
+    except Exception as task_error:
+        logger.error(f"Error sending SMS confirmation: {task_error}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        # Fall back to direct SMS sending
+        try:
+            # Send a simpler message directly
+            simple_msg = f"Thank you for your order! Your order ID is {order_id[:8]}. A confirmation will be sent shortly."
+            twilio_client.messages.create(
+                body=simple_msg, from_=TWILIO_PHONE_NUMBER, to=sender
+            )
+            logger.info(f"Sent simple order confirmation directly via SMS to {sender}")
+        except Exception as sms_error:
+            logger.error(f"Error sending direct SMS confirmation: {sms_error}")
+
+    # Calculate prep time and respond
+    time_taken = DEFAULT_PREP_TIME_BASE + (PREP_TIME_PER_ITEM * len(order_items))
+    response.say(
+        f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status."
+    )
+    
+    # Instead of hanging up, ask if they need anything else
+    with response.gather(
+        input="speech dtmf",
+        action="/order_completion_options",
+        enhanced=True,
+        speech_model="phone_call",
+        language="en-US",
+        speech_timeout=5,
+        timeout=7,
+        num_digits=1
+    ) as g:
+        g.say("Is there anything else you'd like help with today? Press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call.")
+    
+    # Fallback if no input received
+    response.redirect("/order_completion_options")
+    
+    logger.info(f"Checkout completed successfully for order {order_id}")
+    return Response(str(response), mimetype="text/xml")
+
+@order_bp.route("/handle_invalid_modifiers", methods=["POST"])
+def handle_invalid_modifiers():
+    """
+    Handle the user's response when they're told about invalid modifiers.
+    The user can choose to continue without invalid modifiers or modify their order.
+    
+    This route ensures that invalid modifiers are completely removed from the order
+    before proceeding to checkout or modifications, serving as an additional
+    safety checkpoint in the order validation flow.
+    """
+    # Get the user input
+    speech_input = request.form.get("SpeechResult", "").lower()
+    dtmf_input = request.form.get("Digits", "")
+    
+    # Parse confirmation using helper functions
+    from app.utils.order_utils import user_said_yes, user_said_no, dtmf_yes_no
+    
+    response = VoiceResponse()
+    
+    # Log the user's response
+    logger.info(f"Invalid modifier handling - User response: '{speech_input}', DTMF: '{dtmf_input}'")
+    
+    # If user chooses to continue without invalid modifiers (yes)
+    if dtmf_input == "1" or user_said_yes(speech_input) or "continue" in speech_input or "proceed" in speech_input:
+        # Get the invalid modifiers from session
+        invalid_item_modifiers = json.loads(session.get("invalid_item_modifiers", "[]"))
+        order_items = json.loads(session.get("order_items_json", "[]"))
+        
+        # Log the invalid modifiers that will be removed
+        for invalid_item in invalid_item_modifiers:
+            item_name = invalid_item["item"]
+            invalid_mods = invalid_item["invalid_modifiers"]
+            logger.info(f"Removing invalid modifiers from {item_name}: {', '.join(invalid_mods)}")
+        
+        # Remove all invalid modifiers
+        for invalid_item in invalid_item_modifiers:
+            item_name = invalid_item["item"]
+            invalid_mods = set(mod.lower() for mod in invalid_item["invalid_modifiers"])
+            
+            # Find the item in the order
+            for item in order_items:
+                if item.get("name") == item_name:
+                    # Get original number of modifiers
+                    original_mod_count = len(item.get("modifier", []))
+                    
+                    # Filter out invalid modifiers
+                    valid_mods = [
+                        mod for mod in item.get("modifier", [])
+                        if mod.get("name", "").lower() not in invalid_mods
+                    ]
+                    
+                    # Update the item with only valid modifiers
+                    item["modifier"] = valid_mods
+                    
+                    # Log the filtering results
+                    logger.info(f"Item {item_name}: Removed {original_mod_count - len(valid_mods)} invalid modifiers, kept {len(valid_mods)} valid modifiers")
+                    
+                    if valid_mods:
+                        valid_mod_names = [mod.get("name", "unknown") for mod in valid_mods]
+                        logger.info(f"Valid modifiers kept for {item_name}: {', '.join(valid_mod_names)}")
+                    break
+        
+        # Update the session with cleaned order
+        session["order_items_json"] = json.dumps(order_items)
+        
+        # CRITICAL: Perform one final validation pass using prepare_order_for_deliverect
+        # This ensures that no invalid modifiers slip through
+        from app.utils.order_utils import prepare_order_for_deliverect
+        
+        try:
+            # This is a deep validation that will remove any remaining invalid modifiers
+            final_validated_items = prepare_order_for_deliverect(order_items)
+            
+            # Update session with final validated order
+            session["order_items_json"] = json.dumps(final_validated_items)
+            logger.info(f"Final order validation completed: {len(final_validated_items)} valid items remain")
+        except Exception as e:
+            logger.error(f"Error during final validation: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Continue with the order as-is if validation fails
+        
+        # Continue with order confirmation
+        response.say("Your order has been updated to remove the invalid modifiers. Let's proceed with your order.")
+        response.redirect("/process_order_checkout")
+        
+    # If user wants to modify their order (no)
+    elif dtmf_input == "2" or user_said_no(speech_input) or "modify" in speech_input or "change" in speech_input:
+        logger.info("User chose to modify order instead of removing invalid modifiers")
+        # Go back to the order modification flow
+        response.say("Let's update your order. Please tell me what changes you'd like to make.")
+        response.redirect("/new_modify_order")
+        
+    # If user was silent or unclear
+    else:
+        logger.info("Unclear user response for invalid modifiers, defaulting to removing them")
+        # Default to removing invalid modifiers and proceeding
+        # First get the invalid modifiers from session
+        invalid_item_modifiers = json.loads(session.get("invalid_item_modifiers", "[]"))
+        order_items = json.loads(session.get("order_items_json", "[]"))
+        
+        # Remove all invalid modifiers
+        for invalid_item in invalid_item_modifiers:
+            item_name = invalid_item["item"]
+            invalid_mods = set(mod.lower() for mod in invalid_item["invalid_modifiers"])
+            
+            # Find the item in the order
+            for item in order_items:
+                if item.get("name") == item_name:
+                    # Filter out invalid modifiers
+                    valid_mods = [
+                        mod for mod in item.get("modifier", [])
+                        if mod.get("name", "").lower() not in invalid_mods
+                    ]
+                    # Update the item with only valid modifiers
+                    item["modifier"] = valid_mods
+                    break
+        
+        # Update the session with cleaned order
+        session["order_items_json"] = json.dumps(order_items)
+        
+        response.say("I didn't catch that. I'll remove the invalid modifiers and proceed with your order.")
+        response.redirect("/process_order_checkout")
+    
+    return Response(str(response), mimetype="text/xml")
+
 @order_bp.route("/graceful_exit", methods=["GET", "POST"])
 def graceful_exit():
     """
@@ -2235,6 +2685,10 @@ def handle_modifier_suggestion():
     This route processes the customer's response when we suggest modifiers for an item,
     updates the order with selected modifiers, and either continues to the next item
     or proceeds to order confirmation.
+    
+    IMPORTANT: This route includes comprehensive validation of all modifiers against the 
+    actual menu data to ensure ONLY valid modifiers are accepted. Any modifier not 
+    found in the menu will be rejected and the customer will be informed.
     """
     # Get user response to modifier suggestion
     user_resp = request.form.get("SpeechResult", "").lower()
@@ -2246,6 +2700,8 @@ def handle_modifier_suggestion():
     order_items = json.loads(session.get("order_items_without_modifiers_json", "[]"))
     
     response = VoiceResponse()
+    
+    logger.info(f"Handling modifier suggestion for {current_item}. User said: '{user_resp}'")
     
     # Check for silence (user didn't respond to suggestion)
     if not user_resp and not digits:
@@ -2276,11 +2732,27 @@ def handle_modifier_suggestion():
     # Check if user explicitly declined modifiers with DTMF
     if digits == "1" or "no" in user_resp or "skip" in user_resp or "continue" in user_resp:
         # User declined modifiers for this item - move to next item or confirmation
+        logger.info(f"User declined modifiers for {current_item}")
         pass  # We'll handle this below in the common path
     else:
         # User provided modifier choices - process them
         # Use the OrderParsingAgent to analyze the modifier response
         agent = OrderParsingAgent()
+        
+        # First, load the menu to get valid modifiers
+        menu_data = load_menu_data(force_refresh=True)
+        
+        # Get all valid modifiers from the menu (only available, non-snoozed modifiers)
+        valid_menu_modifiers = {
+            mod.get("name", "").lower(): mod
+            for mod in menu_data.get("modifiers", [])
+            if mod.get("name") and mod.get("available", True) and not mod.get("snoozed", False)
+        }
+        
+        # Standard cooking terms that should always be accepted
+        cooking_terms = ["rare", "medium rare", "medium", "medium well", "well done"]
+        
+        logger.info(f"Found {len(valid_menu_modifiers)} valid modifiers in menu")
         
         # Let's intelligently extract modifiers using the agent
         try:
@@ -2306,7 +2778,12 @@ def handle_modifier_suggestion():
             for item in extracted_items:
                 if current_item.lower() in item.get("name", "").lower():
                     # Found our current item in the parsed result
-                    modifiers = item.get("modifier", [])
+                    raw_modifiers = item.get("modifier", [])
+                    
+                    # Log the initially extracted modifiers
+                    if raw_modifiers:
+                        mod_names = [mod.get("name", "unknown") for mod in raw_modifiers]
+                        logger.info(f"Extracted modifiers for {current_item}: {', '.join(mod_names)}")
                     
                     # Special handling for meal deals / combo products
                     if is_combo:
@@ -2431,28 +2908,67 @@ def handle_modifier_suggestion():
                             # Skip regular modifier processing for meal deals
                             break
                     
-                    # If modifiers are found, validate them before adding to the order
-                    if modifiers:
-                        # First, pre-validate modifiers to check if any are invalid
-                        # Create a temporary item with modifiers for validation
-                        from app.utils.order_utils import validate_modifiers
-                        temp_item = {"name": current_item, "modifier": modifiers}
-                        validated_item = validate_modifiers([temp_item])[0]
-                        valid_modifiers = validated_item.get("modifier", [])
-                        
-                        # Check if we lost any modifiers during validation
+                    # If standard modifiers are found, validate them strictly against the menu
+                    if raw_modifiers:
+                        # STRICT VALIDATION: Only accept modifiers that are EXACTLY in the menu
+                        # or are standard cooking terms
+                        valid_modifiers = []
                         rejected_modifiers = []
-                        if len(valid_modifiers) < len(modifiers):
-                            # Find which modifiers were rejected
-                            valid_mod_names = {mod.get("name", "").lower() for mod in valid_modifiers}
-                            for mod in modifiers:
-                                if mod.get("name", "").lower() not in valid_mod_names:
-                                    rejected_modifiers.append(mod.get("name", "unknown"))
+                        
+                        for mod in raw_modifiers:
+                            mod_name = mod.get("name", "").lower()
+                            
+                            # Validation priority:
+                            # 1. First check exact match by name in menu
+                            # 2. Then allow only standard cooking terms as exceptions
+                            # 3. Reject everything else
+                            
+                            if mod_name in valid_menu_modifiers:
+                                # Found exact match by name in menu
+                                menu_mod = valid_menu_modifiers[mod_name]
+                                mod["reference_handler"] = menu_mod.get("reference_handler")
+                                mod["price"] = menu_mod.get("price", 0.0)
+                                valid_modifiers.append(mod)
+                                logger.info(f"Validated modifier with exact menu match: {mod_name}")
+                            elif mod_name in cooking_terms:
+                                # Special case for cooking preferences (these are the ONLY exceptions allowed)
+                                mod["reference_handler"] = f"COOK-{hash(mod_name) % 100:02d}"
+                                valid_modifiers.append(mod)
+                                logger.info(f"Validated standard cooking modifier: {mod_name}")
+                            else:
+                                # Not in menu - reject it!
+                                rejected_modifiers.append(mod_name)
+                                logger.warning(f"Rejected non-menu modifier: {mod_name}")
                         
                         # If some modifiers were rejected, inform the user
                         if rejected_modifiers:
                             # Log the rejected modifiers
                             logger.warning(f"Rejected invalid modifiers for {current_item}: {', '.join(rejected_modifiers)}")
+                            
+                            # Get a list of valid modifiers to suggest as alternatives
+                            suggested_alternatives = []
+                            valid_modifier_suggestions = []
+                            
+                            # Get valid modifiers for this item from the constraints
+                            constraint_details = json.loads(session.get("constraint_details", "{}"))
+                            item_constraints = constraint_details.get(current_item, {})
+                            
+                            if "modifier_groups" in item_constraints:
+                                for group in item_constraints.get("modifier_groups", []):
+                                    group_mods = group.get("modifiers", [])
+                                    valid_modifier_suggestions.extend(group_mods)
+                            
+                            # Take only the first 5 suggestions to avoid overwhelming the user
+                            suggested_alternatives = valid_modifier_suggestions[:5]
+                            
+                            # Construct the response message
+                            msg = f"I'm sorry, we don't have {', '.join(rejected_modifiers)} available for your {current_item}. "
+                            
+                            # Add suggestions if available
+                            if suggested_alternatives:
+                                msg += f"Available options include: {', '.join(suggested_alternatives)}. "
+                            
+                            msg += "Please specify a different modifier, or press 1 to continue without these modifiers."
                             
                             # Inform the user about invalid modifiers and ask for valid ones
                             with response.gather(
@@ -2465,26 +2981,27 @@ def handle_modifier_suggestion():
                                 timeout=7,
                                 num_digits=1
                             ) as g:
-                                g.say(f"I'm sorry, we don't have {', '.join(rejected_modifiers)} available for your {current_item}. Please specify a different modifier, or press 1 to continue with your order.")
+                                g.say(msg)
                             return Response(str(response), mimetype="text/xml")
                         
                         # Update the relevant item in the order with valid modifiers
                         for order_item in order_items:
                             if order_item.get("name", "") == current_item:
-                                # Add these modifiers to the item
+                                # Add the valid modifiers to the item
                                 if "modifier" not in order_item:
                                     order_item["modifier"] = []
                                 order_item["modifier"].extend(valid_modifiers)
                                 
                                 # Log the modifiers being added
                                 mod_names = [mod.get("name", "unknown") for mod in valid_modifiers]
-                                logger.info(f"Adding validated modifiers to {current_item}: {', '.join(mod_names)}")
+                                logger.info(f"Added strictly validated modifiers to {current_item}: {', '.join(mod_names)}")
                                 
                                 # Update the session with modified order
                                 session["order_items_without_modifiers_json"] = json.dumps(order_items)
                                 break
         except Exception as e:
             logger.error(f"Error processing modifier response: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             # Continue with the flow even if modifier processing fails
     
     # Check if there are more items to suggest modifiers for

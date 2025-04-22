@@ -1332,3 +1332,121 @@ JSON
                ]
           },
 ```
+
+``
+Payments and Additional Charges
+Payments
+Depending on the method of payment, the relevant payment types should be sent with one of two following values (as an integer)
+
+Further details on processing additional payment parameters below;
+
+Payment Type Integer Value
+credit card online 0
+cash 1
+Payment Type
+
+"payment": {
+"amount": 1455,
+"type": 0,
+"due": 0,
+"rebate": 0,
+"commissionType": ""
+},
+Tax Exclusive Orders
+For customers in tax exclusive regions, you should ensure you handle tax accordingly, see details below;
+
+▶ Processing Tax Exclusive Orders
+Paid/Unpaid Orders
+In some ordering platforms, users can checkout without processing a payment. A typical scenario would be for pickup orders where cash will be paid on collection. If allowing for this option at checkout, it is important to set the flag "orderIsAlreadyPaid": false,
+
+Where payment is processed online during checkout, then set this as "orderIsAlreadyPaid": true,
+
+📘
+Payment amount
+
+Note, you should always pass the payment amount, whether the order is already paid or not.
+
+📘
+Payment format
+
+Payment amounts should be sent as an integer with 2 decimal digits, for example, 5 euros would be sent as 500.
+
+Discounts
+Ordering platforms may offer multiple forms of discount e.g. special offers on selected items, % discounts etc
+
+We can support one single overall order discount only and it should be specified as a minus value e.g. "discountTotal": -100
+
+This should only be applied where the restaurant is absorbing the cost of the discount.
+
+The paid 'amount' should factor in any discount deducted from the total payment.
+
+Additionally, you can further specify information regarding the discount applied, as an array within the order payload.
+
+Discounts Array
+
+"discounts": [
+{
+"type": "order_flat_off",
+"provider": "restaurant",
+"name": "FLATOFF",
+"channelDiscountCode": "",
+"referenceId": 1,
+"value": 800,
+"amount": 800,
+"amountRestaurant": 400,
+"amountChannel": 400
+}
+],
+You can learn more about what is the meaning of each parameter in the table below:
+
+Parameter Meaning Data Tye
+type Mapped channel discount type from the list of Discount Types in Deliverect. string
+provider The issuer of the discount i.e. the one who bears the discounted amount. string
+name The name was given to the discount. string
+channelDiscountCode The unique discount code used by the channel string
+referenceId A unique number assigned to the discount and used to reference the discount on individual items on the order. integer
+value It is the flat amount of money or percentage covered by the discount which is stored with precision 2, so $1.50 -> 150,# 25.1% -> 2510 integer
+amount Actual amount discounted e.g. For 10% off on $50 bill, the value will be 1000 and amount will be 500. integer
+amountRestaurant The amount of the restaurant's contribution to the discount integer
+amountChannel The amount of the channel's contribution to the discount integer
+Rebate
+A rebate refers to a discount where the cost is covered by the channel, not the restaurant. It is essential for restaurants to clearly distinguish these rebates from discounts they absorb within their POS system.
+
+When a rebate is applied, the full payment amount, prior to the rebate deduction, should be specified, as this is the amount the restaurant will receive.
+
+Payment Type - Credit Card Online
+
+"payment": {
+"amount": 400,
+"type": 3,
+"due": 0,
+"rebate": 100,
+"commissionType": ""
+},
+Commission Type
+This relates to the type of commission charged by the channel for its services.
+
+Each type will correspond to an agreed percentage of the order value taken as commission but is information provided by some channels only.
+
+Tips
+To send a tip through with an order, there are two possible parameters allowing a channel to distinguish between the intended recipient of tips. i.e
+
+If a tip is intended for the restaurant;
+
+"tip": 500,.
+
+If intended for the driver;
+
+"driverTip": 500,.
+
+Please be aware that not all POS partners will handle this addition to an order, in which case we have a toggle setting to not include these.
+
+Bag Fee
+In certain regions it is mandatory to apply a charge against the packaging used. For this, we have the attribute "bagFee"
+
+When included within an order it will be processed accordingly and will appear as a line item on the integrated POS.
+
+A bag fee of $1.20 would then be sent as the below example;
+
+"bagFee": 120,
+``
