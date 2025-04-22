@@ -20,7 +20,7 @@ AI_COMPONENTS_AVAILABLE = True
 logger.info("Loading agent components - AI components will be used for menu analysis")
 
 # Import functions - no fallbacks, require all AI components
-from .config import OPENAI_API_KEY
+from .config import OPENAI_API_KEY, AGENT_API_AVAILABLE
 from .logging import log_openai_request, log_openai_response
 from .menu_tool import SushiMenuTool
 from .order_agent import OrderParsingAgent
