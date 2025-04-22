@@ -1670,7 +1670,7 @@ def handle_busy_options():
             g.say("Please tell me your name and the best time to call you back.")
     elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
         response.say("Thank you for your understanding. Please call back later when we're less busy. Goodbye!")
-        response.hangup()
+        response.redirect("/graceful_exit")
     else:
         # Unrecognized input, give them another chance
         with response.gather(
@@ -1749,7 +1749,7 @@ def handle_menu_unavailable():
             g.say("Please tell me your name and the best way to contact you when our menu is back online.")
     elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
         response.say("Thank you for your understanding. Please call back later when our menu system is available. Goodbye!")
-        response.hangup()
+        response.redirect("/graceful_exit")
     else:
         # Unrecognized input
         with response.gather(
@@ -1828,7 +1828,7 @@ def handle_technical_difficulties():
             g.say("Please tell me your name and the best way to contact you once our system is working again.")
     elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
         response.say("We apologize for the technical difficulties. Please try calling back in a few minutes. Goodbye!")
-        response.hangup()
+        response.redirect("/graceful_exit")
     else:
         # Unrecognized input
         with response.gather(

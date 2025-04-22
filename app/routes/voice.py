@@ -1418,8 +1418,8 @@ def handle_transfer_to_human():
         elif digits == "3" or "end" in speech_input.lower() or "goodbye" in speech_input.lower():
             # They want to end the call
             response.say("Thank you for calling Red Bar Sushi. Goodbye!")
-            # This is an intentional hangup requested by the user
-            response.hangup()
+            # Use graceful exit instead of direct hangup
+            response.redirect("/graceful_exit")
         
         elif transfer_attempts >= 2:
             # Too many attempts, offer to take a message
@@ -1441,8 +1441,8 @@ def handle_transfer_to_human():
         else:
             # No valid input, default to a friendly message
             response.say("We're sorry we couldn't connect you with a team member. Please try calling back later when more staff are available. Thank you.")
-            # This is an intentional end of the conversation
-            response.hangup()
+            # Use graceful exit instead of direct hangup
+            response.redirect("/graceful_exit")
     
     return Response(str(response), mimetype="text/xml")
 
@@ -1471,8 +1471,8 @@ def handle_voicemail():
     else:
         # They don't want to leave a message
         response.say("Thank you for calling Red Bar Sushi. Have a great day! Goodbye.")
-        # This is an intentional end of the conversation
-        response.hangup()
+        # Use graceful exit instead of direct hangup
+        response.redirect("/graceful_exit")
     
     return Response(str(response), mimetype="text/xml")
 
@@ -1495,8 +1495,8 @@ def save_voicemail():
         # No message was recorded
         response.say("We didn't receive a message. Please call back if you'd like to speak with our team. Goodbye!")
     
-    # This is the proper end of the voicemail flow
-    response.hangup()
+    # Use graceful exit path instead of direct hangup
+    response.redirect("/graceful_exit")
     
     return Response(str(response), mimetype="text/xml")
 
