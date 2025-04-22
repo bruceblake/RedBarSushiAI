@@ -789,7 +789,7 @@ def handle_menu_questions():
         # Use AI agent to answer any menu question; fallback on error
         # Check if OpenAI usage is disabled
         # First, get actual menu data to provide context
-        agent = OrderParsingAgent()5
+        agent = OrderParsingAgent()
         menu_tool = agent.menu_tool
                 
         # Get menu data based on the query
