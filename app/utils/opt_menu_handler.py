@@ -104,23 +104,37 @@ def handle_menu_query(user_input):
                 menu_tool = OrderParsingAgent().menu_tool
                 search_results = menu_tool.search_menu(menu_query)
             
-            # Format menu items for context - more efficiently
+            # Format menu items for context - organized by category
             menu_context = []
+            items_by_category = {}
+            
+            # Define the items to use
             if search_results.get("found"):
-                for item in search_results.get("items", [])[:5]:  # Limit to 5 items
-                    price_str = f"${item.get('price', 0):.2f}"
-                    desc = item.get('description', '')[:50]  # Limit description length
-                    menu_context.append(f"- {item.get('name')}: {price_str}. {desc}")
+                items_to_use = search_results.get("items", [])[:15]  # Increased from 5 to 15
             else:
                 # Get popular items if no specific match
-                popular_items = get_popular_menu_items(5)  # Limit to 5 items
-                if popular_items:
-                    for item in popular_items:
+                items_to_use = get_popular_menu_items(15)  # Increased from 5 to 15
+            
+            # Group items by category
+            for item in items_to_use:
+                category = item.get('category', 'Other')
+                if category not in items_by_category:
+                    items_by_category[category] = []
+                items_by_category[category].append(item)
+            
+            # Create formatted context with category headers
+            if items_by_category:
+                for category, items in items_by_category.items():
+                    # Add category header
+                    menu_context.append(f"\n## {category}")
+                    
+                    # Add items in this category
+                    for item in items:
                         price_str = f"${item.get('price', 0):.2f}"
-                        desc = item.get('description', '')[:50]  # Limit description length
+                        desc = item.get('description', '')[:80]  # Increased description length
                         menu_context.append(f"- {item.get('name')}: {price_str}. {desc}")
             
-            menu_context_text = "Here are relevant menu items:\n" + "\n".join(menu_context)
+            menu_context_text = "Here are our menu items by category:\n" + "\n".join(menu_context)
             
             # Create OpenAI client and send concise request with optimized parameters
             client = openai.OpenAI()
@@ -129,6 +143,8 @@ def handle_menu_query(user_input):
                 "Answer the customer's question concisely using only the menu information provided. "
                 "Keep your response brief and to the point. "
                 "If you don't have the specific information, just say so simply."
+                "When listing menu items, maintain category groupings and list multiple items per category. "
+                "Organize your response to clearly separate menu categories for better understanding."
             )
             
             ai_start = time.time()
@@ -139,7 +155,7 @@ def handle_menu_query(user_input):
                     {"role": "user", "content": f"Menu information:\n{menu_context_text}\n\nCustomer question: {user_input}"}
                 ],
                 temperature=0.1,  # Lower temperature for faster, more deterministic responses
-                max_tokens=150    # Limit tokens for faster response
+                max_tokens=300    # Increased to allow for category-structured responses
             )
             logger.info(f"AI request completed in {time.time() - ai_start:.2f} seconds")
             

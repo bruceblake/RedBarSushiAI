@@ -808,27 +808,51 @@ def handle_menu_questions():
         logger.info(f"search_results content: {search_results}")
         menu_context = ""
         if search_results.get("found"):
-            menu_context = "Here are relevant menu items:\n"
-            for item in search_results.get("items"):  # Limit to 5 items for context
-                price_str = f"${item.get('price', 0):.2f}"
-                desc = item.get('description', 'No description available')
-                menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
+            # Organize items by category
+            items_by_category = {}
+            for item in search_results.get("items"):
+                category = item.get('category', 'Other')
+                if category not in items_by_category:
+                    items_by_category[category] = []
+                items_by_category[category].append(item)
+            
+            # Create formatted context with categories
+            menu_context = "Here are relevant menu items by category:\n"
+            for category, items in items_by_category.items():
+                menu_context += f"\n## {category}\n"
+                for item in items:
+                    price_str = f"${item.get('price', 0):.2f}"
+                    desc = item.get('description', 'No description available')
+                    menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
         else:
                     # If no specific items found, include popular items
             from app.utils.menu_utils import get_popular_menu_items
             popular_items = get_popular_menu_items(40)
             if popular_items:
-                menu_context = "Here are our popular menu items:\n"
+                # Organize items by category
+                items_by_category = {}
                 for item in popular_items:
-                    price_str = f"${item.get('price', 0):.2f}"
-                    desc = item.get('description', 'No description available')
-                    menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
+                    category = item.get('category', 'Other')
+                    if category not in items_by_category:
+                        items_by_category[category] = []
+                    items_by_category[category].append(item)
+                
+                # Create formatted context with categories
+                menu_context = "Here are our popular menu items by category:\n"
+                for category, items in items_by_category.items():
+                    menu_context += f"\n## {category}\n"
+                    for item in items:
+                        price_str = f"${item.get('price', 0):.2f}"
+                        desc = item.get('description', 'No description available')
+                        menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
                 
                 # Create OpenAI client and send system+user messages with actual menu data
         client = openai.OpenAI()
         system_msg = (
                 "You are a knowledgeable assistant for Red Bar Sushi. "
-                "Answer the customer's question concisely using the menu information provided. "                    "If the menu information doesn't contain what the customer is asking about, "
+                "Answer the customer's question concisely using the menu information provided. "
+                "When listing menu items, maintain the category groupings and mention multiple items per category. "
+                "If the menu information doesn't contain what the customer is asking about, "
                 "politely explain that you don't have that specific information."
         )
                 
@@ -841,6 +865,8 @@ def handle_menu_questions():
                         {"role": "system", "content": system_msg},
                         {"role": "user", "content": f"Menu information:\n{menu_context}\n\nCustomer question: {user_input}"}
                     ],
+                    max_tokens=300,  # Allow longer responses for categorized menus
+                    temperature=0.7,  # More creative responses for menu descriptions
                 )
         reply = result.choices[0].message.content.strip()
         

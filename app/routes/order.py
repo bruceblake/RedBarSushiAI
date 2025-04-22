@@ -134,18 +134,37 @@ def custom_suggest_modifiers(item_name):
     if modifier_data.get("found", False) and not modifier_prompt:
         logger.info(f"No specific modifier prompt found for {item_name}, generating fallback")
         
-        # Create a default prompt based on item category
+        # Create a default prompt based on item category and item properties
         item = modifier_data.get("item", {})
         item_category = item.get("category", "").lower()
+        is_combo = item.get("isCombo", False) or "combo" in item_name.lower() or "meal" in item_name.lower()
         
-        if "roll" in item_name.lower() or "sushi" in item_name.lower():
-            modifier_prompt = f"Would you like any special preparation for your {item_name}? For example, extra wasabi, spicy mayo, or soy sauce on the side?"
-        elif "steak" in item_name.lower() or "burger" in item_name.lower():
+        # First check if it's a combo meal with components
+        if is_combo:
+            # Get components from the menu item if available
+            child_products = item.get("childProducts", [])
+            if child_products:
+                component_names = [comp.get("name", "") for comp in child_products if comp.get("required", True)]
+                if component_names:
+                    component_list = ", ".join(component_names[:3])
+                    modifier_prompt = f"For your {item_name}, please select from these options: {component_list}. What would you like?"
+                else:
+                    modifier_prompt = f"What sides or drinks would you like with your {item_name}?"
+            else:
+                modifier_prompt = f"What sides or drinks would you like with your {item_name}?"
+        # Then check food categories for appropriate cooking preferences
+        elif "steak" in item_name.lower():
             modifier_prompt = f"How would you like your {item_name} cooked? Rare, medium, or well done?"
+        elif "burger" in item_name.lower():
+            # Burgers shouldn't always get the steak cooking options
+            if "patty" in item_name.lower() or "beef" in item_name.lower():
+                modifier_prompt = f"How would you like your {item_name} cooked? And would you like any toppings like cheese or bacon?"
+            else:
+                modifier_prompt = f"Would you like any toppings on your {item_name}, such as cheese, lettuce, or tomato?"
+        elif "roll" in item_name.lower() or "sushi" in item_name.lower():
+            modifier_prompt = f"Would you like any special preparation for your {item_name}? For example, extra wasabi, spicy mayo, or soy sauce on the side?"
         elif "salad" in item_name.lower():
             modifier_prompt = f"Would you like any special dressing for your {item_name}?"
-        elif "combo" in item_name.lower() or "meal" in item_name.lower():
-            modifier_prompt = f"What sides would you like with your {item_name}?"
         else:
             # Generic fallback
             modifier_prompt = f"Would you like to customize your {item_name} with any special requests or modifications?"
@@ -175,9 +194,10 @@ def check_for_missing_modifiers(order_items):
     Also handles meal deals and their components, and provides detailed constraint
     information for user prompting.
     
-    IMPORTANT: This function aggressively prompts for modifiers. It adds ALL items with 
-    modifier groups to the list of items needing modifiers, not just those with required
-    modifiers. This ensures that users always get prompted about possible modifications.
+    This function is more intelligent about modifiers:
+    1. For combo items, it always suggests components
+    2. For items with existing modifiers of the right types, it avoids re-suggesting
+    3. For items with required modifiers, it verifies if those requirements are met
     
     Args:
         order_items: List of order items to check
@@ -204,15 +224,62 @@ def check_for_missing_modifiers(order_items):
     logger.info(f"Checking {len(order_items)} items for missing modifiers")
     logger.info(f"Found {len(constraint_details)} items with modifier constraints")
     
-    # First, add ALL items with constraints to the list (not just those with unfulfilled constraints)
+    # More intelligently add items with constraints to the list
     for item_name, details in constraint_details.items():
         # Find the matching item in the order_items list
         for item in order_items:
             if item.get("name") == item_name:
-                # Only add each item once
-                if item not in items_needing_modifiers:
-                    items_needing_modifiers.append(item)
-                    logger.info(f"Added {item_name} to items needing modifiers based on constraints")
+                # Check if this item is a combo/meal deal
+                is_combo = details.get("is_combo", False)
+                mod_groups = details.get("modifier_groups", [])
+                
+                # Check if this item already has appropriate modifiers
+                existing_modifiers = item.get("modifier", [])
+                existing_mod_types = {mod.get("name", "").lower() for mod in existing_modifiers}
+                
+                # For combo items, always suggest components if none selected
+                if is_combo:
+                    # See if there are component modifiers already added
+                    has_components = False
+                    for mod in existing_modifiers:
+                        # Check if it appears to be a component selection
+                        if "component" in mod.get("reference_handler", "").lower():
+                            has_components = True
+                            break
+                    
+                    # If no components found, add to items needing modifiers
+                    if not has_components:
+                        if item not in items_needing_modifiers:
+                            items_needing_modifiers.append(item)
+                            logger.info(f"Added combo item {item_name} to items needing modifiers (needs components)")
+                
+                # For items with modifier groups, check if required ones are missing
+                elif mod_groups:
+                    needs_modifiers = False
+                    
+                    # Check if any required group is missing modifiers
+                    for group in mod_groups:
+                        min_required = group.get("min_required", 0)
+                        if min_required > 0:
+                            # This group requires modifiers, check if we have any from this group
+                            group_mods = {mod.lower() for mod in group.get("modifiers", [])}
+                            found_mods = any(mod_name in group_mods for mod_name in existing_mod_types)
+                            
+                            if not found_mods:
+                                needs_modifiers = True
+                                break
+                    
+                    # Add item if it needs modifiers
+                    if needs_modifiers:
+                        if item not in items_needing_modifiers:
+                            items_needing_modifiers.append(item)
+                            logger.info(f"Added {item_name} to items needing modifiers (missing required modifiers)")
+                    # If not required but has mod groups, only suggest if no modifiers yet
+                    elif not existing_modifiers:
+                        if item not in items_needing_modifiers:
+                            items_needing_modifiers.append(item)
+                            logger.info(f"Added {item_name} to items needing optional modifiers")
+                
                 break
     
     # Log what we've found
@@ -675,20 +742,35 @@ def confirm_order_from_initial():
     """
     Handle order confirmation after initial order has been placed.
     This route now checks whether to proceed directly or check for modifiers first.
+    
+    The route accepts a skip_modifiers parameter to bypass modifier suggestions.
+    It also respects a completed_modifiers session flag to prevent infinite loops.
     """
-    # Critical fix: ALWAYS check for modifiers first unless explicitly disabled
-    if request.form.get("skip_modifiers", "false").lower() != "true":
+    # Check if we've already completed the modifier flow
+    completed_modifiers = session.get("completed_modifiers", "false").lower() == "true"
+    
+    # Critical fix: Check for modifiers first unless explicitly disabled or already completed
+    if request.form.get("skip_modifiers", "false").lower() != "true" and not completed_modifiers:
         # Get the current order items 
         if "order_items_json" in session:
-            # ALWAYS check for modifiers before confirming
-            logger.info("CRITICAL FIX: Redirecting to suggest_modifiers to check for needed modifiers first")
-            logger.info(f"Session keys available: {list(session.keys())}")
-            logger.info(f"Order items in session: {session.get('order_items_json', '[]')}")
+            # Check if these items need modifiers
+            order_items = json.loads(session.get("order_items_json", "[]"))
+            items_needing_modifiers, _ = check_for_missing_modifiers(order_items)
             
-            # Create and return the redirect response
-            response = VoiceResponse()
-            response.redirect("/suggest_modifiers")
-            return Response(str(response), mimetype="text/xml")
+            # Only redirect if we actually need modifiers
+            if items_needing_modifiers:
+                logger.info("CRITICAL FIX: Redirecting to suggest_modifiers to check for needed modifiers first")
+                logger.info(f"Session keys available: {list(session.keys())}")
+                logger.info(f"Order items in session: {session.get('order_items_json', '[]')}")
+                
+                # Create and return the redirect response
+                response = VoiceResponse()
+                response.redirect("/suggest_modifiers")
+                return Response(str(response), mimetype="text/xml")
+            else:
+                logger.info("No modifiers needed, proceeding with confirmation")
+                # Mark as completed to avoid future checking
+                session["completed_modifiers"] = "true"
     """Handle confirmation of the initial order"""
     # Get user response
     user_resp = (request.form.get("SpeechResult", "") or "").lower()
@@ -3291,13 +3373,13 @@ def handle_modifier_suggestion():
     
     logger.info(f"Handling modifier suggestion for {current_item}. User said: '{user_resp}'")
     
-    # Check for silence (user didn't respond to suggestion)
-    if not user_resp and not digits:
+    # Check for silence (user didn't respond to suggestion) or if user said they don't want modifiers
+    if (not user_resp and not digits) or user_resp in ["no", "none", "no thanks", "nothing"]:
         # Track silence retries for modifier suggestions
         mod_silence_retry = session.get("modifier_silence_retry", 0)
         session["modifier_silence_retry"] = mod_silence_retry + 1
         
-        # If we've tried multiple times, just continue without modifiers
+        # If we've tried multiple times or user explicitly declined, just continue without modifiers
         if mod_silence_retry >= 2:
             logger.info(f"Multiple silence retries for modifier suggestions on {current_item}, continuing without modifiers")
             # Skip to the next item or continue to confirmation
@@ -3581,16 +3663,37 @@ def handle_modifier_suggestion():
                         for order_item in order_items:
                             if order_item.get("name", "") == current_item:
                                 # Add the valid modifiers to the item
+                                # Initialize the modifier list if needed
                                 if "modifier" not in order_item:
                                     order_item["modifier"] = []
-                                order_item["modifier"].extend(valid_modifiers)
                                 
-                                # Log before modification
-                                logger.info(f"Before modification: Item {current_item} had {len(order_item.get('modifier', []))} modifiers")
+                                # First check if we're getting repeated modifiers
+                                existing_mods = {mod.get("name", "").lower(): True for mod in order_item.get("modifier", [])}
+                                
+                                # Filter out duplicates
+                                new_mods = []
+                                for mod in valid_modifiers:
+                                    if mod.get("name", "").lower() not in existing_mods:
+                                        new_mods.append(mod)
+                                        
+                                # Add only new modifiers
+                                order_item["modifier"].extend(new_mods)
+                                
+                                # If we're not adding anything new, mark a flag to advance to next item
+                                if not new_mods and len(order_item.get("modifier", [])) > 0:
+                                    session["force_next_item"] = "true"
+                                
+                                # Log modification details
+                                original_count = len(order_item.get("modifier", [])) - len(new_mods)
+                                logger.info(f"Before modification: Item {current_item} had {original_count} modifiers")
                                 
                                 # Log the modifiers being added
-                                mod_names = [mod.get("name", "unknown") for mod in valid_modifiers]
-                                logger.info(f"Added strictly validated modifiers to {current_item}: {', '.join(mod_names)}")
+                                if new_mods:
+                                    mod_names = [mod.get("name", "unknown") for mod in new_mods]
+                                    logger.info(f"Added strictly validated modifiers to {current_item}: {', '.join(mod_names)}")
+                                else:
+                                    logger.info(f"No new modifiers added to {current_item} (detected duplicates)")
+                                    
                                 logger.info(f"After modification: Item {current_item} now has {len(order_item.get('modifier', []))} modifiers")
                                 
                                 # Update the session with modified order
@@ -3602,6 +3705,13 @@ def handle_modifier_suggestion():
             # Continue with the flow even if modifier processing fails
     
     # Check if there are more items to suggest modifiers for
+    # Also check if we need to force advance to the next item due to duplicate modifiers
+    force_next = session.get("force_next_item", "false").lower() == "true"
+    
+    if force_next:
+        logger.info("Forcing advance to next item due to duplicate modifiers")
+        session["force_next_item"] = "false"  # Reset the flag
+        
     if remaining_items:
         # Get the next item that needs modifiers
         next_item = remaining_items[0]
@@ -3764,6 +3874,9 @@ def handle_modifier_suggestion():
         modifier_count = len(item.get("modifier", []))
         logger.info(f"Item '{item.get('name')}' has {modifier_count} modifiers: {[m.get('name') for m in item.get('modifier', [])]}")
     logger.info(f"Order total: ${session.get('total_price', 0):.2f}")
+    
+    # Mark the modifiers flow as completed to prevent infinite loops
+    session["completed_modifiers"] = "true"
     
     # Ask for confirmation of complete order with modifiers
     with response.gather(
