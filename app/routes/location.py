@@ -408,9 +408,20 @@ def take_order_per_location(location_id):
     if LOCATIONS_BUSY_STATUS.get(location_id, False):
         response = VoiceResponse()
         response.say(
-            f"We're currently busy at our {location_id} location and not accepting new orders right now. Goodbye!"
+            f"We're currently busy at our {location_id} location and not accepting new orders right now."
         )
-        response.hangup()
+        
+        # Instead of hanging up, give them options
+        with response.gather(
+            input="dtmf",
+            action="/main_menu",
+            num_digits=1,
+            timeout=7
+        ) as g:
+            g.say("Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call.")
+            
+        # Add a redirect to a graceful exit if they don't respond
+        response.redirect("/graceful_exit")
         return Response(str(response), mimetype="text/xml")
 
     # Load location-specific menu data
@@ -419,9 +430,20 @@ def take_order_per_location(location_id):
     response = VoiceResponse()
     if not available_items:
         response.say(
-            f"I'm sorry, our menu at our {location_id} location is currently unavailable. Please try again later."
+            f"I'm sorry, our menu at our {location_id} location is currently unavailable."
         )
-        response.hangup()
+        
+        # Instead of hanging up, give them options
+        with response.gather(
+            input="dtmf",
+            action="/main_menu",
+            num_digits=1,
+            timeout=7
+        ) as g:
+            g.say("Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call.")
+            
+        # Add a redirect to a graceful exit if they don't respond
+        response.redirect("/graceful_exit")
         return Response(str(response), mimetype="text/xml")
 
     user_resp = request.form.get("SpeechResult", "").strip()
@@ -451,13 +473,13 @@ def take_order_per_location(location_id):
             response.say(
                 f"Sorry, we don't have {item_name} on our menu at our {location_id} location."
             )
-            response.hangup()
+            response.redirect("/graceful_exit")
             return Response(str(response), mimetype="text/xml")
         if not matched_item.get("available", False):
             response.say(
-                f"Sorry, {matched_item['name']} is not available right now at our {location_id} location. Goodbye!"
+                f"Sorry, {matched_item['name']} is not available right now at our {location_id} location."
             )
-            response.hangup()
+            response.redirect("/graceful_exit")
             return Response(str(response), mimetype="text/xml")
 
         # Check for meal deals
@@ -497,7 +519,7 @@ def take_order_per_location(location_id):
                 response.say(
                     f"Sorry, there's an issue with your order: {error_message}"
                 )
-                response.hangup()
+                response.redirect("/graceful_exit")
                 return Response(str(response), mimetype="text/xml")
 
             order_items.append(item_with_mods)
@@ -558,7 +580,7 @@ def confirm_order_from_initial_per_location(location_id):
     if interpreted == "yes":
         if len(order_items) == 0:
             response.say("I'm sorry, your order appears to be empty. Please try again.")
-            response.hangup()
+            response.redirect("/graceful_exit")
             return Response(str(response), mimetype="text/xml")
 
         # Save order to database
@@ -636,7 +658,7 @@ def confirm_order_from_initial_per_location(location_id):
             f"Great! Your order at our {location_id} location is confirmed and will be ready in about {time_taken} minutes. "
             "A confirmation text will be sent. Thank you!"
         )
-        response.hangup()
+        response.redirect("/graceful_exit")
 
     elif interpreted == "no":
         session["modification_in_progress"] = True

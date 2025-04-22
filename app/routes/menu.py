@@ -58,21 +58,16 @@ def menu_update():
     )
     logger.info(f"[MENU-UPDATE] Is Deliverect update: {is_deliverect}")
 
-    # Create backup of current menu before processing update
+    # Skip backup creation - all updates go to the main menu file
     import os
     import json
 
     try:
+        # Just load the current menu data to ensure we have it in memory
         current_menu = load_menu_data(force_refresh=True)
-        backup_folder = "/tmp/redbar_backups"
-        os.makedirs(backup_folder, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = os.path.join(backup_folder, f"menu_pre_update_{timestamp}.json")
-        with open(backup_path, "w") as f:
-            json.dump(current_menu, f, indent=2)
-        logger.info(f"[MENU-UPDATE] Created pre-update backup at {backup_path}")
-    except Exception as backup_e:
-        logger.warning(f"[MENU-UPDATE] Failed to create pre-update backup: {backup_e}")
+        logger.info(f"[MENU-UPDATE] Loaded current menu with {len(current_menu.get('items', []))} items")
+    except Exception as load_e:
+        logger.warning(f"[MENU-UPDATE] Failed to load current menu: {load_e}")
 
     try:
         # Get raw data and parse as JSON
@@ -346,25 +341,8 @@ def menu_update():
             # Using datetime from imported module
             import os
 
-            # CRITICAL: Make a backup of the menu data before attempting to save
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            # Create backup directory if it doesn't exist
-            backup_folder = "/tmp/redbar_backups"
-            try:
-                import os
-                import json
-
-                os.makedirs(backup_folder, exist_ok=True)
-                # Create a backup with timestamp
-                backup_path = os.path.join(
-                    backup_folder, f"menu_backup_{timestamp}.json"
-                )
-                with open(backup_path, "w") as f:
-                    json.dump(processed_data, f, indent=2)
-                logger.info(f"[MENU-UPDATE] Menu backup created at {backup_path}")
-            except Exception as backup_e:
-                logger.warning(f"[MENU-UPDATE] Failed to create backup: {backup_e}")
+            # Skip creating a separate backup file - we'll write directly to the main menu file
+            logger.info(f"[MENU-UPDATE] Proceeding to write menu directly to main file without backup")
 
             # Retain important data from current menu if this is a partial update
             if is_deliverect and current_menu and isinstance(current_menu, dict):
@@ -481,31 +459,21 @@ def menu_update():
                 logger.warning(
                     "[MENU-UPDATE] Menu reload verification failed - no items found"
                 )
-
-                # Try to restore from backup if available
-                if os.path.exists(backup_path):
-                    logger.info(
-                        f"[MENU-UPDATE] Attempting to restore from backup: {backup_path}"
-                    )
-                    try:
-                        with open(backup_path, "r") as f:
-                            backup_data = json.load(f)
-
-                        # Write the backup data back
-                        if write_menu_file(backup_data):
-                            logger.info(
-                                "[MENU-UPDATE] Successfully restored from backup"
-                            )
-                            # Reload one more time to confirm
-                            restored_menu = load_menu_data(force_refresh=True)
-                            restored_count = len(restored_menu.get("items", []))
-                            logger.info(
-                                f"[MENU-UPDATE] Restored menu has {restored_count} items"
-                            )
-                    except Exception as restore_e:
-                        logger.error(
-                            f"[MENU-UPDATE] Failed to restore from backup: {restore_e}"
-                        )
+                
+                # This is a critical error - try to write the processed data again
+                try:
+                    logger.info("[MENU-UPDATE] Attempting to write processed data again")
+                    # Write directly to the file as a last resort
+                    with open(MENU_FILE_PATH, "w") as f:
+                        json.dump(processed_data, f, indent=2)
+                    logger.info(f"[MENU-UPDATE] Wrote directly to {MENU_FILE_PATH}")
+                    
+                    # Reload one more time to confirm
+                    restored_menu = load_menu_data(force_refresh=True)
+                    restored_count = len(restored_menu.get("items", []))
+                    logger.info(f"[MENU-UPDATE] After direct write, menu has {restored_count} items")
+                except Exception as write_e:
+                    logger.error(f"[MENU-UPDATE] Failed to write menu data directly: {write_e}")
 
                 # If we have a callback URL, send a FAILED status
                 if callback_url:
@@ -529,7 +497,7 @@ def menu_update():
                     jsonify(
                         {
                             "error": "Menu reload verification failed - menu has 0 items",
-                            "details": "Attempted auto-recovery from backup, check logs for details",
+                            "details": "Attempted direct write to menu file, check logs for details",
                         }
                     ),
                     500,
@@ -573,11 +541,7 @@ def menu_update():
                         "modifierGroups": len(processed_data.get("modifierGroups", [])),
                         "ai_matching": True,  # Indicate that AI agent will handle matching
                         "source": "deliverect" if is_deliverect else "custom",
-                        "has_backup": (
-                            os.path.exists(backup_path)
-                            if "backup_path" in locals()
-                            else False
-                        ),
+                        "menu_file_path": MENU_FILE_PATH,
                     }
                 ),
                 200,

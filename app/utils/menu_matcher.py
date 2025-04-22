@@ -29,7 +29,7 @@ class MenuMatcher:
     def find_menu_item(self, item_name: str, check_availability: bool = False, 
                       context: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """
-        Find a menu item based on the given name, using AI to find the best match.
+        Find a menu item based on the given name, using multiple matching strategies.
         
         Args:
             item_name: Name of the item requested by the customer
@@ -42,13 +42,22 @@ class MenuMatcher:
         if not item_name:
             return None
             
-        # First try exact match to avoid unnecessary API calls
+        # Performance optimization: Try matching strategies in order of increasing complexity/cost
+        
+        # 1. First try exact match (fastest)
         exact_match = self._find_exact_match(item_name, check_availability)
         if exact_match:
             logger.info(f"[MENU-MATCHER] Found exact match for '{item_name}': {exact_match.get('name')}")
             return exact_match
             
-        # No exact match found, use AI to find the best match
+        # 2. Then try fast fuzzy matching (local algorithms, still very quick)
+        fuzzy_match = self._find_fast_fuzzy_match(item_name, check_availability)
+        if fuzzy_match:
+            logger.info(f"[MENU-MATCHER] Found fast fuzzy match for '{item_name}': {fuzzy_match.get('name')}")
+            return fuzzy_match
+            
+        # 3. Only if local matching fails, use AI (most expensive/slow, but most powerful)
+        logger.info(f"[MENU-MATCHER] No local match found, using AI matching for '{item_name}'")
         return self._find_ai_match(item_name, check_availability, context)
     
     def _find_exact_match(self, item_name: str, check_availability: bool) -> Optional[Dict[str, Any]]:
@@ -70,75 +79,285 @@ class MenuMatcher:
                     
         return None
     
+    def _levenshtein_distance(self, s1: str, s2: str) -> int:
+        """
+        Calculate the Levenshtein distance between two strings.
+        This is a measure of string similarity - lower values mean more similar strings.
+        
+        Args:
+            s1: First string to compare
+            s2: Second string to compare
+            
+        Returns:
+            int: The edit distance between the strings
+        """
+        # Optimization: early return for identical strings
+        if s1 == s2:
+            return 0
+            
+        # Handle empty strings
+        if len(s1) == 0:
+            return len(s2)
+        if len(s2) == 0:
+            return len(s1)
+        
+        # Create matrix of size (len(s1)+1) x (len(s2)+1)
+        matrix = [[0 for _ in range(len(s2) + 1)] for _ in range(len(s1) + 1)]
+        
+        # Fill the first row and column
+        for i in range(len(s1) + 1):
+            matrix[i][0] = i
+        for j in range(len(s2) + 1):
+            matrix[0][j] = j
+        
+        # Fill the rest of the matrix
+        for i in range(1, len(s1) + 1):
+            for j in range(1, len(s2) + 1):
+                cost = 0 if s1[i-1] == s2[j-1] else 1
+                matrix[i][j] = min(
+                    matrix[i-1][j] + 1,      # deletion
+                    matrix[i][j-1] + 1,      # insertion
+                    matrix[i-1][j-1] + cost  # substitution
+                )
+        
+        return matrix[len(s1)][len(s2)]
+    
+    def _calculate_similarity(self, s1: str, s2: str) -> float:
+        """
+        Calculate similarity score between two strings based on Levenshtein distance.
+        Returns a value between 0 and 1, where 1 means identical strings.
+        
+        Args:
+            s1: First string
+            s2: Second string
+            
+        Returns:
+            float: Similarity score between 0 and 1
+        """
+        # Handle empty strings
+        if not s1 and not s2:
+            return 1.0
+        if not s1 or not s2:
+            return 0.0
+            
+        # Calculate Levenshtein distance
+        distance = self._levenshtein_distance(s1, s2)
+        max_len = max(len(s1), len(s2))
+        
+        # Convert distance to similarity score (1 - normalized distance)
+        if max_len == 0:
+            return 0.0
+        return 1.0 - (distance / max_len)
+    
+    def _find_fast_fuzzy_match(self, item_name: str, check_availability: bool = False) -> Optional[Dict[str, Any]]:
+        """Use fast local fuzzy matching instead of AI for quicker responses."""
+        if not item_name:
+            return None
+            
+        # Normalize the input
+        item_name_lower = item_name.lower()
+        item_name_normalized = item_name_lower.replace(" ", "")
+        item_name_terms = set(item_name_lower.split())
+        
+        # Track possible matches with their scores
+        matches = {
+            'exact': None,
+            'normalized': None,
+            'substring': None,
+            'terms': None,
+            'levenshtein': None
+        }
+        scores = {
+            'exact': 0,
+            'normalized': 0,
+            'substring': 0,
+            'terms': 0,
+            'levenshtein': 0
+        }
+        
+        # Fast loop through all menu items
+        for item in self.menu_data.get("items", []):
+            # Skip category items
+            if item.get("is_category", False):
+                continue
+                
+            # Skip unavailable items if checking availability
+            if check_availability and (
+                not item.get("available", True) or item.get("snoozed", False)
+            ):
+                continue
+                
+            menu_item_name = item.get("name", "")
+            menu_item_lower = menu_item_name.lower()
+            
+            # Check for exact match first (fastest check)
+            if menu_item_lower == item_name_lower:
+                logger.info(f"[MENU-MATCHER] Found exact match: '{item_name}' = '{menu_item_name}'")
+                return item  # Return immediately on exact match
+                
+            # Check for normalized match (spaces removed)
+            menu_item_normalized = menu_item_lower.replace(" ", "")
+            if menu_item_normalized == item_name_normalized:
+                matches['normalized'] = item
+                scores['normalized'] = 1.0  # Perfect normalized match
+                
+            # Check for substring match
+            if item_name_lower in menu_item_lower:
+                # Item is contained in menu item - higher score for longer matches
+                substring_score = len(item_name_lower) / len(menu_item_lower)
+                if substring_score > scores['substring']:
+                    matches['substring'] = item
+                    scores['substring'] = substring_score
+            elif menu_item_lower in item_name_lower:
+                # Menu item is contained in item - lower score
+                substring_score = len(menu_item_lower) / len(item_name_lower) * 0.8  # Slightly lower weight
+                if substring_score > scores['substring']:
+                    matches['substring'] = item
+                    scores['substring'] = substring_score
+                
+            # Check for term-based match (improved to handle partial terms)
+            menu_item_terms = set(menu_item_lower.split())
+            
+            # Check for common terms
+            common_terms = item_name_terms.intersection(menu_item_terms)
+            
+            # Also check for partial term matches (like "spcy" matching "spicy")
+            partial_matches = 0
+            for input_term in item_name_terms:
+                if not input_term:
+                    continue
+                for menu_term in menu_item_terms:
+                    if not menu_term:
+                        continue
+                    # Check if the term is a substring or has high character overlap
+                    if (input_term in menu_term or menu_term in input_term or
+                        self._calculate_similarity(input_term, menu_term) >= 0.7):
+                        partial_matches += 1
+                        break
+            
+            # Calculate score based on both exact and partial matches
+            if common_terms or partial_matches > 0:
+                # Term match score is based on both exact matches and partial matches
+                exact_match_score = len(common_terms) / max(len(item_name_terms), len(menu_item_terms)) if menu_item_terms else 0
+                partial_match_score = partial_matches / len(item_name_terms) if item_name_terms else 0
+                
+                # Combine scores with higher weight for exact matches
+                term_score = (exact_match_score * 0.7) + (partial_match_score * 0.3)
+                
+                if term_score > scores['terms']:
+                    matches['terms'] = item
+                    scores['terms'] = term_score
+            
+            # Only calculate Levenshtein similarity if there's potential for a match
+            # (i.e., length difference is not too large)
+            if abs(len(menu_item_lower) - len(item_name_lower)) <= min(len(menu_item_lower), len(item_name_lower)):
+                similarity = self._calculate_similarity(menu_item_lower, item_name_lower)
+                # Only consider similarity matches above a threshold
+                if similarity >= 0.7 and similarity > scores['levenshtein']:
+                    matches['levenshtein'] = item
+                    scores['levenshtein'] = similarity
+        
+        # Return the best match based on priority and score
+        # Normalized match (removing spaces) is very reliable
+        if matches['normalized']:
+            logger.info(f"[MENU-MATCHER] Found normalized match: '{item_name}' ≈ '{matches['normalized'].get('name')}' (spaces removed)")
+            return matches['normalized']
+        
+        # Term match is good for abbreviations and word variations
+        if matches['terms'] and scores['terms'] >= 0.6:
+            logger.info(f"[MENU-MATCHER] Found high-confidence term match: '{item_name}' ≈ '{matches['terms'].get('name')}' (score: {scores['terms']:.2f})")
+            return matches['terms']
+        
+        # Levenshtein match with high similarity is reliable
+        if matches['levenshtein'] and scores['levenshtein'] >= 0.8:
+            logger.info(f"[MENU-MATCHER] Found similarity match: '{item_name}' ≈ '{matches['levenshtein'].get('name')}' (similarity: {scores['levenshtein']:.2f})")
+            return matches['levenshtein']
+            
+        # Substring match can be good for partial menu item names
+        if matches['substring'] and scores['substring'] >= 0.7:
+            logger.info(f"[MENU-MATCHER] Found substring match: '{item_name}' ≈ '{matches['substring'].get('name')}' (score: {scores['substring']:.2f})")
+            return matches['substring']
+            
+        # Lower confidence term match
+        if matches['terms'] and scores['terms'] >= 0.4:
+            logger.info(f"[MENU-MATCHER] Found term-based match: '{item_name}' ≈ '{matches['terms'].get('name')}' (score: {scores['terms']:.2f})")
+            return matches['terms']
+            
+        # Lower confidence Levenshtein match as last resort
+        if matches['levenshtein'] and scores['levenshtein'] >= 0.7:
+            logger.info(f"[MENU-MATCHER] Found low-confidence similarity match: '{item_name}' ≈ '{matches['levenshtein'].get('name')}' (similarity: {scores['levenshtein']:.2f})")
+            return matches['levenshtein']
+            
+        logger.warning(f"[MENU-MATCHER] No fuzzy match found for '{item_name}'")
+        return None
+    
     def _find_ai_match(self, item_name: str, check_availability: bool, 
                       context: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """Use AI to find the best match for the item name in the menu."""
+        # We already tried fast matching in the main find_menu_item method,
+        # so go directly to AI matching for better performance
         try:
-            # Prepare menu context
+            # Check if we have menu items to work with
             menu_items = []
             for item in self.menu_data.get("items", []):
-                # Skip category items
-                if item.get("is_category", False):
-                    continue
-                    
-                # Skip unavailable items if we're checking availability
-                if check_availability and (
-                    not item.get("available", True) or item.get("snoozed", False)
-                ):
-                    continue
-                    
-                menu_items.append({
-                    "name": item.get("name", ""),
-                    "category": item.get("category", ""),
-                    "description": item.get("description", ""),
-                    "price": item.get("price", 0.0),
-                })
+                if not item.get("is_category", False) and (not check_availability or 
+                    (item.get("available", True) and not item.get("snoozed", False))):
+                    menu_items.append({
+                        "name": item.get("name", ""),
+                        "category": item.get("category", ""),
+                        "description": item.get("description", ""),
+                        "price": item.get("price", 0.0),
+                    })
                 
             # No items to match against
             if not menu_items:
                 logger.warning("[MENU-MATCHER] No menu items available to match against")
-                return None
+                # Try to reload menu data in case it wasn't loaded properly
+                self.menu_data = load_menu_data(force_refresh=True)
+                
+                # If reload didn't help, return None
+                if not self.menu_data.get("items", []):
+                    logger.error("[MENU-MATCHER] No menu items available after reload")
+                    return None
+                
+                # After reload, return to the main matching function
+                # to try all matching strategies again
+                logger.info(f"[MENU-MATCHER] Retrying match after menu reload")
+                return self.find_menu_item(item_name, check_availability, context)
+            
+            # Build concise menu item list - only send essential data to reduce token usage
+            simplified_menu = [{"name": item["name"]} for item in menu_items]
                 
             # Build the messages for the API call
             messages = [
                 {
                     "role": "system",
-                    "content": """You are an AI assistant for a restaurant that helps match customer requests to menu items.
-                    Your goal is to find the best match for a customer's item request based on the available menu items.
+                    "content": """You are a restaurant menu matcher that matches customer requests to menu items.
+                    Rules:
+                    1. Match similar words regardless of spaces ("hamburger" matches "Ham Burger")
+                    2. Match similar words regardless of case or punctuation
+                    3. Handle misspellings and typos (e.g., "califorrnia" should match "California")
+                    4. Consider common food abbreviations (e.g., "cali roll" matches "California Roll")
+                    5. Return ONLY the exact menu item name that best matches, no explanation
                     
-                    Important rules:
-                    1. ONLY match against actual menu items, not category names
-                    2. Consider item names, descriptions, and ingredients in your matching
-                    3. Use fuzzy matching when appropriate (e.g., "cheeseburger" might match "Burger with Cheese")
-                    4. Focus on the customer's intent, not just literal word matching
-                    5. Return the name of the best matching menu item, exactly as it appears in the menu
-                    6. NEVER invent or suggest items that don't exist in the menu
-                    
-                    Always format your response as a single menu item name, exactly as it appears in the menu."""
+                    Your response should be just the menu item name - nothing else. Never add quotes, colons, explanations, or anything other than the exact menu item name.
+                    """
                 },
                 {
                     "role": "user",
-                    "content": f"Customer requested: '{item_name}'\n\nAvailable menu items:\n{json.dumps(menu_items, indent=2)}\n\nWhat is the best matching menu item?"
+                    "content": f"Customer requested: '{item_name}'\n\nChoose from these menu items ONLY:\n{json.dumps(simplified_menu)}\n\nReturn ONLY the exact menu item name that best matches. Don't add any quotes, prefixes, or explanation."
                 }
             ]
-            
-            # Add conversation context if provided
-            if context and "conversation" in context:
-                messages[0]["content"] += "\nUse the conversation history to understand the customer's preferences and requirements."
-                messages.append({
-                    "role": "user",
-                    "content": f"Conversation history:\n{context['conversation']}"
-                })
                 
             # Log the request
             log_openai_request(self.model, messages, "menu_ai_matcher")
             
-            # Make the API call
+            # Make the API call with minimal tokens
             response = openai.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                temperature=0.3,  # Lower temperature for more deterministic results
-                max_tokens=150,   # Keep responses concise
+                temperature=0.1,  # Very low temp for deterministic results
+                max_tokens=20,    # Keep responses very short
             )
             
             # Log the response
@@ -147,28 +366,58 @@ class MenuMatcher:
             # Extract the matched item name from the response
             matched_item_name = response.choices[0].message.content.strip()
             
-            # Clean up the response to handle various output formats
+            # Clean up the response (AI model shouldn't add these, but just in case)
+            # Remove common response patterns like "Menu Item: California Roll"
             if ":" in matched_item_name:
                 matched_item_name = matched_item_name.split(":", 1)[1].strip()
+            # Remove quotation marks
             if matched_item_name.startswith('"') and matched_item_name.endswith('"'):
                 matched_item_name = matched_item_name[1:-1].strip()
+            # Remove any prefix like "The best match is" or "I recommend"
+            prefixes = ["the best match is", "i recommend", "best match:", "match:"]
+            for prefix in prefixes:
+                if matched_item_name.lower().startswith(prefix):
+                    matched_item_name = matched_item_name[len(prefix):].strip()
                 
             logger.info(f"[MENU-MATCHER] AI suggested match: '{matched_item_name}' for request '{item_name}'")
             
-            # Find the matched item in the menu
+            # Two-pass matching to find the item:
+            # 1. First try exact case-insensitive match
             for item in self.menu_data.get("items", []):
-                if item.get("name", "").lower() == matched_item_name.lower():
-                    logger.info(f"[MENU-MATCHER] Found AI-matched item in menu: {item.get('name')}")
+                if not item.get("is_category", False) and item.get("name", "").lower() == matched_item_name.lower():
+                    logger.info(f"[MENU-MATCHER] Found exact AI-matched item in menu: {item.get('name')}")
                     return item
                     
-            # If we can't find the exact name the AI returned, try a close match
+            # 2. If exact match fails, try fuzzy matching with the AI's suggestion
+            # This handles cases where the AI might return something close but not exact
+            logger.info(f"[MENU-MATCHER] No exact match for AI suggestion, trying fuzzy matching")
+            best_match = None
+            best_similarity = 0
+            
             for item in self.menu_data.get("items", []):
-                if matched_item_name.lower() in item.get("name", "").lower() or item.get("name", "").lower() in matched_item_name.lower():
-                    logger.info(f"[MENU-MATCHER] Found close AI-matched item in menu: {item.get('name')}")
-                    return item
+                if item.get("is_category", False):
+                    continue
                     
-            logger.warning(f"[MENU-MATCHER] AI suggested '{matched_item_name}' but item not found in menu")
-            return None
+                # Skip unavailable items if checking availability
+                if check_availability and (
+                    not item.get("available", True) or item.get("snoozed", False)
+                ):
+                    continue
+                    
+                menu_item_name = item.get("name", "").lower()
+                similarity = self._calculate_similarity(menu_item_name, matched_item_name.lower())
+                
+                if similarity > best_similarity and similarity >= 0.8:  # Only consider high similarity matches
+                    best_similarity = similarity
+                    best_match = item
+            
+            if best_match:
+                logger.info(f"[MENU-MATCHER] Found fuzzy match for AI suggestion: '{best_match.get('name')}' (similarity: {best_similarity:.2f})")
+                return best_match
+            
+            # If all else fails, use our local fuzzy matcher on the original query
+            logger.info(f"[MENU-MATCHER] AI matching unsuccessful, trying local fuzzy matching on original query")
+            return self._find_fast_fuzzy_match(item_name, check_availability)
             
         except Exception as e:
             logger.error(f"[MENU-MATCHER] Error in AI matching: {str(e)}")

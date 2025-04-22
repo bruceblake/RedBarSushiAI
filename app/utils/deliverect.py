@@ -1950,11 +1950,23 @@ def build_deliverect_order(
             del_item["subItems"].append(default_variation)
 
         # Process any modifiers for this item
+        if item.get("modifier", []):
+            logger.info(f"[DELIVERECT-ORDER] Processing {len(item.get('modifier', []))} modifiers for item {item.get('name')}")
+            logger.info(f"[DELIVERECT-ORDER] Modifier details: {json.dumps(item.get('modifier', []))}")
+            
         for mod in item.get("modifier", []):
             # Get modifier PLU code and clean it
             mod_plu = mod.get("reference_handler", mod.get("plu", ""))
             clean_mod_plu = clean_plu_code(mod_plu)
-
+            
+            # Log detailed modifier info
+            logger.info(f"[DELIVERECT-ORDER] Adding modifier: {mod.get('name')} with reference {mod_plu} (cleaned: {clean_mod_plu})")
+            
+            if not clean_mod_plu:
+                logger.warning(f"[DELIVERECT-ORDER] Missing PLU for modifier {mod.get('name')}, using fallback")
+                # Create a fallback PLU if needed
+                clean_mod_plu = f"MOD-{mod.get('name', '').lower().replace(' ', '-')}"
+                
             sub_item = {
                 "name": mod.get("name", "").lower(),
                 "plu": clean_mod_plu,  # Use cleaned PLU code for Deliverect compatibility
@@ -1965,10 +1977,11 @@ def build_deliverect_order(
             # Log if price seems incorrect
             if sub_item["price"] <= 0 and "price" in mod:
                 logger.warning(
-                    f"Found zero or negative price for modifier {mod.get('name')}, raw value: {mod.get('price')}"
+                    f"[DELIVERECT-ORDER] Found zero or negative price for modifier {mod.get('name')}, raw value: {mod.get('price')}"
                 )
 
             del_item["subItems"].append(sub_item)
+            logger.info(f"[DELIVERECT-ORDER] Successfully added modifier {sub_item['name']} (PLU: {sub_item['plu']}) to order")
 
         # Process any child items (for meal deals)
         if "childItems" in item:
