@@ -176,8 +176,8 @@ def handle_menu_questions():
                 
                 # Get agent to process menu question
                 if OPTIMIZED_MENU_HANDLER:
-                    # Use optimized handler
-                    menu_response = handle_menu_query(spoken_query, menu_data)
+                    # Use optimized handler - note that it only takes one argument
+                    menu_response = handle_menu_query(spoken_query)
                 else:
                     # Use standard agent
                     agent = OrderParsingAgent()

@@ -46,7 +46,7 @@ def extract_name_with_agent(input_text):
     
     logger.info(f"Extracting name from: {input_text}")
     
-    # Direct extraction for simple cases
+    # Direct extraction for simple cases first for efficiency
     if input_text.lower().startswith("my name is "):
         return input_text[11:].strip()
     
@@ -57,21 +57,26 @@ def extract_name_with_agent(input_text):
         name_part = input_text[5:] if input_text.lower().startswith("i am ") else input_text[4:]
         return name_part.strip()
     
-    # For complex cases, use OrderParsingAgent
+    # For simple statements with just the name
+    if len(input_text.split()) <= 2:
+        # Likely just stating their name directly
+        return input_text.strip()
+    
+    # Use AI to extract more complex name situations
     try:
         agent = OrderParsingAgent()
-        extraction_result = agent.extract_name(input_text)
+        result = agent.extract_name(input_text)
         
-        if extraction_result and "name" in extraction_result:
-            return extraction_result["name"]
-            
-        # If no structured result, just return the input as is
-        # (assuming they just stated their name directly)
-        return input_text.strip()
+        if result and "name" in result and result["name"]:
+            logger.info(f"Successfully extracted name with AI agent: {result['name']}")
+            return result["name"]
     except Exception as e:
         logger.error(f"Error extracting name with agent: {str(e)}")
-        # Fall back to returning the original text
-        return input_text.strip()
+        # Fall back to basic extraction if AI fails
+        
+    # For anything else, just return the input as the name
+    # (assuming they just stated their name directly)
+    return input_text.strip()
 
 @voice_bp.route("/", methods=["POST"])
 def receive_call():
@@ -103,14 +108,13 @@ def receive_call():
     
     # Add a greeting
     greeting = (
-        "Thanks for calling Red Bar Sushi. "
-        "I'm your AI assistant, here to help you with placing an order "
-        "or answering any questions about our menu."
+        "Thank you for calling Red Bar Sushi. "
+        "This is the AI assistant. How can I help you today?"
     )
     response.say(greeting)
     
     # Ask for the caller's name
-    name_prompt = "To get started, may I have your name?"
+    name_prompt = "May I have your name please?"
     
     # Set up the name gathering parameters with slightly longer timeouts
     gather_params = setup_gather_params(
@@ -275,10 +279,27 @@ def confirm_name():
         session["customer_name_confirmed"] = True
         
         # Personalized greeting
-        response.say(f"Thanks, {name}! Here's our main menu.")
+        response.say(f"Thanks, {name}!")
         response.redirect("/main_menu")
     else:
-        # If not confirmed, ask again
+        # If not confirmed, ask again but add a retry counter to prevent loops
+        retry_count = session.get("name_confirm_retry", 0)
+        session["name_confirm_retry"] = retry_count + 1
+        
+        # After 2 retries, just proceed with what we have or default name
+        if retry_count >= 1:
+            # Just proceed with what we have or a default
+            if not session.get("customer_name"):
+                session["customer_name"] = "Customer"
+            
+            # Mark as confirmed to avoid further prompts
+            session["customer_name_confirmed"] = True
+            
+            response.say("Let's continue to the main menu.")
+            response.redirect("/main_menu")
+            return Response(str(response), mimetype="text/xml")
+        
+        # First retry - clear previous name and try again
         response.say("I apologize for getting that wrong. Let's try again.")
         
         # Clear previous name from session

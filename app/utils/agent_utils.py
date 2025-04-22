@@ -1059,6 +1059,90 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                 logger.error(f"[AGENT-ERROR] Error in parse_order: {str(e)}")
                 logger.error(f"[AGENT-TRACEBACK] {traceback.format_exc()}")
                 return {"items": [], "error": str(e)}
+                
+        def extract_name(self, input_string: str) -> dict:
+            """
+            Extract a name from an input string using AI.
+            
+            Args:
+                input_string: The input string that may contain a name
+                
+            Returns:
+                dict: A dictionary containing the extracted name
+            """
+            try:
+                # Initialize the OpenAI client
+                client = openai.OpenAI()
+                
+                # Prepare messages for the API call
+                messages = [
+                    {
+                        "role": "system",
+                        "content": """You are an AI assistant that extracts customer names from text.
+                        Your task is to identify and extract only the customer name from the input.
+                        
+                        Rules:
+                        1. Return ONLY the customer's name, with proper capitalization.
+                        2. Do not add any other text, explanations, or formatting.
+                        3. If no name is found, respond with "Unknown".
+                        4. Handle formal titles appropriately (Mr., Ms., Dr., etc.)
+                        5. For multi-part names, include the full name.
+                        
+                        Examples:
+                        Input: "My name is John Smith and I'd like to place an order."
+                        Output: John Smith
+                        
+                        Input: "Order for Sarah Johnson please."
+                        Output: Sarah Johnson
+                        
+                        Input: "Can I get a California roll and some miso soup?"
+                        Output: Unknown
+                        
+                        Input: "Dr. Robert Williams will be picking this up."
+                        Output: Dr. Robert Williams
+                        """
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Extract the customer name from this text: {input_string}"
+                    }
+                ]
+                
+                # Log the API request
+                logger.info(f"[NAME-EXTRACT] Processing input text: '{input_string}'")
+                log_openai_request("gpt-4-mini", messages, "extract_name")
+                
+                try:
+                    # Make the OpenAI API call
+                    response = client.chat.completions.create(
+                        model="gpt-4-mini",
+                        messages=messages,
+                        temperature=0.1,  # Low temperature for consistent outputs
+                        max_tokens=50  # Names are typically short
+                    )
+                    
+                    # Log the response
+                    log_openai_response(response, "extract_name")
+                    logger.info("[NAME-EXTRACT] Successfully received OpenAI response")
+                    
+                    # Extract the name from the response
+                    extracted_name = response.choices[0].message.content.strip()
+                    
+                    # If the model returns "Unknown", convert to empty string
+                    if extracted_name.lower() == "unknown":
+                        extracted_name = ""
+                        
+                    logger.info(f"[NAME-EXTRACT] Extracted name: '{extracted_name}'")
+                    return {"name": extracted_name, "error": None}
+                    
+                except Exception as e:
+                    logger.error(f"[NAME-EXTRACT-ERROR] OpenAI API error: {str(e)}")
+                    logger.error(f"[NAME-EXTRACT-TRACEBACK] {traceback.format_exc()}")
+                    return {"name": "", "error": str(e)}
+            except Exception as e:
+                logger.error(f"[NAME-EXTRACT-ERROR] General error: {str(e)}")
+                logger.error(f"[NAME-EXTRACT-TRACEBACK] {traceback.format_exc()}")
+                return {"name": "", "error": str(e)}
 
     class OrderModificationAgent:
         """Agent for modifying existing orders."""
