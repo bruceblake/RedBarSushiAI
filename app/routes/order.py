@@ -2346,10 +2346,35 @@ def order_completion_options():
     
     # Check for silence or invalid input
     if not speech_input and not digits:
-        # If they don't say anything, just thank them and use the graceful exit
-        response.say("Thank you for your order at Red Bar Sushi! Goodbye!")
-        response.redirect("/graceful_exit")
-        return Response(str(response), mimetype="text/xml")
+        # Track silence retries
+        completion_silence_retry = session.get("completion_silence_retry", 0)
+        session["completion_silence_retry"] = completion_silence_retry + 1
+        
+        logger.info(f"Silence detected in order completion options (attempt {completion_silence_retry+1})")
+        
+        if completion_silence_retry >= 1:
+            # After second silence, just thank them and exit
+            logger.info("Multiple silences in completion options - proceeding to graceful exit")
+            response.say("Thank you for your order at Red Bar Sushi! Goodbye!")
+            response.redirect("/graceful_exit")
+            return Response(str(response), mimetype="text/xml")
+        else:
+            # First silence, try again with clearer options
+            with response.gather(
+                input="speech dtmf",
+                action="/order_completion_options",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=8,
+                num_digits=1
+            ) as g:
+                g.say("If you'd like additional information, please press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call.")
+            return Response(str(response), mimetype="text/xml")
+    
+    # Reset silence counter if we got a response
+    session["completion_silence_retry"] = 0
     
     # Process their choice
     if digits == "1" or "direction" in speech_input or "address" in speech_input or "location" in speech_input:
@@ -2449,15 +2474,43 @@ def save_callback_request():
     
     response = VoiceResponse()
     
-    if contact_info:
+    # Track silence retries
+    callback_silence_retry = session.get("callback_silence_retry", 0)
+    
+    if not contact_info:
+        # Increment silence counter
+        session["callback_silence_retry"] = callback_silence_retry + 1
+        
+        logger.info(f"Silence detected in callback request (attempt {callback_silence_retry+1})")
+        
+        if callback_silence_retry >= 1:
+            # After multiple silences, give up gracefully
+            logger.info("Multiple silences in callback request - exiting gracefully")
+            response.say("I didn't hear your contact information. Please call back when you have a moment to provide your contact details. Goodbye!")
+            response.redirect("/graceful_exit")
+            return Response(str(response), mimetype="text/xml")
+        else:
+            # First silence, try again
+            with response.gather(
+                input="speech",
+                action="/save_callback_request",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=7,
+                timeout=10
+            ) as g:
+                g.say("I didn't hear anything. Please tell me your name and the best way to contact you.")
+            return Response(str(response), mimetype="text/xml")
+    else:
+        # Reset silence counter if they provided information
+        session["callback_silence_retry"] = 0
+        
         # In a real implementation, this would be saved to a database
         logger.info(f"Callback request received: {contact_info}")
         
         # Thank them for the information
         response.say("Thank you for your information. A team member will contact you as soon as possible. Goodbye!")
-    else:
-        # No information provided
-        response.say("I didn't catch your information. Please call back when you have a moment to provide your contact details. Goodbye!")
     
     # Instead of hanging up, redirect to graceful exit
     response.redirect("/graceful_exit")
@@ -2472,15 +2525,43 @@ def save_contact_info():
     
     response = VoiceResponse()
     
-    if contact_info:
+    # Track silence retries
+    contact_silence_retry = session.get("contact_silence_retry", 0)
+    
+    if not contact_info:
+        # Increment silence counter
+        session["contact_silence_retry"] = contact_silence_retry + 1
+        
+        logger.info(f"Silence detected in contact info request (attempt {contact_silence_retry+1})")
+        
+        if contact_silence_retry >= 1:
+            # After multiple silences, give up gracefully
+            logger.info("Multiple silences in contact info request - exiting gracefully")
+            response.say("I didn't hear your contact information. Please call back when you have a moment to provide your contact details. Goodbye!")
+            response.redirect("/graceful_exit")
+            return Response(str(response), mimetype="text/xml")
+        else:
+            # First silence, try again
+            with response.gather(
+                input="speech",
+                action="/save_contact_info",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=7,
+                timeout=10
+            ) as g:
+                g.say("I didn't hear anything. Please tell me your name and contact details so we can notify you when our menu is back online.")
+            return Response(str(response), mimetype="text/xml")
+    else:
+        # Reset silence counter if they provided information
+        session["contact_silence_retry"] = 0
+        
         # In a real implementation, this would be saved to a database
         logger.info(f"Contact info received for menu notification: {contact_info}")
         
         # Thank them for the information
         response.say("Thank you for your information. We'll contact you when our menu is back online. Goodbye!")
-    else:
-        # No information provided
-        response.say("I didn't catch your information. Please call back when you have a moment to provide your contact details. Goodbye!")
     
     # Instead of hanging up, redirect to graceful exit
     response.redirect("/graceful_exit")
@@ -2708,6 +2789,64 @@ def handle_invalid_modifiers():
     
     response = VoiceResponse()
     
+    # Check for silence (no input)
+    if not speech_input and not dtmf_input:
+        # Track silence retries for invalid modifier handling
+        invalid_mod_silence_retry = session.get("invalid_mod_silence_retry", 0)
+        session["invalid_mod_silence_retry"] = invalid_mod_silence_retry + 1
+        
+        logger.info(f"Silence detected in invalid modifier handling (attempt {invalid_mod_silence_retry+1})")
+        
+        if invalid_mod_silence_retry >= 1:
+            # After multiple silences, default to removing invalid modifiers
+            logger.warning("Multiple silences when handling invalid modifiers - defaulting to removing them")
+            
+            # Get the invalid modifiers from session
+            invalid_item_modifiers = json.loads(session.get("invalid_item_modifiers", "[]"))
+            order_items = json.loads(session.get("order_items_json", "[]"))
+            
+            # Remove all invalid modifiers
+            for invalid_item in invalid_item_modifiers:
+                item_name = invalid_item["item"]
+                invalid_mods = set(mod.lower() for mod in invalid_item["invalid_modifiers"])
+                
+                # Find the item in the order
+                for item in order_items:
+                    if item.get("name") == item_name:
+                        # Filter out invalid modifiers
+                        valid_mods = [
+                            mod for mod in item.get("modifier", [])
+                            if mod.get("name", "").lower() not in invalid_mods
+                        ]
+                        # Update the item with only valid modifiers
+                        item["modifier"] = valid_mods
+                        break
+            
+            # Update the session with cleaned order
+            session["order_items_json"] = json.dumps(order_items)
+            
+            # Inform user and proceed
+            response.say("Since I didn't hear your choice, I'll remove the invalid modifiers and proceed with your order.")
+            response.redirect("/process_order_checkout")
+            return Response(str(response), mimetype="text/xml")
+        else:
+            # First silence, try again with clearer options
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_invalid_modifiers",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=8,
+                num_digits=1
+            ) as g:
+                g.say("I didn't hear your response. Press 1 or say 'continue' to remove the invalid modifiers and continue with your order, or press 2 or say 'modify' to make changes to your order.")
+            return Response(str(response), mimetype="text/xml")
+    
+    # Reset silence counter if we got a response
+    session["invalid_mod_silence_retry"] = 0
+    
     # Log the user's response
     logger.info(f"Invalid modifier handling - User response: '{speech_input}', DTMF: '{dtmf_input}'")
     
@@ -2823,17 +2962,31 @@ def graceful_exit():
     """
     response = VoiceResponse()
     
-    # Add a brief gather with a simple message
-    with response.gather(
-        input="dtmf",
-        action="/main_menu",
-        num_digits=1,
-        timeout=5  # Short timeout as this is the last chance
-    ) as g:
-        g.say("Thank you for calling Red Bar Sushi. If you'd like to return to the main menu, please press any key now. Goodbye!")
+    # Check if this is a repeated visit to graceful_exit
+    exit_attempt = session.get("graceful_exit_attempt", 0)
+    session["graceful_exit_attempt"] = exit_attempt + 1
     
-    # If no input after short timeout, we can safely end the call
-    # This is an appropriate place to hang up as we've given multiple chances
+    logger.info(f"Graceful exit (attempt {exit_attempt+1})")
+    
+    # Only give the menu option on the first attempt
+    # After that, just end the call to avoid endless loops
+    if exit_attempt == 0:
+        # Add a brief gather with a simple message
+        with response.gather(
+            input="dtmf",
+            action="/main_menu",
+            num_digits=1,
+            timeout=5  # Short timeout as this is the last chance
+        ) as g:
+            g.say("Thank you for calling Red Bar Sushi. If you'd like to return to the main menu, please press any key now. Goodbye!")
+    else:
+        # On subsequent attempts, just end the call
+        logger.info("Multiple graceful exit attempts - ending call")
+    
+    # Reset the exit counter for future calls
+    session["graceful_exit_attempt"] = 0
+    
+    # End the call - this is appropriate as we've given them a chance to continue
     response.say("Goodbye from Red Bar Sushi. We look forward to your next call.")
     response.hangup()
     

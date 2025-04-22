@@ -43,16 +43,16 @@ voice_bp = Blueprint("voice", __name__)
 
 # Speech timeout configuration
 # Using fixed values instead of "auto" for more predictable behavior
-SPEECH_TIMEOUT_SHORT = 3    # For simple responses (yes/no)
-SPEECH_TIMEOUT_MEDIUM = 3  # For name, phone number
-SPEECH_TIMEOUT_LONG = 5    # For orders, menu questions
-SPEECH_TIMEOUT_EXTENDED = 5  # For complex orders
+SPEECH_TIMEOUT_SHORT = 2    # For simple responses (yes/no)
+SPEECH_TIMEOUT_MEDIUM = 2  # For name, phone number
+SPEECH_TIMEOUT_LONG = 3    # For orders, menu questions
+SPEECH_TIMEOUT_EXTENDED = 4  # For complex orders
 
 # Regular timeout configuration (waiting for any input)
 TIMEOUT_SHORT = 3
-TIMEOUT_MEDIUM = 3
+TIMEOUT_MEDIUM = 4
 TIMEOUT_LONG = 5
-TIMEOUT_EXTENDED = 5
+TIMEOUT_EXTENDED = 6
 
 # Progressive timeout settings
 MAX_SILENCE_RETRIES = 3
@@ -117,7 +117,7 @@ def get_adaptive_timeouts(context, retry_count=0):
     elif context in ["menu", "question"]:
         speech_timeout = SPEECH_TIMEOUT_MEDIUM
         timeout = TIMEOUT_MEDIUM
-    elif context in ["confirm", "yes_no"]:
+    elif context in ["confirm", "yes_no", "name"]:
         speech_timeout = SPEECH_TIMEOUT_SHORT
         timeout = TIMEOUT_SHORT
     else:
@@ -667,7 +667,7 @@ def main_menu():
         )
         
         with response.gather(**gather_params) as g:
-            g.say("Please tell me what you would like to order. Take your time, I'll wait.")
+            g.say("Please tell me what you would like to order.")
             
         # Add redirect for silence handling
         response.redirect("/take_order")
