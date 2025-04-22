@@ -753,8 +753,10 @@ def validate_modifiers(order_items: List[Dict[str, Any]]) -> List[Dict[str, Any]
     Validates that all modifiers in the order exist in the menu, are available,
     and have proper reference handlers for Deliverect.
     
-    Adds validation to ensure modifiers are actually in the menu or valid standard 
-    cooking preferences, sides, etc. Prevents arbitrarily adding non-existent modifiers.
+    This validation focuses on whether modifiers exist and are available,
+    ensuring they have correct reference handlers. For constraint checking
+    (min/max requirements), use the validate_modifier_constraints function
+    in menu_utils.py.
 
     Args:
         order_items: List of order items with modifiers

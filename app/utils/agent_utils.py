@@ -1429,10 +1429,30 @@ else:
                             - Use the context and language cues to distinguish when a customer is adding modifiers
                               to a main item vs. ordering separate items
                             
+                            SPECIAL HANDLING FOR MEAL DEALS AND COMBOS:
+                            - When a customer orders a combo or meal deal, the meal deal itself is the main item
+                            - Components of the meal deal should be extracted as separate items in the response
+                            - For example: "I want a Bento Box with California Roll and Miso Soup" should extract:
+                              1. Main item: "Bento Box" (combo/meal deal)
+                              2. Component items: "California Roll" and "Miso Soup" as separate items
+                            - Components can have their own modifiers (e.g., "California Roll with extra avocado")
+                            
+                            MODIFIER QUANTITIES:
+                            - Pay special attention to quantities for modifiers
+                            - Example: "3 scoops of rice" should be parsed as a modifier with quantity=3
+                            - Example: "double avocado" should be parsed as a modifier with quantity=2
+                            - Parse numeric quantities correctly (one=1, two=2, etc.)
+                            
+                            NESTED MODIFIERS:
+                            - Modifiers can have their own sub-modifiers
+                            - Example: "add avocado with spicy mayo on top" should be parsed as:
+                              1. Modifier: "avocado" with sub-modifier "spicy mayo on top"
+                            
                             When determining if something is a modifier:
                             1. Look for phrases like "with", "add", "extra", "no", "without", "on the side" 
                             2. Consider if the item is typically a standalone dish or a component/addition
                             3. Group related items together based on natural language structure
+                            4. Check for component selections that belong to meal deals/combos
                             """,
                         },
                         {
@@ -1445,7 +1465,8 @@ else:
                             - quantity: The quantity ordered (default to 1 if not specified)
                             - modifier: An array of modifiers for this item, each with a name and quantity
                             
-                            Example response for "I want a California Roll with extra wasabi and a spicy tuna roll":
+                            Example 1: Order with modifiers
+                            Input: "I want a California Roll with extra wasabi and a spicy tuna roll"
                             {{
                               "items": [
                                 {{
@@ -1459,6 +1480,50 @@ else:
                                   "name": "Spicy Tuna Roll",
                                   "quantity": 1,
                                   "modifier": []
+                                }}
+                              ]
+                            }}
+                            
+                            Example 2: Meal deal with components and modifiers
+                            Input: "I'd like a Bento Box with salmon roll and add 2 scoops of rice to the miso soup"
+                            {{
+                              "items": [
+                                {{
+                                  "name": "Bento Box",
+                                  "quantity": 1,
+                                  "modifier": []
+                                }},
+                                {{
+                                  "name": "Salmon Roll",
+                                  "quantity": 1,
+                                  "modifier": []
+                                }},
+                                {{
+                                  "name": "Miso Soup",
+                                  "quantity": 1,
+                                  "modifier": [
+                                    {{ "name": "Rice", "quantity": 2 }}
+                                  ]
+                                }}
+                              ]
+                            }}
+                            
+                            Example 3: Nested modifiers
+                            Input: "I want a California Roll with avocado topped with spicy mayo"
+                            {{
+                              "items": [
+                                {{
+                                  "name": "California Roll",
+                                  "quantity": 1,
+                                  "modifier": [
+                                    {{ 
+                                      "name": "Avocado", 
+                                      "quantity": 1,
+                                      "subModifiers": [
+                                        {{ "name": "Spicy Mayo", "quantity": 1 }}
+                                      ]
+                                    }}
+                                  ]
                                 }}
                               ]
                             }}

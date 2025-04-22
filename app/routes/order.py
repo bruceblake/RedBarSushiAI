@@ -101,15 +101,46 @@ recent_actions = defaultdict(lambda: {"timestamp": 0, "lock": threading.Lock()})
 def check_for_missing_modifiers(order_items):
     """
     Check if any order items don't have modifiers but should.
-    Returns a list of items that would benefit from modifier suggestions.
+    
+    Uses the enhanced validate_modifier_constraints function to identify items
+    that are missing required modifiers or would benefit from modifier suggestions.
+    Also handles meal deals and their components, and provides detailed constraint
+    information for user prompting.
+    
+    Args:
+        order_items: List of order items to check
+        
+    Returns:
+        tuple: (items_needing_modifiers, constraint_details)
+            - items_needing_modifiers: List of items that need modifiers
+            - constraint_details: Dict mapping item name -> constraint details for prompting
     """
+    from app.utils.menu_utils import validate_modifier_constraints
+    
     # Initialize agent for checking item details
     agent = OrderParsingAgent()
     items_needing_modifiers = []
     
+    # Get detailed constraints for all items
+    is_valid, error_message, constraint_details = validate_modifier_constraints(
+        order_items, return_detailed_constraints=True
+    )
+    
+    # First, add items with unfulfilled constraints (required modifiers)
+    for item_name, details in constraint_details.items():
+        # Find the matching item in the order_items list
+        for item in order_items:
+            if item.get("name") == item_name:
+                # Only add each item once
+                if item not in items_needing_modifiers:
+                    items_needing_modifiers.append(item)
+                break
+    
+    # Then, check for items without constraints but could benefit from modifiers
     for item in order_items:
-        # Skip if item already has modifiers
-        if item.get("modifier") and len(item.get("modifier", [])) > 0:
+        # Skip if already in the list or if it already has modifiers
+        if (item in items_needing_modifiers or 
+            (item.get("modifier") and len(item.get("modifier", [])) > 0)):
             continue
             
         # Get details for this item
@@ -118,28 +149,68 @@ def check_for_missing_modifiers(order_items):
         
         # Check if item has available modifiers and would benefit from suggestions
         if item_details.get("found") and item_details.get("modifiers"):
-            # Check if any modifiers are required
-            has_required_modifiers = False
-            has_recommended_modifiers = False
-            
-            for mod_group in item_details.get("modifiers", []):
-                # Check if this is a required modifier group
-                if mod_group.get("min", 0) > 0:
-                    has_required_modifiers = True
-                    break
-                    
-                # Check if this is a common/recommended modifier
-                group_name = mod_group.get("name", "").lower()
-                if ("cook" in group_name or "temperature" in group_name or 
-                    "sauce" in group_name or "spice" in group_name or 
-                    "side" in group_name):
-                    has_recommended_modifiers = True
-            
-            # Add item to the list if it has required or recommended modifiers
-            if has_required_modifiers or has_recommended_modifiers:
+            # Check if this is a meal deal / combo product
+            is_combo = item_details.get("isCombo", False)
+            if is_combo:
+                # Always prompt for meal deal components
                 items_needing_modifiers.append(item)
+                # Add combo details to constraint_details if not already there
+                if item_name not in constraint_details:
+                    child_products = item_details.get("childProducts", [])
+                    if child_products:
+                        constraint_details[item_name] = {
+                            "is_combo": True,
+                            "components": [
+                                {
+                                    "name": child.get("name"),
+                                    "id": child.get("id"),
+                                    "required": True
+                                } for child in child_products
+                            ]
+                        }
+                continue
+            
+            # Check for recommended modifiers like cooking preference, sides, etc.
+            has_recommended_modifiers = False
+            for mod_group in item_details.get("modifiers", []):
+                group_name = mod_group.get("name", "").lower()
+                # Check for common modifier types that would benefit from suggestions
+                if any(term in group_name for term in [
+                    "cook", "temperature", "sauce", "spice", "side", 
+                    "dressing", "topping", "extras", "preferences"
+                ]):
+                    has_recommended_modifiers = True
+                    break
+            
+            # Add item to the list if it has recommended modifiers
+            if has_recommended_modifiers:
+                items_needing_modifiers.append(item)
+                # If not already in constraint_details, add with recommended flag
+                if item_name not in constraint_details:
+                    constraint_details[item_name] = {
+                        "is_combo": False,
+                        "has_recommended": True,
+                        "modifier_groups": []
+                    }
+                    # Add recommended modifier groups
+                    for mod_group in item_details.get("modifiers", []):
+                        group_name = mod_group.get("name", "").lower()
+                        if any(term in group_name for term in [
+                            "cook", "temperature", "sauce", "spice", "side", 
+                            "dressing", "topping", "extras", "preferences"
+                        ]):
+                            if "modifier_groups" not in constraint_details[item_name]:
+                                constraint_details[item_name]["modifier_groups"] = []
+                            
+                            constraint_details[item_name]["modifier_groups"].append({
+                                "name": mod_group.get("name"),
+                                "is_recommended": True,
+                                "modifiers": [
+                                    mod.get("name") for mod in mod_group.get("modifiers", [])
+                                ]
+                            })
     
-    return items_needing_modifiers
+    return items_needing_modifiers, constraint_details
 
 # Constants
 COOLDOWN_PERIOD = 60  # seconds
@@ -446,7 +517,10 @@ def take_order():
 
     # Check if any items need modifier suggestions
     # Before proceeding to order confirmation, check if we should suggest modifiers
-    items_needing_modifiers = check_for_missing_modifiers(available_items)
+    items_needing_modifiers, constraint_details = check_for_missing_modifiers(available_items)
+    
+    # Store constraint details in session for use in the modifier suggestion flow
+    session["constraint_details"] = json.dumps(constraint_details)
     
     if items_needing_modifiers:
         # Store current order in session for the modifier suggestion flow
@@ -2192,8 +2266,20 @@ def handle_modifier_suggestion():
         
         # Let's intelligently extract modifiers using the agent
         try:
-            # Analyze user input to identify modifiers
-            analysis = analyze_user_input(f"I'd like a {current_item} with {user_resp}")
+            # Get constraint details from session
+            constraint_details = json.loads(session.get("constraint_details", "{}"))
+            item_constraints = constraint_details.get(current_item, {})
+            
+            # Special handling for meal deals / combo products
+            is_combo = item_constraints.get("is_combo", False)
+            
+            # Choose appropriate prompt based on item type
+            if is_combo:
+                # For meal deals, we need to parse components
+                analysis = analyze_user_input(f"For my {current_item} combo I'd like {user_resp}")
+            else:
+                # Standard modifier prompt for regular items
+                analysis = analyze_user_input(f"I'd like a {current_item} with {user_resp}")
             
             # Get the menu items from the analysis
             extracted_items = analysis.get("menu_items", [])
@@ -2203,6 +2289,129 @@ def handle_modifier_suggestion():
                 if current_item.lower() in item.get("name", "").lower():
                     # Found our current item in the parsed result
                     modifiers = item.get("modifier", [])
+                    
+                    # Special handling for meal deals / combo products
+                    if is_combo:
+                        # Get components from the constraints
+                        components = item_constraints.get("components", [])
+                        component_ids = {comp.get("id") for comp in components}
+                        
+                        # Look for child items (components) in analysis
+                        child_items = []
+                        for child in extracted_items:
+                            # Skip the main item
+                            if child.get("name") == current_item:
+                                continue
+                                
+                            # Create a component selection
+                            child_name = child.get("name", "")
+                            child_modifiers = child.get("modifier", [])
+                            
+                            # Try to match this child to a known component
+                            matched_component = None
+                            best_match_score = 0
+                            
+                            # First try direct or substring match
+                            for comp in components:
+                                comp_name = comp.get("name", "").lower()
+                                child_name_lower = child_name.lower()
+                                
+                                # Exact match
+                                if comp_name == child_name_lower:
+                                    matched_component = comp
+                                    break
+                                    
+                                # Substring match (both ways)
+                                elif comp_name in child_name_lower or child_name_lower in comp_name:
+                                    matched_component = comp
+                                    break
+                                    
+                                # Word-based matching for partial matches
+                                else:
+                                    # Split into words and see how many match
+                                    comp_words = set(comp_name.split())
+                                    child_words = set(child_name_lower.split())
+                                    common_words = comp_words.intersection(child_words)
+                                    
+                                    if common_words:
+                                        # Calculate match score based on number of common words
+                                        match_score = len(common_words) / max(len(comp_words), len(child_words))
+                                        if match_score > best_match_score and match_score > 0.3:  # At least 30% match
+                                            best_match_score = match_score
+                                            matched_component = comp
+                            
+                            if matched_component:
+                                # Log the match for debugging
+                                logger.info(f"Matched component '{child_name}' to menu component '{matched_component.get('name')}'")
+                                
+                                # Add the component with its modifiers
+                                child_items.append({
+                                    "name": matched_component.get("name", child_name),
+                                    "id": matched_component.get("id"),
+                                    "quantity": child.get("quantity", 1),
+                                    "modifier": child_modifiers
+                                })
+                        
+                        # Update the meal deal selections in the session
+                        if child_items:
+                            meal_deal_selections = {}
+                            for child in child_items:
+                                meal_deal_selections[child.get("id")] = {
+                                    "name": child.get("name"),
+                                    "quantity": child.get("quantity", 1),
+                                    "modifier": child.get("modifier", [])
+                                }
+                            
+                            # Store meal deal selections in session
+                            session["meal_deal_selections"] = json.dumps(meal_deal_selections)
+                            
+                            # If we have meal deal selections, process them differently
+                            from app.utils.menu_utils import process_meal_deal
+                            
+                            # Find the meal deal item in the order
+                            for order_item in order_items:
+                                if order_item.get("name") == current_item:
+                                    # Get the original meal deal details
+                                    agent = OrderParsingAgent()
+                                    meal_deal_details = agent.menu_tool.get_details(current_item)
+                                    
+                                    # Process the meal deal with selections
+                                    processed_meal = process_meal_deal(meal_deal_details, meal_deal_selections)
+                                    
+                                    # Validate the meal deal - check if all required components are selected
+                                    missing_components = []
+                                    for child in meal_deal_details.get("childProducts", []):
+                                        if child.get("required", True) and child.get("id") not in meal_deal_selections:
+                                            missing_components.append(child.get("name", "Unknown component"))
+                                    
+                                    # If missing required components, prompt the user
+                                    if missing_components:
+                                        logger.warning(f"Missing required components in meal deal {current_item}: {', '.join(missing_components)}")
+                                        with response.gather(
+                                            input="speech",
+                                            action="/handle_modifier_suggestion",
+                                            enhanced=True,
+                                            speech_model="phone_call",
+                                            language="en-US",
+                                            speech_timeout=5,
+                                            timeout=7,
+                                        ) as g:
+                                            missing_text = ", ".join(missing_components)
+                                            g.say(f"Your {current_item} needs to include {missing_text}. What would you like for these components?")
+                                        return Response(str(response), mimetype="text/xml")
+                                    
+                                    # Update the order item with processed meal deal
+                                    order_item.update(processed_meal)
+                                    
+                                    # Log the processed meal deal
+                                    logger.info(f"Processed meal deal {current_item} with {len(meal_deal_selections)} components")
+                                    
+                                    # Update the session with the modified order
+                                    session["order_items_without_modifiers_json"] = json.dumps(order_items)
+                                    break
+                            
+                            # Skip regular modifier processing for meal deals
+                            break
                     
                     # If modifiers are found, validate them before adding to the order
                     if modifiers:
@@ -2270,8 +2479,96 @@ def handle_modifier_suggestion():
         session["current_modifier_item"] = next_item_name
         session["remaining_modifier_items"] = json.dumps(remaining_items[1:]) if len(remaining_items) > 1 else "[]"
         
-        # Get modifier suggestions for this next item
+        # Get constraint details from session
+        constraint_details = json.loads(session.get("constraint_details", "{}"))
+        item_constraints = constraint_details.get(next_item_name, {})
+        
+        # Generate a more specific prompt based on constraint details if available
         agent = OrderParsingAgent()
+        
+        # Special handling for meal deals / combo items
+        if item_constraints.get("is_combo", False):
+            # This is a meal deal with component selection needed
+            components = item_constraints.get("components", [])
+            
+            # Group components by type for a more natural prompt
+            required_components = []
+            optional_components = []
+            
+            for comp in components:
+                if comp.get("required", True):
+                    required_components.append(comp.get("name", ""))
+                else:
+                    optional_components.append(comp.get("name", ""))
+            
+            # Create component text for required components
+            required_text = ""
+            if required_components:
+                required_text = f"You need to select: {', '.join(required_components[:3])}"
+                if len(required_components) > 3:
+                    required_text += f", and {len(required_components) - 3} more options"
+            
+            # Create component text for optional components
+            optional_text = ""
+            if optional_components:
+                optional_text = f"You can also add: {', '.join(optional_components[:3])}"
+                if len(optional_components) > 3:
+                    optional_text += f", and {len(optional_components) - 3} more options"
+            
+            # Create a specific prompt for meal deals
+            meal_deal_prompt = f"For your {next_item_name} meal deal, "
+            
+            if required_text:
+                meal_deal_prompt += required_text + ". "
+            
+            if optional_text:
+                meal_deal_prompt += optional_text + ". "
+                
+            meal_deal_prompt += "What would you like to include in your meal?"
+            
+            with response.gather(
+                input="speech",
+                action="/handle_modifier_suggestion",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+            ) as g:
+                g.say(meal_deal_prompt)
+            return Response(str(response), mimetype="text/xml")
+        
+        # Special handling for required modifiers (min/max constraints)
+        elif "modifier_groups" in item_constraints and item_constraints["modifier_groups"]:
+            # Get the first required modifier group
+            req_mod_group = None
+            for group in item_constraints["modifier_groups"]:
+                if group.get("min_required", 0) > 0:
+                    req_mod_group = group
+                    break
+            
+            if req_mod_group:
+                # Create a prompt for required modifiers
+                group_name = req_mod_group.get("name", "")
+                min_required = req_mod_group.get("min_required", 1)
+                options = ", ".join(req_mod_group.get("modifiers", [])[:5])  # Show first 5 options
+                
+                required_prompt = f"Your {next_item_name} requires {min_required} selection{'s' if min_required > 1 else ''} from {group_name}. Options include: {options}. What would you like?"
+                
+                with response.gather(
+                    input="speech",
+                    action="/handle_modifier_suggestion",
+                    enhanced=True,
+                    speech_model="phone_call",
+                    language="en-US",
+                    speech_timeout=5,
+                    timeout=7,
+                ) as g:
+                    g.say(required_prompt)
+                return Response(str(response), mimetype="text/xml")
+        
+        # Regular modifier prompting (recommended modifiers or no specific constraints)
+        # Fall back to the AI-generated prompt for other cases
         modifier_prompt = agent.menu_tool.generate_modifier_prompt(next_item_name)
         
         # If we have a good prompt, ask the customer

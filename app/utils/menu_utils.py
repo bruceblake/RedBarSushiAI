@@ -1043,71 +1043,153 @@ def sync_reference_handlers(source_location_id=None, target_location_id=None):
         }
 
 
-def validate_modifier_constraints(order_items):
+def validate_modifier_constraints(order_items, return_detailed_constraints=False):
     """
     Validate that order items meet the modifier constraints defined in the menu.
+    Handles min/max selections, quantity limits, and required modifiers based on Deliverect specs.
 
     Args:
         order_items: List of order items with their modifiers
+        return_detailed_constraints: If True, returns detailed constraints for prompting users
 
     Returns:
-        tuple: (is_valid, error_message)
+        tuple: (is_valid, error_message, constraints_needed)
                Where is_valid is a boolean indicating if the order is valid,
-               and error_message is a string explaining the issue (if any)
+               error_message is a string explaining the issue (if any),
+               and constraints_needed is a dict with item_name -> required constraints (if return_detailed_constraints is True)
     """
     menu_data = load_menu_data()
-    modifier_groups = {mg.get("name"): mg for mg in menu_data.get("modifierGroups", [])}
+    # Create lookup dictionaries for faster access
+    modifier_groups_by_id = {mg.get("id"): mg for mg in menu_data.get("modifierGroups", [])}
+    items_by_name = {item.get("name"): item for item in menu_data.get("items", [])}
+    modifiers_by_ref = {mod.get("reference_handler"): mod for mod in menu_data.get("modifiers", [])}
+    
+    # Track constraints for user prompting
+    constraints_needed = {}
 
     for item in order_items:
         item_name = item.get("name")
         modifiers = item.get("modifier", [])
 
         # Find the menu item to get its associated modifier groups
-        menu_item = None
-        for mi in menu_data.get("items", []):
-            if mi.get("name") == item_name:
-                menu_item = mi
-                break
-
+        menu_item = items_by_name.get(item_name)
         if not menu_item:
             continue  # Skip validation if item not found in menu
 
         # Get modifier groups for this item
         item_mod_groups = menu_item.get("modifierGroups", [])
+        
+        # Check for combo/meal deal items
+        is_combo = menu_item.get("isCombo", False)
+        if is_combo and return_detailed_constraints:
+            # Include meal deal component information in constraints
+            child_products = menu_item.get("childProducts", [])
+            if child_products:
+                constraints_needed[item_name] = {
+                    "is_combo": True,
+                    "components": [
+                        {
+                            "name": child.get("name"),
+                            "id": child.get("id"),
+                            "required": True
+                        } for child in child_products
+                    ]
+                }
 
-        # Check each modifier group
-        for group_name in item_mod_groups:
-            group = modifier_groups.get(group_name)
+        # For each modifier group, check constraints
+        for group_id in item_mod_groups:
+            group = modifier_groups_by_id.get(group_id)
             if not group:
                 continue
 
-            # Get min/max constraints
-            min_allowed = group.get("minAllowed", 0)
-            max_allowed = group.get("maxAllowed", 999)
-
+            group_name = group.get("name", "Unknown Group")
+            # Get min/max constraints per Deliverect spec (see real_docs.md)
+            min_required = group.get("min", 0)  # Minimum selections required
+            max_allowed = group.get("max", 999)  # Maximum selections allowed
+            multi_max = group.get("multiMax", 1)  # Maximum quantity of any single modifier
+            
+            # Special handling for variant groups
+            is_variant_group = group.get("isVariantGroup", False)
+            
+            # Get modifiers that belong to this group
+            group_mod_refs = group.get("subProducts", [])
+            group_mod_names = []
+            
+            for ref in group_mod_refs:
+                mod = modifiers_by_ref.get(ref)
+                if mod:
+                    group_mod_names.append(mod.get("name"))
+            
             # Count modifiers from this group
-            group_mods = group.get("modifiers", [])
             mod_count = 0
+            mod_quantities = {}  # Track quantity per modifier for multiMax check
 
             for mod in modifiers:
                 mod_ref = mod.get("reference_handler")
-                if mod_ref in group_mods:
-                    mod_count += mod.get("quantity", 1)
+                mod_name = mod.get("name", "")
+                
+                # Check if this modifier belongs to the current group
+                if mod_ref in group_mod_refs or mod_name in group_mod_names:
+                    mod_quantity = mod.get("quantity", 1)
+                    mod_count += mod_quantity
+                    
+                    # Track quantity per modifier for multiMax check
+                    if mod_ref in mod_quantities:
+                        mod_quantities[mod_ref] += mod_quantity
+                    else:
+                        mod_quantities[mod_ref] = mod_quantity
 
-            # Check constraints
-            if mod_count < min_allowed:
+            # Check min/max constraints
+            if mod_count < min_required:
+                if return_detailed_constraints:
+                    # Add this constraint to our mapping for user prompting
+                    if item_name not in constraints_needed:
+                        constraints_needed[item_name] = {
+                            "is_combo": is_combo,
+                            "modifier_groups": []
+                        }
+                    
+                    # Add the specific modifier group constraint
+                    if "modifier_groups" not in constraints_needed[item_name]:
+                        constraints_needed[item_name]["modifier_groups"] = []
+                        
+                    constraints_needed[item_name]["modifier_groups"].append({
+                        "name": group_name,
+                        "min_required": min_required, 
+                        "max_allowed": max_allowed,
+                        "modifiers": group_mod_names,
+                        "is_variant": is_variant_group
+                    })
+                
+                # For immediate validation failure
                 return (
                     False,
-                    f"Item '{item_name}' requires at least {min_allowed} modifiers from group {group_name}",
+                    f"Item '{item_name}' requires at least {min_required} selection{'s' if min_required > 1 else ''} from '{group_name}'{' (variants)' if is_variant_group else ''}",
+                    constraints_needed
                 )
 
             if mod_count > max_allowed:
                 return (
                     False,
-                    f"Item '{item_name}' allows at most {max_allowed} modifiers from group {group_name}",
+                    f"Item '{item_name}' allows at most {max_allowed} selection{'s' if max_allowed > 1 else ''} from '{group_name}'",
+                    constraints_needed
                 )
+                
+            # Check multiMax constraint - max quantity of any single modifier
+            if multi_max > 0:  # 0 means unlimited
+                for mod_ref, quantity in mod_quantities.items():
+                    mod_name = modifiers_by_ref.get(mod_ref, {}).get("name", mod_ref)
+                    if quantity > multi_max:
+                        return (
+                            False,
+                            f"Item '{item_name}' allows at most {multi_max} of '{mod_name}' from '{group_name}'",
+                            constraints_needed
+                        )
 
-    return True, ""
+    if return_detailed_constraints:
+        return True, "", constraints_needed
+    else:
+        return True, "", {}
 
 
 def process_deliverect_menu(data, location_id=None):
@@ -1312,42 +1394,266 @@ def update_menu_ordering(data, location_id=None):
 
 def process_meal_deal(meal_deal_item, selections=None):
     """
-    Process a meal deal selection, handling child products and modifiers.
+    Process a meal deal selection, handling child products and modifiers,
+    with proper handling of nested modifiers, quantities, and component validation.
 
     Args:
-        meal_deal_item: The meal deal menu item
-        selections: Dictionary of child product selections
+        meal_deal_item: The meal deal menu item (combo product)
+        selections: Dictionary of child product selections (component_id -> selection details)
 
     Returns:
-        dict: Processed meal deal item with child items
+        dict: Processed meal deal item with child items and their modifiers
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if not selections:
         selections = {}
+        
+    # Get the menu data for validation
+    menu_data = load_menu_data()
 
-    # Create the base item
+    # Create the base item with proper Deliverect-compatible structure
     result = {
         "name": meal_deal_item.get("name", "Meal Deal"),
         "reference_handler": meal_deal_item.get("reference_handler", ""),
         "price": meal_deal_item.get("price", 0.0),
         "quantity": 1,
-        "modifier": [],
-        "childItems": [],
+        "modifier": [],       # Modifiers applied to the entire meal deal
+        "childItems": [],     # Component items in the meal deal
+        "isCombo": True       # Mark this as a combo meal for proper handling
     }
 
-    # Process each child product
+    # Check if we have all required components
+    required_components = []
+    for child in meal_deal_item.get("childProducts", []):
+        child_id = child.get("id")
+        if child.get("required", True):  # Assume components are required by default
+            required_components.append(child_id)
+    
+    # Verify all required components are present
+    for component_id in required_components:
+        if component_id not in selections:
+            logger.warning(f"Required component {component_id} missing from meal deal {result['name']}")
+            # In some meal deals, this might be a problem - for now we'll allow it
+            # and let validation catch it elsewhere if needed
+    
+    # Process each child product (component)
     for child in meal_deal_item.get("childProducts", []):
         child_id = child.get("id")
         selection = selections.get(child_id, {})
-
+        
+        # Get quantity for this component (default to 1)
+        quantity = selection.get("quantity", 1)
+        
+        # Create child item with proper structure
         child_item = {
             "name": child.get("name"),
             "reference_handler": child_id,
             "price": 0.0,  # Price is included in the meal deal
-            "quantity": 1,
-            "modifier": selection.get("modifier", []),
+            "quantity": quantity,
+            "modifier": [],  # Will be populated below
+            "for_component": child_id,  # Track which component this belongs to
         }
+        
+        # Process modifiers for this component
+        if "modifier" in selection and selection["modifier"]:
+            # Handle different possible formats of the modifier data
+            if isinstance(selection["modifier"], list):
+                # Create properly structured modifiers with quantities
+                for mod in selection["modifier"]:
+                    if isinstance(mod, dict):
+                        # Get quantity - ensure it's properly handled
+                        mod_quantity = mod.get("quantity", 1)
+                        if isinstance(mod_quantity, str):
+                            try:
+                                # Try to convert string quantities to integers
+                                mod_quantity = int(mod_quantity)
+                            except (ValueError, TypeError):
+                                # Default to 1 if conversion fails
+                                mod_quantity = 1
+                                
+                        # Copy existing modifier with proper structure
+                        processed_mod = {
+                            "name": mod.get("name", ""),
+                            "reference_handler": mod.get("reference_handler", ""),
+                            "price": mod.get("price", 0.0),
+                            "quantity": mod_quantity,
+                            "for_component": child_id  # Track which component this modifier belongs to
+                        }
+                        
+                        # Look up modifier in menu for better reference data
+                        for menu_mod in menu_data.get("modifiers", []):
+                            if (menu_mod.get("name", "").lower() == processed_mod["name"].lower() or
+                                menu_mod.get("reference_handler") == processed_mod["reference_handler"]):
+                                # Update reference handler if found
+                                processed_mod["reference_handler"] = menu_mod.get("reference_handler", processed_mod["reference_handler"])
+                                break
+                        
+                        # Add nested modifiers if present
+                        if "subModifiers" in mod and mod["subModifiers"]:
+                            processed_mod["subModifiers"] = []
+                            for sub_mod in mod["subModifiers"]:
+                                # Handle sub-modifier quantities too
+                                sub_quantity = sub_mod.get("quantity", 1)
+                                if isinstance(sub_quantity, str):
+                                    try:
+                                        sub_quantity = int(sub_quantity)
+                                    except (ValueError, TypeError):
+                                        sub_quantity = 1
+                                
+                                # Create sub-modifier with proper structure
+                                sub_processed = {
+                                    "name": sub_mod.get("name", ""),
+                                    "reference_handler": sub_mod.get("reference_handler", ""),
+                                    "price": sub_mod.get("price", 0.0),
+                                    "quantity": sub_quantity,
+                                    "for_component": child_id
+                                }
+                                
+                                # Add to processed modifiers
+                                processed_mod["subModifiers"].append(sub_processed)
+                            
+                        child_item["modifier"].append(processed_mod)
+                    elif isinstance(mod, str):
+                        # Extract quantity if present in the string format "3 Scoops of Rice"
+                        mod_name = mod
+                        mod_quantity = 1
+                        
+                        # Check for leading number pattern
+                        import re
+                        quantity_match = re.match(r'^(\d+)\s+(.+)$', mod)$', mod)
+                        if quantity_match:
+                            try:
+                                mod_quantity = int(quantity_match.group(1))
+                                mod_name = quantity_match.group(2)
+                            except (ValueError, IndexError):
+                                pass  # Keep defaults if parsing fails
+                        
+                        # Create basic structure with extracted quantity
+                        child_item["modifier"].append({
+                            "name": mod_name,
+                            "reference_handler": f"MOD-{mod_name.lower().replace(' ', '-')}",
+                            "price": 0.0,
+                            "quantity": mod_quantity,
+                            "for_component": child_id
+                        })
+            elif isinstance(selection["modifier"], dict):
+                # Handle dictionary format (less common)
+                for mod_name, mod_details in selection["modifier"].items():
+                    # Extract quantity
+                    quantity = 1
+                    if isinstance(mod_details, dict) and "quantity" in mod_details:
+                        mod_quantity = mod_details.get("quantity")
+                        if isinstance(mod_quantity, str):
+                            try:
+                                quantity = int(mod_quantity)
+                            except (ValueError, TypeError):
+                                quantity = 1
+                        else:
+                            quantity = mod_quantity
+                    
+                    # Check for quantity in name "3 Scoops of Rice"
+                    if isinstance(mod_name, str):
+                        import re
+                        quantity_match = re.match(r'^(\d+)\s+(.+)$', mod_name)$', mod_name)
+                        if quantity_match:
+                            try:
+                                name_quantity = int(quantity_match.group(1))
+                                mod_name = quantity_match.group(2)
+                                # Only update quantity if it wasn't explicitly set
+                                if quantity == 1:
+                                    quantity = name_quantity
+                            except (ValueError, IndexError):
+                                pass  # Keep defaults if parsing fails
+                    
+                    # Create the modifier with proper structure
+                    ref_handler = f"MOD-{mod_name.lower().replace(' ', '-')}"
+                    if isinstance(mod_details, dict) and "reference_handler" in mod_details:
+                        ref_handler = mod_details.get("reference_handler")
+                        
+                    # Build the modifier
+                    child_item["modifier"].append({
+                        "name": mod_name,
+                        "reference_handler": ref_handler,
+                        "price": mod_details.get("price", 0.0) if isinstance(mod_details, dict) else 0.0,
+                        "quantity": quantity,
+                        "for_component": child_id
+                    })
+                    
+                    # Look up in menu for better reference data if needed
+                    if not ref_handler or ref_handler.startswith("MOD-"):
+                        for menu_mod in menu_data.get("modifiers", []):
+                            if menu_mod.get("name", "").lower() == mod_name.lower():
+                                # Update the reference handler with the actual one from menu
+                                child_item["modifier"][-1]["reference_handler"] = menu_mod.get("reference_handler", ref_handler)
+                                break
 
+        # Add the processed child item to the meal deal
         result["childItems"].append(child_item)
+
+    # Also process any modifiers that apply to the entire meal deal, not specific components
+    if "modifier" in meal_deal_item and meal_deal_item["modifier"]:
+        result["modifier"] = []
+        
+        for mod in meal_deal_item["modifier"]:
+            if isinstance(mod, dict):
+                # Handle quantities properly
+                mod_quantity = mod.get("quantity", 1)
+                if isinstance(mod_quantity, str):
+                    try:
+                        mod_quantity = int(mod_quantity)
+                    except (ValueError, TypeError):
+                        mod_quantity = 1
+                
+                # Create properly structured modifier
+                processed_mod = {
+                    "name": mod.get("name", ""),
+                    "reference_handler": mod.get("reference_handler", ""),
+                    "price": mod.get("price", 0.0),
+                    "quantity": mod_quantity
+                }
+                
+                # Look up reference data if needed
+                if not processed_mod["reference_handler"] and processed_mod["name"]:
+                    # Try to find in menu
+                    for menu_mod in menu_data.get("modifiers", []):
+                        if menu_mod.get("name", "").lower() == processed_mod["name"].lower():
+                            processed_mod["reference_handler"] = menu_mod.get("reference_handler", "")
+                            break
+                            
+                # Add any nested modifiers if present
+                if "subModifiers" in mod and mod["subModifiers"]:
+                    processed_mod["subModifiers"] = []
+                    for sub_mod in mod["subModifiers"]:
+                        # Process sub-modifiers recursively
+                        sub_processed = build_nested_modifiers(sub_mod, menu_data)
+                        if sub_processed:
+                            processed_mod["subModifiers"].append(sub_processed)
+                
+                result["modifier"].append(processed_mod)
+            elif isinstance(mod, str):
+                # Handle string modifiers with potential quantities
+                mod_name = mod
+                mod_quantity = 1
+                
+                # Check for quantity pattern
+                import re
+                quantity_match = re.match(r'^(\d+)\s+(.+)$', mod)$', mod)
+                if quantity_match:
+                    try:
+                        mod_quantity = int(quantity_match.group(1))
+                        mod_name = quantity_match.group(2)
+                    except (ValueError, IndexError):
+                        pass  # Keep defaults if parsing fails
+                
+                # Create basic structure
+                result["modifier"].append({
+                    "name": mod_name,
+                    "reference_handler": f"MOD-{mod_name.lower().replace(' ', '-')}",
+                    "price": 0.0,
+                    "quantity": mod_quantity
+                })
 
     return result
 
@@ -1392,35 +1698,107 @@ def add_name_variants_to_menu(menu_data, variants_dict=None):
     return menu_data
 
 
-def build_nested_modifiers(modifier, menu_data):
+def build_nested_modifiers(modifier, menu_data, max_nesting_level=3):
     """
-    Build a nested structure of modifiers.
+    Build a nested structure of modifiers with robust validation and support for 
+    deep nesting up to the specified level. Handles modifier quantities correctly.
+    
+    Based on Deliverect structure in real_docs.md, each modifier can have subItems/subModifiers,
+    and modifiers can be attached to components in meal deals.
 
     Args:
         modifier: The modifier to process
         menu_data: The menu data containing all modifiers
+        max_nesting_level: Maximum allowed nesting depth (to prevent infinite recursion)
 
     Returns:
         dict: Processed modifier with nested sub-modifiers
     """
-    # Create base modifier
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Safety check for recursion depth
+    if max_nesting_level <= 0:
+        logger.warning(f"Maximum nesting level reached for modifier {modifier.get('name', 'unknown')}")
+        return None
+    
+    # Get modifier details
+    mod_name = modifier.get("name", "")
+    mod_ref = modifier.get("reference_handler", "")
+    
+    # If reference handler is missing, try to generate one
+    if not mod_ref and mod_name:
+        mod_ref = f"MOD-{mod_name.lower().replace(' ', '-')}"
+        
+    # Create base modifier with proper structure for Deliverect
     result = {
-        "name": modifier.get("name", ""),
-        "reference_handler": modifier.get("reference_handler", ""),
+        "name": mod_name,
+        "reference_handler": mod_ref,
         "price": modifier.get("price", 0.0),
         "quantity": modifier.get("quantity", 1),
         "subModifiers": [],
     }
-
-    # Process sub-modifiers if any
-    for sub_mod in modifier.get("modifiers", []):
-        result["subModifiers"].append(
-            {
-                "name": sub_mod.get("name", ""),
-                "reference_handler": sub_mod.get("reference_handler", ""),
-                "price": sub_mod.get("price", 0.0),
-                "quantity": sub_mod.get("quantity", 1),
+    
+    # Preserve component tracking if present
+    if "for_component" in modifier:
+        result["for_component"] = modifier["for_component"]
+    
+    # Process known sub-modifiers directly specified
+    if "modifiers" in modifier and modifier["modifiers"]:
+        for sub_mod in modifier["modifiers"]:
+            sub_result = build_nested_modifiers(sub_mod, menu_data, max_nesting_level - 1)
+            if sub_result:
+                result["subModifiers"].append(sub_result)
+    
+    # Also handle subModifiers key for consistency
+    if "subModifiers" in modifier and modifier["subModifiers"]:
+        for sub_mod in modifier["subModifiers"]:
+            sub_result = build_nested_modifiers(sub_mod, menu_data, max_nesting_level - 1)
+            if sub_result:
+                result["subModifiers"].append(sub_result)
+                
+    # Handle the direct subItems format used in Deliverect payloads
+    if "subItems" in modifier and modifier["subItems"]:
+        for sub_item in modifier["subItems"]:
+            sub_result = {
+                "name": sub_item.get("name", ""),
+                "reference_handler": sub_item.get("plu", sub_item.get("reference_handler", "")),
+                "price": sub_item.get("price", 0.0),
+                "quantity": sub_item.get("quantity", 1),
+                "subModifiers": []
             }
-        )
-
+            
+            # Recursively process nested subItems if present
+            if "subItems" in sub_item and sub_item["subItems"] and max_nesting_level > 1:
+                sub_result["subModifiers"] = []
+                for nested_sub in sub_item["subItems"]:
+                    nested_result = build_nested_modifiers(nested_sub, menu_data, max_nesting_level - 2)
+                    if nested_result:
+                        sub_result["subModifiers"].append(nested_result)
+                        
+            result["subModifiers"].append(sub_result)
+    
+    # If the reference handler matches a known modifier group, 
+    # try to find and attach its modifiers from the menu data
+    if menu_data and "modifierGroups" in menu_data:
+        # Try to find this modifier reference in modifier groups
+        for group in menu_data.get("modifierGroups", []):
+            if group.get("reference_handler") == mod_ref or group.get("plu") == mod_ref:
+                # This is a modifier group - add its subProducts as subModifiers
+                for sub_ref in group.get("subProducts", []):
+                    # Find the modifier by reference
+                    for menu_mod in menu_data.get("modifiers", []):
+                        if menu_mod.get("reference_handler") == sub_ref or menu_mod.get("plu") == sub_ref:
+                            # Add this modifier as a subModifier
+                            sub_mod = {
+                                "name": menu_mod.get("name", ""),
+                                "reference_handler": menu_mod.get("reference_handler", ""),
+                                "price": menu_mod.get("price", 0.0),
+                                "quantity": 1  # Default quantity
+                            }
+                            if "for_component" in modifier:
+                                sub_mod["for_component"] = modifier["for_component"]
+                            result["subModifiers"].append(sub_mod)
+                            break
+    
     return result

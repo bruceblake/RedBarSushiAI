@@ -770,3 +770,565 @@ defaultQuantity (integer): If > 0, this modifier is pre-selected (usually 1).
 ```
 
 ```
+
+```
+POS Product Configuration
+Product types
+When pushing products to us, you need to specify the relevant value which represents the product type used
+
+Product Type	Integer Value	Integer Value
+Product	A 'top level' item on a menu (can also be grouped within a modifier group or bundle)	1
+Modifier	Options selectable when ordering a product, typically modifications of the product	2
+Modifier Group	A grouping of modifiers (can also group products)	3
+Bundle	Can only contain products which are offered as part of a 'Meal Deal' and which Deliverect will set to zero value. Exception to this is where ## Overloads are set, see example 'Bundles (Product price overloads)' on the right hand side.	4
+PLU
+The PLU is typically something that's easier for the customer to use, and it should be the same across all locations for the same product. The PLU is what will be used for mapping orders coming from the channels to your integrated POS.
+
+Price
+Price is stored as an int with 2 decimal digits, for example, 5 euros is stored as 500.
+
+Price Levels
+Products will have a base price field, where 'Price Levels' are optional variations to set for this price, e.g. apply a different price per channel or delivery type.
+
+See the snippet below of a product set with a priceLevels object where the unique identifier (the posId) is the key, set along with a price integer value.
+
+The library of priceLevels would then be defined giving a descriptive name to each posId used
+
+After syncing products with priceLevels , they can be selected in the channel link settings. When previewing or pushing menus for these channel links, the selected pricelevel will be applied. See guide here for further information on testing this function.
+
+Ensure the same "posId" values are used across different locations in the same account
+
+📘 When no data is available on a product for a selected price level, the base price is applied.
+
+Example
+After defining a Burger price level on your burgers, sync products and apply the price level to a single (or any) channel to run the BurgerDeal on.
+
+Example product
+
+{
+    "name": "Burger",
+    "price": 1000,
+    "priceLevels": {
+        "channel_A": 1000,
+        "channel_B":  900,
+        "channel_C":  500
+    }
+}
+Example price level
+
+{
+    "name":  "Channel Awesome",
+    "posId": "channel_A"
+}
+🚧
+Null values
+
+To prevent potential failures in product synchronization, please avoid sending null values. Instead, if the data type allows, utilize empty strings. Additionally, when dealing with prices, ensure that only integers are sent.
+
+Tax
+It is important to specify the sales tax rate which applies to any item. The sales tax which applies can be differentiated between the order types of;
+
+Delivery (deliveryTax)
+Takeaway (takeawayTax)
+Eat-in (eatInTax)
+Tax rates should be stored as an int with 3 decimal digits e.g. 5% would be 5000
+
+It's acceptable to have a 0% tax
+
+TAX
+
+{
+  "productType": 1,
+  "plu": "GB-02",
+  "name": "Ginger Beer",
+...
+  "deliveryTax": 5000,
+  "takeawayTax": 5000,
+  "eatInTax": 0,
+Bag Fee
+In certain regions, ordering platforms are required to process a specific payment for a bag fee. Deliverect will by default included this fee within the serviceCharge. It is also an option for the POS to sync a bag fee product with a unique PLU, this would need manually set per channel but will ensure the POS receives the bag fee as seperate item in the orders payload.
+
+See guide on setting a bag fee PLU here
+
+Overloads
+Certain product structures can contain "overloads" which are effectively like surcharges which can be applied dependant on which grouping the product is offered in.
+
+In the example below and also in samples 4 and 5 in the Insert/update products page, you can see both a product and modifier price being set this way.
+
+The "overloads" array contains "scopes" which specify the group(s) in which either a"bundlePrice"(if a bundle group) or "price"(if not a bundle group) can be set differently.
+
+In the first example below, an Avocado with base price 50, can be set to 0 if included in a group "FREE-TOP" and set to 100 if set in a group "XTRA-TOP"
+
+The second example shows the same format for an Ice Cream with a base price 500, which can be set to 0 if included in a group "FREE-DESS" and 450 if set in a group "ADD-ON"it used the bundlePrice attribute as the group is not a modifier group (type:3) but bundle (type:4)
+
+Overload in Modifier Group
+Overload in Bundle
+
+{
+    "productType": 2,
+    "plu": "AVO",
+    "price": 50,
+    "name": "Avocado",
+    "overloads": [
+        {
+            "scopes": [
+               "FREE-TOP"
+            ],
+            "price": 0
+        },
+        {
+            "scopes": [
+               "XTRA-TOP"
+            ],
+            "price": 100
+        }
+    ]
+}
+Images
+The image URL you provide here is cached and put behind a CDN. Images are cached on access for 24 hours. Channels will download the images and also cache them. Depending on the channel, images can/will be resized. Deliverect supports images of up to 16.8 megapixels in size.
+
+Categories
+A category is a way to organise products into a section to be referenced when building a menu. Products can be in one or more categories denoted by an array of posCategoryIds. It's important to have at least one category per product.
+
+Overrides
+Customers are able to overwrite certain details of products within the menu builder in Deliverect, including;
+
+Names
+Descriptions
+Prices
+Images
+*Everything that is not overwritten in Deliverect can be updated via this endpoint
+
+Modifier Groups
+The first example below represents a simple Product (productType:1) with three modifier groups attached (productType:3) where each modifier group contains an amount of modifiers (productType:2)
+
+Typical use case: This structure would support standard modifications to a product e.g. required modifiers of 'Rare', 'Medium' or 'Well Done' would be applied to a Steak product.
+
+
+
+Product with Modifier Group (+modifiers)
+
+{
+
+  "products": [
+    {
+      "productType": 1,
+      "plu": "STK-01",
+      "price": 1500,
+      "name": "Delicious Steak Frites",
+      "deliveryTax": 9000,
+      "takeawayTax": 9000,
+      "eatInTax": 9000,
+      "posCategoryIds": [
+        "STK"
+      ],
+
+      "description": "Delicious Steak Frites",
+      "subProducts": [
+        "MOD"
+
+      ]
+    },
+
+    {
+      "productType": 3,
+      "plu": "MOD",
+      "name": "Add a side",
+      "imageUrl": "",
+      "description": "Pizza made for cheese fanatics",
+
+      "subProducts": [
+        "SI-01",
+        "SI-02",
+        "SI-03"
+      ],
+      "min": 0,
+      "max": 0,
+      "multiMax": 3
+    },
+
+    {
+      "productType": 2,
+      "plu": "SI-01",
+      "price": 0,
+      "name": "Fries",
+      "posCategoryIds": [
+        "SD"
+      ],
+      "imageUrl": "",
+      "description": "Fries",
+      "deliveryTax": 9000,
+      "takeawayTax": 9000,
+      "eatInTax": 9000
+    },
+    {
+      "productType": 2,
+      "plu": "SI-02",
+      "price": 200,
+      "name": "Salad",
+      "kitchenName": "",
+      "posCategoryIds": [
+        "SD"
+      ],
+      "imageUrl": "",
+      "description": "Salad",
+
+      "deliveryTax": 9000,
+      "takeawayTax": 9000,
+      "eatInTax": 9000
+    },
+    {
+      "productType": 2,
+      "plu": "SI-03",
+      "price": 100,
+      "name": "Mashed Potato",
+      "kitchenName": "Mash",
+      "posProductId": "POS-ID-014",
+      "posCategoryIds": [
+        "SD"
+      ],
+      "imageUrl": "",
+      "description": "Mashed Potato",
+
+      "deliveryTax": 9000,
+      "takeawayTax": 9000,
+      "eatInTax": 9000
+    }
+  ],
+  "categories": [
+    {
+      "name": "Steaks",
+      "posCategoryId": "STK"
+    },
+    {
+      "name": "Sides",
+      "posCategoryId": "SD"
+    }
+  ]
+}
+
+This same structure can also be applied to group together products (productType:1) within modifier groups (productType:3)
+
+Typical use case: This structure is often applied as an "Upsell" where additional optional priced items are offered alongside a product.
+
+
+Product with Modifier group (+products)
+
+    {
+      "productType": 1,
+      "plu": "STK-01",
+      "price": 1500,
+      "name": "Delicious Steak Frites",
+      "deliveryTax": 9000,
+      "takeawayTax": 9000,
+      "eatInTax": 9000,
+      "posCategoryIds": [
+        "STK"
+      ],
+
+      "description": "Delicious Steak Frites",
+      "subProducts": [
+        "Drink"
+
+      ]
+    },
+
+    {
+      "productType": 3,
+      "plu": "Drink",
+      "name": "Add a Drink",
+      "imageUrl": "",
+      "description": "Select a drink with your meal",
+
+      "subProducts": [
+        "DR-01",
+        "DR-02",
+        "DR-03"
+      ],
+      "min": 0,
+      "max": 0,
+      "multiMax": 3
+    },
+
+    {
+      "productType": 1,
+      "plu": "DR-01",
+      "price": 0,
+      "name": "Coke",
+      "posCategoryIds": [
+        "DR"
+      ],
+      "imageUrl": "",
+      "description": "Fries",
+      "deliveryTax": 9000,
+      "takeawayTax": 9000,
+      "eatInTax": 9000
+    },
+    {
+      "productType": 1,
+      "plu": "DR-02",
+      "price": 200,
+      "name": "Ginger Beer",
+
+      "posCategoryIds": [
+        "DR"
+      ],
+      "imageUrl": "",
+      "description": "Salad",
+
+      "deliveryTax": 9000,
+      "takeawayTax": 9000,
+      "eatInTax": 9000
+    },
+    {
+      "productType": 1,
+      "plu": "DR-03",
+      "price": 100,
+      "name": "Fanta",
+
+      "posProductId": "POS-ID-014",
+      "posCategoryIds": [
+        "DR"
+      ],
+      "imageUrl": "",
+      "description": "Fanta ",
+
+      "deliveryTax": 9000,
+      "takeawayTax": 9000,
+      "eatInTax": 9000
+    }
+  ],
+  "categories": [
+    {
+      "name": "Steaks",
+      "posCategoryId": "STK"
+    },
+    {
+      "name": "Drinks",
+      "posCategoryId": "DR"
+    }
+  ]
+}
+
+Item Rules
+Individual items can have rules set against them to control how they can be ordered online
+
+Rule	Purpose	Type
+multiMax	To restrict the number of products that can be sold within one order e.g. pharmaceuticals. You can achieve this by adding the attribute "multiMax" e.g. "multiMax": 1, prevents more than one of the items being added to the basket.	Integer
+defaultQuantity	This attribute makes a modifier preselected by default, where a value of 1 is equivalent to a pre-selected item. Most channels can handle a pre-selection, but not with a pre-selected quantity of more than 1	Integer
+Item Group Rules
+Both Modifier Groups and Bundles allow certain ordering "rules" to be applied as follows;
+
+Rule	Purpose	Type
+min	Setting a minimum value to a group of options e.g. 0would be equivalent to 'optional'and1or more would be 'required'	Integer
+max	Setting a maximum value limits how many items in a group can be ordered	Integer
+multiMax	Setting the attribute multiMax allows control over the maximum quantity of any single item in a group.
+
+A value of '2' for example, means that each item in a group can be selected at most 2 times. The selection of a single item will still be limited by the overall max value allowed in a group	Integer
+Meal Deals
+In the payload examples on this page, shown on the right hand side, various product structures are depicted including combos and meal deals.
+
+These examples use the structure below, where products are linked together using the subProducts field.
+
+Meal Deal / Combo Structure
+A meal deal or combo will typically have a set price, where a grouping of a 'Bundle' can contain products which normally have a price, but as part of a bundle will be zero-priced.
+
+The diagram below shows that it is possible to contain the zero-priced 'Bundle' options as well as 'Modifier Groups' containing priced items.
+
+❗️
+Important Attribute for Combos/Meal Deals
+
+Please ensure the attribute "isCombo": true is set on the main product "productType": 1 and linked to a Bundle groups"productType": 4, as certain channels need this flag and Bundle groups to display these options correctly
+
+Bundles cannot be nested under a sub-product and must be at the top level of options.
+
+
+The structure to form bundles could be as follows:
+
+Combo product Type:1
+Bundle Type:4
+Product Type:1
+Modifier group Type:3
+Modifier Type:2
+Nested Modifiers
+A product configuration can include a sub-group of options to be selected. These options themselves can also contain their own sub-groups, this is reffered to as 'Nested Modifiers'.
+
+
+Meal Deal with 'Upsell'
+In the Meal Deal with upsell (example 3) we have a modifier group in addition to the bundles. This allows for Fries to be ordered which are not included as part of the deal and the customer will be charged accordingly. This is referred to as an 'upsell', which can be modifier groups containing products or modifiers.
+
+It is also possible to construct combo products as follows:
+
+Combo product Type:1
+Modifier group Type:3
+Modifier Type:2
+Modifier group Type:3
+Modifier Type:2
+Click here to see examples of how orders with these meal deal examples are sent to your POS in an order.
+
+Variants
+A variant in a menu allows customers to choose from different versions of a product, such as pizza sizes or beverage flavors. The variant product displays the lowest price, then allows the customer to choose from a list of variations of the product by showing additional costs for selecting larger sizes, ensuring clear and transparent pricing for customization.
+
+Variant
+
+"products": [
+    {
+      "productType": 1,
+      "plu": "VAR-PROD-1",
+      "price": 0,
+     ...
+      "isVariant": true,
+    ...
+      "subProducts": [
+        "MG-VAR-1"
+      ]
+    },
+{
+      "productType": 3,
+      "plu": "MG-VAR-1",
+      "name": "How many pieces?",
+      "posProductId": "POS-002",
+      "isVariantGroup": true,
+      "subProducts": [
+        "VAR-1",
+        "VAR-2",
+        "VAR-3"
+      ]
+Follow the "Example 6 - Variant products" on the insert/update products endpoint.
+
+Chicken tenders: €8
+
+3 pieces: + €0
+6 pieces: + €3
+9 pieces: + €5.50
+
+
+For example, Chicken Tenders start at €8. If a customer selects 3 pieces, the price remains €8. If they choose 6 pieces, an additional €3 is added, making the total €11. For 9 pieces, an extra €5.50 is added, bringing the total to €13.50.
+
+
+Auto Apply
+There can be a use case where products ordered online should be received with a pre-defined set of sub products applied. This is not the same as items being pre-selected in the menu interface via defaultQuantity, but is a mechanism for specific items to be auto-applied (by Deliverect) following a completed order.
+
+This is shown in the example below, where the Parsley Garnish and Melted Butter are within a modifier group 'Garnishes' which is set to apply these items automatically when the Steak Frites is ordered.
+
+Note that "defaultQuantity": 3 is shown below and defines how many of the item should be auto-applied to the order. The "sortOrder" attribute allows a 'stepped' order of the auto-applied items to appear, where 0 is the first item to be listed.
+
+'NB: Neither the channel platform or end-consumer will see the auto-applied items, and as such there can be no price associated with them. If de-selection of pre-set items or charging for them is a requirement,"defaultQuantity" can be used without "autoApply" (See 'Item Rules').
+
+Auto Apply
+
+"autoApply": [
+    {
+        "plu": "PR1"
+    },
+    {
+        "plu": "PR2"
+    }
+],
+Set default quantity of auto-applied item
+
+{
+    "productType": 2,
+    "plu": "PR1",
+    "price": 0,
+    "name": "Parsley",
+    "posProductId": "PA_POS-0023",
+    "posCategoryIds": "",
+    "imageUrl": "",
+    "description": "",
+    "deliveryTax": 0,
+    "takeawayTax": 0,
+    "subProducts": [],
+    "defaultQuantity": 3,
+    "sortOrder": 1
+}
+Translations
+Translations are supported for all product types and both the name and description can be set with a translated value. Additionally, category names and descriptions can be translated. can be provided in the JSON. A base name is always required but translations are optional.
+
+See examples of the nested object for translations below, where the property key is the language tag and the value is the translation itself.
+
+See all language tags supported via the link below;
+
+▶ Language Tags
+Translation Examples
+Product Translation
+Category Translation
+
+{
+    "productType": 1,
+    "plu": "MEAT-02",
+    "price": 200,
+    "name": "Chicken",
+    "nameTranslations": {
+        "ar": "دجاج",
+        "en": "Chicken",
+        "es": "Pollo",
+        "nl": "Kip"
+    },
+    "description": "Grilled chicken",
+    "descriptionTranslations": {
+        "ar": "دجاج مشوي",
+        "en": "Grilled chicken.",
+        "es": "Pollo asado.",
+        "nl": "Gegrilde kip."
+    }
+}
+Product visibility
+A product can be marked as invisible (disabled) by setting visible property to false. After this action the product will be hidden all menus where it was used and will not be pushed to channels until it marked as visible again.
+
+JSON
+
+{
+    "productType": 1,
+    "plu": "SI-01",
+    "price": 100,
+    "name": "Fries",
+    "visible": false
+}
+Product tags: consumable types and allergens
+A product can have one or more product tags. These are are contained inside productTags
+
+In below example snippet, 104 and 109 are values representing 'eggs' and 'peanuts'
+
+JSON
+
+{
+  "productType": 1,
+  "plu": "P-SATE",
+  "price": 450,
+  "name": "Chicken Sate",
+...
+  "productTags": [
+    104,
+    110
+  ]
+},
+See link below for a complete list of tags available;
+
+▶ Product Tags
+Nutritional Information and Supplemental Info
+A product can be set with nutritional and supplemental information e.g. packaging, additives etc and certain attributes shown in the link below will be legally required in some regions;
+
+▶ Nutritional & Supplemental Info
+Calories
+Calories can be sent as in the example shown below;
+
+Parameter	Meaning
+calories	This is the base calorie amount, where a maximum calories is set, this should be interpreted as the 'minimum'
+caloriesRangeHigh	The maximum calorie amount of an item
+JSON
+
+"products": [
+          {
+               "productType": 1,
+               "plu": "PR03",
+               "price": 900,
+               "name": "Cheese Lovers Pizza",
+               ...
+               "calories": 500,
+               "caloriesRangeHigh": 750
+               },
+               ...
+               ]
+          },
+```
