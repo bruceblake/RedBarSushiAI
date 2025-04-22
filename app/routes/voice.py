@@ -789,7 +789,7 @@ def handle_menu_questions():
         # Use AI agent to answer any menu question; fallback on error
         # Check if OpenAI usage is disabled
         # First, get actual menu data to provide context
-        agent = OrderParsingAgent()
+        agent = OrderParsingAgent()5
         menu_tool = agent.menu_tool
                 
         # Get menu data based on the query
@@ -811,7 +811,7 @@ def handle_menu_questions():
             # Organize items by category
             items_by_category = {}
             for item in search_results.get("items"):
-                category = item.get('category', 'Other')
+                category = item.get('categories', 'Other')
                 if category not in items_by_category:
                     items_by_category[category] = []
                 items_by_category[category].append(item)
