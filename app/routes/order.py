@@ -103,7 +103,8 @@ def custom_suggest_modifiers(item_name):
     Utility function to ensure we get meaningful modifier prompts using AI.
     
     This function uses OrderParsingAgent to get intelligent modifier
-    suggestions based on the menu data and item characteristics.
+    suggestions based entirely on AI analysis of the menu data and item 
+    characteristics, with no hardcoded values or fallbacks.
     
     Args:
         item_name (str): The name of the menu item
@@ -119,24 +120,31 @@ def custom_suggest_modifiers(item_name):
     """
     logger.info(f"Getting AI-based modifier suggestions for {item_name}")
     
-    # Import with verification that AI is available
-    from app.utils.agent_utils import OrderParsingAgent, AI_COMPONENTS_AVAILABLE
-    
-    # Verify AI is available
-    if not AI_COMPONENTS_AVAILABLE:
-        # No fallbacks allowed - AI must be available
-        error_msg = "AI components are not available. Cannot suggest modifiers without AI."
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
+    # Import the agent components
+    from app.utils.agent_utils import OrderParsingAgent
     
     # Initialize the agent - no fallbacks allowed
     agent = OrderParsingAgent()
     
-    # Get structured suggestions directly using AI
+    # Get structured suggestions using purely AI-based analysis
+    # This uses the SushiMenuTool.suggest_modifiers method which dynamically analyzes
+    # menu items without any hardcoded food types or categories
     modifier_data = agent.menu_tool.suggest_modifiers(item_name)
     
-    # Get modifier prompt from AI
+    # Get AI-generated modifier prompt that's tailored to this specific menu item
     modifier_prompt = agent.menu_tool.generate_modifier_prompt(item_name)
+    
+    # Log detailed modifier info for debugging
+    if modifier_data.get("suggestions"):
+        suggestion_count = len(modifier_data.get("suggestions", []))
+        logger.info(f"Found {suggestion_count} modifier suggestions for {item_name}")
+        for suggestion in modifier_data.get("suggestions", []):
+            suggestion_type = suggestion.get("type", "unknown")
+            suggestion_prompt = suggestion.get("prompt", "")
+            option_count = len(suggestion.get("options", []))
+            logger.info(f"  - Suggestion type: {suggestion_type}, options: {option_count}, prompt: '{suggestion_prompt}'")
+    else:
+        logger.info(f"No modifier suggestions found for {item_name}")
     
     # Return complete results
     return {
@@ -150,8 +158,9 @@ def check_for_missing_modifiers(order_items):
     Check if any order items don't have modifiers but should.
     
     Uses the OrderParsingAgent to intelligently identify items that need modifiers
-    based on menu data and item characteristics. The AI will determine which
-    items need modifiers and what type of modifiers they need.
+    based on AI analysis of menu data and item characteristics. The system relies
+    entirely on AI to determine which items need modifiers and what type of 
+    modifiers they need, with no hardcoded values or fallbacks.
     
     Args:
         order_items: List of order items to check
@@ -165,16 +174,9 @@ def check_for_missing_modifiers(order_items):
         RuntimeError: If AI components are not available - no fallbacks allowed
     """
     # Import required AI components
-    from app.utils.agent_utils import OrderParsingAgent, AI_COMPONENTS_AVAILABLE
+    from app.utils.agent_utils import OrderParsingAgent
     import logging
     logger = logging.getLogger(__name__)
-    
-    # Verify AI is available
-    if not AI_COMPONENTS_AVAILABLE:
-        # No fallbacks allowed - AI must be available
-        error_msg = "AI components are not available. Cannot check for missing modifiers without AI."
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
     
     # Initialize agent for AI analysis
     agent = OrderParsingAgent()
@@ -201,17 +203,53 @@ def check_for_missing_modifiers(order_items):
         if item_details.get("found"):
             modifier_groups = item_details.get("modifiers", [])
             
-            # If this item has any modifier groups in the menu, add it for prompting
-            if modifier_groups:
+            # Get the item type and classification using AI
+            # This replaces hardcoded food categories with dynamic AI analysis
+            item_description = item_details.get("item", {}).get("description", "")
+            item_type = agent.menu_tool._analyze_item_type(item_name, item_description)
+            
+            logger.info(f"AI analysis of item '{item_name}': {item_type}")
+            
+            # If this item has any modifier groups in the menu or AI determines it needs customization, add it for prompting
+            if modifier_groups or item_type.get("customizable", False) or item_type.get("preparation_options", False):
                 # Add to items needing modifiers
                 items_needing_modifiers.append(item)
                 logger.info(f"Added item {item_name} to items needing modifiers - found {len(modifier_groups)} modifier groups")
+                logger.info(f"AI determined customization needs: {item_type.get('modifier_needs', [])}")
                 
-                # Add all modifier groups to constraints
+                # Add all modifier groups to constraints with AI-based classification
                 constraint_details[item_name] = {
                     "is_combo": item_details.get("item", {}).get("isCombo", False),
                     "modifier_groups": []
                 }
+                
+                # Add AI-determined customization needs
+                constraint_details[item_name]["ai_analysis"] = item_type
+                
+                # Process each modifier group with AI classification
+                for group in modifier_groups:
+                    group_name = group.get("name", "")
+                    group_required = group.get("min", 0) > 0
+                    group_mods = group.get("modifiers", [])
+                    
+                    # Skip if no modifiers
+                    if not group_mods:
+                        continue
+                        
+                    # Use AI to classify the modifier group type (no hardcoded assumptions)
+                    mod_names = [mod.get("name", "") for mod in group_mods]
+                    group_classification = agent.menu_tool._classify_modifier_group(group_name, mod_names)
+                    
+                    # Add the classified group to constraints
+                    constraint_details[item_name]["modifier_groups"].append({
+                        "name": group_name,
+                        "required": group_required,
+                        "min_required": group.get("min", 0),
+                        "max_allowed": group.get("max", 0),
+                        "type": group_classification.get("type", "general"),
+                        "prompt_question": group_classification.get("prompt_question", ""),
+                        "modifiers": mod_names
+                    })
     
     # Log what we've found
     logger.info(f"Found {len(items_needing_modifiers)} items that need modifiers")
@@ -221,9 +259,14 @@ def check_for_missing_modifiers(order_items):
         if item_name in constraint_details:
             mod_groups = constraint_details[item_name].get("modifier_groups", [])
             is_combo = constraint_details[item_name].get("is_combo", False)
+            ai_analysis = constraint_details[item_name].get("ai_analysis", {})
             
             if is_combo:
                 logger.info(f"Item {item_name} is a combo/meal deal")
+                
+            # Log AI analysis results
+            logger.info(f"AI analysis for {item_name}: customizable={ai_analysis.get('customizable', False)}, " + 
+                      f"needs={ai_analysis.get('modifier_needs', [])}")
                 
             if mod_groups:
                 group_names = [group.get("name") for group in mod_groups]

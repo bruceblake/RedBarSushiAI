@@ -12,8 +12,8 @@ import openai
 
 from app.utils.menu_utils import load_menu_data
 
-# Direct import to avoid circular dependency
-from app.utils.agent.logging import log_openai_request, log_openai_response
+# Import from agent module which handles CI environments
+from app.utils.agent import log_openai_request, log_openai_response
 
 logger = logging.getLogger(__name__)
 

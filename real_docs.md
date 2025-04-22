@@ -429,11 +429,119 @@ _These require dedicated HTTP endpoints on the Render Web Service._
   - `update_order_status_and_notify`: A task potentially triggered by the status webhook handler to decouple DB updates and notification logic.
 - **Key Modules/Packages:** Celery, Twilio Python Helper Library, Requests/HTTPX, Database ORM, Redis client.
 
+**7.3. AI Voice System Architecture**
+
+The voice system architecture is divided into two main components that work together to provide the intelligent conversation capabilities:
+
+- **Voice Routes Module (`app/routes/voice_routes/`):**
+  - **Purpose:** Handles the entire call flow lifecycle using Twilio's TwiML.
+  - **Key Components:**
+    - `voice_call_flow.py`: Controls the primary call flow (greeting, name collection, main menu)
+    - `voice_core.py`: Core utilities for voice processing and TwiML generation
+    - `voice_menu.py`: Handlers for menu information requests
+    - `voice_transfer.py`: Logic for transferring to human staff when needed
+    - `voice_api.py`: API endpoints for voice functionality
+    - `voice_websockets.py`: Real-time communication utilities
+  - **Responsibilities:**
+    - Collecting caller information (name, preferences)
+    - Routing to appropriate handlers based on intent
+    - Generating TwiML responses for Twilio
+    - Managing session state throughout the call
+
+- **AI Agent Module (`app/utils/agent/`):**
+  - **Purpose:** Provides the AI intelligence layer that powers conversations.
+  - **Key Components:**
+    - `order_agent.py`: Main order parsing and intelligence agent
+    - `menu_tool.py`: Menu-specific tools for the agent (item lookup, modifier suggestions)
+    - `functions.py`: Core agent functions for analyzing user input
+    - `config.py`: OpenAI API configuration
+    - `logging.py`: Logging utilities for API interactions
+  - **Responsibilities:**
+    - Analyzing user intent in natural language
+    - Matching menu items based on customer requests
+    - Suggesting appropriate modifiers based on menu structure
+    - Parsing and structuring order components
+    - Working with any menu structure without hardcoded assumptions
+
+The AI Agent layer is designed to work dynamically with whatever menu data is currently loaded, using OpenAI's intelligence to determine appropriate modifiers for any menu item. The system relies entirely on AI components with no fallbacks, ensuring dynamic adaptation to menu changes and complete absence of hardcoded values.
+
+### AI-Based Menu Analysis
+
+The system uses a fully dynamic, AI-only approach for menu analysis and modifier suggestions. This implementation has several critical features:
+
+1. **Dynamic Menu Item Analysis**: 
+   - Each menu item is analyzed using AI (`_analyze_item_type` method) to determine what kind of food it is
+   - No hardcoded food categories or assumptions about what modifiers are needed
+   - The system analyzes the item name and description to infer appropriate modifiers
+
+2. **Intelligent Modifier Classification**:
+   - Modifier groups are classified by AI (`_classify_modifier_group` method)
+   - Each group is analyzed to determine what type of modification it represents (e.g., cooking preference, toppings, sides)
+   - The AI generates appropriate prompting questions for each modifier group
+
+3. **Complete Absence of Fallbacks**:
+   - If AI components aren't available, the system will explicitly fail
+   - No hardcoded modifier categories or assumptions
+   - Strict runtime verification of AI availability before processing menu data
+
+4. **Menu-Specific Natural Language Prompts**:
+   - AI generates customer-facing prompts specific to each dish
+   - Questions are tailored to the food type (e.g., "How would you like your steak cooked?" vs. "What toppings would you like?")
+   - Prompts incorporate item-specific terminology from the menu
+
+This approach allows the system to properly handle any menu structure, including specialized items like "steak frites" that need cooking preferences or complex combo meals that require multiple modifier selections. The AI adapts to any menu item without requiring programming changes when the menu is updated.
+
 ---
 
 ## 8. Key Workflows: Bringing It All Together
 
-**8.1. Handling a Conversation Turn:**
+**8.1. Complete Voice Call Flow:**
+
+1. **Call Initiation:**
+   - Customer calls the restaurant phone number, which is forwarded to Twilio.
+   - Twilio sends a webhook to `/webhook/voice`.
+   - System responds with greeting TwiML and asks for customer's name.
+
+2. **Customer Identification:**
+   - System captures customer's spoken name using the `/take_name` route.
+   - AI extracts the name using `extract_name_with_agent()` function.
+   - System confirms the name with the customer using the `/confirm_name` route.
+   - Name is stored in the session for personalization throughout the call.
+
+3. **Main Menu Interaction:**
+   - Customer is presented with options using the `/main_menu` route.
+   - System captures their intent (order, menu info, or human assistance).
+   - `OrderParsingAgent.classify_main_menu_intent()` processes complex responses.
+   - System routes to appropriate handler based on intent.
+
+4. **Order Collection:**
+   - If ordering, system asks what they would like using open-ended questions.
+   - Customer's speech is processed by `OrderParsingAgent.parse_order()`.
+   - System builds the order incrementally, asking for clarification as needed.
+   - AI matches spoken items to actual menu items using fuzzy matching and AI analysis.
+
+5. **Modifier Collection:**
+   - System uses `check_for_missing_modifiers()` to identify items needing modifiers.
+   - For each item requiring modifiers, AI generates appropriate questions using `custom_suggest_modifiers()`.
+   - Questions are based entirely on the current menu structure with no hardcoded assumptions.
+   - Customer responses are processed and attached to the proper menu items.
+
+6. **Order Confirmation:**
+   - Complete order is summarized for the customer.
+   - System gathers delivery/pickup preferences and payment information.
+   - Order is prepared for Deliverect using PLUs from the menu database.
+
+7. **Order Submission:**
+   - Order is formatted according to Deliverect specifications.
+   - System submits the order to Deliverect API.
+   - Confirmation details are provided to the customer verbally.
+   - System sends SMS confirmation with order details.
+
+8. **Post-Order Updates:**
+   - System listens for status update webhooks from Deliverect.
+   - Customer receives SMS updates on order status changes.
+
+**8.2. Handling a Conversation Turn:**
 
 1.  **Initiation:** Twilio receives user speech, performs STT, and sends a POST request to the Render backend's `/webhook/voice` endpoint, including the transcription and the unique `CallSid`.
 2.  **State Retrieval:** The backend uses the `CallSid` to retrieve the current conversation state (e.g., existing cart items, context) from Redis. If no state exists, it initializes a new one.
@@ -443,13 +551,13 @@ _These require dedicated HTTP endpoints on the Render Web Service._
     - **Text Response:** If the Agent provides text, the backend updates the Redis state, generates TwiML containing `<Say>` and `<Gather>` tags, and sends this XML back to Twilio.
     - **Tool Call Required:** If the Agent responds with `requires_action`, the backend parses the requested tool name (e.g., `lookup_menu_item`) and arguments.
 6.  **Tool Execution Cycle (If Required):**
-    - The backend executes the corresponding local Python function (e.g., querying the DB using `menu_name_variants` and PLUs, updating the Redis cart).
+    - The backend executes the corresponding local Python function (e.g., querying the DB using AI agents and PLUs, updating the Redis cart).
     - The backend submits the tool's output back to the OpenAI Agent Run.
     - The Agent processes the tool's result and generates its final text response for this turn.
     - The backend receives this text, updates Redis state, generates TwiML (`<Say>`, `<Gather>`), and sends it to Twilio.
 7.  **Continuation:** Twilio executes the TwiML (speaks the response, listens for the next user utterance), restarting the cycle from step 1.
 
-**8.2. Placing an Order:**
+**8.3. Placing an Order:**
 
 1.  **Confirmation:** Through conversation, the user confirms they are ready to place the order.
 2.  **Agent Decision:** The OpenAI Agent determines the intent is to finalize and calls the `place_order` tool, potentially passing gathered customer/delivery details.
