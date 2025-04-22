@@ -352,9 +352,8 @@ def main_menu_fallback():
         finish_on_key="#"
     ) as g:
         g.say(
-            "Press 1 to place an order. "
-            "Press 2 for information about our menu. "
-            "Press 3 to speak with a staff member. "
+            "Press 1 to order, 2 for menu questions, "
+            "or 3 for a real person. "
             "Press 0 to hear these options again."
         )
     
@@ -368,7 +367,7 @@ def main_menu_fallback():
         timeout=5,
         num_digits=1
     ) as g:
-        g.say("Press 1 to order. Press 2 for menu info. Press 3 for staff.")
+        g.say("Press 1 to order, 2 for menu questions, or 3 for a real person.")
     
     # Final fallback - transfer to staff
     response.say(
@@ -401,7 +400,7 @@ def main_menu_dtmf_only():
     if digits == "1":
         # Place an order
         response.say("I'll help you place an order. Let me redirect you to our order system.")
-        response.redirect("/greeting")  # Redirect to order system
+        response.redirect("/take_order")  # Redirect to order system
     elif digits == "2":
         # Menu information
         response.say("I'll help you with information about our menu.")
@@ -456,13 +455,14 @@ def main_menu():
     if first_visit:
         menu_prompt = (
             "I can help you place an order, answer questions about our menu, "
-            "or connect you with our staff. What would you like to do today?"
+            "or connect you with our staff. Press 1 to order, 2 for menu questions, "
+            "or 3 for a real person. What would you like to do today?"
         )
     else:
         # Returning to main menu - streamlined prompt
         menu_prompt = (
-            "You're back at our main menu. Would you like to place an order, "
-            "ask about our menu, or speak with our staff?"
+            "You're back at our main menu. Press 1 to order, 2 for menu questions, "
+            "or 3 for a real person. What would you like to do today?"
         )
     
     # If we know the customer's name, personalize the prompt
@@ -540,7 +540,7 @@ def handle_main_menu_selection():
         order_phrases = ["order", "place an order", "food", "want to eat", "hungry"]
         if any(phrase in spoken_input for phrase in order_phrases):
             response.say("I'll help you place an order.")
-            response.redirect("/greeting")  # Redirect to order system
+            response.redirect("/take_order")  # Redirect to order system
             return Response(str(response), mimetype="text/xml")
         
         # Check for menu intent
@@ -564,7 +564,7 @@ def handle_main_menu_selection():
             
             if intent == "order":
                 response.say("I'll help you place an order.")
-                response.redirect("/greeting")  # Redirect to order system
+                response.redirect("/take_order")  # Redirect to order system
                 return Response(str(response), mimetype="text/xml")
             elif intent == "menu":
                 response.say("Let me tell you about our menu.")
@@ -593,9 +593,8 @@ def handle_main_menu_selection():
         hints="order, menu, human",
     ) as g:
         g.say(
-            "Say 'order' or press 1 to place an order. "
-            "Say 'menu' or press 2 for information about our menu. "
-            "Say 'human' or press 3 to speak with a staff member."
+            "Press 1 to order, 2 for menu questions, "
+            "or 3 for a real person."
         )
     
     # Final fallback to DTMF-only menu

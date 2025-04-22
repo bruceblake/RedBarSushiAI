@@ -156,7 +156,7 @@ def handle_menu_questions():
         if any(phrase in spoken_query.lower() for phrase in exit_phrases):
             if "order" in spoken_query.lower() or "place an order" in spoken_query.lower():
                 response.say("I'll help you place an order.")
-                response.redirect("/greeting")  # Redirect to order system
+                response.redirect("/take_order")  # Redirect to order system
             else:
                 response.say("Returning to the main menu.")
                 response.redirect("/main_menu")
@@ -177,7 +177,16 @@ def handle_menu_questions():
                 # Get agent to process menu question
                 if OPTIMIZED_MENU_HANDLER:
                     # Use optimized handler - note that it only takes one argument
-                    menu_response = handle_menu_query(spoken_query)
+                    menu_handler_response = handle_menu_query(spoken_query)
+                    
+                    # Check if we got a VoiceResponse object back (which we can't use with say())
+                    if isinstance(menu_handler_response, VoiceResponse):
+                        # Return the response directly
+                        logger.info("Received VoiceResponse from menu handler, using directly")
+                        return Response(str(menu_handler_response), mimetype="text/xml")
+                    else:
+                        # If we got a string or other type, use that
+                        menu_response = str(menu_handler_response)
                 else:
                     # Use standard agent
                     agent = OrderParsingAgent()
@@ -258,7 +267,7 @@ def handle_menu_follow_up():
     # Redirect based on intent
     if place_order:
         response.say("Great! Let's start your order.")
-        response.redirect("/greeting")  # Redirect to order system
+        response.redirect("/take_order")  # Redirect to order system
     elif continue_menu:
         response.say("I'll help you with more menu information.")
         response.redirect("/handle_menu_questions?asked=false")
