@@ -167,74 +167,74 @@ class OrderParsingAgent:
                 },
             ]
 
-            # Create the agent with appropriate tools and model
-            agent = Agent(
-                model="gpt-4.1-mini",
-                instructions="""
-                You are an assistant that helps parse customer food orders for a sushi restaurant. 
-                Your job is to:
-                1. Identify main menu items in customer orders
-                2. Extract quantity information
-                3. Properly identify and group modifiers with their parent items
-                4. Verify all items exist in the actual menu
-                5. Return the full order in a structured format
+        # Create the agent with appropriate tools and model
+        agent = Agent(
+            model="gpt-4.1-mini",
+            instructions="""
+            You are an assistant that helps parse customer food orders for a sushi restaurant. 
+            Your job is to:
+            1. Identify main menu items in customer orders
+            2. Extract quantity information
+            3. Properly identify and group modifiers with their parent items
+            4. Verify all items exist in the actual menu
+            5. Return the full order in a structured format
 
-                IMPORTANT: Pay special attention to detecting modifiers vs. main items. For example:
-                - "a build a poke bowl with sushi rice, and add spicy tofu and smashed avocado" should be
-                  understood as ONE main item (poke bowl) with THREE modifiers (sushi rice, spicy tofu,
-                  smashed avocado), not as four separate items.
-                - "steak frites cooked rare with a side of fries" should be ONE main item (steak frites)
-                  with TWO modifiers (cooked rare, side of fries), not as separate items.
-                - Use the context and language cues to distinguish when a customer is adding modifiers
-                  to a main item vs. ordering separate items
-                
-                When determining if something is a modifier:
-                1. Look for phrases like "with", "add", "extra", "no", "without", "on the side", "cooked" 
-                2. Consider if the item is typically a standalone dish or a component/addition
-                3. Check menu data for modifier groups and their relationships to menu items
-                4. Group related items together based on natural language structure
-                5. Cooking preferences (like "rare", "medium", "well done") are ALWAYS modifiers
+            IMPORTANT: Pay special attention to detecting modifiers vs. main items. For example:
+            - "a build a poke bowl with sushi rice, and add spicy tofu and smashed avocado" should be
+              understood as ONE main item (poke bowl) with THREE modifiers (sushi rice, spicy tofu,
+              smashed avocado), not as four separate items.
+            - "steak frites cooked rare with a side of fries" should be ONE main item (steak frites)
+              with TWO modifiers (cooked rare, side of fries), not as separate items.
+            - Use the context and language cues to distinguish when a customer is adding modifiers
+              to a main item vs. ordering separate items
+            
+            When determining if something is a modifier:
+            1. Look for phrases like "with", "add", "extra", "no", "without", "on the side", "cooked" 
+            2. Consider if the item is typically a standalone dish or a component/addition
+            3. Check menu data for modifier groups and their relationships to menu items
+            4. Group related items together based on natural language structure
+            5. Cooking preferences (like "rare", "medium", "well done") are ALWAYS modifiers
 
-                Only respond with items that are actually on the menu. If an item requested is not found,
-                try to find the closest match or recommend alternatives. 
-                
-                Always return:
-                - List of items, each with: name (exactly as in menu), quantity, reference_handler, and price
-                - For each item, include its modifiers in the "modifier" array with their quantities and reference_handlers
-                - IMPORTANT: Each modifier in the modifier array MUST include: name, quantity, reference_handler, and price
-                """,
-                tools=tools,
+            Only respond with items that are actually on the menu. If an item requested is not found,
+            try to find the closest match or recommend alternatives. 
+            
+            Always return:
+            - List of items, each with: name (exactly as in menu), quantity, reference_handler, and price
+            - For each item, include its modifiers in the "modifier" array with their quantities and reference_handlers
+            - IMPORTANT: Each modifier in the modifier array MUST include: name, quantity, reference_handler, and price
+            """,
+            tools=tools,
+        )
+
+        # Register the tool implementations
+        agent.tools.search_menu = self.menu_tool.search_menu
+        agent.tools.ai_match_item = self.menu_tool.ai_match_item
+        agent.tools.get_menu_categories = self.menu_tool.get_menu_categories
+        agent.tools.get_items_by_category = self.menu_tool.get_items_by_category
+        agent.tools.get_details = self.menu_tool.get_details
+
+        return agent
+
+    def parse_order(self, order_text: str) -> Dict[str, Any]:
+        """
+        Parse a natural language order into structured data.
+
+        Args:
+            order_text: The customer's order text
+
+        Returns:
+            dict: The parsed order
+        """
+        try:
+            # Initialize the agent
+            thread = self.agent.create_thread()
+
+            # Log agent initialization
+            logger.info(
+                f"[AGENT-ORDER] Initializing order parsing agent for: '{order_text}'"
             )
 
-            # Register the tool implementations
-            agent.tools.search_menu = self.menu_tool.search_menu
-            agent.tools.ai_match_item = self.menu_tool.ai_match_item
-            agent.tools.get_menu_categories = self.menu_tool.get_menu_categories
-            agent.tools.get_items_by_category = self.menu_tool.get_items_by_category
-            agent.tools.get_details = self.menu_tool.get_details
-
-            return agent
-
-        def parse_order(self, order_text: str) -> Dict[str, Any]:
-            """
-            Parse a natural language order into structured data.
-
-            Args:
-                order_text: The customer's order text
-
-            Returns:
-                dict: The parsed order
-            """
-            try:
-                # Initialize the agent
-                thread = self.agent.create_thread()
-
-                # Log agent initialization
-                logger.info(
-                    f"[AGENT-ORDER] Initializing order parsing agent for: '{order_text}'"
-                )
-
-                # Send the order message
+            # Send the order message
                 message = thread.messages.create(role="user", content=order_text)
                 logger.info(f"[AGENT-MESSAGE] Created message with ID: {message.id}")
 
