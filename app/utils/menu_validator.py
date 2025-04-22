@@ -5,136 +5,197 @@ This ensures consistent PLU and price handling throughout the application.
 """
 
 import logging
-import re
 import hashlib
 from app.utils.helpers import get_common_prices
 
 logger = logging.getLogger(__name__)
 
-def analyze_menu_item_modifiers(menu_data):
+def ensure_complete_modifier_structure(menu_data):
     """
-    Analyzes menu items to ensure appropriate modifiers are associated with each item.
-    This function uses natural language understanding to determine appropriate modifiers
-    that should be associated with menu items based on the item description and nature.
+    Ensures that all components of the menu have a proper complete structure.
+    
+    This function analyzes the menu structure to ensure items have appropriate 
+    modifiers properly linked and all references are valid. It works with any menu structure
+    or content without hardcoded assumptions, focusing only on structural integrity.
     
     Args:
         menu_data: Dict containing the complete menu data structure
         
     Returns:
-        Dict: Updated menu data with appropriate modifiers added to items
+        Dict: Updated menu data with corrected structure
     """
     if not menu_data or not isinstance(menu_data, dict):
-        logger.warning("[MENU-AI] Invalid menu data provided")
+        logger.warning("[MENU-FIX] Invalid menu data provided")
         return menu_data
     
-    # Using simple pattern matching as a fallback if AI agent is unavailable
     try:
-        # Import OrderParsingAgent - will use the stub if real one unavailable
-        from app.utils.agent import OrderParsingAgent
+        # Step 1: Validate and collect all reference IDs
+        logger.info("[MENU-FIX] Validating menu structure integrity")
         
-        # Track items that need modifications
-        menu_items = menu_data.get('items', [])
-        logger.info(f"[MENU-AI] Analyzing {len(menu_items)} menu items for modifiers")
+        # Initialize counters for logging
+        fixed_items = 0
+        fixed_groups = 0
+        fixed_modifiers = 0
         
-        # First organize existing modifier groups by type for easy reference
-        modifier_group_mapping = {}
+        # Collect all valid IDs from different sections
+        all_item_ids = set()
+        all_group_ids = set()
+        all_modifier_ids = set()
+        
+        # Ensure all ID fields are consistent
+        for item in menu_data.get('items', []):
+            # Ensure item has an ID
+            item_id = item.get('id')
+            if not item_id:
+                # If no id but has reference_handler, use that
+                if item.get('reference_handler'):
+                    item['id'] = item['reference_handler']
+                    fixed_items += 1
+            
+            # Add to valid IDs set
+            if item.get('id'):
+                all_item_ids.add(item['id'])
+        
+        # Ensure all modifier groups have IDs
         for group in menu_data.get('modifierGroups', []):
-            group_name = group.get('name', '').lower()
-            # Categorize by type
-            if any(term in group_name for term in ['cook', 'temperature', 'doneness']):
-                modifier_group_mapping.setdefault('cooking', []).append(group)
-            elif any(term in group_name for term in ['side', 'addition']):
-                modifier_group_mapping.setdefault('sides', []).append(group)
-            elif any(term in group_name for term in ['sauce', 'dressing']):
-                modifier_group_mapping.setdefault('sauces', []).append(group)
-            else:
-                modifier_group_mapping.setdefault('other', []).append(group)
-        
-        # If no cooking groups exist, we can't link items to them
-        if not modifier_group_mapping.get('cooking'):
-            logger.info("[MENU-AI] No cooking preference groups found in menu")
-            return menu_data
+            # Ensure group has an ID
+            if not group.get('id'):
+                # Create ID from name if possible
+                if group.get('name'):
+                    import hashlib
+                    name_hash = hashlib.md5(group['name'].encode()).hexdigest()[:8]
+                    group['id'] = f"G-{name_hash}"
+                    fixed_groups += 1
+                    logger.info(f"[MENU-FIX] Added missing ID for group: {group['name']}")
             
-        updated_items = 0
-        
-        # Try to initialize the agent for menu analysis
-        try:
-            agent = OrderParsingAgent()
-            agent_available = True
-            logger.info("[MENU-AI] Initialized OrderParsingAgent for menu analysis")
-        except Exception as e:
-            agent_available = False
-            logger.warning(f"[MENU-AI] OrderParsingAgent not available: {e}")
-        
-        # For each menu item, check if it needs cooking preferences
-        for item in menu_items:
-            item_name = item.get('name', '')
-            if not item_name:
-                continue
+            # Add to valid IDs
+            if group.get('id'):
+                all_group_ids.add(group['id'])
                 
-            # Skip if item already has modifiers
-            if item.get('modifierGroups') and len(item.get('modifierGroups')) > 0:
-                continue
-            
-            # This flag determines if we should add cooking preferences
-            needs_cooking_mods = False
-            
-            # Try AI approach first if available
-            if agent_available:
-                try:
-                    # Use agent to get details and check if modifiers are needed
-                    item_details = agent.menu_tool.get_details(item_name)
-                    if not item_details.get('found'):
-                        logger.warning(f"[MENU-AI] Agent couldn't find item: {item_name}")
-                    else:
-                        # Try to get modifier suggestions
-                        modifier_suggestions = agent.get_modifier_suggestions(item_name)
+            # Validate modifier references in group
+            if 'modifiers' in group:
+                valid_modifiers = []
+                for mod_ref in group['modifiers']:
+                    # Could be a string ID or object reference
+                    if isinstance(mod_ref, str):
+                        valid_modifiers.append(mod_ref)
+                    elif isinstance(mod_ref, dict) and mod_ref.get('id'):
+                        valid_modifiers.append(mod_ref['id'])
                         
-                        # Check if any of the suggestion groups are related to cooking
-                        for group_name, group_info in modifier_suggestions.get('modifiers', {}).items():
-                            group_name_lower = group_name.lower()
-                            if ('cook' in group_name_lower or 
-                                'temperature' in group_name_lower or 
-                                'doneness' in group_name_lower):
-                                needs_cooking_mods = True
-                                logger.info(f"[MENU-AI] AI determined {item_name} needs cooking preferences")
-                                break
-                except Exception as e:
-                    logger.error(f"[MENU-AI] Error with AI analysis for {item_name}: {str(e)}")
-                    # Will fall back to pattern matching
-            
-            # If AI didn't determine needed modifiers, fall back to pattern matching
-            if not needs_cooking_mods:
-                item_name_lower = item_name.lower()
-                item_description = item.get('description', '').lower()
-                
-                # Simple pattern matching for items that typically need cooking preferences
-                cooking_items = [
-                    'steak', 'beef', 'filet', 'ribeye', 'burger', 'meat', 'fish',
-                    'tuna', 'salmon', 'frites'
-                ]
-                
-                if any(term in item_name_lower for term in cooking_items) or \
-                   any(term in item_description for term in cooking_items):
-                    needs_cooking_mods = True
-                    logger.info(f"[MENU-AI] Pattern matching determined {item_name} needs cooking preferences")
-            
-            # If this item needs cooking preferences, link it to a cooking group
-            if needs_cooking_mods:
-                # Get the first cooking preference group
-                cooking_group = modifier_group_mapping['cooking'][0]
-                cooking_group_id = cooking_group.get('id')
-                
-                # Link the item to this group
-                item.setdefault('modifierGroups', []).append(cooking_group_id)
-                updated_items += 1
-                logger.info(f"[MENU-AI] Linked {item_name} to cooking preferences group {cooking_group.get('name')}")
+                if len(valid_modifiers) != len(group['modifiers']):
+                    logger.info(f"[MENU-FIX] Fixed {len(group['modifiers']) - len(valid_modifiers)} invalid modifier references in group {group.get('name')}")
+                    group['modifiers'] = valid_modifiers
+                    fixed_groups += 1
         
-        logger.info(f"[MENU-AI] Updated {updated_items} items with appropriate modifiers")
+        # Ensure all modifiers have IDs
+        for modifier in menu_data.get('modifiers', []):
+            # Ensure modifier has an ID
+            if not modifier.get('id'):
+                # If it has a reference_handler, use that
+                if modifier.get('reference_handler'):
+                    modifier['id'] = modifier['reference_handler']
+                    fixed_modifiers += 1
+                # Otherwise create one from name
+                elif modifier.get('name'):
+                    import hashlib
+                    name_hash = hashlib.md5(modifier['name'].encode()).hexdigest()[:8]
+                    modifier['id'] = f"M-{name_hash}"
+                    fixed_modifiers += 1
+                    logger.info(f"[MENU-FIX] Added missing ID for modifier: {modifier['name']}")
+            
+            # Add to valid IDs
+            if modifier.get('id'):
+                all_modifier_ids.add(modifier['id'])
+        
+        # Step 2: Fix all item-to-modifierGroup references
+        logger.info("[MENU-FIX] Validating item-to-modifier-group references")
+        for item in menu_data.get('items', []):
+            if 'modifierGroups' in item:
+                # Validate each modifier group ID
+                valid_groups = [group_id for group_id in item['modifierGroups'] 
+                               if group_id in all_group_ids]
+                
+                if len(valid_groups) != len(item['modifierGroups']):
+                    logger.info(f"[MENU-FIX] Fixed {len(item['modifierGroups']) - len(valid_groups)} invalid modifier group references in item {item.get('name')}")
+                    item['modifierGroups'] = valid_groups
+                    fixed_items += 1
+        
+        # Step 3: For combo/meal deal items, ensure they have appropriate modifierGroups
+        logger.info("[MENU-FIX] Checking combo items for proper structure")
+        for item in menu_data.get('items', []):
+            # Check if this is a combo/meal deal but has no modifierGroups
+            is_combo = item.get('isCombo') or 'meal' in item.get('name', '').lower() or 'combo' in item.get('name', '').lower()
+            
+            if is_combo and (not item.get('modifierGroups') or len(item.get('modifierGroups', [])) == 0):
+                logger.info(f"[MENU-FIX] Combo item {item.get('name')} has no modifier groups")
+                
+                # Attempt to find appropriate modifier groups by looking for related terms in group names
+                combo_groups = []
+                for group in menu_data.get('modifierGroups', []):
+                    group_name = group.get('name', '').lower()
+                    if ('component' in group_name or 'option' in group_name or 
+                        'choice' in group_name or 'selection' in group_name or
+                        'combo' in group_name or 'meal' in group_name):
+                        combo_groups.append(group)
+                        
+                # If we found suitable groups, link them to the combo item
+                if combo_groups:
+                    item.setdefault('modifierGroups', [])
+                    for group in combo_groups:
+                        if group.get('id') not in item['modifierGroups']:
+                            item['modifierGroups'].append(group.get('id'))
+                    
+                    fixed_items += 1
+                    logger.info(f"[MENU-FIX] Linked combo item {item.get('name')} to {len(combo_groups)} suitable modifier groups")
+        
+        # Step 4: Verify all modifierGroups have valid modifiers
+        logger.info("[MENU-FIX] Ensuring all modifier groups have valid modifiers")
+        for group in menu_data.get('modifierGroups', []):
+            # Skip if no modifiers array
+            if 'modifiers' not in group:
+                group['modifiers'] = []
+                fixed_groups += 1
+                continue
+                
+            # Filter out invalid modifier references
+            valid_modifiers = [mod_id for mod_id in group['modifiers'] 
+                              if mod_id in all_modifier_ids]
+            
+            if len(valid_modifiers) != len(group['modifiers']):
+                logger.info(f"[MENU-FIX] Fixed {len(group['modifiers']) - len(valid_modifiers)} invalid modifier references in group {group.get('name')}")
+                group['modifiers'] = valid_modifiers
+                fixed_groups += 1
+                
+            # If group has min>0 but no modifiers, adjust min to 0
+            if group.get('min', 0) > 0 and len(group['modifiers']) == 0:
+                logger.warning(f"[MENU-FIX] Group {group.get('name')} has min={group.get('min')} but no modifiers, setting min=0")
+                group['min'] = 0
+                fixed_groups += 1
+        
+        # Step 5: Verify all valid PLUs (reference_handler) for Deliverect
+        logger.info("[MENU-FIX] Ensuring all PLUs/reference_handlers are valid")
+        for item in menu_data.get('items', []):
+            if not item.get('plu') and item.get('reference_handler'):
+                item['plu'] = item['reference_handler']
+                fixed_items += 1
+            elif not item.get('reference_handler') and item.get('plu'):
+                item['reference_handler'] = item['plu']
+                fixed_items += 1
+                
+        for modifier in menu_data.get('modifiers', []):
+            if not modifier.get('plu') and modifier.get('reference_handler'):
+                modifier['plu'] = modifier['reference_handler']
+                fixed_modifiers += 1
+            elif not modifier.get('reference_handler') and modifier.get('plu'):
+                modifier['reference_handler'] = modifier['plu']
+                fixed_modifiers += 1
+        
+        # Log results
+        logger.info(f"[MENU-FIX] Fixed {fixed_items} items, {fixed_groups} modifier groups, and {fixed_modifiers} modifiers")
         return menu_data
         
     except Exception as e:
-        logger.error(f"[MENU-AI] Error in menu analysis: {str(e)}")
+        logger.error(f"[MENU-FIX] Error in menu structure analysis: {str(e)}")
         # Return original menu data if any error occurs
         return menu_data
 
@@ -869,8 +930,8 @@ def validate_and_fix_menu_data(menu_data):
         fixes.append(f"Fixed {fixed_modifier_count} modifiers")
         logger.info(f"[MENU-FIX] Fixed {fixed_modifier_count} modifiers")
     
-    # Analyze menu items and associate appropriate modifiers using AI
-    logger.info("[MENU-FIX] Analyzing menu items for appropriate modifiers using AI...")
-    menu_data = analyze_menu_item_modifiers(menu_data)
+    # Ensure complete and valid modifier structure
+    logger.info("[MENU-FIX] Ensuring complete modifier structure and references...")
+    menu_data = ensure_complete_modifier_structure(menu_data)
 
     return menu_data

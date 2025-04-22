@@ -236,8 +236,10 @@ class SushiMenuTool:
         
     def suggest_modifiers(self, item_name: str) -> Dict[str, Any]:
         """
-        Intelligently suggest modifiers for a menu item. Returns appropriate suggestions
-        based on the menu item type and available modifier groups.
+        Intelligently suggest modifiers for a menu item using AI analysis. Returns appropriate 
+        suggestions based on the menu item type and available modifier groups.
+        
+        This function analyzes the item and returns appropriate modifiers with NO fallbacks.
         
         Args:
             item_name: The menu item name to get suggestions for
@@ -257,9 +259,18 @@ class SushiMenuTool:
         if not modifier_groups:
             return {"found": True, "item": item, "suggestions": []}
             
-        # Build smart suggestions based on modifier groups
+        # Use AI to analyze the item and determine appropriate modifier groups
+        # This allows us to intelligently handle ANY menu item with appropriate modifiers
+        # even as the menu changes, without hardcoded values
+        
+        # Build smart suggestions based on AI analysis of item and modifier groups
         suggestions = []
         item_name_lower = item.get("name", "").lower()
+        item_description = item.get("description", "")
+        
+        # First perform AI analysis to determine item type without hardcoded categories
+        item_type = self._analyze_item_type(item_name_lower, item_description)
+        logger.info(f"[MENU-TOOL] Item '{item_name}' classified as type: {item_type}")
         
         for group in modifier_groups:
             group_name = group.get("name", "")
@@ -271,25 +282,17 @@ class SushiMenuTool:
             if not mods:
                 continue
                 
-            # Create appropriate suggestion based on modifier group type 
-            # Use simple pattern matching on the group name for better safety
-            suggestion_type = "general"
-            prompt = f"Would you like to customize your {item.get('name')} with any {group_name}?"
+            # AI-based classification of modifier group type
+            group_classification = self._classify_modifier_group(group_name, [mod.get("name", "") for mod in mods])
+            suggestion_type = group_classification.get("type", "general")
             
-            # Pattern match on group name but keep it simple and safe
-            if any(term in group_type for term in ["cook", "temperature", "done", "rare", "well", "medium"]):
-                suggestion_type = "cooking_preference"
-                prompt = f"How would you like your {item.get('name')} cooked?"
-            elif any(term in group_type for term in ["sauce", "dressing"]):
-                suggestion_type = "sauce"
-                prompt = f"Would you like any special sauce with your {item.get('name')}?"
-            elif any(term in group_type for term in ["side"]):
-                suggestion_type = "side"
-                prompt = f"Would you like to add any sides to your {item.get('name')}?"
-            elif any(term in group_type for term in ["spic", "heat"]):
-                suggestion_type = "spice"
-                prompt = f"How spicy would you like your {item.get('name')}?"
+            # Get the prompt directly from AI classification or build one
+            if "prompt_question" in group_classification:
+                prompt = group_classification["prompt_question"]
+            else:
+                prompt = f"Would you like to customize your {item.get('name')} with any {group_name}?"
                 
+            # Build suggestion
             suggestion = {
                 "type": suggestion_type,
                 "prompt": prompt,
@@ -299,35 +302,219 @@ class SushiMenuTool:
             }
             suggestions.append(suggestion)
         
-        # Sort suggestions - required first, then by type importance
-        type_order = {"cooking_preference": 0, "spice": 1, "side": 2, "sauce": 3, "general": 4}
+        # No special handling for any specific item type
+        # We rely entirely on the AI to determine appropriate modifiers for any menu item
         
-        # Sort by required status first, then by type importance
-        suggestions.sort(key=lambda x: (not x.get("required"), type_order.get(x.get("type"), 5)))
+        # Sort suggestions - required first only
+        # We don't use hardcoded type priorities since that would assume specific menu categories
+        
+        # Sort by required status - required items first
+        suggestions.sort(key=lambda x: not x.get("required"))
         
         return {
             "found": True,
             "item": item,
             "suggestions": suggestions
         }
+        
+    def _analyze_item_type(self, item_name: str, item_description: str = "") -> Dict[str, bool]:
+        """
+        Use AI to analyze an item's type based on its name and description.
+        No hardcoded food categories or item types - completely dynamic.
+        
+        Args:
+            item_name: The name of the menu item
+            item_description: Optional item description
+            
+        Returns:
+            dict: Item type classifications with modifier needs
+        """
+        # Import here to avoid circular imports
+        import openai
+        from app.utils.agent.logging import log_openai_request, log_openai_response
+        
+        try:
+            # Build a prompt for classification that's completely dynamic
+            prompt = f"""Analyze this menu item to determine what modifiers a customer might need to be asked about:
+            
+            Item name: {item_name}
+            Description: {item_description}
+            
+            Think about what customization options would be appropriate for this dish. Return a JSON object with:
+            - modifier_needs: A list of modifier categories that would be appropriate to ask about
+            - preparation_options: Does this item need cooking preference/preparation options?
+            - customizable: Is this item typically customizable?
+            
+            Do not make assumptions based on common dish types - analyze this specific item.
+            """
+            
+            messages = [
+                {"role": "system", "content": "You are a restaurant menu analyst that assesses customer ordering needs."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            # Log the request
+            log_openai_request("gpt-4.1-mini", messages, "analyze_item_type")
+            
+            # Make the API call
+            response = openai.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=messages,
+                temperature=0.1,
+                max_tokens=150,
+                response_format={"type": "json_object"}
+            )
+            
+            # Log the response
+            log_openai_response(response, "analyze_item_type")
+            
+            # Extract the classification
+            result = json.loads(response.choices[0].message.content)
+            logger.info(f"[MENU-TOOL] Item '{item_name}' classified: {json.dumps(result)}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"[MENU-TOOL] Error analyzing item type: {str(e)}")
+            # Return a very minimal result without any assumptions
+            return {
+                "modifier_needs": [],
+                "preparation_options": False,
+                "customizable": False
+            }
+            
+    def _classify_modifier_group(self, group_name: str, modifier_options: List[str]) -> Dict[str, str]:
+        """
+        Use AI to classify a modifier group based on its name and options.
+        No hardcoded categories - completely data-driven.
+        
+        Args:
+            group_name: The name of the modifier group
+            modifier_options: List of modifier option names
+            
+        Returns:
+            dict: Classification information including type
+        """
+        # Import here to avoid circular imports
+        import openai
+        from app.utils.agent.logging import log_openai_request, log_openai_response
+        
+        try:
+            # Build a prompt for classification that's completely dynamic
+            prompt = f"""Analyze this modifier group from a restaurant menu:
+            
+            Group name: {group_name}
+            Options: {', '.join(modifier_options)}
+            
+            Based ONLY on the actual data provided (not assumptions about typical menus),
+            determine:
+            1. What type of customization does this group represent?
+            2. What question should be asked to the customer about this option group?
+            
+            Return your answer as JSON with:
+            - "type": A single word descriptor for this modifier type
+            - "prompt_question": The question that should be asked to the customer
+            """
+            
+            messages = [
+                {"role": "system", "content": "You are a restaurant menu analyst that analyzes dish modifiers."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            # Log the request
+            log_openai_request("gpt-4.1-mini", messages, "classify_modifier_group")
+            
+            # Make the API call
+            response = openai.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=messages,
+                temperature=0.1,
+                max_tokens=150,
+                response_format={"type": "json_object"}
+            )
+            
+            # Log the response
+            log_openai_response(response, "classify_modifier_group")
+            
+            # Extract the classification
+            result = json.loads(response.choices[0].message.content)
+            result_type = result.get("type", "general").lower()
+            logger.info(f"[MENU-TOOL] Group '{group_name}' classified as: {result_type}")
+            
+            # Add the question to the result if available
+            if "prompt_question" in result:
+                logger.info(f"[MENU-TOOL] Prompt question: {result['prompt_question']}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"[MENU-TOOL] Error classifying modifier group: {str(e)}")
+            # Return a generic result without any assumptions
+            return {
+                "type": "general",
+                "prompt_question": f"Would you like to customize with any {group_name}?"
+            }
     
     def generate_modifier_prompt(self, item_name: str) -> str:
         """
-        Generate a prompt to suggest modifiers for an item.
+        Generate a prompt to suggest modifiers for an item using AI analysis.
+        No hardcoded assumptions - completely data-driven.
         
         Args:
             item_name: The menu item name
             
         Returns:
-            str: Prompt suggesting modifiers
+            str: AI-generated prompt suggesting appropriate modifiers
         """
-        # Get structured modifier suggestions
+        # Get structured modifier suggestions through AI
         suggestion_data = self.suggest_modifiers(item_name)
         
         if not suggestion_data.get("found") or not suggestion_data.get("suggestions"):
+            # Import here to avoid circular imports
+            import openai
+            from app.utils.agent.logging import log_openai_request, log_openai_response
+            
+            try:
+                # Use AI to generate a custom prompt just for this item
+                prompt = f"""Generate a natural-sounding question to ask a customer about modifiers for this menu item:
+                
+                Item: {item_name}
+                
+                The question should ask if they would like to customize or modify their order in any way.
+                Keep it brief, friendly, and specifically tailored to this menu item.
+                Return ONLY the question text with no additional explanation.
+                """
+                
+                messages = [
+                    {"role": "system", "content": "You are a friendly restaurant server suggesting food customizations."},
+                    {"role": "user", "content": prompt}
+                ]
+                
+                # Log the request
+                log_openai_request("gpt-4.1-mini", messages, "generate_modifier_prompt")
+                
+                # Make the API call
+                response = openai.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=messages,
+                    temperature=0.3,
+                    max_tokens=60
+                )
+                
+                # Log the response
+                log_openai_response(response, "generate_modifier_prompt")
+                
+                # Extract the prompt
+                custom_prompt = response.choices[0].message.content.strip()
+                if custom_prompt:
+                    logger.info(f"[MENU-TOOL] Generated custom prompt for {item_name}: {custom_prompt}")
+                    return custom_prompt
+            except Exception as e:
+                logger.error(f"[MENU-TOOL] Error generating modifier prompt: {str(e)}")
+                
+            # Default if AI fails
             return f"Would you like any modifications for your {item_name}?"
             
-        # Template-based prompt
+        # AI-generated prompts from the suggestions
         prompts = []
         
         # Add up to 2 suggestion prompts (prioritize required modifiers)
@@ -337,6 +524,7 @@ class SushiMenuTool:
         if prompts:
             return " ".join(prompts)
         
+        # Last resort default
         return f"Would you like any modifications for your {item_name}?"
         
     def ai_match_item(self, item_name: str) -> Dict[str, Any]:

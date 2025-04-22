@@ -100,10 +100,10 @@ recent_actions = defaultdict(lambda: {"timestamp": 0, "lock": threading.Lock()})
 # Function to check for menu items that need modifier suggestions
 def custom_suggest_modifiers(item_name):
     """
-    Utility function to ensure we get meaningful modifier prompts directly from menu data.
+    Utility function to ensure we get meaningful modifier prompts using AI.
     
-    This function takes an item name, uses OrderParsingAgent to get modifier
-    suggestions directly from the menu data, without any AI-generated content.
+    This function uses OrderParsingAgent to get intelligent modifier
+    suggestions based on the menu data and item characteristics.
     
     Args:
         item_name (str): The name of the menu item
@@ -114,41 +114,17 @@ def custom_suggest_modifiers(item_name):
             - suggestions (list): Structured list of modifier suggestions
             - found (bool): Whether the item was found in the menu
     """
-    logger.info(f"Getting custom modifier suggestions for {item_name}")
+    logger.info(f"Getting AI-based modifier suggestions for {item_name}")
     
-    # Initialize the agent
+    # Initialize the agent - no fallbacks allowed
+    from app.utils.agent_utils import OrderParsingAgent
     agent = OrderParsingAgent()
     
-    # Get structured suggestions directly from menu data
+    # Get structured suggestions directly using AI
     modifier_data = agent.menu_tool.suggest_modifiers(item_name)
     
-    # Get modifier prompt from agent
-    try:
-        modifier_prompt = agent.menu_tool.generate_modifier_prompt(item_name)
-    except Exception as e:
-        logger.error(f"Error generating modifier prompt: {e}")
-        modifier_prompt = None
-    
-    # If we found the item but didn't get a prompt, create a generic one
-    if modifier_data.get("found", False) and not modifier_prompt:
-        # Get modifier groups for this item
-        suggestions = modifier_data.get("suggestions", [])
-        
-        if suggestions:
-            # Build a prompt from the first suggestion
-            modifier_prompt = suggestions[0].get("prompt", f"Would you like any modifications for your {item_name}?")
-        else:
-            # Generic fallback
-            modifier_prompt = f"Would you like any modifications for your {item_name}?"
-    
-    # If item wasn't found at all, create a generic prompt
-    if not modifier_data.get("found", False):
-        logger.warning(f"Item {item_name} not found in menu for modifier suggestions")
-        modifier_prompt = f"Would you like any special requests or modifications for your {item_name}?"
-        modifier_data = {
-            "found": False,
-            "suggestions": []
-        }
+    # Get modifier prompt from AI
+    modifier_prompt = agent.menu_tool.generate_modifier_prompt(item_name)
     
     # Return complete results
     return {
@@ -161,15 +137,9 @@ def check_for_missing_modifiers(order_items):
     """
     Check if any order items don't have modifiers but should.
     
-    Uses the validate_modifier_constraints function to identify items
-    that are missing required modifiers or would benefit from modifier suggestions.
-    Also handles meal deals and their components, and provides detailed constraint
-    information for user prompting.
-    
-    This function handles modifiers based on exact menu data:
-    1. For combo items, it always suggests components
-    2. For items with existing modifiers of the right types, it avoids re-suggesting
-    3. For items with required modifiers, it verifies if those requirements are met
+    Uses the OrderParsingAgent to intelligently identify items that need modifiers
+    based on menu data and item characteristics. The AI will determine which
+    items need modifiers and what type of modifiers they need.
     
     Args:
         order_items: List of order items to check
@@ -179,159 +149,63 @@ def check_for_missing_modifiers(order_items):
             - items_needing_modifiers: List of items that need modifiers
             - constraint_details: Dict mapping item name -> constraint details for prompting
     """
-    from app.utils.menu_utils import validate_modifier_constraints
+    # Import required AI components
+    from app.utils.agent_utils import OrderParsingAgent
     import logging
     logger = logging.getLogger(__name__)
     
-    # Initialize agent for checking item details
+    # Initialize agent for AI analysis
     agent = OrderParsingAgent()
     items_needing_modifiers = []
+    constraint_details = {}
     
-    # Get detailed constraints for all items
-    # The updated validate_modifier_constraints will return ALL items with modifier groups
-    is_valid, error_message, constraint_details = validate_modifier_constraints(
-        order_items, return_detailed_constraints=True
-    )
+    logger.info(f"Using OrderParsingAgent to analyze {len(order_items)} items for missing modifiers")
     
-    logger.info(f"Checking {len(order_items)} items for missing modifiers")
-    logger.info(f"Found {len(constraint_details)} items with modifier constraints")
-    
-    # More intelligently add items with constraints to the list
-    for item_name, details in constraint_details.items():
-        # Find the matching item in the order_items list
-        for item in order_items:
-            if item.get("name") == item_name:
-                # Check if this item is a combo/meal deal
-                is_combo = details.get("is_combo", False)
-                mod_groups = details.get("modifier_groups", [])
+    # For each item, use agent to check if it needs modifiers
+    for item in order_items:
+        # Skip if it already has modifiers
+        if item.get("modifier") and len(item.get("modifier", [])) > 0:
+            continue
+            
+        # Get the item name
+        item_name = item.get("name", "")
+        if not item_name:
+            continue
+        
+        # Get details for this item using AI
+        item_details = agent.menu_tool.get_details(item_name)
+        
+        # If item was found and has modifiers in the menu
+        if item_details.get("found"):
+            modifier_groups = item_details.get("modifiers", [])
+            
+            # If this item has any modifier groups in the menu, add it for prompting
+            if modifier_groups:
+                # Add to items needing modifiers
+                items_needing_modifiers.append(item)
+                logger.info(f"Added item {item_name} to items needing modifiers - found {len(modifier_groups)} modifier groups")
                 
-                # Check if this item already has appropriate modifiers
-                existing_modifiers = item.get("modifier", [])
-                existing_mod_types = {mod.get("name", "").lower() for mod in existing_modifiers}
-                
-                # For combo items, always suggest components if none selected
-                if is_combo:
-                    # See if there are component modifiers already added
-                    has_components = False
-                    for mod in existing_modifiers:
-                        # Check if it appears to be a component selection
-                        if "component" in mod.get("reference_handler", "").lower():
-                            has_components = True
-                            break
-                    
-                    # If no components found, add to items needing modifiers
-                    if not has_components:
-                        if item not in items_needing_modifiers:
-                            items_needing_modifiers.append(item)
-                            logger.info(f"Added combo item {item_name} to items needing modifiers (needs components)")
-                
-                # For items with modifier groups, check if required ones are missing
-                elif mod_groups:
-                    needs_modifiers = False
-                    
-                    # Check if any required group is missing modifiers
-                    for group in mod_groups:
-                        min_required = group.get("min_required", 0)
-                        if min_required > 0:
-                            # This group requires modifiers, check if we have any from this group
-                            group_mods = {mod.lower() for mod in group.get("modifiers", [])}
-                            found_mods = any(mod_name in group_mods for mod_name in existing_mod_types)
-                            
-                            if not found_mods:
-                                needs_modifiers = True
-                                break
-                    
-                    # Add item if it needs modifiers
-                    if needs_modifiers:
-                        if item not in items_needing_modifiers:
-                            items_needing_modifiers.append(item)
-                            logger.info(f"Added {item_name} to items needing modifiers (missing required modifiers)")
-                    # If not required but has mod groups, only suggest if no modifiers yet
-                    elif not existing_modifiers:
-                        if item not in items_needing_modifiers:
-                            items_needing_modifiers.append(item)
-                            logger.info(f"Added {item_name} to items needing optional modifiers")
-                
-                break
+                # Add all modifier groups to constraints
+                constraint_details[item_name] = {
+                    "is_combo": item_details.get("item", {}).get("isCombo", False),
+                    "modifier_groups": []
+                }
     
     # Log what we've found
-    logger.info(f"Added {len(items_needing_modifiers)} items that need modifiers")
+    logger.info(f"Found {len(items_needing_modifiers)} items that need modifiers")
     for item in items_needing_modifiers:
         item_name = item.get("name", "")
         # Get all the modifier groups for this item
         if item_name in constraint_details:
             mod_groups = constraint_details[item_name].get("modifier_groups", [])
             is_combo = constraint_details[item_name].get("is_combo", False)
+            
             if is_combo:
-                components = constraint_details[item_name].get("components", [])
-                component_names = [comp.get("name") for comp in components]
-                logger.info(f"Item {item_name} is a combo/meal deal with components: {', '.join(component_names)}")
+                logger.info(f"Item {item_name} is a combo/meal deal")
+                
             if mod_groups:
                 group_names = [group.get("name") for group in mod_groups]
                 logger.info(f"Item {item_name} has modifier groups: {', '.join(group_names)}")
-    
-    # If no items with constraints were found, check for modifiers in the menu data
-    if not items_needing_modifiers:
-        for item in order_items:
-            # Skip if it already has modifiers
-            if item.get("modifier") and len(item.get("modifier", [])) > 0:
-                continue
-                
-            # Get details for this item
-            item_name = item.get("name", "")
-            item_details = agent.menu_tool.get_details(item_name)
-            
-            # ALWAYS check for modifiers in the menu data - crucial fix for steak items
-            if item_details.get("found"):
-                modifier_groups = item_details.get("modifiers", [])
-                
-                # If this item has any modifier groups in the menu, add it for prompting
-                if modifier_groups:
-                    # Add to items needing modifiers
-                    items_needing_modifiers.append(item)
-                    logger.info(f"Added item {item_name} to items needing modifiers - found {len(modifier_groups)} modifier groups")
-                    
-                    # Add all modifier groups to constraints
-                    if item_name not in constraint_details:
-                        constraint_details[item_name] = {
-                            "is_combo": item_details.get("item", {}).get("isCombo", False),
-                            "modifier_groups": []
-                        }
-                    
-                    # Add ALL modifier groups for this item
-                    for mod_group in modifier_groups:
-                        if "modifier_groups" not in constraint_details[item_name]:
-                            constraint_details[item_name]["modifier_groups"] = []
-                        
-                        constraint_details[item_name]["modifier_groups"].append({
-                            "name": mod_group.get("name"),
-                            "min_required": mod_group.get("min", 0),
-                            "max_allowed": mod_group.get("max", 0),
-                            "modifiers": [
-                                mod.get("name") for mod in mod_group.get("modifiers", [])
-                            ]
-                        })
-                
-                # Special handling for combo items
-                is_combo = item_details.get("item", {}).get("isCombo", False)
-                if is_combo:
-                    # Add combo details if not already there
-                    if item_name not in constraint_details:
-                        constraint_details[item_name] = {
-                            "is_combo": True,
-                            "modifier_groups": []
-                        }
-                    
-                    # If this item has child products, add them as components
-                    child_products = item_details.get("item", {}).get("childProducts", [])
-                    if child_products:
-                        constraint_details[item_name]["components"] = [
-                            {
-                                "name": child.get("name"),
-                                "id": child.get("id"),
-                                "required": True
-                            } for child in child_products
-                        ]
     
     # Final logging
     if items_needing_modifiers:

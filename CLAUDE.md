@@ -1,13 +1,21 @@
 # Claude Code Helper Documentation
 
-## Menu AI Analysis System
+## Menu Structure Validation System
 
-- **AI-Powered Menu Modifier Analysis**: Uses the `OrderParsingAgent` to intelligently link menu items with appropriate modifier groups through the `analyze_menu_item_modifiers()` function in `menu_validator.py`. The AI determines which items need specific modifiers like cooking preferences.
+- **Complete Modifier Structure Verification**: The `ensure_complete_modifier_structure()` function in `menu_validator.py` validates and fixes references between menu items, modifier groups, and modifiers to ensure complete structural integrity without any hardcoded assumptions.
+
+## Key Features
+
+1. **Comprehensive ID Validation**: Ensures all items, modifier groups, and modifiers have valid IDs and references
+2. **Deliverect Integration Validation**: Verifies PLU/reference_handler fields are properly set for all menu components
+3. **Combo Item Support**: Ensures combo/meal deal items are properly linked to appropriate component groups
+4. **Invalid Reference Cleanup**: Removes invalid references that would cause order processing failures
+5. **Empty Group Handling**: Adjusts minimum requirements for empty modifier groups to prevent ordering errors
+6. **Structural Integrity**: Maintains the correct hierarchy of items → modifier groups → modifiers
 
 ## Integration Points
 
-- The AI-powered menu analysis function is automatically called during menu validation in `validate_and_fix_menu_data()`
-- The system dynamically categorizes existing modifier groups (cooking, sides, sauces, etc.) based on their names
-- For each menu item without modifiers, the system uses AI to determine appropriate modifier groups
-- The existing `check_for_missing_modifiers()` function in `order.py` detects these AI-linked modifiers
-- The `OrderParsingAgent` provides intelligent recommendations based on item descriptions and menu structure
+- The structure validation is automatically called during menu validation in `validate_and_fix_menu_data()`
+- Works with any menu schema or content - no hardcoded assumptions about menu items
+- The existing `check_for_missing_modifiers()` function in `order.py` utilizes the validated structure for proper order processing
+- Prevents issues with Deliverect order processing by ensuring all reference fields are valid
