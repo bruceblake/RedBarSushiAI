@@ -98,6 +98,74 @@ BUSY_MODE_ACTIVE = False
 recent_actions = defaultdict(lambda: {"timestamp": 0, "lock": threading.Lock()})
 
 # Function to check for menu items that need modifier suggestions
+def custom_suggest_modifiers(item_name):
+    """
+    Utility function to ensure we always get meaningful modifier prompts.
+    
+    This function takes an item name, uses OrderParsingAgent to get modifier
+    suggestions, but ensures it always returns a prompt even if no specific
+    modifiers are found.
+    
+    Args:
+        item_name (str): The name of the menu item
+        
+    Returns:
+        dict: A dictionary containing:
+            - prompt (str): A natural language prompt suggesting modifiers
+            - suggestions (list): Structured list of modifier suggestions
+            - found (bool): Whether the item was found in the menu
+    """
+    logger.info(f"Getting custom modifier suggestions for {item_name}")
+    
+    # Initialize the agent
+    agent = OrderParsingAgent()
+    
+    # Get structured suggestions from the agent
+    modifier_data = agent.menu_tool.suggest_modifiers(item_name)
+    
+    # Try to generate a natural language prompt
+    try:
+        modifier_prompt = agent.menu_tool.generate_modifier_prompt(item_name)
+    except Exception as e:
+        logger.error(f"Error generating modifier prompt: {e}")
+        modifier_prompt = None
+    
+    # If we found the item but didn't get a prompt, create a default one
+    if modifier_data.get("found", False) and not modifier_prompt:
+        logger.info(f"No specific modifier prompt found for {item_name}, generating fallback")
+        
+        # Create a default prompt based on item category
+        item = modifier_data.get("item", {})
+        item_category = item.get("category", "").lower()
+        
+        if "roll" in item_name.lower() or "sushi" in item_name.lower():
+            modifier_prompt = f"Would you like any special preparation for your {item_name}? For example, extra wasabi, spicy mayo, or soy sauce on the side?"
+        elif "steak" in item_name.lower() or "burger" in item_name.lower():
+            modifier_prompt = f"How would you like your {item_name} cooked? Rare, medium, or well done?"
+        elif "salad" in item_name.lower():
+            modifier_prompt = f"Would you like any special dressing for your {item_name}?"
+        elif "combo" in item_name.lower() or "meal" in item_name.lower():
+            modifier_prompt = f"What sides would you like with your {item_name}?"
+        else:
+            # Generic fallback
+            modifier_prompt = f"Would you like to customize your {item_name} with any special requests or modifications?"
+    
+    # If item wasn't found at all, create a generic prompt
+    if not modifier_data.get("found", False):
+        logger.warning(f"Item {item_name} not found in menu for modifier suggestions")
+        modifier_prompt = f"Would you like any special requests or modifications for your {item_name}?"
+        modifier_data = {
+            "found": False,
+            "suggestions": []
+        }
+    
+    # Return complete results
+    return {
+        "prompt": modifier_prompt or f"Would you like any modifications for your {item_name}? Say what you'd like or press 1 to skip.",
+        "suggestions": modifier_data.get("suggestions", []),
+        "found": modifier_data.get("found", False)
+    }
+
 def check_for_missing_modifiers(order_items):
     """
     Check if any order items don't have modifiers but should.
@@ -603,6 +671,17 @@ def take_order():
 
 @order_bp.route("/confirm_order_from_initial", methods=["POST"])
 def confirm_order_from_initial():
+    """
+    Handle order confirmation after initial order has been placed.
+    This route now checks whether to proceed directly or check for modifiers first.
+    """
+    # Check if we need to check for modifiers first
+    if request.form.get("check_modifiers", "false").lower() == "true":
+        # Redirect to suggest_modifiers to check for needed modifiers first
+        logger.info("Order confirmation redirecting to modifier check first")
+        response = VoiceResponse()
+        response.redirect(url_for("order_bp.suggest_modifiers"))
+        return Response(str(response), mimetype="text/xml")
     """Handle confirmation of the initial order"""
     # Get user response
     user_resp = (request.form.get("SpeechResult", "") or "").lower()
@@ -2992,6 +3071,175 @@ def graceful_exit():
     
     return Response(str(response), mimetype="text/xml")
 
+@order_bp.route("/suggest_modifiers", methods=["POST"])
+def suggest_modifiers():
+    """
+    Route to explicitly suggest modifiers for items in the order.
+    This route serves as the main entry point for suggesting modifiers
+    after the order has been taken but before confirmation.
+    """
+    # Get order items from session
+    order_items = json.loads(session.get("order_items_json", "[]"))
+    
+    # Exit early if no order items
+    if not order_items:
+        logger.warning("No order items found for modifier suggestions")
+        # Redirect to order taking
+        return redirect(url_for("order_bp.greeting"))
+    
+    # Use check_for_missing_modifiers to identify items needing modifier suggestions
+    items_needing_modifiers, constraint_details = check_for_missing_modifiers(order_items)
+    
+    # Detailed logging for debugging
+    logger.info(f"Found {len(items_needing_modifiers)} items needing modifiers")
+    for item in items_needing_modifiers:
+        item_name = item.get("name", "Unknown")
+        logger.info(f"Item {item_name} needs modifiers")
+        if item_name in constraint_details:
+            constraints_json = json.dumps(constraint_details[item_name])
+            logger.info(f"Constraints for {item_name}: {constraints_json[:200]}...")
+    
+    # Create response object
+    response = VoiceResponse()
+    
+    # If no items need modifiers, skip to confirmation
+    if not items_needing_modifiers:
+        logger.info("No items need modifiers, proceeding to confirmation")
+        response.redirect(url_for("order_bp.confirm_order_from_initial"))
+        return Response(str(response), mimetype="text/xml")
+    
+    # Store info in session for the modifier flow
+    session["order_items_without_modifiers_json"] = json.dumps(order_items)
+    session["constraint_details"] = json.dumps(constraint_details)
+    
+    # Get the first item that needs modifiers
+    first_item = items_needing_modifiers[0]
+    first_item_name = first_item.get("name", "")
+    
+    # Store which item we're currently suggesting modifiers for
+    session["current_modifier_item"] = first_item_name
+    session["remaining_modifier_items"] = json.dumps(items_needing_modifiers[1:]) if len(items_needing_modifiers) > 1 else "[]"
+    
+    # Get the agent to generate a modifier prompt
+    agent = OrderParsingAgent()
+    
+    # Handle special case for meal deals / combo products
+    item_constraints = constraint_details.get(first_item_name, {})
+    is_combo = item_constraints.get("is_combo", False)
+    
+    if is_combo:
+        # This is a meal deal/combo with component selection
+        components = item_constraints.get("components", [])
+        
+        # Format the component options for the prompt
+        required_components = []
+        optional_components = []
+        
+        for comp in components:
+            if comp.get("required", True):
+                required_components.append(comp.get("name", ""))
+            else:
+                optional_components.append(comp.get("name", ""))
+        
+        # Create component text for required components
+        required_text = ""
+        if required_components:
+            required_text = f"You need to select: {', '.join(required_components[:3])}"
+            if len(required_components) > 3:
+                required_text += f", and {len(required_components) - 3} more options"
+        
+        # Create prompt for meal deal
+        meal_deal_prompt = f"For your {first_item_name} meal deal, {required_text}. What would you like to include?"
+        
+        with response.gather(
+            input="speech",
+            action="/handle_modifier_suggestion",
+            enhanced=True,
+            speech_model="phone_call",
+            language="en-US",
+            speech_timeout=5,
+            timeout=7,
+        ) as g:
+            g.say(meal_deal_prompt)
+    else:
+        # Regular item that needs modifiers
+        # Get specific modifier groups from constraints
+        modifier_groups = []
+        if "modifier_groups" in item_constraints:
+            modifier_groups = item_constraints.get("modifier_groups", [])
+        
+        # If we have specific modifier groups to suggest, create a custom prompt
+        if modifier_groups:
+            # Build a more specific prompt listing available options
+            custom_prompt = f"For your {first_item_name}, "
+            
+            # Find required modifier groups first
+            required_groups = [g for g in modifier_groups if g.get("min_required", 0) > 0]
+            
+            if required_groups:
+                # Start with required modifiers
+                group = required_groups[0]
+                group_name = group.get("name", "option")
+                min_required = group.get("min_required", 1)
+                custom_prompt += f"please choose {min_required} {group_name}. "
+                
+                # List some examples
+                modifiers = group.get("modifiers", [])
+                if modifiers:
+                    custom_prompt += f"Options include: {', '.join(modifiers[:3])}"
+                    if len(modifiers) > 3:
+                        custom_prompt += ", and others"
+                    custom_prompt += ". "
+                
+                custom_prompt += "What would you like?"
+            else:
+                # For optional modifiers
+                custom_prompt += "would you like to add any modifiers? "
+                
+                # List available modifier groups
+                group_names = [g.get("name", "option") for g in modifier_groups[:2]]
+                if group_names:
+                    custom_prompt += f"We have {', '.join(group_names)}"
+                    if len(modifier_groups) > 2:
+                        custom_prompt += ", and other options"
+                    custom_prompt += ". "
+                
+                custom_prompt += "What would you like to add? Or say 'skip' to continue."
+            
+            # Use the custom prompt
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_modifier_suggestion",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1
+            ) as g:
+                g.say(custom_prompt)
+        else:
+            # Use our custom function to ensure we get a good prompt
+            modifier_result = custom_suggest_modifiers(first_item_name)
+            prompt_to_use = modifier_result["prompt"]
+            
+            # Log the prompt we're using
+            logger.info(f"Using prompt for {first_item_name}: {prompt_to_use}")
+            
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_modifier_suggestion", 
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=7,
+                num_digits=1
+            ) as g:
+                g.say(prompt_to_use)
+    
+    return Response(str(response), mimetype="text/xml")
+
 @order_bp.route("/handle_modifier_suggestion", methods=["POST"])
 def handle_modifier_suggestion():
     """
@@ -3004,6 +3252,10 @@ def handle_modifier_suggestion():
     actual menu data to ensure ONLY valid modifiers are accepted. Any modifier not 
     found in the menu will be rejected and the customer will be informed.
     """
+    # Add more detailed logging at entry point
+    logger.info(f"=== ENTERING handle_modifier_suggestion function ===")
+    logger.info(f"Session data: order_id={session.get('order_id')}, phone={session.get('sender')}")
+    
     # Get user response to modifier suggestion
     user_resp = request.form.get("SpeechResult", "").lower()
     digits = request.form.get("Digits", "")
@@ -3012,6 +3264,11 @@ def handle_modifier_suggestion():
     current_item = session.get("current_modifier_item", "")
     remaining_items = json.loads(session.get("remaining_modifier_items", "[]"))
     order_items = json.loads(session.get("order_items_without_modifiers_json", "[]"))
+    
+    # Add detailed logging about the current state
+    logger.info(f"Current item being modified: '{current_item}'")
+    logger.info(f"Remaining items for modification: {len(remaining_items)}")
+    logger.info(f"User input: Speech='{user_resp}', DTMF='{digits}'")
     
     response = VoiceResponse()
     
@@ -3050,6 +3307,9 @@ def handle_modifier_suggestion():
         pass  # We'll handle this below in the common path
     else:
         # User provided modifier choices - process them
+        # Add detailed logging of modifier processing start
+        logger.info(f"Processing modifiers for item '{current_item}' from user input: '{user_resp}'")
+        
         # Use the OrderParsingAgent to analyze the modifier response
         agent = OrderParsingAgent()
         
@@ -3097,7 +3357,9 @@ def handle_modifier_suggestion():
                     # Log the initially extracted modifiers
                     if raw_modifiers:
                         mod_names = [mod.get("name", "unknown") for mod in raw_modifiers]
+                        mod_details = [f"{mod.get('name', 'unknown')}:{mod.get('quantity', 1)}" for mod in raw_modifiers]
                         logger.info(f"Extracted modifiers for {current_item}: {', '.join(mod_names)}")
+                        logger.info(f"Detailed modifier data: {json.dumps(raw_modifiers)}")
                     
                     # Special handling for meal deals / combo products
                     if is_combo:
@@ -3306,9 +3568,13 @@ def handle_modifier_suggestion():
                                     order_item["modifier"] = []
                                 order_item["modifier"].extend(valid_modifiers)
                                 
+                                # Log before modification
+                                logger.info(f"Before modification: Item {current_item} had {len(order_item.get('modifier', []))} modifiers")
+                                
                                 # Log the modifiers being added
                                 mod_names = [mod.get("name", "unknown") for mod in valid_modifiers]
                                 logger.info(f"Added strictly validated modifiers to {current_item}: {', '.join(mod_names)}")
+                                logger.info(f"After modification: Item {current_item} now has {len(order_item.get('modifier', []))} modifiers")
                                 
                                 # Update the session with modified order
                                 session["order_items_without_modifiers_json"] = json.dumps(order_items)
@@ -3473,6 +3739,14 @@ def handle_modifier_suggestion():
     order_description = build_order_description(order_items)
     session["bill_amount"] = int(session.get("total_price", 0) * 100)
     session["order_message"] = f"{order_description}\nYour total is ${session.get('total_price', 0):.2f}."
+    
+    # Log completion of modifier flow with summary
+    logger.info(f"=== COMPLETED modifier flow for all items ===")
+    logger.info(f"Final order has {len(order_items)} items with modifiers")
+    for item in order_items:
+        modifier_count = len(item.get("modifier", []))
+        logger.info(f"Item '{item.get('name')}' has {modifier_count} modifiers: {[m.get('name') for m in item.get('modifier', [])]}")
+    logger.info(f"Order total: ${session.get('total_price', 0):.2f}")
     
     # Ask for confirmation of complete order with modifiers
     with response.gather(
