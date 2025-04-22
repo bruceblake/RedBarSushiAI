@@ -20,6 +20,9 @@ from app.utils.menu_utils import load_menu_data, get_popular_menu_items
 # Import menu handling utilities
 from app.utils.menu_cache import get_cached_response
 
+# Set up logger
+logger = logging.getLogger(__name__)
+
 # Try to import optimized menu handler
 try:
     from app.utils.opt_menu_handler import handle_menu_query
@@ -28,9 +31,6 @@ try:
 except ImportError:
     OPTIMIZED_MENU_HANDLER = False
     logger.warning("Optimized menu handler not available, using standard handler")
-
-# Set up logger
-logger = logging.getLogger(__name__)
 
 @voice_bp.route("/handle_menu_questions", methods=["POST"])
 def handle_menu_questions():
