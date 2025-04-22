@@ -13,7 +13,10 @@ try:
 except ImportError as e:
     logger.error(f"Error importing voice_bp from refactored package: {str(e)}")
     
-    # Fallback to create a new Blueprint
+    # Fallback to original implementation
+    logger.error("Fallback to original implementation is disabled. Please fix the import errors.")
+    
+    # Create a dummy Blueprint as a last resort
     from flask import Blueprint
     voice_bp = Blueprint("voice", __name__)
     
