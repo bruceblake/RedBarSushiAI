@@ -113,11 +113,23 @@ def custom_suggest_modifiers(item_name):
             - prompt (str): A natural language prompt suggesting modifiers
             - suggestions (list): Structured list of modifier suggestions
             - found (bool): Whether the item was found in the menu
+            
+    Raises:
+        RuntimeError: If AI components are not available - no fallbacks allowed
     """
     logger.info(f"Getting AI-based modifier suggestions for {item_name}")
     
+    # Import with verification that AI is available
+    from app.utils.agent_utils import OrderParsingAgent, AI_COMPONENTS_AVAILABLE
+    
+    # Verify AI is available
+    if not AI_COMPONENTS_AVAILABLE:
+        # No fallbacks allowed - AI must be available
+        error_msg = "AI components are not available. Cannot suggest modifiers without AI."
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+    
     # Initialize the agent - no fallbacks allowed
-    from app.utils.agent_utils import OrderParsingAgent
     agent = OrderParsingAgent()
     
     # Get structured suggestions directly using AI
@@ -148,11 +160,21 @@ def check_for_missing_modifiers(order_items):
         tuple: (items_needing_modifiers, constraint_details)
             - items_needing_modifiers: List of items that need modifiers
             - constraint_details: Dict mapping item name -> constraint details for prompting
+            
+    Raises:
+        RuntimeError: If AI components are not available - no fallbacks allowed
     """
     # Import required AI components
-    from app.utils.agent_utils import OrderParsingAgent
+    from app.utils.agent_utils import OrderParsingAgent, AI_COMPONENTS_AVAILABLE
     import logging
     logger = logging.getLogger(__name__)
+    
+    # Verify AI is available
+    if not AI_COMPONENTS_AVAILABLE:
+        # No fallbacks allowed - AI must be available
+        error_msg = "AI components are not available. Cannot check for missing modifiers without AI."
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
     
     # Initialize agent for AI analysis
     agent = OrderParsingAgent()

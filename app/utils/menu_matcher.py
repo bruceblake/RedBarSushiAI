@@ -11,7 +11,9 @@ from typing import Dict, List, Any, Optional, Tuple
 import openai
 
 from app.utils.menu_utils import load_menu_data
-from app.utils.agent_utils import log_openai_request, log_openai_response
+
+# Direct import to avoid circular dependency
+from app.utils.agent.logging import log_openai_request, log_openai_response
 
 logger = logging.getLogger(__name__)
 
