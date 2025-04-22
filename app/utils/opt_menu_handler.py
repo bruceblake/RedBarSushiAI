@@ -117,7 +117,7 @@ def handle_menu_query(user_input):
             
             # Group items by category
             for item in items_to_use:
-                category = item.get('category', 'Other')
+                category = item.get('categories', 'Other')
                 if category not in items_by_category:
                     items_by_category[category] = []
                 items_by_category[category].append(item)
