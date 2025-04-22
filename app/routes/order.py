@@ -318,6 +318,7 @@ def can_process_action(sender, action_key, cooldown=30):
 @order_bp.route("/take_order", methods=["POST"])
 def take_order():
     """Process a new order request from voice"""
+    """Process a new order request from voice"""
     # Check if we're in busy mode
     if BUSY_MODE_ACTIVE:
         response = VoiceResponse()
@@ -675,13 +676,19 @@ def confirm_order_from_initial():
     Handle order confirmation after initial order has been placed.
     This route now checks whether to proceed directly or check for modifiers first.
     """
-    # Check if we need to check for modifiers first
-    if request.form.get("check_modifiers", "false").lower() == "true":
-        # Redirect to suggest_modifiers to check for needed modifiers first
-        logger.info("Order confirmation redirecting to modifier check first")
-        response = VoiceResponse()
-        response.redirect(url_for("order_bp.suggest_modifiers"))
-        return Response(str(response), mimetype="text/xml")
+    # Critical fix: ALWAYS check for modifiers first unless explicitly disabled
+    if request.form.get("skip_modifiers", "false").lower() != "true":
+        # Get the current order items 
+        if "order_items_json" in session:
+            # ALWAYS check for modifiers before confirming
+            logger.info("CRITICAL FIX: Redirecting to suggest_modifiers to check for needed modifiers first")
+            logger.info(f"Session keys available: {list(session.keys())}")
+            logger.info(f"Order items in session: {session.get('order_items_json', '[]')}")
+            
+            # Create and return the redirect response
+            response = VoiceResponse()
+            response.redirect("/suggest_modifiers")
+            return Response(str(response), mimetype="text/xml")
     """Handle confirmation of the initial order"""
     # Get user response
     user_resp = (request.form.get("SpeechResult", "") or "").lower()
@@ -3078,6 +3085,12 @@ def suggest_modifiers():
     This route serves as the main entry point for suggesting modifiers
     after the order has been taken but before confirmation.
     """
+    # IMPORTANT DEBUGGING
+    logger.info("=== SUGGEST_MODIFIERS ROUTE CALLED ===")
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Form data: {request.form}")
+    logger.info(f"Session keys: {list(session.keys())}")
+    
     # Get order items from session
     order_items = json.loads(session.get("order_items_json", "[]"))
     
@@ -3086,6 +3099,10 @@ def suggest_modifiers():
         logger.warning("No order items found for modifier suggestions")
         # Redirect to order taking
         return redirect(url_for("order_bp.greeting"))
+    
+    # Force fresh load of menu data to ensure we have all modifiers
+    menu_data = load_menu_data(force_refresh=True)
+    logger.info(f"Loaded fresh menu data with {len(menu_data.get('items', []))} items, {len(menu_data.get('modifiers', []))} modifiers")
     
     # Use check_for_missing_modifiers to identify items needing modifier suggestions
     items_needing_modifiers, constraint_details = check_for_missing_modifiers(order_items)
@@ -3751,7 +3768,7 @@ def handle_modifier_suggestion():
     # Ask for confirmation of complete order with modifiers
     with response.gather(
         input="speech dtmf",
-        action="/confirm_order_from_initial",
+        action="/confirm_order_from_initial?skip_modifiers=true",  # Skip modifiers as we just did them
         enhanced=True,
         speech_model="phone_call",
         language="en-US",
