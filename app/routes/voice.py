@@ -832,7 +832,7 @@ def handle_menu_questions():
                 # Organize items by category
                 items_by_category = {}
                 for item in popular_items:
-                    category = item.get('category', 'Other')
+                    category = item.get('categories', 'Other')
                     if category not in items_by_category:
                         items_by_category[category] = []
                     items_by_category[category].append(item)
