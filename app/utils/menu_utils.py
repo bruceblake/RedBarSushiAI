@@ -1066,6 +1066,7 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
     
     # Track constraints for user prompting
     constraints_needed = {}
+    has_validation_error = False  # Track if we have a real validation error
 
     for item in order_items:
         item_name = item.get("name")
@@ -1079,22 +1080,31 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
         # Get modifier groups for this item
         item_mod_groups = menu_item.get("modifierGroups", [])
         
+        # IMPORTANT CHANGE: Always include ALL items with modifier groups in constraints
+        # This ensures every item with possible modifiers gets prompted
+        if return_detailed_constraints and item_mod_groups:
+            if item_name not in constraints_needed:
+                constraints_needed[item_name] = {
+                    "is_combo": menu_item.get("isCombo", False),
+                    "modifier_groups": []
+                }
+        
         # Check for combo/meal deal items
         is_combo = menu_item.get("isCombo", False)
         if is_combo and return_detailed_constraints:
             # Include meal deal component information in constraints
             child_products = menu_item.get("childProducts", [])
             if child_products:
-                constraints_needed[item_name] = {
-                    "is_combo": True,
-                    "components": [
-                        {
-                            "name": child.get("name"),
-                            "id": child.get("id"),
-                            "required": True
-                        } for child in child_products
-                    ]
-                }
+                if item_name not in constraints_needed:
+                    constraints_needed[item_name] = {"is_combo": True}
+                    
+                constraints_needed[item_name]["components"] = [
+                    {
+                        "name": child.get("name"),
+                        "id": child.get("id"),
+                        "required": True
+                    } for child in child_products
+                ]
 
         # For each modifier group, check constraints
         for group_id in item_mod_groups:
@@ -1120,6 +1130,25 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
                 if mod:
                     group_mod_names.append(mod.get("name"))
             
+            # IMPORTANT: If we're in detailed constraint mode, always add this group to constraints
+            if return_detailed_constraints:
+                if item_name not in constraints_needed:
+                    constraints_needed[item_name] = {
+                        "is_combo": is_combo,
+                        "modifier_groups": []
+                    }
+                
+                if "modifier_groups" not in constraints_needed[item_name]:
+                    constraints_needed[item_name]["modifier_groups"] = []
+                    
+                constraints_needed[item_name]["modifier_groups"].append({
+                    "name": group_name,
+                    "min_required": min_required, 
+                    "max_allowed": max_allowed,
+                    "modifiers": group_mod_names,
+                    "is_variant": is_variant_group
+                })
+            
             # Count modifiers from this group
             mod_count = 0
             mod_quantities = {}  # Track quantity per modifier for multiMax check
@@ -1139,57 +1168,41 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
                     else:
                         mod_quantities[mod_ref] = mod_quantity
 
-            # Check min/max constraints
-            if mod_count < min_required:
-                if return_detailed_constraints:
-                    # Add this constraint to our mapping for user prompting
-                    if item_name not in constraints_needed:
-                        constraints_needed[item_name] = {
-                            "is_combo": is_combo,
-                            "modifier_groups": []
-                        }
-                    
-                    # Add the specific modifier group constraint
-                    if "modifier_groups" not in constraints_needed[item_name]:
-                        constraints_needed[item_name]["modifier_groups"] = []
-                        
-                    constraints_needed[item_name]["modifier_groups"].append({
-                        "name": group_name,
-                        "min_required": min_required, 
-                        "max_allowed": max_allowed,
-                        "modifiers": group_mod_names,
-                        "is_variant": is_variant_group
-                    })
+            # Check min/max constraints - only set validation error if min > 0
+            if mod_count < min_required and min_required > 0:
+                has_validation_error = True
+                error_msg = f"Item '{item_name}' requires at least {min_required} selection{'s' if min_required > 1 else ''} from '{group_name}'{' (variants)' if is_variant_group else ''}"
                 
-                # For immediate validation failure
-                return (
-                    False,
-                    f"Item '{item_name}' requires at least {min_required} selection{'s' if min_required > 1 else ''} from '{group_name}'{' (variants)' if is_variant_group else ''}",
-                    constraints_needed
-                )
+                # If not returning detailed constraints, exit early with error
+                if not return_detailed_constraints:
+                    return (False, error_msg, {})
 
             if mod_count > max_allowed:
-                return (
-                    False,
-                    f"Item '{item_name}' allows at most {max_allowed} selection{'s' if max_allowed > 1 else ''} from '{group_name}'",
-                    constraints_needed
-                )
+                has_validation_error = True
+                error_msg = f"Item '{item_name}' allows at most {max_allowed} selection{'s' if max_allowed > 1 else ''} from '{group_name}'"
+                
+                # If not returning detailed constraints, exit early with error
+                if not return_detailed_constraints:
+                    return (False, error_msg, {})
                 
             # Check multiMax constraint - max quantity of any single modifier
             if multi_max > 0:  # 0 means unlimited
                 for mod_ref, quantity in mod_quantities.items():
                     mod_name = modifiers_by_ref.get(mod_ref, {}).get("name", mod_ref)
                     if quantity > multi_max:
-                        return (
-                            False,
-                            f"Item '{item_name}' allows at most {multi_max} of '{mod_name}' from '{group_name}'",
-                            constraints_needed
-                        )
+                        has_validation_error = True
+                        error_msg = f"Item '{item_name}' allows at most {multi_max} of '{mod_name}' from '{group_name}'"
+                        
+                        # If not returning detailed constraints, exit early with error
+                        if not return_detailed_constraints:
+                            return (False, error_msg, {})
 
     if return_detailed_constraints:
-        return True, "", constraints_needed
+        # We return all constraints, even if there are no validation errors
+        return (not has_validation_error, "" if not has_validation_error else error_msg, constraints_needed)
     else:
-        return True, "", {}
+        # Without detailed constraints, we just return the validation status
+        return (not has_validation_error, "" if not has_validation_error else error_msg, {})
 
 
 def process_deliverect_menu(data, location_id=None):

@@ -265,17 +265,20 @@ def receive_call():
         else "PRODUCTION"
     )
 
-    with response.gather(
-        input="speech",
-        action="/take_name",
-        enhanced=True,
-        speech_model="phone_call",
-        language="en-US",
-        speech_timeout="auto",
-    ) as g:
+    # Use gather params with the proper context
+    gather_params = setup_gather_params(
+        context="name",
+        action="/take_name"
+    )
+    
+    with response.gather(**gather_params) as g:
         g.say(
             f"Hello! This is the {env_name} environment. Thank you for calling Red Bar Sushi. May I have your name, please?"
         )
+    
+    # Add a redirect outside the gather block to handle silence
+    response.redirect("/take_name")
+    
     return Response(str(response), mimetype="text/xml")
 
 
@@ -308,6 +311,7 @@ def take_name():
             )
 
             # Add a fallback to continue even without a name after too many silent attempts
+            # Note: The redirect is outside the gather block and will execute after the gather times out
             response.redirect("/main_menu_fallback")
         else:
             # Normal prompt for the first retry
@@ -322,6 +326,9 @@ def take_name():
             g.say(
                 "I'm waiting for your name. Please tell me your name so I can help you with your order."
             )
+            
+            # Also add a fallback for this level of silence
+            response.redirect("/main_menu_fallback")
 
         return Response(str(response), mimetype="text/xml")
 
@@ -661,6 +668,9 @@ def main_menu():
         
         with response.gather(**gather_params) as g:
             g.say("Please tell me what you would like to order. Take your time, I'll wait.")
+            
+        # Add redirect for silence handling
+        response.redirect("/take_order")
     elif choice == "ask_menu":
         # Set up gather params for menu questions
         gather_params = setup_gather_params(
@@ -672,6 +682,9 @@ def main_menu():
             g.say(
                 "You can ask for the menu, prices, descriptions, or say what you'd like to order."
             )
+            
+        # Add redirect for silence handling
+        response.redirect("/handle_menu_questions")
     elif choice == "real_person":
         # Store in session that we're transferring to a real person
         session["transfer_to_human"] = True
