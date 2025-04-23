@@ -928,7 +928,7 @@ def get_popular_menu_items():
 
     # Return the top N items with name and price
     result = []
-    for item in popular_items[]:
+    for item in popular_items:
         result.append(
             {
                 "name": item.get("name", "Unknown"),
