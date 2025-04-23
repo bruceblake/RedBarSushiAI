@@ -25,6 +25,7 @@ from app.utils.order_utils import (
 from app.utils.menu_utils import load_menu_data
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.agent_utils import OrderParsingAgent
+from app.utils.menu_matcher import menu_matcher
 from twilio.twiml.messaging_response import MessagingResponse
 from sqlalchemy import text
 from app.models import Order
@@ -370,22 +371,9 @@ def take_order():
         # Debug logging to see if menu data is loaded correctly
         item_count = len(menu_data.get("items", []) or [])
         logger.info(f"Menu data loaded: {item_count} items found")
+  
 
-        # Check if any items have valid names
-        valid_name_count = sum(
-            1 for item in menu_data.get("items", []) if item.get("name")
-        )
-        if valid_name_count == 0 and item_count > 0:
-            logger.error(f"Menu has {item_count} items but none have names!")
-            # Create an empty menu structure instead of default menu
-            menu_data = {
-                "items": [],
-                "modifiers": [],
-                "modifierGroups": [],
-                "name_variants": {},
-            }
-            logger.info("Using default menu instead")
-
+    
         # Get available items - items with names and not snoozed
         available_items = [
             item
@@ -528,8 +516,7 @@ def take_order():
                 speech_model="phone_call",
                 language="en-US",
                 speech_timeout=5,  # Reduced timeout for better responsiveness
-                timeout=7,  # Still give time to think but reduce waiting
-                hints="california roll, spicy tuna roll, dragon roll, menu",  # Help Twilio recognize common items
+                timeout=7,  # Still give time to think but reduce waitin
             ) as g:
                 g.say(
                     "I'm waiting for your order. Please tell me what sushi items you'd like to order. For example, you can say 'I'd like two California rolls and one spicy tuna roll'."
@@ -588,7 +575,9 @@ def take_order():
         return Response(str(response), mimetype="text/xml")
 
     # Get the menu items from the analysis
-    order_items = analysis.get("menu_items", [])
+    ai_response = menu_matcher.interactive_order_resolution(user_resp)
+
+    order_items = ai_response.get("items",[])
 
     # Process and mark any unavailable items
     from app.utils.order_utils import mark_unavailable_items

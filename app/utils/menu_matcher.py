@@ -502,7 +502,7 @@ class MenuMatcher:
                 model=self.model,
                 messages=messages,
                 temperature=0.7,  # Higher temperature for more creativity in responses
-                max_tokens=250,   # Allow for a longer clarifying response
+                max_tokens=550,   # Allow for a longer clarifying response
             )
             
             # Log the response
