@@ -2,7 +2,7 @@
 Agent utility functions for handling OpenAI Agents integration.
 This module provides the core functionality for our AI agents.
 """
-
+from app.utils.menu_utils import load_menu_data
 import os
 import json
 import logging
@@ -2248,19 +2248,20 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
         if OPENAI_API_KEY:
             # Prepare messages for intent classification
 
+            menu_data = load_menu_data()
                         # Prepare menu categories and some example items
             categories = {}
             
             # First, find all category items to create category map
             category_map = {}
-            for item in self.menu_data.get("items", []):
+            for item in menu_data.get("items", []):
                 if item.get("is_category", True):  # This item IS a category
                     reference = item.get("reference_handler", "")
                     if reference:
                         category_map[reference] = item.get("name", "Unknown Category")
             
             # Now process actual menu items
-            for item in self.menu_data.get("items", []):
+            for item in menu_data.get("items", []):
                 # Skip category headers
                 if item.get("is_category", False):
                     continue
