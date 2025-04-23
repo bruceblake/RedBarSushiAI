@@ -613,7 +613,7 @@ def take_order():
                 for mod in item["modifier"]:
                     if isinstance(mod, dict):
                         logger.info(f"[ANALYZE-MOD-DETAIL] Modifier for {item.get('name')}: {mod.get('name')} (ref: {mod.get('reference_handler', 'none')})")
-                      else:
+                    else:
                         logger.warning(f"[ANALYZE-MOD-ERROR] Invalid modifier format: {mod}")
 
     order_items = menu_items
