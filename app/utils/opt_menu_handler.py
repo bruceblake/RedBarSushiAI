@@ -99,6 +99,7 @@ def handle_menu_query(user_input):
             # Use the search_results from the analysis if available
             if "search_results" in analysis and analysis["search_results"]:
                 search_results = analysis["search_results"]
+                logger.info(f"using search_results")
             else:
                 # Lightweight menu tool just for search 
                 menu_tool = OrderParsingAgent().menu_tool

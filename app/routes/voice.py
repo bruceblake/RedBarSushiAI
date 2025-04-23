@@ -729,16 +729,7 @@ def handle_menu_questions():
     # For performance tracking
     start_time = time.time()
     
-    # Use optimized handler if available
-    if OPTIMIZED_MENU_HANDLER and user_input:
-        logger.info(f"Using optimized menu handler for: '{user_input[:30]}...'")
-        optimized_response = handle_menu_query(user_input)
-        if optimized_response:
-            logger.info(f"Optimized handler completed in {time.time() - start_time:.2f} seconds")
-            return Response(str(optimized_response), mimetype="text/xml")
-        else:
-            logger.info("Optimized handler returned None, falling back to standard handler")
-    
+        
     # Standard handler path
     # Check for silence
     if not user_input:
@@ -811,7 +802,7 @@ def handle_menu_questions():
             # Organize items by category
             items_by_category = {}
             for item in search_results.get("items"):
-                category = item.get('categories', 'Other')
+                category = item.get('category', 'Other')
                 if category not in items_by_category:
                     items_by_category[category] = []
                 items_by_category[category].append(item)
@@ -832,7 +823,7 @@ def handle_menu_questions():
                 # Organize items by category
                 items_by_category = {}
                 for item in popular_items:
-                    category = item.get('categories', 'Other')
+                    category = item.get('category', 'Other')
                     if category not in items_by_category:
                         items_by_category[category] = []
                     items_by_category[category].append(item)

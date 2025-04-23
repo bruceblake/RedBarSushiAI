@@ -889,7 +889,7 @@ def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
     return False
 
 
-def get_popular_menu_items(count=15):
+def get_popular_menu_items():
     """
     Get a list of popular menu items to display to customers.
     This is useful for menu queries and recommendations.
@@ -928,7 +928,7 @@ def get_popular_menu_items(count=15):
 
     # Return the top N items with name and price
     result = []
-    for item in popular_items[:count]:
+    for item in popular_items[]:
         result.append(
             {
                 "name": item.get("name", "Unknown"),
