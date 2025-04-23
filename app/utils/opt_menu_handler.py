@@ -114,7 +114,7 @@ def handle_menu_query(user_input):
                 items_to_use = search_results.get("items", [])[:15]  # Increased from 5 to 15
             else:
                 # Get popular items if no specific match
-                items_to_use = get_popular_menu_items(15)  # Increased from 5 to 15
+                items_to_use = get_popular_menu_items()  # Increased from 5 to 15
             
             # Group items by category
             for item in items_to_use:
@@ -238,7 +238,7 @@ def handle_menu_query(user_input):
                     item_desc = f"I'm sorry, the {item.get('name')} is currently unavailable."
             else:
                 # Try to suggest alternatives if item not found
-                popular_items = get_popular_menu_items(2)  # Just 2 items for speed
+                popular_items = get_popular_menu_items()  # Just 2 items for speed
                 if popular_items:
                     items_text = ", ".join([f"{item['name']}" for item in popular_items])
                     item_desc = f"I couldn't find '{item_name}' on our menu. You might be interested in: {items_text}."

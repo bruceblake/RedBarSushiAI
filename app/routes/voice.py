@@ -818,7 +818,7 @@ def handle_menu_questions():
         else:
                     # If no specific items found, include popular items
             from app.utils.menu_utils import get_popular_menu_items
-            popular_items = get_popular_menu_items(40)
+            popular_items = get_popular_menu_items()
             if popular_items:
                 # Organize items by category
                 items_by_category = {}
@@ -936,7 +936,7 @@ def handle_menu_questions():
             from app.utils.menu_utils import get_popular_menu_items
 
             try:
-                popular_items = get_popular_menu_items(3)
+                popular_items = get_popular_menu_items()
                 if popular_items:
                     items_text = ", ".join(
                         [
