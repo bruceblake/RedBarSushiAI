@@ -130,55 +130,7 @@ def custom_suggest_modifiers(item_name):
         logger.error(f"Error generating modifier prompt: {e}")
         modifier_prompt = None
     
-    # If we found the item but didn't get a prompt, create a default one
-    if modifier_data.get("found", False) and not modifier_prompt:
-        logger.info(f"No specific modifier prompt found for {item_name}, generating fallback")
-        
-        # Create a default prompt based on item category and item properties
-        item = modifier_data.get("item", {})
-        item_category = item.get("category", "").lower()
-        is_combo = item.get("isCombo", False) or "combo" in item_name.lower() or "meal" in item_name.lower()
-        
-        # First check if it's a combo meal with components
-        if is_combo:
-            # Get components from the menu item if available
-            child_products = item.get("childProducts", [])
-            if child_products:
-                component_names = [comp.get("name", "") for comp in child_products if comp.get("required", True)]
-                if component_names:
-                    component_list = ", ".join(component_names[:3])
-                    modifier_prompt = f"For your {item_name}, please select from these options: {component_list}. What would you like?"
-                else:
-                    modifier_prompt = f"What sides or drinks would you like with your {item_name}?"
-            else:
-                modifier_prompt = f"What sides or drinks would you like with your {item_name}?"
-        # Then check food categories for appropriate cooking preferences
-        elif "steak" in item_name.lower():
-            modifier_prompt = f"How would you like your {item_name} cooked? Rare, medium, or well done?"
-        elif "burger" in item_name.lower():
-            # Burgers shouldn't always get the steak cooking options
-            if "patty" in item_name.lower() or "beef" in item_name.lower():
-                modifier_prompt = f"How would you like your {item_name} cooked? And would you like any toppings like cheese or bacon?"
-            else:
-                modifier_prompt = f"Would you like any toppings on your {item_name}, such as cheese, lettuce, or tomato?"
-        elif "roll" in item_name.lower() or "sushi" in item_name.lower():
-            modifier_prompt = f"Would you like any special preparation for your {item_name}? For example, extra wasabi, spicy mayo, or soy sauce on the side?"
-        elif "salad" in item_name.lower():
-            modifier_prompt = f"Would you like any special dressing for your {item_name}?"
-        else:
-            # Generic fallback
-            modifier_prompt = f"Would you like to customize your {item_name} with any special requests or modifications?"
-    
-    # If item wasn't found at all, create a generic prompt
-    if not modifier_data.get("found", False):
-        logger.warning(f"Item {item_name} not found in menu for modifier suggestions")
-        modifier_prompt = f"Would you like any special requests or modifications for your {item_name}?"
-        modifier_data = {
-            "found": False,
-            "suggestions": []
-        }
-    
-    # Return complete results
+
     return {
         "prompt": modifier_prompt or f"Would you like any modifications for your {item_name}? Say what you'd like or press 1 to skip.",
         "suggestions": modifier_data.get("suggestions", []),

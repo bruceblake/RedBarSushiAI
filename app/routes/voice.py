@@ -772,7 +772,7 @@ def handle_menu_questions():
 
         ai_response = interactive_order_resolution(menu_query)
                 
-        response = ai_response.get("clarification_dialog")
+        reply = ai_response.get("clarification_dialog")
         
         # Say the reply and offer to continue the conversation
         response = VoiceResponse()
