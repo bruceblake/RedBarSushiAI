@@ -625,15 +625,10 @@ def snooze_unsnooze():
     # Detect format - check if this is Deliverect format (PLU-based)
     is_deliverect_format = ("allSnoozedItems" in data or 
                             (isinstance(data.get("operations", []), list) and 
-                             all(isinstance(op, dict) and "plu" in op for op in data.get("operations", []))))
-    
-    if is_deliverect_format:
-        logger.info("Processing Deliverect format snooze/unsnooze webhook")
-        return _process_deliverect_snooze_unsnooze(data)
-    else:
-        logger.info("Processing legacy format snooze/unsnooze webhook")
-        return _process_legacy_snooze_unsnooze(data)
-    
+                            all(isinstance(op, dict) and "plu" in op for op in data.get("operations", []))))
+
+    logger.info("Processing Deliverect format snooze/unsnooze webhook")
+    return _process_deliverect_snooze_unsnooze(data)
 
 def _process_deliverect_snooze_unsnooze(data):
     """Process a Deliverect-format snooze/unsnooze webhook."""

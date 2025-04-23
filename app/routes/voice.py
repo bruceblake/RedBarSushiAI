@@ -9,6 +9,7 @@ import os
 import traceback
 import uuid
 import openai
+from app.utils.menu_matcher import interactive_order_resolution
 
 # Import WebSocket handler from Flask-Sock
 from app import sock
@@ -241,9 +242,8 @@ def receive_call():
     # In staging environment, use a default test number to ensure SMS deliverability
     is_staging = (
         os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging")
-
-
-
+    
+    
     session["order_message"] = ""
     session["total_price"] = 0
     session["modification_in_progress"] = False
