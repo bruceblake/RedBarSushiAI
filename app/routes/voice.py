@@ -9,7 +9,7 @@ import os
 import traceback
 import uuid
 import openai
-from app.utils.menu_matcher import interactive_order_resolution
+from app.utils.menu_matcher import menu_matcher 
 
 # Import WebSocket handler from Flask-Sock
 from app import sock
@@ -770,7 +770,7 @@ def handle_menu_questions():
         # Use AI agent to answer any menu question; 
         menu_query = user_input.strip()
 
-        ai_response = interactive_order_resolution(menu_query)
+        ai_response = menu_matcher.interactive_order_resolution(menu_query)
                 
         reply = ai_response.get("clarification_dialog")
         
