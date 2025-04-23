@@ -529,10 +529,11 @@ def take_order():
                 language="en-US",
                 speech_timeout=5,  # Reduced timeout for better responsiveness
                 timeout=7,  # Still give time to think but reduce waitin) as g:
+            )as g:
                 g.say(
                     "I'm waiting for your order. Please tell me what sushi items you'd like to order. For example, you can say 'I'd like two California rolls and one spicy tuna roll'."
                 )
-            )
+
             # Make sure we have a fallback if gather doesn't catch anything
             response.redirect("/take_order")
         return Response(str(response), mimetype="text/xml")
