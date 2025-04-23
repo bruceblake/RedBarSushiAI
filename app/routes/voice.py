@@ -240,7 +240,7 @@ def receive_call():
 
     # In staging environment, use a default test number to ensure SMS deliverability
     is_staging = (
-        os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging)
+        os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging")
 
 
 
