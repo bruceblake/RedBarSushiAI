@@ -240,15 +240,9 @@ def receive_call():
 
     # In staging environment, use a default test number to ensure SMS deliverability
     is_staging = (
-        os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging"
-    )
-    if is_staging and DEFAULT_TEST_CUSTOMER_NUMBER:
-        logger.info(
-            f"STAGING ENV: Using default test number instead of {caller_number}"
-        )
-        session["sender"] = DEFAULT_TEST_CUSTOMER_NUMBER
-    else:
-        session["sender"] = caller_number
+        os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging)
+
+
 
     session["order_message"] = ""
     session["total_price"] = 0
@@ -729,7 +723,7 @@ def handle_menu_questions():
     # For performance tracking
     start_time = time.time()
     
-        
+   
     # Standard handler path
     # Check for silence
     if not user_input:
@@ -747,12 +741,8 @@ def handle_menu_questions():
     # Check if we have a cached response for this query
     cleaned_input = user_input.strip().lower()
     
-    # Try to get cached full response first (fastest path)
-    cached_response = get_cached_response(cleaned_input, "question")
-    if cached_response:
-        logger.info(f"Using cached full response for '{cleaned_input[:30]}...'")
-        return Response(str(cached_response[0]), mimetype="text/xml")
-
+    
+    
     # Start processing user input
     # Use the agent-based analysis
     start_time = time.time()
@@ -777,89 +767,12 @@ def handle_menu_questions():
                 "I'll take your order now. Please tell me what you would like to order. Take your time, I'll wait."
             )
     elif intent == "ask_menu":
-        # Use AI agent to answer any menu question; fallback on error
-        # Check if OpenAI usage is disabled
-        # First, get actual menu data to provide context
-        agent = OrderParsingAgent()
-        menu_tool = agent.menu_tool
-                
-        # Get menu data based on the query
-        search_results = []
+        # Use AI agent to answer any menu question; 
         menu_query = user_input.strip()
+
+        ai_response = interactive_order_resolution(menu_query)
                 
-        # Use the search_results from the analysis if available
-        if "search_results" in analysis and analysis["search_results"]:
-            search_results = analysis["search_results"]
-        else:
-                    # Otherwise perform a search
-            search_results = menu_tool.search_menu(menu_query)
-                
-                # Format menu items for context
-        logger.info(f"search_results type: {type(search_results)}")
-        logger.info(f"search_results content: {search_results}")
-        menu_context = ""
-        if search_results.get("found"):
-            # Organize items by category
-            items_by_category = {}
-            for item in search_results.get("items"):
-                category = item.get('category', 'Other')
-                if category not in items_by_category:
-                    items_by_category[category] = []
-                items_by_category[category].append(item)
-            
-            # Create formatted context with categories
-            menu_context = "Here are relevant menu items by category:\n"
-            for category, items in items_by_category.items():
-                menu_context += f"\n## {category}\n"
-                for item in items:
-                    price_str = f"${item.get('price', 0):.2f}"
-                    desc = item.get('description', 'No description available')
-                    menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
-        else:
-                    # If no specific items found, include popular items
-            from app.utils.menu_utils import get_popular_menu_items
-            popular_items = get_popular_menu_items()
-            if popular_items:
-                # Organize items by category
-                items_by_category = {}
-                for item in popular_items:
-                    category = item.get('category', 'Other')
-                    if category not in items_by_category:
-                        items_by_category[category] = []
-                    items_by_category[category].append(item)
-                
-                # Create formatted context with categories
-                menu_context = "Here are our popular menu items by category:\n"
-                for category, items in items_by_category.items():
-                    menu_context += f"\n## {category}\n"
-                    for item in items:
-                        price_str = f"${item.get('price', 0):.2f}"
-                        desc = item.get('description', 'No description available')
-                        menu_context += f"- {item.get('name')}: {price_str}. {desc}\n"
-                
-                # Create OpenAI client and send system+user messages with actual menu data
-        client = openai.OpenAI()
-        system_msg = (
-                "You are a knowledgeable assistant for Red Bar Sushi. "
-                "Answer the customer's question concisely using the menu information provided. "
-                "When listing menu items, maintain the category groupings and mention multiple items per category. "
-                "If the menu information doesn't contain what the customer is asking about, "
-                "politely explain that you don't have that specific information."
-        )
-                
-                # Log the menu context being used
-        logger.info(f"Menu context for query '{menu_query}': {menu_context}...")
-                
-        result = client.chat.completions.create(
-                    model="gpt-4.1-mini",
-                    messages=[
-                        {"role": "system", "content": system_msg},
-                        {"role": "user", "content": f"Menu information:\n{menu_context}\n\nCustomer question: {user_input}"}
-                    ],
-                    max_tokens=300,  # Allow longer responses for categorized menus
-                    temperature=0.7,  # More creative responses for menu descriptions
-                )
-        reply = result.choices[0].message.content.strip()
+        response = ai_response.get("clarification_dialog")
         
         # Say the reply and offer to continue the conversation
         response = VoiceResponse()

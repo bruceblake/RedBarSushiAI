@@ -164,6 +164,7 @@ class SushiMenuTool:
         # Add the query to the conversation context
         self.current_conversation.append({"role": "user", "content": query})
         context = {"conversation": self.current_conversation}
+        logger.info(f"conversation {self.current_conversation}")
         
         # First try to find exact matches
         item = find_menu_item_by_name(query)
