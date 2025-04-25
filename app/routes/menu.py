@@ -625,15 +625,10 @@ def snooze_unsnooze():
     # Detect format - check if this is Deliverect format (PLU-based)
     is_deliverect_format = ("allSnoozedItems" in data or 
                             (isinstance(data.get("operations", []), list) and 
-                             all(isinstance(op, dict) and "plu" in op for op in data.get("operations", []))))
-    
-    if is_deliverect_format:
-        logger.info("Processing Deliverect format snooze/unsnooze webhook")
-        return _process_deliverect_snooze_unsnooze(data)
-    else:
-        logger.info("Processing legacy format snooze/unsnooze webhook")
-        return _process_legacy_snooze_unsnooze(data)
-    
+                            all(isinstance(op, dict) and "plu" in op for op in data.get("operations", []))))
+
+    logger.info("Processing Deliverect format snooze/unsnooze webhook")
+    return _process_deliverect_snooze_unsnooze(data)
 
 def _process_deliverect_snooze_unsnooze(data):
     """Process a Deliverect-format snooze/unsnooze webhook."""
@@ -704,52 +699,6 @@ def _process_deliverect_snooze_unsnooze(data):
         load_menu_data(force_refresh=True)
     
     logger.info(f"Processed snooze/unsnooze operations: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
-    return jsonify({"status": "success", "snoozed": snooze_count, "unsnoozed": unsnooze_count}), 200
-
-
-def _process_legacy_snooze_unsnooze(data):
-    """Process the legacy format snooze/unsnooze webhook."""
-    operations = data.get("operations", [])
-    if not operations:
-        return jsonify({"error": "No operations found"}), 400
-
-    # Load current menu data
-    menu_data = load_menu_data()
-
-    # Track changes
-    snooze_count = 0
-    unsnooze_count = 0
-
-    # Process each operation
-    for op in operations:
-        item_name = op.get("item", "")
-        action = op.get("action", "")
-
-        # Find the item in the menu
-        for item in menu_data.get("items", []):
-            if item.get("name", "").lower() == item_name.lower():
-                if action == "snooze":
-                    item["snoozed"] = True
-                    item["available"] = False
-                    snooze_count += 1
-                elif action == "unsnooze":
-                    item["snoozed"] = False
-                    # Only set available if schedule allows
-                    if item.get("scheduleAvailable", True):
-                        item["available"] = True
-                        unsnooze_count += 1
-                break
-
-    # Save updated menu
-    write_menu_file(menu_data)
-    # Only reload in non-test environments to prevent double counting in tests
-    from flask import current_app, has_app_context
-
-    # Skip reloading when running in test environment
-    if has_app_context() and not current_app.config.get("TESTING", False):
-        load_menu_data(force_refresh=True)
-
-    logger.info(f"Processed legacy snooze/unsnooze operations: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
     return jsonify({"status": "success", "snoozed": snooze_count, "unsnoozed": unsnooze_count}), 200
 
 
@@ -1114,61 +1063,6 @@ def menu_settings():
                     "USE_REDBAR_MENU_env": current_setting,
                     "USE_REDBAR_MENU_var": menu_utils_setting,
                 }
-            ),
-            500,
-        )
-
-
-@menu_bp.route("/fix_item_error", methods=["GET"])
-def fix_item_error():
-    """
-    Special endpoint to apply modifications to test the fix for the item/name error.
-    """
-    # Create a test order
-    current_order = [
-        {
-            "name": "Veggie Burger",
-            "price": 7.5,
-            "reference_handler": "P-BURG-VEG",
-            "quantity": 1,
-            "modifier": [],
-        }
-    ]
-
-    # Create test modifications with both 'item' and 'name' formats
-    test_modifications = {
-        "additions": [
-            {"item": "Chicken Burger", "quantity": 2},
-            {"name": "Coca Cola Cola", "quantity": 1},
-        ],
-        "removals": [{"item": "Veggie Burger", "quantity": 1}],
-    }
-
-    # Import the apply_modifications function from order.py
-    from app.routes.order import apply_modifications
-
-    # Apply the modifications and get the result
-    try:
-        result = apply_modifications(current_order, test_modifications)
-        return (
-            jsonify(
-                {
-                    "success": True,
-                    "original_order": current_order,
-                    "modifications": test_modifications,
-                    "result": result,
-                }
-            ),
-            200,
-        )
-    except Exception as e:
-        import traceback
-
-        logger.error(f"Error in fix_item_error: {e}")
-        logger.error(traceback.format_exc())
-        return (
-            jsonify(
-                {"success": False, "error": str(e), "traceback": traceback.format_exc()}
             ),
             500,
         )

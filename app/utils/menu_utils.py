@@ -399,42 +399,8 @@ def load_menu_data(force_refresh=False, location_id=None):
     else:
         file_path = find_menu_file_path()
 
-    # For tests with specific config or nonexistent files, create an empty menu
-    if (
-        is_test_env
-        and test_file_path
-        and (not os.path.exists(test_file_path) or not os.path.isfile(test_file_path))
-    ):
-        logger.warning(
-            f"Test file not found or invalid: {test_file_path}. Creating an empty menu."
-        )
-        empty_menu = create_empty_menu()
-
-        # Update cache
-        load_menu_data._menu_cache_dict[cache_key] = empty_menu
-        load_menu_data._last_refresh_dict[cache_key] = current_time
-
-        # Also update the global cache for backward compatibility
-        _menu_cache = empty_menu
-        _last_refresh_time = current_time
-
-        return empty_menu
-
-    # Check if file exists for normal operation
-    if not file_path or not os.path.exists(file_path):
-        logger.warning("No menu file found. Creating an empty menu structure.")
-        empty_menu = create_empty_menu()
-
-        # Update cache
-        load_menu_data._menu_cache_dict[cache_key] = empty_menu
-        load_menu_data._last_refresh_dict[cache_key] = current_time
-
-        # Also update the global cache for backward compatibility
-        _menu_cache = empty_menu
-        _last_refresh_time = current_time
-
-        return empty_menu
-
+    
+    
     logger.info(f"Loading menu data from {file_path}")
 
     try:
@@ -889,7 +855,7 @@ def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
     return False
 
 
-def get_popular_menu_items(count=15):
+def get_popular_menu_items():
     """
     Get a list of popular menu items to display to customers.
     This is useful for menu queries and recommendations.
@@ -928,7 +894,7 @@ def get_popular_menu_items(count=15):
 
     # Return the top N items with name and price
     result = []
-    for item in popular_items[:count]:
+    for item in popular_items:
         result.append(
             {
                 "name": item.get("name", "Unknown"),

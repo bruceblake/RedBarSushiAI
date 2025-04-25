@@ -356,8 +356,8 @@ class MenuMatcher:
             response = openai.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                temperature=0.1,  # Very low temp for deterministic results
-                max_tokens=20,    # Keep responses very short
+                temperature=0.5,  # Very low temp for deterministic results
+                max_tokens=500,    # Keep responses very short
             )
             
             # Log the response
@@ -459,8 +459,9 @@ class MenuMatcher:
                 
                 if category_name not in categories:
                     categories[category_name] = []
-                if len(categories[category_name]) < 3:  # Just get a few examples per category
-                    categories[category_name].append(item.get("name", ""))
+
+                categories[category_name].append(item.get("name", ""))
+
                     
             # Build prompt for AI to clarify the order
             messages = [
@@ -472,8 +473,8 @@ class MenuMatcher:
                     Important rules:
                     1. ONLY suggest actual menu items, not category names
                     2. Ask clarifying questions when the order is ambiguous
-                    3. Be friendly, helpful, and concise in your responses
-                    4. Base your suggestions ONLY on the menu categories and items available
+                    3. Be friendly, and helpful in your responses
+                    4. Base your suggestions ONLY on the menu categories, modifiers and items available
                     5. NEVER make up items that aren't in the menu
                     
                     When suggesting menu items, be precise and use the exact item names as they appear in the menu.
@@ -501,7 +502,7 @@ class MenuMatcher:
                 model=self.model,
                 messages=messages,
                 temperature=0.7,  # Higher temperature for more creativity in responses
-                max_tokens=250,   # Allow for a longer clarifying response
+                max_tokens=550,   # Allow for a longer clarifying response
             )
             
             # Log the response

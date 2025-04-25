@@ -2,7 +2,7 @@
 Agent utility functions for handling OpenAI Agents integration.
 This module provides the core functionality for our AI agents.
 """
-
+from app.utils.menu_utils import load_menu_data
 import os
 import json
 import logging
@@ -164,6 +164,7 @@ class SushiMenuTool:
         # Add the query to the conversation context
         self.current_conversation.append({"role": "user", "content": query})
         context = {"conversation": self.current_conversation}
+        logger.info(f"conversation {self.current_conversation}")
         
         # First try to find exact matches
         item = find_menu_item_by_name(query)
@@ -2246,14 +2247,55 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
     try:
         if OPENAI_API_KEY:
             # Prepare messages for intent classification
+
+            menu_data = load_menu_data()
+                        # Prepare menu categories and some example items
+            categories = {}
+            
+            # First, find all category items to create category map
+            category_map = {}
+            for item in menu_data.get("items", []):
+                if item.get("is_category", True):  # This item IS a category
+                    reference = item.get("reference_handler", "")
+                    if reference:
+                        category_map[reference] = item.get("name", "Unknown Category")
+            
+            # Now process actual menu items
+            for item in menu_data.get("items", []):
+                # Skip category headers
+                if item.get("is_category", False):
+                    continue
+                    
+                # Get parent category name from parentId or use "Uncategorized"
+                parent_id = item.get("parentId", "")
+                category_name = category_map.get(parent_id, "Uncategorized")
+                
+                if category_name not in categories:
+                    categories[category_name] = []
+
+                categories[category_name].append(item.get("name", ""))
+
             messages = [
                 {
                     "role": "system",
-                    "content": "You are a restaurant AI assistant that classifies customer queries. Determine if the customer is placing an order or asking about the menu."
+                    "content": """You are a restaurant AI assistant that classifies customer queries. Determine if the customer is placing an order or asking about the menu."
+                                                    "Your goal is to understand what the customer wants to order and suggest the appropriate menu items.
+                    
+                    Important rules:
+                    1. ONLY suggest actual menu items, not category names
+                    2. Ask clarifying questions when the order is ambiguous
+                    3. Be friendly, and helpful in your responses
+                    4. Base your suggestions ONLY on the menu categories, modifiers and items available
+                    5. NEVER make up items that aren't in the menu
+                    
+                    When suggesting menu items, be precise and use the exact item names as they appear in the menu.
+                    Focus on understanding the customer's intent and helping them find the right items."""
+
+        
                 },
                 {
                     "role": "user",
-                    "content": f"Classify this customer query: '{input_text}'\nRespond with JSON containing 'intent' which must be one of: 'order_food', 'ask_menu', or 'other'."
+                    "content": f"Classify this customer query: '{input_text}'\nRespond with JSON containing 'intent' which must be one of: 'order_food', 'ask_menu', or 'other'.\n\nMenu Categories and Example Items:\n{json.dumps(categories, indent=2)}\n\n"
                 }
             ]
             

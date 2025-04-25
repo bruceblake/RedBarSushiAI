@@ -130,55 +130,7 @@ def custom_suggest_modifiers(item_name):
         logger.error(f"Error generating modifier prompt: {e}")
         modifier_prompt = None
     
-    # If we found the item but didn't get a prompt, create a default one
-    if modifier_data.get("found", False) and not modifier_prompt:
-        logger.info(f"No specific modifier prompt found for {item_name}, generating fallback")
-        
-        # Create a default prompt based on item category and item properties
-        item = modifier_data.get("item", {})
-        item_category = item.get("category", "").lower()
-        is_combo = item.get("isCombo", False) or "combo" in item_name.lower() or "meal" in item_name.lower()
-        
-        # First check if it's a combo meal with components
-        if is_combo:
-            # Get components from the menu item if available
-            child_products = item.get("childProducts", [])
-            if child_products:
-                component_names = [comp.get("name", "") for comp in child_products if comp.get("required", True)]
-                if component_names:
-                    component_list = ", ".join(component_names[:3])
-                    modifier_prompt = f"For your {item_name}, please select from these options: {component_list}. What would you like?"
-                else:
-                    modifier_prompt = f"What sides or drinks would you like with your {item_name}?"
-            else:
-                modifier_prompt = f"What sides or drinks would you like with your {item_name}?"
-        # Then check food categories for appropriate cooking preferences
-        elif "steak" in item_name.lower():
-            modifier_prompt = f"How would you like your {item_name} cooked? Rare, medium, or well done?"
-        elif "burger" in item_name.lower():
-            # Burgers shouldn't always get the steak cooking options
-            if "patty" in item_name.lower() or "beef" in item_name.lower():
-                modifier_prompt = f"How would you like your {item_name} cooked? And would you like any toppings like cheese or bacon?"
-            else:
-                modifier_prompt = f"Would you like any toppings on your {item_name}, such as cheese, lettuce, or tomato?"
-        elif "roll" in item_name.lower() or "sushi" in item_name.lower():
-            modifier_prompt = f"Would you like any special preparation for your {item_name}? For example, extra wasabi, spicy mayo, or soy sauce on the side?"
-        elif "salad" in item_name.lower():
-            modifier_prompt = f"Would you like any special dressing for your {item_name}?"
-        else:
-            # Generic fallback
-            modifier_prompt = f"Would you like to customize your {item_name} with any special requests or modifications?"
-    
-    # If item wasn't found at all, create a generic prompt
-    if not modifier_data.get("found", False):
-        logger.warning(f"Item {item_name} not found in menu for modifier suggestions")
-        modifier_prompt = f"Would you like any special requests or modifications for your {item_name}?"
-        modifier_data = {
-            "found": False,
-            "suggestions": []
-        }
-    
-    # Return complete results
+
     return {
         "prompt": modifier_prompt or f"Would you like any modifications for your {item_name}? Say what you'd like or press 1 to skip.",
         "suggestions": modifier_data.get("suggestions", []),
@@ -576,9 +528,8 @@ def take_order():
                 speech_model="phone_call",
                 language="en-US",
                 speech_timeout=5,  # Reduced timeout for better responsiveness
-                timeout=7,  # Still give time to think but reduce waiting
-                hints="california roll, spicy tuna roll, dragon roll, menu",  # Help Twilio recognize common items
-            ) as g:
+                timeout=7,  # Still give time to think but reduce waitin) as g:
+            )as g:
                 g.say(
                     "I'm waiting for your order. Please tell me what sushi items you'd like to order. For example, you can say 'I'd like two California rolls and one spicy tuna roll'."
                 )
@@ -590,6 +541,8 @@ def take_order():
     # Use the agent to analyze the order
     analysis = analyze_user_input(user_resp)
     intent = analysis.get("intent", "other")
+    
+
 
     # Build the voice response
     response = VoiceResponse()
@@ -636,8 +589,35 @@ def take_order():
         return Response(str(response), mimetype="text/xml")
 
     # Get the menu items from the analysis
-    order_items = analysis.get("menu_items", [])
+    
+            # Create an order parsing agent
+    agent = OrderParsingAgent()
+            
+    menu_items = []
+    # Parse the input
+    logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{user_resp}'")
+    parsed_order = agent.parse_order(user_resp)
+    logger.info(f"[PARSED-ORDER]: {parsed_order}")
+            
+    # If we found menu items, this is likely an order
+    if parsed_order.get("items"):
+        menu_items = parsed_order.get("items", [])
+        intent = "order_food"
+        logger.info(f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'")
+                
+        # Ensure modifiers are preserved for each item
+        for item in menu_items:
+            if "modifier" in item and item["modifier"]:
+                logger.info(f"[ANALYZE-MODS] Item '{item.get('name')}' has {len(item['modifier'])} modifiers")
+                # Log each modifier for debugging
+                for mod in item["modifier"]:
+                    if isinstance(mod, dict):
+                        logger.info(f"[ANALYZE-MOD-DETAIL] Modifier for {item.get('name')}: {mod.get('name')} (ref: {mod.get('reference_handler', 'none')})")
+                    else:
+                        logger.warning(f"[ANALYZE-MOD-ERROR] Invalid modifier format: {mod}")
 
+    order_items = menu_items
+    logger.info(f"order_items: {order_items}") 
     # Process and mark any unavailable items
     from app.utils.order_utils import mark_unavailable_items
 

@@ -99,6 +99,7 @@ def handle_menu_query(user_input):
             # Use the search_results from the analysis if available
             if "search_results" in analysis and analysis["search_results"]:
                 search_results = analysis["search_results"]
+                logger.info(f"using search_results")
             else:
                 # Lightweight menu tool just for search 
                 menu_tool = OrderParsingAgent().menu_tool
@@ -113,11 +114,11 @@ def handle_menu_query(user_input):
                 items_to_use = search_results.get("items", [])[:15]  # Increased from 5 to 15
             else:
                 # Get popular items if no specific match
-                items_to_use = get_popular_menu_items(15)  # Increased from 5 to 15
+                items_to_use = get_popular_menu_items()  # Increased from 5 to 15
             
             # Group items by category
             for item in items_to_use:
-                category = item.get('category', 'Other')
+                category = item.get('categories', 'Other')
                 if category not in items_by_category:
                     items_by_category[category] = []
                 items_by_category[category].append(item)
@@ -237,7 +238,7 @@ def handle_menu_query(user_input):
                     item_desc = f"I'm sorry, the {item.get('name')} is currently unavailable."
             else:
                 # Try to suggest alternatives if item not found
-                popular_items = get_popular_menu_items(2)  # Just 2 items for speed
+                popular_items = get_popular_menu_items()  # Just 2 items for speed
                 if popular_items:
                     items_text = ", ".join([f"{item['name']}" for item in popular_items])
                     item_desc = f"I couldn't find '{item_name}' on our menu. You might be interested in: {items_text}."
