@@ -1,5 +1,4 @@
 services:
-  # Main web service for production
   - type: web
     name: redbarsushi-web
     env: python
@@ -25,10 +24,7 @@ services:
           name: redbarsushi-redis
           type: redis
           property: connectionString
-      # The remaining environment variables will need to be added
-      # in the Render dashboard after deployment
 
-  # Staging web service
   - type: web
     name: redbarsushi-staging
     env: python
@@ -59,10 +55,7 @@ services:
           name: redbarsushi-staging-redis
           type: redis
           property: connectionString
-      # The remaining environment variables will need to be added
-      # in the Render dashboard after deployment
 
-  # Celery worker for production
   - type: worker
     name: redbarsushi-celery
     env: python
@@ -88,10 +81,7 @@ services:
           name: redbarsushi-redis
           type: redis
           property: connectionString
-      # The remaining environment variables will need to be added
-      # in the Render dashboard after deployment
-
-  # Celery worker for staging
+  
   - type: worker
     name: redbarsushi-staging-celery
     env: python
@@ -122,18 +112,14 @@ services:
           name: redbarsushi-staging-redis
           type: redis
           property: connectionString
-      # The remaining environment variables will need to be added
-      # in the Render dashboard after deployment
-
-  # Redis for production
+ 
   - type: redis
     name: redbarsushi-redis
     ipAllowList:
       - source: 0.0.0.0/0
         description: everywhere
     plan: free
-    
-  # Redis for staging
+     
   - type: redis
     name: redbarsushi-staging-redis
     ipAllowList:
@@ -144,7 +130,7 @@ services:
   - type: job
   name: redbarsushi-staging-e2e
   env: python
-  branch: staging               # only runs after staging deploy
+  branch: staging              
   buildCommand: |
     pip install -r requirements.txt -r requirements.ci.txt
     pip install playwright==1.43.0 pytest-playwright
