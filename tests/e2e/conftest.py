@@ -10,3 +10,4 @@ def api_request():
         ctx = p.request.new_context(base_url=base, timeout=10_000)
         yield ctx
         ctx.dispose()
+
