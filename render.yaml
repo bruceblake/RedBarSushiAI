@@ -1,35 +1,36 @@
 # render.yaml
 
-- type: web
-  name: redbarsushi-web
-  env: python
-  buildCommand: pip install -r requirements.txt
-  startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
+services:
+  - type: web
+    name: redbarsushi-web
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
 
-- type: web
-  name: redbarsushi-staging
-  branch: staging
-  env: python
-  buildCommand: pip install -r requirements.txt
-  startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
+  - type: web
+    name: redbarsushi-staging
+    branch: staging
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
 
-- type: redis
-  name: redbarsushi-redis
-  plan: free
+  - type: redis
+    name: redbarsushi-redis
+    plan: free
 
-- type: job
-  name: redbarsushi-staging-e2e
-  branch: staging
-  env: python
-  buildCommand: |
-    pip install -r requirements.txt -r requirements.ci.txt
-    pip install playwright==1.43.0 pytest-playwright
-  startCommand: |
-    until curl -fsS https://redbarsushi-staging.onrender.com/health; do
-      echo "⏳ waiting…"; sleep 5; done
-    export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-    export BASE_URL=https://redbarsushi-staging.onrender.com
-    pytest tests/e2e -v
-  envVars:
-    - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
-      value: "1"
+  - type: job
+    name: redbarsushi-staging-e2e
+    branch: staging
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt -r requirements.ci.txt
+      pip install playwright==1.43.0 pytest-playwright
+    startCommand: |
+      until curl -fsS https://redbarsushi-staging.onrender.com/health; do
+        echo "⏳ waiting…"; sleep 5; done
+      export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      export BASE_URL=https://redbarsushi-staging.onrender.com
+      pytest tests/e2e -v
+    envVars:
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        value: "1"
