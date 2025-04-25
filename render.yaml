@@ -1,152 +1,35 @@
-services:
-  - type: web
-    name: redbarsushi-web
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
-    envVars:
-      - key: PROCESS
-        value: web
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: REDIS_URL
-        fromService:
-          name: redbarsushi-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_BROKER_URL
-        fromService:
-          name: redbarsushi-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_RESULT_BACKEND
-        fromService:
-          name: redbarsushi-redis
-          type: redis
-          property: connectionString
+# render.yaml
 
-  - type: web
-    name: redbarsushi-staging
-    env: python
-    branch: staging
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
-    envVars:
-      - key: PROCESS
-        value: web
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: FLASK_ENV
-        value: staging
-      - key: IS_STAGING
-        value: "true"
-      - key: REDIS_URL
-        fromService:
-          name: redbarsushi-staging-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_BROKER_URL
-        fromService:
-          name: redbarsushi-staging-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_RESULT_BACKEND
-        fromService:
-          name: redbarsushi-staging-redis
-          type: redis
-          property: connectionString
-
-  - type: worker
-    name: redbarsushi-celery
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: ./fix_celery.sh
-    envVars:
-      - key: PROCESS
-        value: celery
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: REDIS_URL
-        fromService:
-          name: redbarsushi-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_BROKER_URL
-        fromService:
-          name: redbarsushi-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_RESULT_BACKEND
-        fromService:
-          name: redbarsushi-redis
-          type: redis
-          property: connectionString
-  
-  - type: worker
-    name: redbarsushi-staging-celery
-    env: python
-    branch: staging
-    buildCommand: pip install -r requirements.txt
-    startCommand: ./fix_celery.sh
-    envVars:
-      - key: PROCESS
-        value: celery
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: FLASK_ENV
-        value: staging
-      - key: IS_STAGING
-        value: "true"
-      - key: REDIS_URL
-        fromService:
-          name: redbarsushi-staging-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_BROKER_URL
-        fromService:
-          name: redbarsushi-staging-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_RESULT_BACKEND
-        fromService:
-          name: redbarsushi-staging-redis
-          type: redis
-          property: connectionString
- 
-  - type: redis
-    name: redbarsushi-redis
-    ipAllowList:
-      - source: 0.0.0.0/0
-        description: everywhere
-    plan: free
-     
-  - type: redis
-    name: redbarsushi-staging-redis
-    ipAllowList:
-      - source: 0.0.0.0/0
-        description: everywhere
-    plan: free
-    
-  - type: job
-  name: redbarsushi-staging-e2e
+- type: web
+  name: redbarsushi-web
   env: python
-  branch: staging              
+  buildCommand: pip install -r requirements.txt
+  startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
+
+- type: web
+  name: redbarsushi-staging
+  branch: staging
+  env: python
+  buildCommand: pip install -r requirements.txt
+  startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
+
+- type: redis
+  name: redbarsushi-redis
+  plan: free
+
+- type: job
+  name: redbarsushi-staging-e2e
+  branch: staging
+  env: python
   buildCommand: |
     pip install -r requirements.txt -r requirements.ci.txt
     pip install playwright==1.43.0 pytest-playwright
   startCommand: |
-    # Wait until the staging service is healthy
     until curl -fsS https://redbarsushi-staging.onrender.com/health; do
-      echo "⏳ waiting for staging…"
-      sleep 5
-    done
-
+      echo "⏳ waiting…"; sleep 5; done
     export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
     export BASE_URL=https://redbarsushi-staging.onrender.com
-
-    # 👉  Run **only** E2E tests
     pytest tests/e2e -v
   envVars:
     - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
       value: "1"
-       
