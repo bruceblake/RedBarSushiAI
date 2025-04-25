@@ -9,7 +9,7 @@ import os
 import traceback
 import uuid
 import openai
-from app.utils.menu_matcher import menu_matcher 
+from app.utils.menu_matcher import menu_matcher
 
 # Import WebSocket handler from Flask-Sock
 from app import sock
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 # Import optimized menu handler
 try:
     from app.utils.opt_menu_handler import handle_menu_query
+
     OPTIMIZED_MENU_HANDLER = True
     logger.info("Using optimized menu handler with caching")
 except ImportError:
@@ -37,6 +38,7 @@ logger.info("Successfully imported OpenAI agent utilities")
 
 # Import real-time audio processing utilities
 from app.utils.realtime_audio import get_audio_processor
+
 # Import menu caching utilities
 from app.utils.menu_cache import get_cached_response
 
@@ -44,9 +46,9 @@ voice_bp = Blueprint("voice", __name__)
 
 # Speech timeout configuration
 # Using fixed values instead of "auto" for more predictable behavior
-SPEECH_TIMEOUT_SHORT = "auto"    # For simple responses (yes/no)
+SPEECH_TIMEOUT_SHORT = "auto"  # For simple responses (yes/no)
 SPEECH_TIMEOUT_MEDIUM = "auto"  # For name, phone number
-SPEECH_TIMEOUT_LONG = "auto"    # For orders, menu questions
+SPEECH_TIMEOUT_LONG = "auto"  # For orders, menu questions
 SPEECH_TIMEOUT_EXTENDED = "auto"  # For complex orders
 
 # Regular timeout configuration (waiting for any input)
@@ -58,24 +60,27 @@ TIMEOUT_EXTENDED = 6
 # Progressive timeout settings
 MAX_SILENCE_RETRIES = 3
 
-def setup_gather_params(context, retry_count=0, include_dtmf=False, action=None, msg=None):
+
+def setup_gather_params(
+    context, retry_count=0, include_dtmf=False, action=None, msg=None
+):
     """
     Helper function to consistently set up gather parameters for voice responses.
     This ensures speech timeout settings are used consistently throughout the application.
-    
+
     Args:
         context (str): The context of the interaction (order, menu, confirm, etc.)
         retry_count (int): How many times we've retried due to silence
         include_dtmf (bool): Whether to include DTMF input
         action (str): The action endpoint for the gather
         msg (str): Optional message to speak before waiting for input
-        
+
     Returns:
         dict: Parameters to use for response.gather()
     """
     # Get appropriate timeouts
     speech_timeout, timeout = get_adaptive_timeouts(context, retry_count)
-    
+
     # Build the gather parameters
     params = {
         "enhanced": True,
@@ -84,30 +89,31 @@ def setup_gather_params(context, retry_count=0, include_dtmf=False, action=None,
         "speech_timeout": speech_timeout,
         "timeout": timeout,
     }
-    
+
     # Set input type
     if include_dtmf:
         params["input"] = "speech dtmf"
         params["num_digits"] = 1
     else:
         params["input"] = "speech"
-    
+
     # Add action if provided
     if action:
         params["action"] = action
-    
+
     return params
+
 
 def get_adaptive_timeouts(context, retry_count=0):
     """
     Get adaptive timeout values based on context and retry count.
     This helps provide more time when customers need it while preventing
     excessive waiting when there's persistent silence.
-    
+
     Args:
         context (str): The context of the interaction (order, menu, confirm, etc.)
         retry_count (int): How many times we've retried due to silence
-        
+
     Returns:
         tuple: (speech_timeout, timeout) values to use
     """
@@ -125,7 +131,7 @@ def get_adaptive_timeouts(context, retry_count=0):
         # Default to medium for unspecified contexts
         speech_timeout = SPEECH_TIMEOUT_MEDIUM
         timeout = TIMEOUT_MEDIUM
-    
+
     # Adjust based on retry count but keep timeouts shorter
     if retry_count == 0:
         # First attempt - use base values
@@ -138,46 +144,53 @@ def get_adaptive_timeouts(context, retry_count=0):
         # Second or further retry - start reducing timeouts to prevent excessive waiting
         speech_timeout = max(speech_timeout - 1, SPEECH_TIMEOUT_SHORT)
         timeout = max(timeout - 1, TIMEOUT_SHORT)
-    
+
     # For complex orders, ensure minimum thresholds but keep them reasonable
     if context == "complex_order":
         speech_timeout = max(speech_timeout, SPEECH_TIMEOUT_LONG)
         timeout = max(timeout, TIMEOUT_LONG)
-        
+
     return speech_timeout, timeout
 
-def handle_silence(response, session_key, action, context, max_retries=MAX_SILENCE_RETRIES):
+
+def handle_silence(
+    response, session_key, action, context, max_retries=MAX_SILENCE_RETRIES
+):
     """
     Centralized silence handling for Twilio VoiceResponse.
     Provides consistent handling of silence across different routes.
-    
+
     Args:
         response: The VoiceResponse object
         session_key: The session key to track retry count
         action: The action URL for gather
         context: Context for timeout selection (order, menu, etc)
         max_retries: Maximum retries before giving up
-        
+
     Returns:
         Response object with appropriate gather settings
     """
     # Get current retry count and increment
     retry_count = session.get(session_key, 0)
     session[session_key] = retry_count + 1
-    
+
     # Log the silence handling
     logger.info(f"Handling silence for {context} (retry {retry_count}/{max_retries})")
-    
+
     # Check if we've hit the limit
     if retry_count >= max_retries:
-        logger.warning(f"Too many silences ({retry_count}) in {context}, redirecting to fallback")
+        logger.warning(
+            f"Too many silences ({retry_count}) in {context}, redirecting to fallback"
+        )
         response.redirect("/main_menu_fallback")
         return Response(str(response), mimetype="text/xml")
-    
-    # Get appropriate timeouts based on context and retry count  
+
+    # Get appropriate timeouts based on context and retry count
     speech_timeout, timeout = get_adaptive_timeouts(context, retry_count)
-    logger.info(f"Using adaptive timeouts: speech={speech_timeout}s, timeout={timeout}s")
-    
+    logger.info(
+        f"Using adaptive timeouts: speech={speech_timeout}s, timeout={timeout}s"
+    )
+
     # Helper messages based on silence retries - make them shorter and more direct
     if retry_count == 0:
         message = f"I didn't hear anything. Please speak again."
@@ -185,27 +198,28 @@ def handle_silence(response, session_key, action, context, max_retries=MAX_SILEN
         message = f"I still can't hear you. Please speak up or press a key."
     else:
         message = f"If you're there, please speak loudly or press any key to continue."
-    
+
     # For menu context, add more helpful but brief guidance
     if context == "menu":
         message += " Ask about menu items, prices, or popular dishes."
     elif context == "order":
         message += " Tell me what you'd like to order."
-    
+
     # Configure the gather using standardized parameters
     gather_params = setup_gather_params(
         context=context,
         retry_count=retry_count,
         include_dtmf=(retry_count > 0),  # Add DTMF option after first retry
-        action=action
+        action=action,
     )
-    
+
     with response.gather(**gather_params) as g:
         g.say(message)
-    
+
     # Add fallback
     response.redirect(action)
     return Response(str(response), mimetype="text/xml")
+
 
 # Import channel_status from order.py
 from app.routes.order import channel_status
@@ -241,9 +255,9 @@ def receive_call():
 
     # In staging environment, use a default test number to ensure SMS deliverability
     is_staging = (
-        os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging")
-    
-    
+        os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging"
+    )
+
     session["order_message"] = ""
     session["total_price"] = 0
     session["modification_in_progress"] = False
@@ -260,19 +274,16 @@ def receive_call():
     )
 
     # Use gather params with the proper context
-    gather_params = setup_gather_params(
-        context="name",
-        action="/take_name"
-    )
-    
+    gather_params = setup_gather_params(context="name", action="/take_name")
+
     with response.gather(**gather_params) as g:
         g.say(
             f"Hello! This is the {env_name} environment. Thank you for calling Red Bar Sushi. May I have your name, please?"
         )
-    
+
     # Add a redirect outside the gather block to handle silence
     response.redirect("/take_name")
-    
+
     return Response(str(response), mimetype="text/xml")
 
 
@@ -293,12 +304,12 @@ def take_name():
             # After multiple silent attempts, give a more directive prompt
             # Use adaptive timeouts for name gathering with high retry count
             gather_params = setup_gather_params(
-                context="name", 
+                context="name",
                 retry_count=2,  # Higher retry for more patience
                 include_dtmf=True,
-                action="/take_name"
+                action="/take_name",
             )
-            
+
             g = response.gather(**gather_params)
             g.say(
                 "I need your name to continue. Please say your name or press any key to continue."
@@ -311,16 +322,14 @@ def take_name():
             # Normal prompt for the first retry
             # Use adaptive timeouts for name gathering with low retry count
             gather_params = setup_gather_params(
-                context="name", 
-                retry_count=0,  # First retry
-                action="/take_name"
+                context="name", retry_count=0, action="/take_name"  # First retry
             )
-            
+
             g = response.gather(**gather_params)
             g.say(
                 "I'm waiting for your name. Please tell me your name so I can help you with your order."
             )
-            
+
             # Also add a fallback for this level of silence
             response.redirect("/main_menu_fallback")
 
@@ -344,12 +353,10 @@ def take_name():
 
         # Use adaptive timeouts for name confirmation (should be short)
         gather_params = setup_gather_params(
-            context="confirm", 
-            include_dtmf=True,
-            action="/confirm_name"
+            context="confirm", include_dtmf=True, action="/confirm_name"
         )
         gather_params["num_digits"] = 1  # Add DTMF parameter
-        
+
         with response.gather(**gather_params) as g:
             g.say(
                 f"I heard {caller_name}, spelled {spelled_name}. Is that correct? Say yes or press 1 for yes, or say no or press 2 to correct it."
@@ -359,13 +366,11 @@ def take_name():
     else:
         # Try again with a more specific prompt if we couldn't get the name
         response = VoiceResponse()
-        # Use adaptive timeouts for name gathering 
+        # Use adaptive timeouts for name gathering
         gather_params = setup_gather_params(
-            context="name", 
-            include_dtmf=True,
-            action="/take_name"
+            context="name", include_dtmf=True, action="/take_name"
         )
-        
+
         with response.gather(**gather_params) as g:
             g.say(
                 "I didn't catch your name. Please say just your first name clearly, or press any key to continue."
@@ -413,11 +418,8 @@ def confirm_name():
     else:
         # User said the name was incorrect, ask for name again
         # Use adaptive timeouts for name correction
-        gather_params = setup_gather_params(
-            context="name",
-            action="/take_name"
-        )
-        
+        gather_params = setup_gather_params(context="name", action="/take_name")
+
         with response.gather(**gather_params) as g:
             g.say("I apologize for getting that wrong. Please tell me your name again.")
 
@@ -497,6 +499,7 @@ def extract_name_with_agent(speech_text):
                 logger.error(f"Error using OpenAI for name extraction: {e}")
     except ImportError:
         logger.warning("OpenAI module not available for name extraction")
+
 
 @voice_bp.route("/main_menu_fallback", methods=["POST", "GET"])
 def main_menu_fallback():
@@ -613,13 +616,13 @@ def main_menu():
             )
             # Use adaptive timeouts with retry count for main menu
             gather_params = setup_gather_params(
-                context="menu", 
+                context="menu",
                 retry_count=3,  # High retry count for more patient behavior
                 include_dtmf=True,
-                action="/main_menu"
+                action="/main_menu",
             )
             gather_params["num_digits"] = 1  # Add DTMF parameter
-            
+
             with response.gather(**gather_params) as g:
                 g.say(
                     "I can't hear you clearly. Please press 1 on your keypad to order, press 2 for menu questions, or press 3 to speak with a person. You can also try speaking louder."
@@ -632,13 +635,13 @@ def main_menu():
             # First retry with better guidance and speech + DTMF
             # Use adaptive timeouts with medium retry count
             gather_params = setup_gather_params(
-                context="menu", 
+                context="menu",
                 retry_count=1,  # First retry count
                 include_dtmf=True,
-                action="/main_menu"
+                action="/main_menu",
             )
             gather_params["num_digits"] = 1  # Add DTMF parameter
-            
+
             with response.gather(**gather_params) as g:
                 g.say(
                     "I'm having trouble hearing you. Please press 1 to order, 2 for menu questions, or 3 for a real person. Or you can speak your choice clearly."
@@ -653,30 +656,28 @@ def main_menu():
 
     if choice == "order" and channel_status == 1:
         session["ordering_in_progress"] = True
-        
+
         # Set up gather params for order taking
         gather_params = setup_gather_params(
-            context="complex_order",
-            action="/take_order"
+            context="complex_order", action="/take_order"
         )
-        
+
         with response.gather(**gather_params) as g:
             g.say("Please tell me what you would like to order.")
-            
+
         # Add redirect for silence handling
         response.redirect("/take_order")
     elif choice == "ask_menu":
         # Set up gather params for menu questions
         gather_params = setup_gather_params(
-            context="menu",
-            action="/handle_menu_questions"
+            context="menu", action="/handle_menu_questions"
         )
-        
+
         with response.gather(**gather_params) as g:
             g.say(
                 "You can ask for the menu, prices, descriptions, or say what you'd like to order."
             )
-            
+
         # Add redirect for silence handling
         response.redirect("/handle_menu_questions")
     elif choice == "real_person":
@@ -685,25 +686,23 @@ def main_menu():
         # Instead of hanging up immediately, gather input first with a message about transferring
         # This gives us a chance to recover if the transfer doesn't work
         gather_params = setup_gather_params(
-            context="confirm",
-            include_dtmf=True,
-            action="/handle_transfer_to_human"
+            context="confirm", include_dtmf=True, action="/handle_transfer_to_human"
         )
-        
+
         with response.gather(**gather_params) as g:
-            g.say("Please hold while I transfer you to a team member. If you aren't connected within a few moments, press any key.")
-        
+            g.say(
+                "Please hold while I transfer you to a team member. If you aren't connected within a few moments, press any key."
+            )
+
         # Fallback if no input is received after the timeout
         response.redirect("/handle_transfer_to_human")
     else:
         # Use adaptive timeouts for main menu fallback
         gather_params = setup_gather_params(
-            context="menu",
-            include_dtmf=True,
-            action="/main_menu"
+            context="menu", include_dtmf=True, action="/main_menu"
         )
         gather_params["num_digits"] = 1  # Add DTMF parameter
-        
+
         with response.gather(**gather_params) as g:
             g.say(
                 "I didn't understand. Press 1 to order, 2 for menu questions, 3 for a real person."
@@ -715,24 +714,24 @@ def main_menu():
 menu_questions_cache = {}
 menu_questions_cache_duration = 300  # 5 minutes
 
+
 @voice_bp.route("/handle_menu_questions", methods=["POST"])
 def handle_menu_questions():
     """Handle menu-related questions from the caller."""
     user_input = request.form.get("SpeechResult", "").lower()
-    
+
     # For performance tracking
     start_time = time.time()
-    
-   
+
     # Standard handler path
     # Check for silence
     if not user_input:
         response = VoiceResponse()
         return handle_silence(
             response=response,
-            session_key="menu_question_silence", 
+            session_key="menu_question_silence",
             action="/handle_menu_questions",
-            context="menu"
+            context="menu",
         )
 
     # Reset silence counter when we get speech
@@ -740,9 +739,7 @@ def handle_menu_questions():
 
     # Check if we have a cached response for this query
     cleaned_input = user_input.strip().lower()
-    
-    
-    
+
     # Start processing user input
     # Use the agent-based analysis
     start_time = time.time()
@@ -758,36 +755,34 @@ def handle_menu_questions():
         session["ordering_in_progress"] = True
         # Use adaptive timeouts for order taking
         gather_params = setup_gather_params(
-            context="complex_order", 
-            action="/take_order"
+            context="complex_order", action="/take_order"
         )
-        
+
         with response.gather(**gather_params) as g:
             g.say(
                 "I'll take your order now. Please tell me what you would like to order. Take your time, I'll wait."
             )
     elif intent == "ask_menu":
-        # Use AI agent to answer any menu question; 
+        # Use AI agent to answer any menu question;
         menu_query = user_input.strip()
 
         ai_response = menu_matcher.interactive_order_resolution(menu_query)
-                
+
         reply = ai_response.get("clarification_dialog")
-        
+
         # Say the reply and offer to continue the conversation
         response = VoiceResponse()
         response.say(reply)
-        
+
         # Add a gather to continue the conversation
         # Use adaptive timeouts for menu follow-up
         gather_params = setup_gather_params(
-            context="menu",
-            action="/handle_menu_questions"
+            context="menu", action="/handle_menu_questions"
         )
-        
+
         with response.gather(**gather_params) as g:
             g.say("Is there anything else you'd like to know about our menu?")
-            
+
         return Response(str(response), mimetype="text/xml")
     elif intent == "get_menu_item_price" or intent == "describe_menu_item":
         # Look up the specific item using agent
@@ -1305,20 +1300,22 @@ def handle_transfer_to_human():
     # Get any speech input, if present
     speech_input = request.form.get("SpeechResult", "")
     digits = request.form.get("Digits", "")
-    
+
     # Track transfer attempts
     transfer_attempts = session.get("transfer_attempts", 0)
     session["transfer_attempts"] = transfer_attempts + 1
-    
+
     response = VoiceResponse()
-    
+
     # If this is the first attempt, try to transfer
     if transfer_attempts == 0:
-        response.say("We're connecting you with a team member now. Please wait a moment.")
+        response.say(
+            "We're connecting you with a team member now. Please wait a moment."
+        )
         # In a real implementation, this would use Twilio's <Dial> verb to connect to a real person
         # Here we'll just pause to simulate the transfer attempt
         response.pause(length=3)
-        
+
         # After the pause, gather input to see if they need more help
         with response.gather(
             input="speech dtmf",
@@ -1328,18 +1325,26 @@ def handle_transfer_to_human():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("I'm sorry, but it seems our team members are busy. Press 1 to keep waiting, 2 to go back to the main menu, or 3 to end the call.")
-    
+            g.say(
+                "I'm sorry, but it seems our team members are busy. Press 1 to keep waiting, 2 to go back to the main menu, or 3 to end the call."
+            )
+
     # If we've already tried to transfer once, handle their choice
     else:
         # Check their input
-        if digits == "1" or "wait" in speech_input.lower() or "keep" in speech_input.lower():
+        if (
+            digits == "1"
+            or "wait" in speech_input.lower()
+            or "keep" in speech_input.lower()
+        ):
             # They want to keep waiting - try another transfer
-            response.say("Thank you for your patience. We're trying to connect you again.")
+            response.say(
+                "Thank you for your patience. We're trying to connect you again."
+            )
             response.pause(length=3)
-            
+
             # Gather again after the second attempt
             with response.gather(
                 input="speech dtmf",
@@ -1349,25 +1354,37 @@ def handle_transfer_to_human():
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
-                g.say("I apologize, but we're still having trouble connecting you. Press 1 to leave a message, 2 to go back to the main menu, or 3 to end the call.")
-        
-        elif digits == "2" or "menu" in speech_input.lower() or "back" in speech_input.lower():
+                g.say(
+                    "I apologize, but we're still having trouble connecting you. Press 1 to leave a message, 2 to go back to the main menu, or 3 to end the call."
+                )
+
+        elif (
+            digits == "2"
+            or "menu" in speech_input.lower()
+            or "back" in speech_input.lower()
+        ):
             # They want to go back to the main menu
             response.redirect("/main_menu")
             return Response(str(response), mimetype="text/xml")
-        
-        elif digits == "3" or "end" in speech_input.lower() or "goodbye" in speech_input.lower():
+
+        elif (
+            digits == "3"
+            or "end" in speech_input.lower()
+            or "goodbye" in speech_input.lower()
+        ):
             # They want to end the call
             response.say("Thank you for calling Red Bar Sushi. Goodbye!")
             # Use graceful exit instead of direct hangup
             response.redirect("/graceful_exit")
-        
+
         elif transfer_attempts >= 2:
             # Too many attempts, offer to take a message
-            response.say("We apologize for the inconvenience. Please call back during our business hours from 11 AM to 10 PM when more staff are available.")
-            
+            response.say(
+                "We apologize for the inconvenience. Please call back during our business hours from 11 AM to 10 PM when more staff are available."
+            )
+
             # Offer to send them to voicemail or text
             with response.gather(
                 input="speech dtmf",
@@ -1377,17 +1394,22 @@ def handle_transfer_to_human():
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
-                g.say("Would you like to leave a message? Press 1 for yes or 2 to end the call.")
-        
+                g.say(
+                    "Would you like to leave a message? Press 1 for yes or 2 to end the call."
+                )
+
         else:
             # No valid input, default to a friendly message
-            response.say("We're sorry we couldn't connect you with a team member. Please try calling back later when more staff are available. Thank you.")
+            response.say(
+                "We're sorry we couldn't connect you with a team member. Please try calling back later when more staff are available. Thank you."
+            )
             # Use graceful exit instead of direct hangup
             response.redirect("/graceful_exit")
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @voice_bp.route("/handle_voicemail", methods=["POST"])
 def handle_voicemail():
@@ -1395,11 +1417,16 @@ def handle_voicemail():
     # Get any speech input, if present
     speech_input = request.form.get("SpeechResult", "").lower()
     digits = request.form.get("Digits", "")
-    
+
     response = VoiceResponse()
-    
+
     # Check if they want to leave a message
-    if digits == "1" or "yes" in speech_input or "sure" in speech_input or "okay" in speech_input:
+    if (
+        digits == "1"
+        or "yes" in speech_input
+        or "sure" in speech_input
+        or "okay" in speech_input
+    ):
         with response.gather(
             input="speech",
             action="/save_voicemail",
@@ -1407,41 +1434,51 @@ def handle_voicemail():
             speech_model="phone_call",
             language="en-US",
             speech_timeout=10,  # Give them more time to leave a message
-            timeout=15
+            timeout=15,
         ) as g:
-            g.say("Please leave your message after the tone. When you're finished, just stay silent for a few moments.")
+            g.say(
+                "Please leave your message after the tone. When you're finished, just stay silent for a few moments."
+            )
             g.play("https://api.twilio.com/cowbell.mp3")  # A simple "beep" tone
     else:
         # They don't want to leave a message
         response.say("Thank you for calling Red Bar Sushi. Have a great day! Goodbye.")
         # Use graceful exit instead of direct hangup
         response.redirect("/graceful_exit")
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @voice_bp.route("/save_voicemail", methods=["POST"])
 def save_voicemail():
     """Process and save a voicemail message"""
     # Get the message content
     message = request.form.get("SpeechResult", "")
-    
+
     response = VoiceResponse()
-    
+
     if message:
         # In a real implementation, you would save this message to a database or send it via email/SMS
         # For now, just log it
-        logger.info(f"Voicemail received from {session.get('caller_name', 'Unknown caller')}: {message}")
-        
+        logger.info(
+            f"Voicemail received from {session.get('caller_name', 'Unknown caller')}: {message}"
+        )
+
         # Thank them for their message
-        response.say("Thank you for your message. Our team will get back to you as soon as possible. Goodbye!")
+        response.say(
+            "Thank you for your message. Our team will get back to you as soon as possible. Goodbye!"
+        )
     else:
         # No message was recorded
-        response.say("We didn't receive a message. Please call back if you'd like to speak with our team. Goodbye!")
-    
+        response.say(
+            "We didn't receive a message. Please call back if you'd like to speak with our team. Goodbye!"
+        )
+
     # Use graceful exit path instead of direct hangup
     response.redirect("/graceful_exit")
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @sock.route("/api/ws/text-to-speech")
 async def text_to_speech(ws):

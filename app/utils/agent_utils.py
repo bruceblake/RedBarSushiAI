@@ -2,6 +2,7 @@
 Agent utility functions for handling OpenAI Agents integration.
 This module provides the core functionality for our AI agents.
 """
+
 from app.utils.menu_utils import load_menu_data
 import os
 import json
@@ -139,6 +140,7 @@ if not AGENT_API_AVAILABLE and OPENAI_API_KEY:
         OPENAI_API_KEY = None
 
 from app.utils.menu_utils import load_menu_data, find_menu_item_by_name
+
 # The menu_matcher will be imported at runtime in the verify function to avoid circular imports
 
 
@@ -165,7 +167,7 @@ class SushiMenuTool:
         self.current_conversation.append({"role": "user", "content": query})
         context = {"conversation": self.current_conversation}
         logger.info(f"conversation {self.current_conversation}")
-        
+
         # First try to find exact matches
         item = find_menu_item_by_name(query)
         if item:
@@ -175,10 +177,14 @@ class SushiMenuTool:
         try:
             # Import here to avoid circular imports
             from app.utils.menu_matcher import find_menu_item_ai
-            
-            ai_match = find_menu_item_ai(query, check_availability=False, context=context)
+
+            ai_match = find_menu_item_ai(
+                query, check_availability=False, context=context
+            )
             if ai_match:
-                logger.info(f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{query}'")
+                logger.info(
+                    f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{query}'"
+                )
                 return {"found": True, "items": [ai_match], "query": query}
         except Exception as e:
             logger.error(f"[MENU-TOOL] Error in AI matching: {str(e)}")
@@ -305,18 +311,18 @@ class SushiMenuTool:
         if time.time() - self.last_refresh_time > 300:  # Refresh every 5 minutes
             self.menu_data = load_menu_data(force_refresh=True)
             self.last_refresh_time = time.time()
-            
-        # First find the item 
+
+        # First find the item
         result = self.search_menu(item_name)
         if not result.get("found"):
             return {"found": False}
-            
+
         menu_item = result.get("items", [])[0]
-        
+
         # Get modifiers for this item
         modifiers = []
         mod_groups = []
-        
+
         # Add available modifiers based on modifierGroupIds
         if menu_item.get("modifierGroupIds"):
             for group_id in menu_item.get("modifierGroupIds", []):
@@ -329,81 +335,81 @@ class SushiMenuTool:
                             for mod in self.menu_data.get("modifiers", []):
                                 if mod.get("id") == mod_id:
                                     group_mods.append(mod)
-                        
+
                         if group_mods:
                             mod_group = {
                                 "name": group.get("name"),
                                 "id": group.get("id"),
                                 "min": group.get("min", 0),
                                 "max": group.get("max", 0),
-                                "modifiers": group_mods
+                                "modifiers": group_mods,
                             }
                             mod_groups.append(mod_group)
                             modifiers.append(group_mods)
-        
-        return {
-            "found": True,
-            "item": menu_item,
-            "modifiers": mod_groups
-        }
-        
+
+        return {"found": True, "item": menu_item, "modifiers": mod_groups}
+
     def suggest_modifiers(self, item_name: str) -> Dict[str, Any]:
         """
         Intelligently suggest modifiers for a menu item. Returns appropriate suggestions
         based on the menu item type and available modifier groups.
-        
+
         Args:
             item_name: The menu item name to get suggestions for
-            
+
         Returns:
             dict: Suggested modifiers with friendly descriptions
         """
         # Get item details including available modifiers
         item_details = self.get_details(item_name)
-        
+
         if not item_details.get("found"):
             return {"found": False, "suggestions": []}
-            
+
         item = item_details.get("item", {})
         modifier_groups = item_details.get("modifiers", [])
-        
+
         if not modifier_groups:
             return {"found": True, "item": item, "suggestions": []}
-            
+
         # Build smart suggestions based on modifier groups
         suggestions = []
         item_type = item.get("category", "").lower()
         item_name_lower = item.get("name", "").lower()
-        
+
         # Get item details for better context
         item_description = item.get("description", "")
-        
+
         for group in modifier_groups:
             group_name = group.get("name", "")
             group_required = group.get("min", 0) > 0
             group_type = group_name.lower()
             mods = group.get("modifiers", [])
-            
+
             # Skip if no modifiers
             if not mods:
                 continue
-                
+
             # Create appropriate suggestion based on modifier group type
             if "cook" in group_type or "temperature" in group_type:
                 # Cooking preference suggestion
                 if "roll" in item_name_lower or "sushi" in item_name_lower:
                     # No cooking suggestions for sushi/rolls
                     continue
-                elif "steak" in item_name_lower or "burger" in item_name_lower or "meat" in item_name_lower:
+                elif (
+                    "steak" in item_name_lower
+                    or "burger" in item_name_lower
+                    or "meat" in item_name_lower
+                ):
                     suggestion = {
                         "type": "cooking_preference",
                         "prompt": f"How would you like your {item.get('name')} cooked?",
                         "group": group_name,
                         "required": group_required,
-                        "options": [mod.get("name") for mod in mods]
+                        "options": [mod.get("name") for mod in mods],
                     }
                     suggestions.append(suggestion)
-            
+
             elif "sauce" in group_type or "dressing" in group_type:
                 # Sauce suggestion
                 suggestion = {
@@ -411,10 +417,10 @@ class SushiMenuTool:
                     "prompt": f"Would you like any special sauce with your {item.get('name')}?",
                     "group": group_name,
                     "required": group_required,
-                    "options": [mod.get("name") for mod in mods]
+                    "options": [mod.get("name") for mod in mods],
                 }
                 suggestions.append(suggestion)
-                
+
             elif "side" in group_type or "add" in group_type:
                 # Side dish suggestion
                 suggestion = {
@@ -422,10 +428,10 @@ class SushiMenuTool:
                     "prompt": f"Would you like to add any sides to your {item.get('name')}?",
                     "group": group_name,
                     "required": group_required,
-                    "options": [mod.get("name") for mod in mods]
+                    "options": [mod.get("name") for mod in mods],
                 }
                 suggestions.append(suggestion)
-                
+
             elif "spic" in group_type or "heat" in group_type:
                 # Spice level suggestion
                 suggestion = {
@@ -433,10 +439,10 @@ class SushiMenuTool:
                     "prompt": f"How spicy would you like your {item.get('name')}?",
                     "group": group_name,
                     "required": group_required,
-                    "options": [mod.get("name") for mod in mods]
+                    "options": [mod.get("name") for mod in mods],
                 }
                 suggestions.append(suggestion)
-                
+
             else:
                 # Generic modifier suggestion
                 suggestion = {
@@ -444,43 +450,47 @@ class SushiMenuTool:
                     "prompt": f"Would you like to customize your {item.get('name')} with any {group_name}?",
                     "group": group_name,
                     "required": group_required,
-                    "options": [mod.get("name") for mod in mods]
+                    "options": [mod.get("name") for mod in mods],
                 }
                 suggestions.append(suggestion)
-        
+
         # Sort suggestions - required first, then by type importance
         # (cooking preferences, spice levels, sides, sauces, generic)
-        type_order = {"cooking_preference": 0, "spice": 1, "side": 2, "sauce": 3, "general": 4}
-        
-        # Sort by required status first, then by type importance
-        suggestions.sort(key=lambda x: (not x.get("required"), type_order.get(x.get("type"), 5)))
-        
-        return {
-            "found": True,
-            "item": item,
-            "suggestions": suggestions
+        type_order = {
+            "cooking_preference": 0,
+            "spice": 1,
+            "side": 2,
+            "sauce": 3,
+            "general": 4,
         }
-    
+
+        # Sort by required status first, then by type importance
+        suggestions.sort(
+            key=lambda x: (not x.get("required"), type_order.get(x.get("type"), 5))
+        )
+
+        return {"found": True, "item": item, "suggestions": suggestions}
+
     def generate_modifier_prompt(self, item_name: str) -> str:
         """
         Generate a natural language prompt to suggest modifiers for an item.
         Uses AI to create a conversational, friendly suggestion based on available modifiers.
-        
+
         Args:
             item_name: The menu item name
-            
+
         Returns:
             str: Natural language prompt suggesting modifiers
         """
         # Get structured modifier suggestions
         suggestion_data = self.suggest_modifiers(item_name)
-        
+
         if not suggestion_data.get("found") or not suggestion_data.get("suggestions"):
             return ""
-            
+
         item = suggestion_data.get("item", {})
         suggestions = suggestion_data.get("suggestions", [])
-        
+
         # Use OpenAI to generate a natural language prompt if available
         if OPENAI_API_KEY:
             try:
@@ -491,73 +501,79 @@ class SushiMenuTool:
                     "Be concise but helpful. Only suggest the top 2-3 most important modifiers. "
                     "Avoid being too pushy or sales-y. Response should be 1-2 sentences only."
                 )
-                
+
                 # Prepare modifier suggestion data
                 sugg_data = json.dumps(suggestions)
                 item_data = json.dumps(item)
-                
+
                 prompt = f"Menu item: {item.get('name')}\nItem data: {item_data}\nAvailable modifier suggestions: {sugg_data}"
-                
+
                 messages = [
                     {"role": "system", "content": system_msg},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ]
-                
+
                 response = openai.chat.completions.create(
                     model="gpt-4.1-mini",
                     messages=messages,
                     temperature=0.7,
-                    max_tokens=100
+                    max_tokens=100,
                 )
-                
+
                 natural_prompt = response.choices[0].message.content.strip()
                 return natural_prompt
-                
+
             except Exception as e:
                 logger.error(f"Error generating natural modifier prompt: {e}")
                 # Fall back to template-based prompt on error
-        
+
         # Template-based prompt if OpenAI is unavailable
         prompts = []
-        
+
         # Add up to 2 suggestion prompts (prioritize required modifiers)
         for suggestion in suggestions[:2]:
             prompts.append(suggestion.get("prompt"))
-            
+
         if prompts:
             return " ".join(prompts)
-        
+
         return ""
-        
+
     def ai_match_item(self, item_name: str) -> Dict[str, Any]:
         """
         Match an item using AI-based matching.
-        
+
         Args:
             item_name: The name or description of the item to match
-            
+
         Returns:
             dict: The match results
         """
-        self.current_conversation.append({"role": "user", "content": f"Find menu item: {item_name}"})
+        self.current_conversation.append(
+            {"role": "user", "content": f"Find menu item: {item_name}"}
+        )
         context = {"conversation": self.current_conversation}
-        
+
         try:
             # Import here to avoid circular imports
             from app.utils.menu_matcher import find_menu_item_ai
-            
-            ai_match = find_menu_item_ai(item_name, check_availability=False, context=context)
+
+            ai_match = find_menu_item_ai(
+                item_name, check_availability=False, context=context
+            )
             if ai_match:
-                logger.info(f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{item_name}'")
+                logger.info(
+                    f"[MENU-TOOL] AI matcher found: {ai_match.get('name')} for '{item_name}'"
+                )
                 return {
                     "found": True,
                     "item": ai_match,
                     "confidence": "high",
-                    "matching_type": "ai_match"
+                    "matching_type": "ai_match",
                 }
         except Exception as e:
             logger.error(f"[MENU-TOOL] Error in AI matching: {str(e)}")
-            
+
         # If AI matching fails, try exact match as fallback
         item = find_menu_item_by_name(item_name)
         if item:
@@ -565,12 +581,12 @@ class SushiMenuTool:
                 "found": True,
                 "item": item,
                 "confidence": "exact",
-                "matching_type": "exact_match"
+                "matching_type": "exact_match",
             }
-            
+
         # No match found
         return {"found": False, "item_name": item_name}
-    
+
     def get_details(self, item_name: str) -> Dict[str, Any]:
         """
         Get details for a specific item.
@@ -583,13 +599,13 @@ class SushiMenuTool:
         """
         # First try direct lookup
         item = find_menu_item_by_name(item_name)
-        
+
         # If direct lookup fails, try AI matching
         if not item:
             match_result = self.ai_match_item(item_name)
             if match_result.get("found"):
                 item = match_result.get("item")
-                
+
         # If we still don't have an item, return not found
         if not item:
             return {"found": False, "item_name": item_name}
@@ -860,7 +876,7 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                 logger.warning(
                                     f"[AGENT-PRICE] Could not find price for '{item['name']}', using 0.0"
                                 )
-                        
+
                         # Process modifiers array, ensuring each modifier has proper fields
                         # First, make sure the modifiers array exists
                         if "modifier" not in item:
@@ -870,90 +886,133 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                             )
                         elif not isinstance(item["modifier"], list):
                             # Fix invalid modifier format
-                            logger.warning(f"[AGENT-VALIDATE] Invalid 'modifier' format for '{item['name']}', fixing it")
+                            logger.warning(
+                                f"[AGENT-VALIDATE] Invalid 'modifier' format for '{item['name']}', fixing it"
+                            )
                             item["modifier"] = []
-                            
+
                         # Process each modifier to ensure proper formatting
                         processed_modifiers = []
                         for mod in item.get("modifier", []):
                             # Skip non-dictionary modifiers
                             if not isinstance(mod, dict):
-                                logger.warning(f"[AGENT-VALIDATE] Invalid modifier format in '{item['name']}', skipping: {mod}")
+                                logger.warning(
+                                    f"[AGENT-VALIDATE] Invalid modifier format in '{item['name']}', skipping: {mod}"
+                                )
                                 continue
-                                
+
                             # Build a properly formatted modifier
                             valid_mod = {}
-                            
+
                             # Ensure name exists
                             if "name" not in mod:
                                 valid_mod["name"] = "Unknown Modifier"
-                                logger.warning(f"[AGENT-VALIDATE] Modifier for '{item['name']}' missing name")
+                                logger.warning(
+                                    f"[AGENT-VALIDATE] Modifier for '{item['name']}' missing name"
+                                )
                             else:
                                 valid_mod["name"] = mod["name"]
-                            
+
                             # Ensure quantity exists
                             valid_mod["quantity"] = mod.get("quantity", 1)
-                            
+
                             # Ensure reference_handler exists
-                            if "reference_handler" not in mod or not mod["reference_handler"]:
+                            if (
+                                "reference_handler" not in mod
+                                or not mod["reference_handler"]
+                            ):
                                 mod_name = valid_mod["name"].lower()
                                 # Determine modifier type based on name
-                                if "cook" in mod_name or "rare" in mod_name or "medium" in mod_name or "well" in mod_name:
+                                if (
+                                    "cook" in mod_name
+                                    or "rare" in mod_name
+                                    or "medium" in mod_name
+                                    or "well" in mod_name
+                                ):
                                     mod_type = "COOK"
-                                elif "side" in mod_name or "fries" in mod_name or "salad" in mod_name:
+                                elif (
+                                    "side" in mod_name
+                                    or "fries" in mod_name
+                                    or "salad" in mod_name
+                                ):
                                     mod_type = "SIDE"
                                 else:
                                     mod_type = "GEN"
-                                valid_mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
-                                logger.info(f"[AGENT-VALIDATE] Created reference_handler '{valid_mod['reference_handler']}' for modifier '{valid_mod['name']}'")
+                                valid_mod["reference_handler"] = (
+                                    f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                                )
+                                logger.info(
+                                    f"[AGENT-VALIDATE] Created reference_handler '{valid_mod['reference_handler']}' for modifier '{valid_mod['name']}'"
+                                )
                             else:
-                                valid_mod["reference_handler"] = mod["reference_handler"]
-                            
+                                valid_mod["reference_handler"] = mod[
+                                    "reference_handler"
+                                ]
+
                             # Ensure price exists
                             valid_mod["price"] = mod.get("price", 0.0)
-                            
+
                             # Add the valid modifier to our processed list
                             processed_modifiers.append(valid_mod)
-                        
+
                         # Replace the original modifiers with our processed ones
                         item["modifier"] = processed_modifiers
-                        
+
                         # Log the modifiers that are being processed
                         if item["modifier"]:
-                            logger.info(f"[AGENT-MODS] Item '{item['name']}' has {len(item['modifier'])} modifiers")
-                            mod_names = [mod.get('name', 'unnamed') for mod in item["modifier"]]
-                            logger.info(f"[AGENT-MODS] Modifier list: {', '.join(mod_names)}")
-                            logger.info(f"[AGENT-MODS-DETAIL] Full modifier data for '{item['name']}': {json.dumps(item['modifier'])}")
-                            
+                            logger.info(
+                                f"[AGENT-MODS] Item '{item['name']}' has {len(item['modifier'])} modifiers"
+                            )
+                            mod_names = [
+                                mod.get("name", "unnamed") for mod in item["modifier"]
+                            ]
+                            logger.info(
+                                f"[AGENT-MODS] Modifier list: {', '.join(mod_names)}"
+                            )
+                            logger.info(
+                                f"[AGENT-MODS-DETAIL] Full modifier data for '{item['name']}': {json.dumps(item['modifier'])}"
+                            )
+
                             # Ensure each modifier has the required fields for Deliverect
                             for mod in item["modifier"]:
                                 if not isinstance(mod, dict):
-                                    logger.warning(f"[AGENT-MODS-FIX] Skipping non-dict modifier")
+                                    logger.warning(
+                                        f"[AGENT-MODS-FIX] Skipping non-dict modifier"
+                                    )
                                     continue
-                                    
+
                                 # Ensure required fields exist
                                 if "name" not in mod:
                                     mod["name"] = "Unknown Modifier"
                                 if "quantity" not in mod:
                                     mod["quantity"] = 1
-                                
+
                                 # Try to get a valid reference_handler if missing
-                                if "reference_handler" not in mod or not mod["reference_handler"]:
+                                if (
+                                    "reference_handler" not in mod
+                                    or not mod["reference_handler"]
+                                ):
                                     mod_name_lower = mod.get("name", "").lower()
                                     # Create a placeholder but distinctive reference handler
-                                    mod["reference_handler"] = f"MOD-{mod_name_lower.replace(' ', '-')}"
-                                    logger.info(f"[AGENT-MODS-FIX] Created reference_handler '{mod['reference_handler']}' for modifier '{mod['name']}'")
-                                    
+                                    mod["reference_handler"] = (
+                                        f"MOD-{mod_name_lower.replace(' ', '-')}"
+                                    )
+                                    logger.info(
+                                        f"[AGENT-MODS-FIX] Created reference_handler '{mod['reference_handler']}' for modifier '{mod['name']}'"
+                                    )
+
                                 # Ensure price is set
                                 if "price" not in mod:
                                     mod["price"] = 0.0
-                        
+
                         # Process each modifier to ensure it has required fields
                         for mod in item["modifier"]:
                             if not isinstance(mod, dict):
-                                logger.warning(f"[AGENT-VALIDATE] Invalid modifier format in '{item['name']}', skipping")
+                                logger.warning(
+                                    f"[AGENT-VALIDATE] Invalid modifier format in '{item['name']}', skipping"
+                                )
                                 continue
-                                
+
                             if "name" not in mod:
                                 mod["name"] = "Unknown Modifier"
                                 logger.warning(
@@ -964,84 +1023,137 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                 logger.info(
                                     f"[AGENT-VALIDATE] Modifier '{mod.get('name')}' missing quantity, defaulting to 1"
                                 )
-                            
+
                             # Try to find modifier information in the menu
                             if "reference_handler" not in mod or "price" not in mod:
                                 # Get menu data for looking up modifier details
                                 menu_data = self.menu_tool.menu_data
-                                
+
                                 # Find the modifier in the menu
                                 found_modifier = None
                                 mod_name_lower = mod.get("name", "").lower()
-                                
+
                                 # Standard valid cooking terms to allow even if not in menu
                                 valid_cooking_terms = [
-                                    "rare", "medium rare", "medium", "medium well", "well done", 
-                                    "cooked rare", "cooked medium", "cooked well done"
+                                    "rare",
+                                    "medium rare",
+                                    "medium",
+                                    "medium well",
+                                    "well done",
+                                    "cooked rare",
+                                    "cooked medium",
+                                    "cooked well done",
                                 ]
-                                
+
                                 # Standard valid side terms to allow even if not in menu
                                 valid_side_terms = [
-                                    "side of fries", "extra fries", "side salad", "no sides",
-                                    "fries on the side", "rice on the side"
+                                    "side of fries",
+                                    "extra fries",
+                                    "side salad",
+                                    "no sides",
+                                    "fries on the side",
+                                    "rice on the side",
                                 ]
-                                
+
                                 # First try exact match
                                 for menu_mod in menu_data.get("modifiers", []):
                                     menu_mod_name = menu_mod.get("name", "").lower()
                                     if menu_mod_name == mod_name_lower:
                                         found_modifier = menu_mod
                                         break
-                                        
+
                                 # If not found, try fuzzy matching
                                 if not found_modifier:
                                     for menu_mod in menu_data.get("modifiers", []):
                                         menu_mod_name = menu_mod.get("name", "").lower()
                                         # Try fuzzy matching for modifiers
-                                        if (menu_mod_name in mod_name_lower or 
-                                            mod_name_lower in menu_mod_name):
+                                        if (
+                                            menu_mod_name in mod_name_lower
+                                            or mod_name_lower in menu_mod_name
+                                        ):
                                             found_modifier = menu_mod
-                                            logger.info(f"[AGENT-VALIDATE] Found fuzzy match for modifier: {mod.get('name')} → {menu_mod.get('name')}")
+                                            logger.info(
+                                                f"[AGENT-VALIDATE] Found fuzzy match for modifier: {mod.get('name')} → {menu_mod.get('name')}"
+                                            )
                                             break
-                                
+
                                 # If still not found, check against standard common modifiers
                                 if not found_modifier:
                                     is_valid_standard_mod = False
-                                    
+
                                     # Check against cooking preference terms
-                                    if any(term in mod_name_lower for term in valid_cooking_terms) or any(mod_name_lower in term for term in valid_cooking_terms):
-                                        mod["reference_handler"] = f"COOK-{hash(mod_name_lower) % 100:02d}"
+                                    if any(
+                                        term in mod_name_lower
+                                        for term in valid_cooking_terms
+                                    ) or any(
+                                        mod_name_lower in term
+                                        for term in valid_cooking_terms
+                                    ):
+                                        mod["reference_handler"] = (
+                                            f"COOK-{hash(mod_name_lower) % 100:02d}"
+                                        )
                                         mod["price"] = 0.0
-                                        logger.info(f"[AGENT-VALIDATE] Recognized standard cooking modifier: {mod.get('name')}")
+                                        logger.info(
+                                            f"[AGENT-VALIDATE] Recognized standard cooking modifier: {mod.get('name')}"
+                                        )
                                         is_valid_standard_mod = True
-                                    
+
                                     # Check against side dish terms
-                                    elif any(term in mod_name_lower for term in valid_side_terms) or any(mod_name_lower in term for term in valid_side_terms):
-                                        mod["reference_handler"] = f"SIDE-{hash(mod_name_lower) % 100:02d}"
+                                    elif any(
+                                        term in mod_name_lower
+                                        for term in valid_side_terms
+                                    ) or any(
+                                        mod_name_lower in term
+                                        for term in valid_side_terms
+                                    ):
+                                        mod["reference_handler"] = (
+                                            f"SIDE-{hash(mod_name_lower) % 100:02d}"
+                                        )
                                         mod["price"] = 0.0
-                                        logger.info(f"[AGENT-VALIDATE] Recognized standard side modifier: {mod.get('name')}")
+                                        logger.info(
+                                            f"[AGENT-VALIDATE] Recognized standard side modifier: {mod.get('name')}"
+                                        )
                                         is_valid_standard_mod = True
-                                    
+
                                     # Check for other common terms
-                                    elif any(common_term in mod_name_lower for common_term in ["spicy", "sauce", "dressing", "no ice", "extra"]):
-                                        mod["reference_handler"] = f"MOD-{hash(mod_name_lower) % 100:02d}"
+                                    elif any(
+                                        common_term in mod_name_lower
+                                        for common_term in [
+                                            "spicy",
+                                            "sauce",
+                                            "dressing",
+                                            "no ice",
+                                            "extra",
+                                        ]
+                                    ):
+                                        mod["reference_handler"] = (
+                                            f"MOD-{hash(mod_name_lower) % 100:02d}"
+                                        )
                                         mod["price"] = 0.0
-                                        logger.info(f"[AGENT-VALIDATE] Recognized common modifier type: {mod.get('name')}")
+                                        logger.info(
+                                            f"[AGENT-VALIDATE] Recognized common modifier type: {mod.get('name')}"
+                                        )
                                         is_valid_standard_mod = True
-                                    
+
                                     # If not a recognized standard modifier, mark for validation at the order level
                                     if not is_valid_standard_mod:
                                         mod["requires_validation"] = True
                                         # Set temporary reference handler
                                         if "reference_handler" not in mod:
-                                            mod["reference_handler"] = f"TEMP-{mod_name_lower.replace(' ', '-')}"
+                                            mod["reference_handler"] = (
+                                                f"TEMP-{mod_name_lower.replace(' ', '-')}"
+                                            )
                                         if "price" not in mod:
                                             mod["price"] = 0.0
-                                        logger.warning(f"[AGENT-VALIDATE] Unrecognized modifier '{mod.get('name')}', marking for validation")
-                                
+                                        logger.warning(
+                                            f"[AGENT-VALIDATE] Unrecognized modifier '{mod.get('name')}', marking for validation"
+                                        )
+
                                 if found_modifier:
                                     # Set reference handler and price from menu
-                                    mod["reference_handler"] = found_modifier.get("reference_handler", "")
+                                    mod["reference_handler"] = found_modifier.get(
+                                        "reference_handler", ""
+                                    )
                                     mod["price"] = found_modifier.get("price", 0.0)
                                     logger.info(
                                         f"[AGENT-VALIDATE] Found menu data for modifier '{mod.get('name')}'"
@@ -1264,18 +1376,22 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                         logger.warning(
                             "[AGENT-VALIDATE] Missing 'modifications' key in modifications, adding empty list"
                         )
-                        
+
                     # Process and validate all modifications to ensure modifiers are properly formatted
                     for modification in modifications.get("modifications", []):
                         if "item_name" not in modification:
-                            logger.warning("[AGENT-VALIDATE] Modification missing 'item_name', skipping")
+                            logger.warning(
+                                "[AGENT-VALIDATE] Modification missing 'item_name', skipping"
+                            )
                             continue
-                            
+
                         # Ensure the modifier field exists and is a list
                         if "modifier" not in modification:
                             modification["modifier"] = []
-                            logger.warning(f"[AGENT-VALIDATE] Missing 'modifier' in modification for {modification.get('item_name')}")
-                        
+                            logger.warning(
+                                f"[AGENT-VALIDATE] Missing 'modifier' in modification for {modification.get('item_name')}"
+                            )
+
                         # Process each modifier to ensure it's a proper dictionary
                         processed_modifiers = []
                         for mod in modification.get("modifier", []):
@@ -1283,22 +1399,33 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                             if isinstance(mod, str):
                                 # Create properly formatted modifier object
                                 mod_name = mod.strip()
-                                
+
                                 # Determine modifier type
-                                if "cook" in mod_name.lower() or "rare" in mod_name.lower() or "medium" in mod_name.lower() or "well" in mod_name.lower():
+                                if (
+                                    "cook" in mod_name.lower()
+                                    or "rare" in mod_name.lower()
+                                    or "medium" in mod_name.lower()
+                                    or "well" in mod_name.lower()
+                                ):
                                     mod_type = "COOK"
-                                elif "side" in mod_name.lower() or "fries" in mod_name.lower() or "salad" in mod_name.lower():
+                                elif (
+                                    "side" in mod_name.lower()
+                                    or "fries" in mod_name.lower()
+                                    or "salad" in mod_name.lower()
+                                ):
                                     mod_type = "SIDE"
                                 else:
                                     mod_type = "GEN"
-                                    
+
                                 mod_obj = {
                                     "name": mod_name.capitalize(),
                                     "quantity": 1,
                                     "price": 0.0,
-                                    "reference_handler": f"MOD-{mod_type}-{mod_name.lower().replace(' ', '-')}"
+                                    "reference_handler": f"MOD-{mod_type}-{mod_name.lower().replace(' ', '-')}",
                                 }
-                                logger.info(f"[AGENT-VALIDATE] Converted string modifier '{mod}' to object for {modification.get('item_name')}")
+                                logger.info(
+                                    f"[AGENT-VALIDATE] Converted string modifier '{mod}' to object for {modification.get('item_name')}"
+                                )
                                 processed_modifiers.append(mod_obj)
                             # Ensure dictionary modifiers have all required fields
                             elif isinstance(mod, dict):
@@ -1311,20 +1438,35 @@ if AGENT_API_AVAILABLE and OPENAI_API_KEY:
                                 if "reference_handler" not in mod:
                                     mod_name = mod.get("name", "").lower()
                                     # Determine modifier type by name
-                                    if "cook" in mod_name or "rare" in mod_name or "medium" in mod_name or "well" in mod_name:
+                                    if (
+                                        "cook" in mod_name
+                                        or "rare" in mod_name
+                                        or "medium" in mod_name
+                                        or "well" in mod_name
+                                    ):
                                         mod_type = "COOK"
-                                    elif "side" in mod_name or "fries" in mod_name or "salad" in mod_name:
+                                    elif (
+                                        "side" in mod_name
+                                        or "fries" in mod_name
+                                        or "salad" in mod_name
+                                    ):
                                         mod_type = "SIDE"
                                     else:
                                         mod_type = "GEN"
-                                    mod["reference_handler"] = f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                                    mod["reference_handler"] = (
+                                        f"MOD-{mod_type}-{mod_name.replace(' ', '-')}"
+                                    )
                                 processed_modifiers.append(mod)
                             else:
-                                logger.warning(f"[AGENT-VALIDATE] Invalid modifier format in modification for {modification.get('item_name')}: {mod}")
-                        
+                                logger.warning(
+                                    f"[AGENT-VALIDATE] Invalid modifier format in modification for {modification.get('item_name')}: {mod}"
+                                )
+
                         # Replace the modifiers with the processed ones
                         modification["modifier"] = processed_modifiers
-                        logger.info(f"[AGENT-VALIDATE] Processed {len(processed_modifiers)} modifiers for {modification.get('item_name')}")
+                        logger.info(
+                            f"[AGENT-VALIDATE] Processed {len(processed_modifiers)} modifiers for {modification.get('item_name')}"
+                        )
 
                     # Verify additions have required fields
                     for item in modifications["additions"]:
@@ -1569,11 +1711,11 @@ else:
                         "No OpenAI API key available - using simple keyword matching"
                     )
                     items = self.menu_tool.menu_data.get("items", [])
-                    
+
                     # Simple keyword matching
                     order_lower = order_text.lower()
                     potential_items = []
-                    
+
                     # Skip name variants - AI agent will handle matching
 
                     # Check direct matches with item names
@@ -1602,7 +1744,7 @@ else:
                     else:
                         item_name = item_data
                         item_quantity = 1
-                        
+
                     # Search menu for this item
                     logger.info(
                         f"[ORDER-VERIFY-PASS1] Verifying item: '{item_name}' using search_menu"
@@ -1613,50 +1755,78 @@ else:
                             logger.info(
                                 f"[ORDER-VERIFY-PASS1-SUCCESS] Found '{item_name}' as '{menu_item.get('name')}' (${menu_item.get('price', 0.0)})"
                             )
-                            
+
                             # Keep the modifiers from the original item data
                             modifiers = []
-                            if isinstance(item_data, dict) and item_data.get("modifier"):
+                            if isinstance(item_data, dict) and item_data.get(
+                                "modifier"
+                            ):
                                 # Process each modifier to ensure it has proper structure
                                 for mod in item_data.get("modifier", []):
                                     if not isinstance(mod, dict):
                                         continue
-                                        
+
                                     # Create a properly formatted modifier
                                     valid_mod = {
                                         "name": mod.get("name", "Unknown Modifier"),
                                         "quantity": mod.get("quantity", 1),
-                                        "price": mod.get("price", 0.0)
+                                        "price": mod.get("price", 0.0),
                                     }
-                                    
+
                                     # Add reference_handler if missing
-                                    if "reference_handler" not in mod or not mod.get("reference_handler"):
+                                    if "reference_handler" not in mod or not mod.get(
+                                        "reference_handler"
+                                    ):
                                         mod_name = valid_mod["name"].lower()
                                         # Use proper Deliverect PLU format based on modifier type
                                         mod_lower = mod_name.lower()
                                         # Create PLUs in proper Deliverect format
-                                        if any(cooking_term in mod_lower for cooking_term in ["cook", "rare", "medium", "well", "done"]):
+                                        if any(
+                                            cooking_term in mod_lower
+                                            for cooking_term in [
+                                                "cook",
+                                                "rare",
+                                                "medium",
+                                                "well",
+                                                "done",
+                                            ]
+                                        ):
                                             # Cooking preference - COOK-XX format
                                             mod_ref = f"COOK-{len(valid_mod['name']) % 100:02d}"
-                                        elif any(side_term in mod_lower for side_term in ["side", "extra", "add", "fries", "salad"]):
+                                        elif any(
+                                            side_term in mod_lower
+                                            for side_term in [
+                                                "side",
+                                                "extra",
+                                                "add",
+                                                "fries",
+                                                "salad",
+                                            ]
+                                        ):
                                             # Side dish - SIDE-XX format
                                             mod_ref = f"SIDE-{len(valid_mod['name']) % 100:02d}"
                                         else:
                                             # General modifier - MOD-XX format
                                             mod_ref = f"MOD-{len(valid_mod['name']) % 100:02d}"
-                                            
+
                                         valid_mod["reference_handler"] = mod_ref
                                     else:
-                                        valid_mod["reference_handler"] = mod.get("reference_handler")
-                                        
+                                        valid_mod["reference_handler"] = mod.get(
+                                            "reference_handler"
+                                        )
+
                                     modifiers.append(valid_mod)
-                                    
+
                                 # Log the modifiers we're keeping
                                 if modifiers:
-                                    logger.info(f"[ORDER-VERIFY-MOD] Keeping {len(modifiers)} modifiers for item '{item_name}'")
+                                    logger.info(
+                                        f"[ORDER-VERIFY-MOD] Keeping {len(modifiers)} modifiers for item '{item_name}'"
+                                    )
                                     mod_names = [mod.get("name") for mod in modifiers]
-                                    logger.info(f"[ORDER-VERIFY-MOD] Modifier list: {', '.join(mod_names)}")
-                            
+                                    logger.info(
+                                        f"[ORDER-VERIFY-MOD] Modifier list: {', '.join(mod_names)}"
+                                    )
+
                             verified_items.append(
                                 {
                                     "name": menu_item.get("name"),
@@ -1693,48 +1863,73 @@ else:
                             # Get original item data to retrieve modifiers, if available
                             original_item_data = None
                             for orig_item in potential_items:
-                                if isinstance(orig_item, dict) and orig_item.get("name", "").lower() == item_name.lower():
+                                if (
+                                    isinstance(orig_item, dict)
+                                    and orig_item.get("name", "").lower()
+                                    == item_name.lower()
+                                ):
                                     original_item_data = orig_item
                                     break
-                            
+
                             # Process modifiers from original item data, if any
                             modifiers = []
-                            if original_item_data and isinstance(original_item_data, dict) and original_item_data.get("modifier"):
+                            if (
+                                original_item_data
+                                and isinstance(original_item_data, dict)
+                                and original_item_data.get("modifier")
+                            ):
                                 # Process each modifier to ensure it has proper structure
                                 for mod in original_item_data.get("modifier", []):
                                     if not isinstance(mod, dict):
                                         continue
-                                        
+
                                     # Create a properly formatted modifier
                                     valid_mod = {
                                         "name": mod.get("name", "Unknown Modifier"),
                                         "quantity": mod.get("quantity", 1),
-                                        "price": mod.get("price", 0.0)
+                                        "price": mod.get("price", 0.0),
                                     }
-                                    
+
                                     # Add reference_handler if missing
-                                    if "reference_handler" not in mod or not mod.get("reference_handler"):
+                                    if "reference_handler" not in mod or not mod.get(
+                                        "reference_handler"
+                                    ):
                                         mod_name = valid_mod["name"].lower()
                                         # Determine modifier type based on modifier name
-                                        if "cook" in mod_name or "rare" in mod_name or "medium" in mod_name or "well" in mod_name:
+                                        if (
+                                            "cook" in mod_name
+                                            or "rare" in mod_name
+                                            or "medium" in mod_name
+                                            or "well" in mod_name
+                                        ):
                                             mod_type = "COOK"
-                                        elif "side" in mod_name or "fries" in mod_name or "salad" in mod_name:
+                                        elif (
+                                            "side" in mod_name
+                                            or "fries" in mod_name
+                                            or "salad" in mod_name
+                                        ):
                                             mod_type = "SIDE"
                                         else:
                                             mod_type = "GEN"
-                                            
+
                                         valid_mod["reference_handler"] = mod_ref
                                     else:
-                                        valid_mod["reference_handler"] = mod.get("reference_handler")
-                                        
+                                        valid_mod["reference_handler"] = mod.get(
+                                            "reference_handler"
+                                        )
+
                                     modifiers.append(valid_mod)
-                                    
+
                                 # Log the modifiers we're keeping
                                 if modifiers:
-                                    logger.info(f"[ORDER-VERIFY-PASS2-MOD] Keeping {len(modifiers)} modifiers for item '{item_name}'")
+                                    logger.info(
+                                        f"[ORDER-VERIFY-PASS2-MOD] Keeping {len(modifiers)} modifiers for item '{item_name}'"
+                                    )
                                     mod_names = [mod.get("name") for mod in modifiers]
-                                    logger.info(f"[ORDER-VERIFY-PASS2-MOD] Modifier list: {', '.join(mod_names)}")
-                            
+                                    logger.info(
+                                        f"[ORDER-VERIFY-PASS2-MOD] Modifier list: {', '.join(mod_names)}"
+                                    )
+
                             verified_items.append(
                                 {
                                     "name": menu_item.get("name"),
@@ -1757,22 +1952,28 @@ else:
                         logger.info(
                             f"[ORDER-VERIFY-PASS3] Starting third pass verification with AI fuzzy matching for {len(still_unverified)} items"
                         )
-                        
+
                         # Import menu_matcher for AI-powered fuzzy matching
                         try:
                             from app.utils.menu_matcher import find_menu_item_ai
-                            
+
                             for item_name in still_unverified:
                                 logger.info(
                                     f"[ORDER-VERIFY-PASS3] Using AI matcher for item: '{item_name}'"
                                 )
-                                
+
                                 # Create context with the original order text for better matching
-                                context = {"conversation": [{"role": "user", "content": order_text}]}
-                                
+                                context = {
+                                    "conversation": [
+                                        {"role": "user", "content": order_text}
+                                    ]
+                                }
+
                                 # Use the AI-powered menu matcher
-                                ai_match = find_menu_item_ai(item_name, check_availability=False, context=context)
-                                
+                                ai_match = find_menu_item_ai(
+                                    item_name, check_availability=False, context=context
+                                )
+
                                 if ai_match:
                                     logger.info(
                                         f"[ORDER-VERIFY-PASS3-SUCCESS] AI matcher found '{item_name}' as '{ai_match.get('name')}' (${ai_match.get('price', 0.0)})"
@@ -1780,53 +1981,93 @@ else:
                                     # Get original item data to retrieve modifiers, if available
                                     original_item_data = None
                                     for orig_item in potential_items:
-                                        if isinstance(orig_item, dict) and orig_item.get("name", "").lower() == item_name.lower():
+                                        if (
+                                            isinstance(orig_item, dict)
+                                            and orig_item.get("name", "").lower()
+                                            == item_name.lower()
+                                        ):
                                             original_item_data = orig_item
                                             break
-                                    
+
                                     # Process modifiers from original item data, if any
                                     modifiers = []
-                                    if original_item_data and isinstance(original_item_data, dict) and original_item_data.get("modifier"):
+                                    if (
+                                        original_item_data
+                                        and isinstance(original_item_data, dict)
+                                        and original_item_data.get("modifier")
+                                    ):
                                         # Process each modifier to ensure it has proper structure
-                                        for mod in original_item_data.get("modifier", []):
+                                        for mod in original_item_data.get(
+                                            "modifier", []
+                                        ):
                                             if not isinstance(mod, dict):
                                                 continue
-                                                
+
                                             # Create a properly formatted modifier
                                             valid_mod = {
-                                                "name": mod.get("name", "Unknown Modifier"),
+                                                "name": mod.get(
+                                                    "name", "Unknown Modifier"
+                                                ),
                                                 "quantity": mod.get("quantity", 1),
-                                                "price": mod.get("price", 0.0)
+                                                "price": mod.get("price", 0.0),
                                             }
-                                            
+
                                             # Add reference_handler if missing
-                                            if "reference_handler" not in mod or not mod.get("reference_handler"):
+                                            if (
+                                                "reference_handler" not in mod
+                                                or not mod.get("reference_handler")
+                                            ):
                                                 mod_name = valid_mod["name"].lower()
                                                 # Determine modifier type based on name content, not hardcoded values
-                                                if any(cooking_term in mod_name for cooking_term in ["cook", "rare", "medium", "well"]):
+                                                if any(
+                                                    cooking_term in mod_name
+                                                    for cooking_term in [
+                                                        "cook",
+                                                        "rare",
+                                                        "medium",
+                                                        "well",
+                                                    ]
+                                                ):
                                                     mod_type = "COOK"
-                                                elif any(side_term in mod_name for side_term in ["side", "extra", "add"]):
+                                                elif any(
+                                                    side_term in mod_name
+                                                    for side_term in [
+                                                        "side",
+                                                        "extra",
+                                                        "add",
+                                                    ]
+                                                ):
                                                     mod_type = "SIDE"
                                                 else:
                                                     mod_type = "GEN"
-                                                    
+
                                                 valid_mod["reference_handler"] = mod_ref
                                             else:
-                                                valid_mod["reference_handler"] = mod.get("reference_handler")
-                                                
+                                                valid_mod["reference_handler"] = (
+                                                    mod.get("reference_handler")
+                                                )
+
                                             modifiers.append(valid_mod)
-                                            
+
                                         # Log the modifiers we're keeping
                                         if modifiers:
-                                            logger.info(f"[ORDER-VERIFY-PASS3-MOD] Keeping {len(modifiers)} modifiers for item '{item_name}'")
-                                            mod_names = [mod.get("name") for mod in modifiers]
-                                            logger.info(f"[ORDER-VERIFY-PASS3-MOD] Modifier list: {', '.join(mod_names)}")
-                                    
+                                            logger.info(
+                                                f"[ORDER-VERIFY-PASS3-MOD] Keeping {len(modifiers)} modifiers for item '{item_name}'"
+                                            )
+                                            mod_names = [
+                                                mod.get("name") for mod in modifiers
+                                            ]
+                                            logger.info(
+                                                f"[ORDER-VERIFY-PASS3-MOD] Modifier list: {', '.join(mod_names)}"
+                                            )
+
                                     verified_items.append(
                                         {
                                             "name": ai_match.get("name"),
                                             "price": ai_match.get("price", 0.0),
-                                            "reference_handler": ai_match.get("reference_handler", ""),
+                                            "reference_handler": ai_match.get(
+                                                "reference_handler", ""
+                                            ),
                                             "quantity": 1,
                                             "modifier": modifiers,  # Use modifiers from original item if available
                                         }
@@ -1835,68 +2076,95 @@ else:
                                     logger.warning(
                                         f"[ORDER-VERIFY-PASS3-FAIL] AI matcher could not find a match for '{item_name}'"
                                     )
-                                    
+
                                     # Fallback to simple fuzzy matching if AI matching fails
                                     logger.info(
                                         f"[ORDER-VERIFY-PASS3-FALLBACK] Trying simple fuzzy matching for '{item_name}'"
                                     )
-                                    
+
                                     # Get the menu items for fallback matching
-                                    menu_items = self.menu_tool.menu_data.get("items", [])
+                                    menu_items = self.menu_tool.menu_data.get(
+                                        "items", []
+                                    )
                                     found = False
-                                    
+
                                     # Skip category items when matching
-                                    menu_items = [item for item in menu_items if not item.get("is_category", False)]
-                                    
+                                    menu_items = [
+                                        item
+                                        for item in menu_items
+                                        if not item.get("is_category", False)
+                                    ]
+
                                     # Advanced fuzzy matching
                                     item_lower = item_name.lower()
                                     best_match = None
                                     best_match_score = 0
-                                    
+
                                     # Remove spaces for normalized comparison
                                     item_normalized = item_lower.replace(" ", "")
-                                    
+
                                     for menu_item in menu_items:
                                         # Skip category items (already filtered above, just for safety)
                                         if menu_item.get("is_category", False):
                                             continue
-                                            
-                                        menu_item_name = menu_item.get("name", "").lower()
-                                        
+
+                                        menu_item_name = menu_item.get(
+                                            "name", ""
+                                        ).lower()
+
                                         # Method 1: Check partial containment in either direction
                                         if menu_item_name and (
-                                            item_lower in menu_item_name or 
-                                            menu_item_name in item_lower
+                                            item_lower in menu_item_name
+                                            or menu_item_name in item_lower
                                         ):
                                             # Calculate a simple match score (longer matches are better)
-                                            match_length = min(len(item_lower), len(menu_item_name))
+                                            match_length = min(
+                                                len(item_lower), len(menu_item_name)
+                                            )
                                             if match_length > best_match_score:
                                                 best_match = menu_item
                                                 best_match_score = match_length
-                                                logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found substring match: '{item_name}' ↔ '{menu_item.get('name')}'")
-                                        
+                                                logger.info(
+                                                    f"[ORDER-VERIFY-PASS3-FALLBACK] Found substring match: '{item_name}' ↔ '{menu_item.get('name')}'"
+                                                )
+
                                         # Method 2: Compare without spaces (e.g., "Ham Burger" vs "Hamburger")
-                                        menu_item_normalized = menu_item_name.replace(" ", "")
+                                        menu_item_normalized = menu_item_name.replace(
+                                            " ", ""
+                                        )
                                         if item_normalized == menu_item_normalized:
                                             # Space-normalized matches are very strong
                                             best_match = menu_item
                                             best_match_score = 1000  # Give it a high score to prioritize this match
-                                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found normalized match (removed spaces): '{item_name}' ↔ '{menu_item.get('name')}'")
+                                            logger.info(
+                                                f"[ORDER-VERIFY-PASS3-FALLBACK] Found normalized match (removed spaces): '{item_name}' ↔ '{menu_item.get('name')}'"
+                                            )
                                             break  # This is a very confident match, can stop here
-                                        
+
                                         # Method 3: Check if terms appear in both strings regardless of order
                                         item_terms = item_lower.split()
                                         menu_item_terms = menu_item_name.split()
-                                        
-                                        common_terms = set(item_terms).intersection(set(menu_item_terms))
+
+                                        common_terms = set(item_terms).intersection(
+                                            set(menu_item_terms)
+                                        )
                                         if common_terms:
                                             # Calculate a score based on how many terms match
-                                            term_score = len(common_terms) / max(len(item_terms), len(menu_item_terms)) * 100
+                                            term_score = (
+                                                len(common_terms)
+                                                / max(
+                                                    len(item_terms),
+                                                    len(menu_item_terms),
+                                                )
+                                                * 100
+                                            )
                                             if term_score > best_match_score:
                                                 best_match = menu_item
                                                 best_match_score = term_score
-                                                logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found term match: '{item_name}' ↔ '{menu_item.get('name')}' (score: {term_score:.1f})")
-                                    
+                                                logger.info(
+                                                    f"[ORDER-VERIFY-PASS3-FALLBACK] Found term match: '{item_name}' ↔ '{menu_item.get('name')}' (score: {term_score:.1f})"
+                                                )
+
                                     if best_match:
                                         logger.info(
                                             f"[ORDER-VERIFY-PASS3-FALLBACK-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})"
@@ -1905,79 +2173,107 @@ else:
                                             {
                                                 "name": best_match.get("name"),
                                                 "price": best_match.get("price", 0.0),
-                                                "reference_handler": best_match.get("reference_handler", ""),
+                                                "reference_handler": best_match.get(
+                                                    "reference_handler", ""
+                                                ),
                                                 "quantity": 1,
                                                 "modifier": [],
                                             }
                                         )
                                         found = True
-                                    
+
                                     if not found:
                                         logger.error(
                                             f"[ORDER-VERIFY-FAIL] Failed to verify item '{item_name}' after all verification passes"
                                         )
-                                        
+
                         except Exception as e:
-                            logger.error(f"[ORDER-VERIFY-PASS3-ERROR] Error in AI matching: {str(e)}")
-                            logger.error(f"[ORDER-VERIFY-PASS3-TRACEBACK] {traceback.format_exc()}")
-                            
+                            logger.error(
+                                f"[ORDER-VERIFY-PASS3-ERROR] Error in AI matching: {str(e)}"
+                            )
+                            logger.error(
+                                f"[ORDER-VERIFY-PASS3-TRACEBACK] {traceback.format_exc()}"
+                            )
+
                             # Fallback to simple keyword matching without AI
-                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Falling back to simple matching for {len(still_unverified)} items")
-                            
+                            logger.info(
+                                f"[ORDER-VERIFY-PASS3-FALLBACK] Falling back to simple matching for {len(still_unverified)} items"
+                            )
+
                             # Get the menu items
                             menu_items = self.menu_tool.menu_data.get("items", [])
-                            
+
                             # Skip category items
-                            menu_items = [item for item in menu_items if not item.get("is_category", False)]
-                            
+                            menu_items = [
+                                item
+                                for item in menu_items
+                                if not item.get("is_category", False)
+                            ]
+
                             for item_name in still_unverified:
                                 item_lower = item_name.lower()
                                 found = False
-                                
+
                                 # Advanced fuzzy matching
                                 best_match = None
                                 best_match_score = 0
-                                
+
                                 # Remove spaces for normalized comparison
                                 item_normalized = item_lower.replace(" ", "")
-                                
+
                                 for menu_item in menu_items:
                                     menu_item_name = menu_item.get("name", "").lower()
-                                    
+
                                     # Method 1: Check partial containment in either direction
                                     if menu_item_name and (
-                                        item_lower in menu_item_name or 
-                                        menu_item_name in item_lower
+                                        item_lower in menu_item_name
+                                        or menu_item_name in item_lower
                                     ):
                                         # Calculate a simple match score (longer matches are better)
-                                        match_length = min(len(item_lower), len(menu_item_name))
+                                        match_length = min(
+                                            len(item_lower), len(menu_item_name)
+                                        )
                                         if match_length > best_match_score:
                                             best_match = menu_item
                                             best_match_score = match_length
-                                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found substring match: '{item_name}' ↔ '{menu_item.get('name')}'")
-                                    
+                                            logger.info(
+                                                f"[ORDER-VERIFY-PASS3-FALLBACK] Found substring match: '{item_name}' ↔ '{menu_item.get('name')}'"
+                                            )
+
                                     # Method 2: Compare without spaces (e.g., "Ham Burger" vs "Hamburger")
-                                    menu_item_normalized = menu_item_name.replace(" ", "")
+                                    menu_item_normalized = menu_item_name.replace(
+                                        " ", ""
+                                    )
                                     if item_normalized == menu_item_normalized:
                                         # Space-normalized matches are very strong
                                         best_match = menu_item
                                         best_match_score = 1000  # Give it a high score to prioritize this match
-                                        logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found normalized match (removed spaces): '{item_name}' ↔ '{menu_item.get('name')}'")
+                                        logger.info(
+                                            f"[ORDER-VERIFY-PASS3-FALLBACK] Found normalized match (removed spaces): '{item_name}' ↔ '{menu_item.get('name')}'"
+                                        )
                                         break  # This is a very confident match, can stop here
-                                    
+
                                     # Method 3: Check if terms appear in both strings regardless of order
                                     item_terms = item_lower.split()
                                     menu_item_terms = menu_item_name.split()
-                                    
-                                    common_terms = set(item_terms).intersection(set(menu_item_terms))
+
+                                    common_terms = set(item_terms).intersection(
+                                        set(menu_item_terms)
+                                    )
                                     if common_terms:
                                         # Calculate a score based on how many terms match
-                                        term_score = len(common_terms) / max(len(item_terms), len(menu_item_terms)) * 100
+                                        term_score = (
+                                            len(common_terms)
+                                            / max(len(item_terms), len(menu_item_terms))
+                                            * 100
+                                        )
                                         if term_score > best_match_score:
                                             best_match = menu_item
                                             best_match_score = term_score
-                                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK] Found term match: '{item_name}' ↔ '{menu_item.get('name')}' (score: {term_score:.1f})")
-                                
+                                            logger.info(
+                                                f"[ORDER-VERIFY-PASS3-FALLBACK] Found term match: '{item_name}' ↔ '{menu_item.get('name')}' (score: {term_score:.1f})"
+                                            )
+
                                 if best_match:
                                     logger.info(
                                         f"[ORDER-VERIFY-PASS3-FALLBACK-SUCCESS] Direct fuzzy match found '{item_name}' as '{best_match.get('name')}' (${best_match.get('price', 0.0)})"
@@ -1985,60 +2281,101 @@ else:
                                     # Get original item data to retrieve modifiers, if available
                                     original_item_data = None
                                     for orig_item in potential_items:
-                                        if isinstance(orig_item, dict) and orig_item.get("name", "").lower() == item_name.lower():
+                                        if (
+                                            isinstance(orig_item, dict)
+                                            and orig_item.get("name", "").lower()
+                                            == item_name.lower()
+                                        ):
                                             original_item_data = orig_item
                                             break
-                                    
+
                                     # Process modifiers from original item data, if any
                                     modifiers = []
-                                    if original_item_data and isinstance(original_item_data, dict) and original_item_data.get("modifier"):
+                                    if (
+                                        original_item_data
+                                        and isinstance(original_item_data, dict)
+                                        and original_item_data.get("modifier")
+                                    ):
                                         # Process each modifier to ensure it has proper structure
-                                        for mod in original_item_data.get("modifier", []):
+                                        for mod in original_item_data.get(
+                                            "modifier", []
+                                        ):
                                             if not isinstance(mod, dict):
                                                 continue
-                                                
+
                                             # Create a properly formatted modifier
                                             valid_mod = {
-                                                "name": mod.get("name", "Unknown Modifier"),
+                                                "name": mod.get(
+                                                    "name", "Unknown Modifier"
+                                                ),
                                                 "quantity": mod.get("quantity", 1),
-                                                "price": mod.get("price", 0.0)
+                                                "price": mod.get("price", 0.0),
                                             }
-                                            
+
                                             # Add reference_handler if missing
-                                            if "reference_handler" not in mod or not mod.get("reference_handler"):
+                                            if (
+                                                "reference_handler" not in mod
+                                                or not mod.get("reference_handler")
+                                            ):
                                                 mod_name = valid_mod["name"].lower()
                                                 # Dynamically determine modifier type by matching keywords in the name
                                                 mod_lower = mod_name.lower()
-                                                if any(cooking_term in mod_lower for cooking_term in ["cook", "rare", "medium", "well"]):
+                                                if any(
+                                                    cooking_term in mod_lower
+                                                    for cooking_term in [
+                                                        "cook",
+                                                        "rare",
+                                                        "medium",
+                                                        "well",
+                                                    ]
+                                                ):
                                                     mod_type = "COOK"
-                                                elif any(side_term in mod_lower for side_term in ["side", "fries", "salad", "extra"]):
+                                                elif any(
+                                                    side_term in mod_lower
+                                                    for side_term in [
+                                                        "side",
+                                                        "fries",
+                                                        "salad",
+                                                        "extra",
+                                                    ]
+                                                ):
                                                     mod_type = "SIDE"
                                                 else:
                                                     mod_type = "GEN"
-                                                    
+
                                                 valid_mod["reference_handler"] = mod_ref
                                             else:
-                                                valid_mod["reference_handler"] = mod.get("reference_handler")
-                                                
+                                                valid_mod["reference_handler"] = (
+                                                    mod.get("reference_handler")
+                                                )
+
                                             modifiers.append(valid_mod)
-                                            
+
                                         # Log the modifiers we're keeping
                                         if modifiers:
-                                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK-MOD] Keeping {len(modifiers)} modifiers for item '{item_name}'")
-                                            mod_names = [mod.get("name") for mod in modifiers]
-                                            logger.info(f"[ORDER-VERIFY-PASS3-FALLBACK-MOD] Modifier list: {', '.join(mod_names)}")
-                                    
+                                            logger.info(
+                                                f"[ORDER-VERIFY-PASS3-FALLBACK-MOD] Keeping {len(modifiers)} modifiers for item '{item_name}'"
+                                            )
+                                            mod_names = [
+                                                mod.get("name") for mod in modifiers
+                                            ]
+                                            logger.info(
+                                                f"[ORDER-VERIFY-PASS3-FALLBACK-MOD] Modifier list: {', '.join(mod_names)}"
+                                            )
+
                                     verified_items.append(
                                         {
                                             "name": best_match.get("name"),
                                             "price": best_match.get("price", 0.0),
-                                            "reference_handler": best_match.get("reference_handler", ""),
+                                            "reference_handler": best_match.get(
+                                                "reference_handler", ""
+                                            ),
                                             "quantity": 1,
                                             "modifier": modifiers,  # Use modifiers from original item if available
                                         }
                                     )
                                     found = True
-                                
+
                                 if not found:
                                     logger.error(
                                         f"[ORDER-VERIFY-FAIL] Failed to verify item '{item_name}' after all verification passes"
@@ -2228,12 +2565,12 @@ Return JSON with:
 def analyze_user_input(input_text: str) -> Dict[str, Any]:
     """
     Analyze user input to determine intent and extract order items.
-    
+
     Detects three main intents:
     - order_food: Customer wants to place an order
     - ask_menu: Customer is asking about menu items
     - other: Other types of queries
-    
+
     Args:
         input_text: The user's input text
 
@@ -2243,15 +2580,15 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
     # First, determine if this is a menu question using OpenAI if available
     intent = "other"
     menu_items = []
-    
+
     try:
         if OPENAI_API_KEY:
             # Prepare messages for intent classification
 
             menu_data = load_menu_data()
-                        # Prepare menu categories and some example items
+            # Prepare menu categories and some example items
             categories = {}
-            
+
             # First, find all category items to create category map
             category_map = {}
             for item in menu_data.get("items", []):
@@ -2259,17 +2596,17 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
                     reference = item.get("reference_handler", "")
                     if reference:
                         category_map[reference] = item.get("name", "Unknown Category")
-            
+
             # Now process actual menu items
             for item in menu_data.get("items", []):
                 # Skip category headers
                 if item.get("is_category", False):
                     continue
-                    
+
                 # Get parent category name from parentId or use "Uncategorized"
                 parent_id = item.get("parentId", "")
                 category_name = category_map.get(parent_id, "Uncategorized")
-                
+
                 if category_name not in categories:
                     categories[category_name] = []
 
@@ -2289,19 +2626,17 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
                     5. NEVER make up items that aren't in the menu
                     
                     When suggesting menu items, be precise and use the exact item names as they appear in the menu.
-                    Focus on understanding the customer's intent and helping them find the right items."""
-
-        
+                    Focus on understanding the customer's intent and helping them find the right items.""",
                 },
                 {
                     "role": "user",
-                    "content": f"Classify this customer query: '{input_text}'\nRespond with JSON containing 'intent' which must be one of: 'order_food', 'ask_menu', or 'other'.\n\nMenu Categories and Example Items:\n{json.dumps(categories, indent=2)}\n\n"
-                }
+                    "content": f"Classify this customer query: '{input_text}'\nRespond with JSON containing 'intent' which must be one of: 'order_food', 'ask_menu', or 'other'.\n\nMenu Categories and Example Items:\n{json.dumps(categories, indent=2)}\n\n",
+                },
             ]
-            
+
             # Log the API request
             log_openai_request("gpt-4.1-mini", messages, "intent_classification")
-            
+
             try:
                 # Make the classification request
                 response = openai.chat.completions.create(
@@ -2309,57 +2644,62 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
                     messages=messages,
                     response_format={"type": "json_object"},
                 )
-                
+
                 # Log the API response
                 log_openai_response(response, "intent_classification")
-                
+
                 # Extract the intent
                 classification = json.loads(response.choices[0].message.content)
                 intent = classification.get("intent", "other")
                 logger.info(f"[INTENT-CLASSIFICATION] Classified intent as: '{intent}'")
-                
+
             except Exception as e:
                 logger.error(f"[INTENT-ERROR] OpenAI API error: {str(e)}")
                 logger.error(f"[INTENT-TRACEBACK] {traceback.format_exc()}")
                 # Fall back to order parsing
-        
+
         # If intent is still "other" or "order_food", try parsing as an order
         if intent in ["other", "order_food"]:
             # Create an order parsing agent
             agent = OrderParsingAgent()
-            
+
             # Parse the input
             logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{input_text}'")
             parsed_order = agent.parse_order(input_text)
             logger.info(f"[PARSED-ORDER]: {parsed_order}")
-            
+
             # If we found menu items, this is likely an order
             if parsed_order.get("items"):
                 menu_items = parsed_order.get("items", [])
                 intent = "order_food"
-                logger.info(f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'")
-                
+                logger.info(
+                    f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'"
+                )
+
                 # Ensure modifiers are preserved for each item
                 for item in menu_items:
                     if "modifier" in item and item["modifier"]:
-                        logger.info(f"[ANALYZE-MODS] Item '{item.get('name')}' has {len(item['modifier'])} modifiers")
+                        logger.info(
+                            f"[ANALYZE-MODS] Item '{item.get('name')}' has {len(item['modifier'])} modifiers"
+                        )
                         # Log each modifier for debugging
                         for mod in item["modifier"]:
                             if isinstance(mod, dict):
-                                logger.info(f"[ANALYZE-MOD-DETAIL] Modifier for {item.get('name')}: {mod.get('name')} (ref: {mod.get('reference_handler', 'none')})")
+                                logger.info(
+                                    f"[ANALYZE-MOD-DETAIL] Modifier for {item.get('name')}: {mod.get('name')} (ref: {mod.get('reference_handler', 'none')})"
+                                )
                             else:
-                                logger.warning(f"[ANALYZE-MOD-ERROR] Invalid modifier format: {mod}")
-    
+                                logger.warning(
+                                    f"[ANALYZE-MOD-ERROR] Invalid modifier format: {mod}"
+                                )
+
     except Exception as e:
         logger.error(f"[ANALYZE-ERROR] Error in analyze_user_input: {str(e)}")
         logger.error(f"[ANALYZE-TRACEBACK] {traceback.format_exc()}")
-    
+
     # Return a consistent structure for all intents
-    result = {
-        "intent": intent,
-        "menu_items": menu_items
-    }
-    
+    result = {"intent": intent, "menu_items": menu_items}
+
     # Add any intent-specific data
     if intent == "ask_menu":
         # Extract the menu query for ask_menu intent
@@ -2368,8 +2708,10 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
         search_result = menu_tool.search_menu(query)
         result["menu_query"] = query
         result["search_results"] = search_result
-    
-    logger.info(f"[ANALYZE-FINAL] Final intent: '{intent}' with {len(menu_items)} menu items")
+
+    logger.info(
+        f"[ANALYZE-FINAL] Final intent: '{intent}' with {len(menu_items)} menu items"
+    )
     return result
 
 

@@ -65,7 +65,9 @@ def menu_update():
     try:
         # Just load the current menu data to ensure we have it in memory
         current_menu = load_menu_data(force_refresh=True)
-        logger.info(f"[MENU-UPDATE] Loaded current menu with {len(current_menu.get('items', []))} items")
+        logger.info(
+            f"[MENU-UPDATE] Loaded current menu with {len(current_menu.get('items', []))} items"
+        )
     except Exception as load_e:
         logger.warning(f"[MENU-UPDATE] Failed to load current menu: {load_e}")
 
@@ -123,29 +125,37 @@ def menu_update():
         # Log data type and basic structure
         data_type = type(data).__name__
         logger.info(f"[MENU-UPDATE] Received data of type {data_type}")
-        
+
         # For debugging, log some structure info
         if isinstance(data, dict):
             logger.info(f"[MENU-UPDATE] Top-level keys: {list(data.keys())}")
             # Log some sub-structure details
             for key in data.keys():
                 if isinstance(data[key], dict):
-                    logger.info(f"[MENU-UPDATE] {key} contains keys: {list(data[key].keys())}")
+                    logger.info(
+                        f"[MENU-UPDATE] {key} contains keys: {list(data[key].keys())}"
+                    )
                 elif isinstance(data[key], list) and len(data[key]) > 0:
-                    logger.info(f"[MENU-UPDATE] {key} is a list with {len(data[key])} items")
+                    logger.info(
+                        f"[MENU-UPDATE] {key} is a list with {len(data[key])} items"
+                    )
                     if isinstance(data[key][0], dict):
-                        logger.info(f"[MENU-UPDATE] First item in {key} has keys: {list(data[key][0].keys())}")
+                        logger.info(
+                            f"[MENU-UPDATE] First item in {key} has keys: {list(data[key][0].keys())}"
+                        )
         elif isinstance(data, list) and len(data) > 0:
             logger.info(f"[MENU-UPDATE] Data is a list with {len(data)} items")
             if isinstance(data[0], dict):
-                logger.info(f"[MENU-UPDATE] First item has keys: {list(data[0].keys())}")
+                logger.info(
+                    f"[MENU-UPDATE] First item has keys: {list(data[0].keys())}"
+                )
 
         # The Deliverect menu processor now handles the event format extraction
         # But we'll keep this code for backward compatibility
         if (
-            isinstance(data, dict) 
-            and "type" in data 
-            and "data" in data 
+            isinstance(data, dict)
+            and "type" in data
+            and "data" in data
             and isinstance(data["data"], dict)
             and "menu" in data["data"]
         ):
@@ -281,10 +291,12 @@ def menu_update():
             items_count = len(processed_data.get("items", []))
             modifiers_count = len(processed_data.get("modifiers", []))
             groups_count = len(processed_data.get("modifierGroups", []))
-            
+
             # Remove name_variants field if it exists - AI agent will handle matching
             if "name_variants" in processed_data:
-                logger.info("[MENU-UPDATE] Removing name_variants field - AI agent will handle matching")
+                logger.info(
+                    "[MENU-UPDATE] Removing name_variants field - AI agent will handle matching"
+                )
                 processed_data.pop("name_variants", None)
 
             logger.info(
@@ -342,7 +354,9 @@ def menu_update():
             import os
 
             # Skip creating a separate backup file - we'll write directly to the main menu file
-            logger.info(f"[MENU-UPDATE] Proceeding to write menu directly to main file without backup")
+            logger.info(
+                f"[MENU-UPDATE] Proceeding to write menu directly to main file without backup"
+            )
 
             # Retain important data from current menu if this is a partial update
             if is_deliverect and current_menu and isinstance(current_menu, dict):
@@ -402,10 +416,14 @@ def menu_update():
 
                 # Remove name_variants field if it exists - AI agent will handle matching
                 if "name_variants" in processed_data:
-                    logger.info("[MENU-UPDATE] Removing name_variants field - AI agent will handle matching")
+                    logger.info(
+                        "[MENU-UPDATE] Removing name_variants field - AI agent will handle matching"
+                    )
                     processed_data.pop("name_variants", None)
                 if "name_variants" in current_menu:
-                    logger.info("[MENU-UPDATE] Current menu has name_variants but we're removing it - AI agent will handle matching")
+                    logger.info(
+                        "[MENU-UPDATE] Current menu has name_variants but we're removing it - AI agent will handle matching"
+                    )
 
             # Detailed logging before attempting to write
             logger.info(
@@ -459,21 +477,27 @@ def menu_update():
                 logger.warning(
                     "[MENU-UPDATE] Menu reload verification failed - no items found"
                 )
-                
+
                 # This is a critical error - try to write the processed data again
                 try:
-                    logger.info("[MENU-UPDATE] Attempting to write processed data again")
+                    logger.info(
+                        "[MENU-UPDATE] Attempting to write processed data again"
+                    )
                     # Write directly to the file as a last resort
                     with open(MENU_FILE_PATH, "w") as f:
                         json.dump(processed_data, f, indent=2)
                     logger.info(f"[MENU-UPDATE] Wrote directly to {MENU_FILE_PATH}")
-                    
+
                     # Reload one more time to confirm
                     restored_menu = load_menu_data(force_refresh=True)
                     restored_count = len(restored_menu.get("items", []))
-                    logger.info(f"[MENU-UPDATE] After direct write, menu has {restored_count} items")
+                    logger.info(
+                        f"[MENU-UPDATE] After direct write, menu has {restored_count} items"
+                    )
                 except Exception as write_e:
-                    logger.error(f"[MENU-UPDATE] Failed to write menu data directly: {write_e}")
+                    logger.error(
+                        f"[MENU-UPDATE] Failed to write menu data directly: {write_e}"
+                    )
 
                 # If we have a callback URL, send a FAILED status
                 if callback_url:
@@ -525,11 +549,15 @@ def menu_update():
 
             # Remove name_variants field if it exists - AI agent will handle matching
             if "name_variants" in processed_data:
-                logger.info("[MENU-UPDATE] Removing name_variants field - AI agent will handle matching")
+                logger.info(
+                    "[MENU-UPDATE] Removing name_variants field - AI agent will handle matching"
+                )
                 processed_data.pop("name_variants", None)
-                
+
             # No name variants generation needed - AI agent will handle menu item matching
-            logger.info("[MENU-UPDATE] No name variants needed - AI agent will handle menu item matching")
+            logger.info(
+                "[MENU-UPDATE] No name variants needed - AI agent will handle menu item matching"
+            )
 
             # Return success response
             return (
@@ -611,42 +639,49 @@ def menu_update():
 def snooze_unsnooze():
     """
     Handle snooze/unsnooze operations from Deliverect.
-    
+
     Deliverect webhooks can be received in two formats:
     1. Legacy format with {"operations": [{item, action}]}
     2. Deliverect format with allSnoozedItems (PLU-based) and operations
-    
+
     Returns:
         JSON response with success status
     """
     data = request.get_json() or {}
     logger.info(f"Received snooze/unsnooze data: {data}")
-    
+
     # Detect format - check if this is Deliverect format (PLU-based)
-    is_deliverect_format = ("allSnoozedItems" in data or 
-                            (isinstance(data.get("operations", []), list) and 
-                            all(isinstance(op, dict) and "plu" in op for op in data.get("operations", []))))
+    is_deliverect_format = "allSnoozedItems" in data or (
+        isinstance(data.get("operations", []), list)
+        and all(
+            isinstance(op, dict) and "plu" in op for op in data.get("operations", [])
+        )
+    )
 
     logger.info("Processing Deliverect format snooze/unsnooze webhook")
     return _process_deliverect_snooze_unsnooze(data)
+
 
 def _process_deliverect_snooze_unsnooze(data):
     """Process a Deliverect-format snooze/unsnooze webhook."""
     # Load current menu data
     menu_data = load_menu_data()
-    
+
     # Keep track of changes for logging
     snooze_count = 0
     unsnooze_count = 0
-    
+
     # Process allSnoozedItems if present (full sync)
     if "allSnoozedItems" in data and isinstance(data["allSnoozedItems"], list):
         snoozed_plus = set(data["allSnoozedItems"])
-        
+
         # First reset all items to available
         for item in menu_data.get("items", []):
             # If PLU is in the snoozed list, snooze it
-            if item.get("plu") in snoozed_plus or item.get("reference_handler") in snoozed_plus:
+            if (
+                item.get("plu") in snoozed_plus
+                or item.get("reference_handler") in snoozed_plus
+            ):
                 item["snoozed"] = True
                 item["available"] = False
                 snooze_count += 1
@@ -657,20 +692,22 @@ def _process_deliverect_snooze_unsnooze(data):
                 if item.get("scheduleAvailable", True):
                     item["available"] = True
                     unsnooze_count += 1
-        
-        logger.info(f"Processed allSnoozedItems: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
-    
+
+        logger.info(
+            f"Processed allSnoozedItems: {snooze_count} snoozed, {unsnooze_count} unsnoozed"
+        )
+
     # Process individual operations
     operations = data.get("operations", [])
     if operations:
         for op in operations:
             plu = op.get("plu", "")
             action = op.get("action", "").lower()  # 'snooze' or 'unsnooze'
-            
+
             if not plu or not action:
                 logger.warning(f"Skipping invalid operation: {op}")
                 continue
-            
+
             # Find the item by PLU
             found = False
             for item in menu_data.get("items", []):
@@ -687,19 +724,27 @@ def _process_deliverect_snooze_unsnooze(data):
                             unsnooze_count += 1
                     found = True
                     break
-            
+
             if not found:
                 logger.warning(f"Item with PLU {plu} not found for {action} operation")
-    
+
     # Save updated menu
     write_menu_file(menu_data)
     # Refresh the cache to load new data
     from flask import current_app, has_app_context
+
     if has_app_context() and not current_app.config.get("TESTING", False):
         load_menu_data(force_refresh=True)
-    
-    logger.info(f"Processed snooze/unsnooze operations: {snooze_count} snoozed, {unsnooze_count} unsnoozed")
-    return jsonify({"status": "success", "snoozed": snooze_count, "unsnoozed": unsnooze_count}), 200
+
+    logger.info(
+        f"Processed snooze/unsnooze operations: {snooze_count} snoozed, {unsnooze_count} unsnoozed"
+    )
+    return (
+        jsonify(
+            {"status": "success", "snoozed": snooze_count, "unsnoozed": unsnooze_count}
+        ),
+        200,
+    )
 
 
 @menu_bp.route("/busy_mode", methods=["POST"])
@@ -820,9 +865,11 @@ def get_menu():
 
     # Remove name_variants if it exists - AI agent will handle matching
     if "name_variants" in menu_data:
-        logger.info("[GET-MENU] Removing name_variants field - AI agent will handle matching")
+        logger.info(
+            "[GET-MENU] Removing name_variants field - AI agent will handle matching"
+        )
         menu_data.pop("name_variants", None)
-        
+
     # Add file location to response for debugging
     menu_data["_debug"] = {"file_path": MENU_FILE_PATH}
     menu_data["ai_matching"] = True  # Indicate that AI agent will handle matching

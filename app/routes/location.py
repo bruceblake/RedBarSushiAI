@@ -410,16 +410,15 @@ def take_order_per_location(location_id):
         response.say(
             f"We're currently busy at our {location_id} location and not accepting new orders right now."
         )
-        
+
         # Instead of hanging up, give them options
         with response.gather(
-            input="dtmf",
-            action="/main_menu",
-            num_digits=1,
-            timeout=7
+            input="dtmf", action="/main_menu", num_digits=1, timeout=7
         ) as g:
-            g.say("Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call.")
-            
+            g.say(
+                "Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call."
+            )
+
         # Add a redirect to a graceful exit if they don't respond
         response.redirect("/graceful_exit")
         return Response(str(response), mimetype="text/xml")
@@ -432,16 +431,15 @@ def take_order_per_location(location_id):
         response.say(
             f"I'm sorry, our menu at our {location_id} location is currently unavailable."
         )
-        
+
         # Instead of hanging up, give them options
         with response.gather(
-            input="dtmf",
-            action="/main_menu",
-            num_digits=1,
-            timeout=7
+            input="dtmf", action="/main_menu", num_digits=1, timeout=7
         ) as g:
-            g.say("Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call.")
-            
+            g.say(
+                "Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call."
+            )
+
         # Add a redirect to a graceful exit if they don't respond
         response.redirect("/graceful_exit")
         return Response(str(response), mimetype="text/xml")
