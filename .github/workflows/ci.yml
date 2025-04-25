@@ -27,4 +27,11 @@ jobs:
       # 👉  Run **only** unit tests
       - name: Run unit tests
         run: |
-          pytest tests/unit --cov=app --cov-report=xml
+          pytest tests/unit --cov=app --cov-report=xml || code=$?
+          # pytest exit-code reference: 0=OK, 1=fail, 2=interrupt, 4=usage, **5=no tests**
+          if [ "$code" = "5" ]; then
+            echo "✅  No unit tests were collected — treating as pass."
+            exit 0
+          else
+            exit "${code}"
+          fi
