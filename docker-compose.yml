@@ -92,6 +92,11 @@ services:
     entrypoint: ["bash", "-lc"]
     env_file:
       - .env.test
+
+    environment:
+      - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 # skip big browser downloads
+      - BASE_URL=http://web:8080
+
     volumes:
       - .:/app
     working_dir: /app
@@ -106,7 +111,8 @@ services:
       flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics &&
       ruff check app tests --exit-zero || true &&
       pytest -m "not integration and not load" -v &&
-      pytest -m "integration" -v
+      pytest -m "integration" -v &&
+      pytest tests/api -v &&
     depends_on:
       - redis
       - db

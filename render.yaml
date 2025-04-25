@@ -140,3 +140,29 @@ services:
       - source: 0.0.0.0/0
         description: everywhere
     plan: free
+
+  - type: job
+  name: redbarsushi-staging-e2e      # appears in the dashboard
+  env: python
+  branch: staging                    # only builds on staging pushes
+  buildCommand: |
+    pip install -r requirements.txt \
+                -r requirements.ci.txt \
+                pytest-playwright
+  startCommand: |
+    # Stop immediately if the staging web URL isn’t returning 200 yet
+    until curl -sSf https://redbarsushi-staging.onrender.com/health; do
+      echo "⏳ waiting for web service…"
+      sleep 5
+    done
+
+    # Skip browser download – you only need Playwright’s HTTP client
+    export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+    export BASE_URL=https://redbarsushi-staging.onrender.com
+
+    pytest tests/api -v               # or wherever your e2e tests live
+  envVars:
+    - key: PYTHONUNBUFFERED
+      value: "1"
+    - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+      value: "1"                      # belt-and-suspenders, also set above
