@@ -1,3 +1,5 @@
+import pytest
+
 @pytest.mark.e2e
 def test_update_menu(api_request):
     payload = {"test": 1}
