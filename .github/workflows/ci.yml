@@ -46,7 +46,7 @@ jobs:
       - name: Wait for staging
         env: { BASE_URL: https://redbarsushi-staging.onrender.com }
         run: |
-          for i in {1..40}; do curl -fsS "$BASE_URL/health" && break; sleep 5; done
+          for i in {1..40}; do curl -fsS "$BASE_URL" && break; sleep 5; done
       - name: Run E2E
         env:
           BASE_URL: https://redbarsushi-staging.onrender.com
