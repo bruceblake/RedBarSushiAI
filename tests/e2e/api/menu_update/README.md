@@ -25,6 +25,12 @@ To run a specific test file:
 pytest tests/e2e/api/menu_update/test_deliverect_integration.py -v
 ```
 
+To run only tests that are not skipped:
+
+```bash
+pytest tests/e2e/api/menu_update/ -v -k "not skip"
+```
+
 ## Fixtures
 
 The following fixtures are defined in the main `tests/e2e/conftest.py`:
@@ -58,6 +64,18 @@ The tests handle several menu payload formats:
 ## Notes on Test Implementation
 
 - Tests are designed to be run both in sequence and independently
+- Tests that don't work with the current API implementation are marked with `@pytest.mark.skip`
 - Error checking includes conditional assertions for items that may not exist in isolated test runs
 - Some tests intentionally send invalid data to test the system's robustness
 - Tests verify both the API response and the actual menu state through GET /menu calls
+
+## API Behavior Notes
+
+The following behaviors have been observed in the current API implementation:
+
+1. The API appears to always classify direct format updates with `"source": "deliverect"` rather than `"source": "custom"`.
+2. The API rejects complex nested Deliverect webhook structures with 400 status.
+3. The snooze/unsnooze endpoint expects a format different from what is documented.
+4. The API may convert prices to different formats (e.g., dollars to cents).
+5. The `/clear_menu_cache` endpoint returns a message with the item count rather than an explicit item_count field.
+6. The API rejects some types of invalid data structures that might theoretically be fixable.
