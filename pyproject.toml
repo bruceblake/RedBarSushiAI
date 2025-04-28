@@ -1,8 +1,7 @@
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/e2e", "tests/integration"]
 addopts   = "-ra"
 markers   = [
-  "unit:     fast, no external resources",
   "integration: needs docker compose stack",
   "e2e:      calls deployed HTTP API or browser",
 ]
