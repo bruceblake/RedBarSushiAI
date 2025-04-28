@@ -1,18 +1,21 @@
+# tests/conftest.py
 import os
 import pytest
-from playwright.sync_api import sync_playwright, APIRequestContext
+from playwright.sync_api import APIRequestContext, Playwright
 
-# Base URL comes from the Render job or local env var
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
 
 @pytest.fixture(scope="session")
-def api_ctx() -> APIRequestContext:
-    """One Playwright HTTP context for the whole session."""
-    with sync_playwright() as p:
-        ctx = p.request.new_context(
-            base_url=BASE_URL,
-            extra_http_headers={"accept": "application/json"},
-            timeout=10_000,
-        )
-        yield ctx
-        ctx.dispose()
+def api_ctx(playwright: Playwright) -> APIRequestContext:
+    """
+    One HTTP context for the whole test session, using Playwright’s
+    built-in 'playwright' fixture to manage the driver lifecycle.
+    """
+    ctx = playwright.request.new_context(
+        base_url=BASE_URL,
+        extra_http_headers={"accept": "application/json"},
+        timeout=10_000,          # 10 s per request
+    )
+    yield ctx
+    ctx.dispose()
+
