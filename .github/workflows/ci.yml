@@ -44,11 +44,11 @@ jobs:
           pip install -r requirements.txt -r requirements.ci.txt
           pip install playwright==1.43.0 pytest-playwright
       - name: Wait for staging
-        env: { BASE_URL: https://redbarsushi-staging.onrender.com }
+        env: { BASE_URL: https://redbarsushiai-staging.onrender.com }
         run: |
           for i in {1..40}; do curl -fsS "$BASE_URL" && break; sleep 5; done
       - name: Run E2E
         env:
-          BASE_URL: https://redbarsushi-staging.onrender.com
+          BASE_URL: https://redbarsushiai-staging.onrender.com
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: pytest tests/e2e -v
