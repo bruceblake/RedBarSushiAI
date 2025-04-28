@@ -2,16 +2,6 @@ import pytest
 import json
 import os
 
-@pytest.mark.skip(reason="API rejects format created by create_test_menu_payload")
-@pytest.mark.e2e
-def test_direct_format_menu_update(api_request, create_test_menu_payload):
-    """
-    Test the menu update endpoint with a direct format menu payload.
-    This test is skipped as the API rejects the format created by create_test_menu_payload.
-    """
-    # This test is skipped as the API rejects the format created by create_test_menu_payload
-    pass
-
 @pytest.mark.e2e
 def test_simple_list_menu_update(api_request):
     """
@@ -53,16 +43,6 @@ def test_simple_list_menu_update(api_request):
     if resp.status == 200:
         response_data = resp.json()
         assert response_data["success"] is True
-
-@pytest.mark.skip(reason="API rejects format created by create_test_menu_payload")
-@pytest.mark.e2e
-def test_large_menu_update(api_request, create_test_menu_payload):
-    """
-    Test the menu update endpoint with a large menu payload.
-    This test is skipped as the API rejects the format created by create_test_menu_payload.
-    """
-    # This test is skipped as the API rejects the format created by create_test_menu_payload
-    pass
 
 @pytest.mark.e2e
 def test_partial_menu_update_handling(api_request):
@@ -150,23 +130,4 @@ def test_partial_menu_update_handling(api_request):
     item_names = [item["name"] for item in menu_data["items"]]
     assert "Item 5" in item_names  # At minimum, the newest item should be present
 
-@pytest.mark.skip(reason="API rejects format with invalid fields")
-@pytest.mark.e2e
-def test_menu_update_with_invalid_fields(api_request):
-    """
-    Test the menu update endpoint with invalid fields to ensure they're cleaned up.
-    This test is skipped as the API rejects payloads with invalid fields.
-    """
-    # This test is skipped as the API rejects payloads with invalid fields
-    pass
 
-@pytest.mark.skip(reason="API rejects format created by create_test_menu_payload")
-@pytest.mark.e2e
-def test_menu_update_idempotence(api_request, create_test_menu_payload):
-    """
-    Test that calling menu update multiple times with the same data 
-    doesn't cause problems.
-    This test is skipped as the API rejects the format created by create_test_menu_payload.
-    """
-    # This test is skipped as the API rejects the format created by create_test_menu_payload
-    pass
