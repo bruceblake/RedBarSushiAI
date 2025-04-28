@@ -10,7 +10,6 @@ The tests are organized as follows:
 - **test_menu_update_formats.py**: Tests for different menu payload formats.
 - **test_deliverect_integration.py**: Tests for the Deliverect webhook integration.
 - **test_menu_cache.py**: Tests for menu caching and refreshing.
-- **conftest.py**: Test fixtures and utilities.
 
 ## Running Tests
 
@@ -25,6 +24,15 @@ To run a specific test file:
 ```bash
 pytest tests/e2e/api/menu_update/test_deliverect_integration.py -v
 ```
+
+## Fixtures
+
+The following fixtures are defined in the main `tests/e2e/conftest.py`:
+
+- **api_request**: Wrapper around the Playwright API context.
+- **create_test_menu_payload**: Factory for creating test menu payloads in different formats.
+- **deliverect_menu_payload**: Sample Deliverect menu payload.
+- **async_menu_payload**: Sample async Deliverect menu payload.
 
 ## Covered Scenarios
 
@@ -42,29 +50,14 @@ These tests cover the following scenarios:
 
 The tests handle several menu payload formats:
 
-1. **Standard Deliverect**: As described in real_docs.md, with categories, products, modifierGroups, and modifiers.
+1. **Standard Deliverect**: With categories, products, modifierGroups, and modifiers.
 2. **Async Deliverect**: Wrapped in a body object with menus array and callback URL.
 3. **Direct Format**: Matching our internal data structure with items, modifiers, and modifierGroups arrays.
 4. **Simple List**: Just an array of menu items.
 
-## Fixtures
+## Notes on Test Implementation
 
-- **api_request**: Wrapper around the Playwright API context.
-- **create_test_menu_payload**: Factory for creating test menu payloads in different formats.
-- **deliverect_menu_payload**: Sample Deliverect menu payload from testing_data.
-- **async_menu_payload**: Sample async Deliverect menu payload.
-
-## Mocks
-
-Some tests use mocking to verify behavior without making external API calls:
-
-- **test_async_callback_functionality**: Mocks the requests.post function to verify callbacks.
-
-## Best Practices
-
-When adding new tests:
-
-1. Use the existing fixtures to create payloads
-2. Group related tests in the appropriate file
-3. Follow the naming convention: test_*_functionality
-4. Add assertions for both the API response and the resulting menu state
+- Tests are designed to be run both in sequence and independently
+- Error checking includes conditional assertions for items that may not exist in isolated test runs
+- Some tests intentionally send invalid data to test the system's robustness
+- Tests verify both the API response and the actual menu state through GET /menu calls
