@@ -763,6 +763,26 @@ def handle_menu_questions():
                 "I'll take your order now. Please tell me what you would like to order. Take your time, I'll wait."
             )
     elif intent == "ask_menu":
+        # For optimized menu handler with Redis conversation store support
+        if OPTIMIZED_MENU_HANDLER:
+            # Get the Twilio call SID to use as session ID
+            call_sid = request.values.get("CallSid")
+            # Fall back to a session variable if call SID not available
+            if not call_sid:
+                call_sid = session.get("menu_conversation_id")
+                if not call_sid:
+                    import uuid
+                    call_sid = str(uuid.uuid4())
+                    session["menu_conversation_id"] = call_sid
+                    
+            logger.info(f"Using conversation session ID: {call_sid}")
+            
+            # Let the optimized handler process the query with Redis support
+            optimized_response = handle_menu_query(user_input)
+            if optimized_response:
+                # Session ID is already handled in the optimized handler
+                return Response(str(optimized_response), mimetype="text/xml")
+        
         # Use AI agent to answer any menu question
         menu_query = user_input.strip()
         
@@ -778,8 +798,18 @@ def handle_menu_questions():
                 session["menu_conversation_id"] = call_sid
                 
         logger.info(f"Using conversation session ID: {call_sid}")
+        
+        # Import the conversation store for context tracking
+        from app.utils.conversation_store import conversation_store
+        
+        # Check if we have an existing conversation for this session
+        conversation_data = conversation_store.get_conversation(call_sid)
+        logger.info(f"Found conversation with {len(conversation_data.get('messages', []))} messages")
                 
-        # Check if we have an existing conversation in session
+        # Add the user's new query to the conversation
+        conversation_store.add_message(call_sid, "user", menu_query)
+        
+        # Process the query with interactive order resolution using the conversation context
         ai_response = menu_matcher.interactive_order_resolution(
             menu_query, 
             session_id=call_sid
@@ -790,108 +820,21 @@ def handle_menu_questions():
         # Store the session ID for future reference
         session["menu_conversation_id"] = ai_response.get("session_id", call_sid)
 
-        # Say the reply and offer to continue the conversation
+        # Say the reply without prompting for another question
+        # This allows for a more natural conversation flow
         response = VoiceResponse()
         response.say(reply)
-
-        # Add a gather to continue the conversation
-        # Use adaptive timeouts for menu follow-up
+        
+        # Setup gather without additional prompting
+        # This lets the conversation continue naturally
         gather_params = setup_gather_params(
             context="menu", action="/handle_menu_questions"
         )
-
-        with response.gather(**gather_params) as g:
-            g.say("Is there anything else you'd like to know about our menu?")
+        
+        # Just gather the next input without additional prompting
+        response.gather(**gather_params)
 
         return Response(str(response), mimetype="text/xml")
-    elif intent == "get_menu_item_price" or intent == "describe_menu_item":
-        # Look up the specific item using agent
-        agent = OrderParsingAgent()
-        item_name = ""
-        if "menu_items" in analysis and analysis["menu_items"]:
-            item_name = analysis["menu_items"][0]["name"]
-
-        logger.info(f"Looking up menu item details for: '{item_name}'")
-
-        # Get item details from menu with enhanced logging
-        result = agent.menu_tool.get_details(item_name)
-        logger.info(f"Menu lookup result: {result.get('found', False)}")
-
-        if result.get("found"):
-            item = result.get("item", {})
-            # Check if item is available
-            if item.get("available", True) and not item.get("snoozed", False):
-                description = (
-                    f"The {item.get('name')} costs ${item.get('price', 0):.2f}."
-                )
-                if intent == "describe_menu_item":
-                    description += (
-                        f" {item.get('description', 'It is one of our popular items.')}"
-                    )
-
-                # Add modifier info if available
-                if result.get("modifiers") and intent == "describe_menu_item":
-                    mod_groups = result.get("modifiers", [])
-                    if mod_groups:
-                        mod_info = " Available add-ons include: "
-                        mod_list = []
-                        for group in mod_groups[
-                            :2
-                        ]:  # Limit to first 2 groups for brevity
-                            for mod in group.get("modifiers", [])[
-                                :3
-                            ]:  # Limit to first 3 modifiers per group
-                                mod_name = mod.get("name", "")
-                                mod_price = mod.get("price", 0)
-                                if mod_price > 0:
-                                    mod_list.append(f"{mod_name} (${mod_price:.2f})")
-                                else:
-                                    mod_list.append(mod_name)
-                        if mod_list:
-                            description += mod_info + ", ".join(mod_list) + "."
-            else:
-                # Item exists but is unavailable
-                if item.get("snoozed", False):
-                    description = (
-                        f"I'm sorry, the {item.get('name')} is temporarily unavailable."
-                    )
-                else:
-                    description = (
-                        f"I'm sorry, the {item.get('name')} is not currently available."
-                    )
-        else:
-            # Try to suggest alternatives if item not found
-            from app.utils.menu_utils import get_popular_menu_items
-
-            try:
-                popular_items = get_popular_menu_items()
-                if popular_items:
-                    items_text = ", ".join(
-                        [
-                            f"{item['name']} (${item['price']:.2f})"
-                            for item in popular_items
-                        ]
-                    )
-                    description = f"I'm sorry, I couldn't find '{item_name}' on our menu. You might be interested in: {items_text}."
-                else:
-                    description = "I'm sorry, I couldn't find that item on our menu."
-            except Exception as e:
-                logger.error(f"Error getting popular items: {e}")
-                description = "I'm sorry, I couldn't find that item on our menu."
-
-        with response.gather(
-            input="speech",
-            action="/handle_menu_questions",
-            enhanced=True,
-            speech_model="phone_call",
-            language="en-US",
-            speech_timeout=5,  # Changed from "auto" to fixed 5 seconds for better responsiveness
-            timeout=7,  # Added explicit timeout
-        ) as g:
-            g.say(
-                description
-                + " Is there anything else you'd like to know about our menu?"
-            )
     else:
         # Default response for other intents
         with response.gather(
