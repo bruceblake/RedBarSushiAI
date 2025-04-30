@@ -4,6 +4,9 @@ import pytest
 import json
 from playwright.sync_api import APIRequestContext, Playwright
 
+# Import the database test fixtures
+from tests.e2e.db_test_fixtures import setup_test_database, use_database_for_menu
+
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
 
 @pytest.fixture(scope="session")
@@ -56,6 +59,10 @@ def api_request(api_ctx):
             return api_ctx.get(url, params=params)
     
     return ApiRequest()
+
+# Register the database test fixture so it's automatically applied to all e2e tests
+# This ensures that e2e tests use the database instead of JSON files
+pytest.fixture(autouse=True)(setup_test_database)
 
 @pytest.fixture
 def create_test_menu_payload():

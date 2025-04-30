@@ -233,6 +233,16 @@ def create_app(test_config=None):
 
     if not skip_db_init:
         db.init_app(app)
+        
+        # Initialize the database for menu storage if configured
+        if app.config.get("INITIALIZE_MENU_DATABASE", True):
+            with app.app_context():
+                try:
+                    # Import here to avoid circular imports
+                    from app.db_init import init_database
+                    init_database()
+                except Exception as e:
+                    app.logger.error(f"Failed to initialize menu database: {e}")
 
     # Initialize WebSockets
     sock.init_app(app)

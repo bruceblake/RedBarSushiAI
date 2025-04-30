@@ -1,6 +1,17 @@
 # PostgreSQL Menu Database Migration Guide
 
-This document outlines the process of migrating the menu data system from using JSON files to using the PostgreSQL database.
+This document outlines the process of migrating the menu data system from using JSON files to using the PostgreSQL database. The migration enables reliable, scalable storage of menu data with improved performance and data integrity.
+
+## Summary of Changes
+
+The following changes have been implemented:
+
+1. **Database Models**: SQLAlchemy models for menu items, modifiers, and groups are now used to store data in PostgreSQL
+2. **Database Storage Layer**: A robust storage layer with Redis caching and memory fallback has been implemented
+3. **Automatic Initialization**: The application now automatically initializes the database and migrates menu data on startup
+4. **Backward Compatibility**: File-based storage is still supported for backward compatibility
+5. **Test Integration**: E2E and integration tests have been updated to use the database instead of files
+6. **Render Support**: Special handling for Render.com environment has been added
 
 ## Prerequisites
 

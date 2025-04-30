@@ -9,14 +9,15 @@ from datetime import datetime
 
 # app.utils.helpers is imported by other modules
 from app.utils.menu_validator import validate_and_fix_menu_data
-from app.utils.menu_utils import (
+# Import from menu_utils_db instead of menu_utils to use database-backed implementations
+from app.utils.menu_utils_db import (
     load_menu_data,
     write_menu_file,
     sync_reference_handlers,
-    MENU_FILE_PATH,
-    USE_REDBAR_MENU,
+    process_deliverect_menu
 )
-from app.utils.deliverect import process_deliverect_menu
+# Still import path constants from menu_utils for backward compatibility
+from app.utils.menu_utils import MENU_FILE_PATH, USE_REDBAR_MENU
 
 menu_bp = Blueprint("menu", __name__)
 logger = logging.getLogger(__name__)
@@ -431,11 +432,23 @@ def menu_update():
             )
 
             # Use the standard write_menu_file function to write the menu data
+            # This will handle both database storage and file writing for backward compatibility
             if write_menu_file(processed_data):
                 logger.info(
                     "[MENU-UPDATE] Successfully wrote menu using write_menu_file"
                 )
                 # Write was successful
+                
+                # Check if we need to explicitly update database
+                from flask import current_app
+                if current_app.config.get("MENU_BACKEND") == "database":
+                    # Also make sure it's in the database (extra safety check)
+                    try:
+                        from app.utils.menu_db_store import menu_db_store
+                        menu_db_store.store_menu_data(processed_data)
+                        logger.info("[MENU-UPDATE] Additionally ensured menu is stored in database")
+                    except Exception as db_e:
+                        logger.warning(f"[MENU-UPDATE] Database update failed, but file write succeeded: {db_e}")
             else:
                 logger.error("[MENU-UPDATE] Failed to write menu using write_menu_file")
 

@@ -95,6 +95,11 @@ if ! setup_database_connection; then
 	exit 1
 fi
 
+# Enable menu database storage by default
+export MENU_BACKEND="database"
+export INITIALIZE_MENU_DATABASE="true" 
+export MIGRATE_MENU_DATA="true"
+
 # Test the database connection with retry logic
 test_database_connection() {
 	local max_retries=5

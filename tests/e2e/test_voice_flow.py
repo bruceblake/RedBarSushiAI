@@ -21,59 +21,60 @@ def test_complete_voice_order_flow(api_request):
     
     This is a true end-to-end test that simulates a complete voice call.
     """
-    # Step 1: Use the real menu data instead of test data
-    import json
-    import os
+    # Step 1: Use the real menu data from the database
+    # Get menu data from application database instead of JSON file
+    from app.utils.menu_utils_db import load_menu_data
+    from app import create_app
     
-    # Load the menu data from the JSON file
-    with open('/home/proxyie/MySoftware/RedBarSushiAI/menu_data.json', 'r') as f:
-        menu_data = json.load(f)
+    # Create app context to access database
+    app = create_app()
+    with app.app_context():
+        # Load menu data from database
+        menu_data = load_menu_data(force_refresh=True)
+        
+        # Extract non-category items and organize them by parent category
+        items_by_category = {}
+        for item in menu_data["items"]:
+            if not item.get("is_category", False):
+                parent_id = item.get("parentId", "uncategorized")
+                if parent_id not in items_by_category:
+                    items_by_category[parent_id] = []
+                items_by_category[parent_id].append(item)
+        
+        # Create categories with their products in Deliverect format
+        categories = []
+        for item in menu_data["items"]:
+            if item.get("is_category", False):
+                category_id = item.get("reference_handler")
+                category = {
+                    "id": category_id,
+                    "name": item.get("name", "Unknown Category"),
+                    "products": []
+                }
+                
+                # Add products to this category
+                if category_id in items_by_category:
+                    for product in items_by_category[category_id]:
+                        category["products"].append({
+                            "plu": product.get("plu", ""),
+                            "name": product.get("name", ""),
+                            "price": product.get("price", 0),
+                            "description": product.get("description", ""),
+                            "available": product.get("available", True)
+                        })
+                
+                categories.append(category)
     
-    # Create a menu payload format that the API expects
+    # Create a menu payload in the format that the API expects
     menu_payload = {
         "data": {
             "menu": {
-                "categories": []
+                "categories": categories
             }
         }
     }
     
-    # Extract non-category items and organize them by parent category
-    items_by_category = {}
-    for item in menu_data["items"]:
-        if not item.get("is_category", False):
-            parent_id = item.get("parentId", "uncategorized")
-            if parent_id not in items_by_category:
-                items_by_category[parent_id] = []
-            items_by_category[parent_id].append(item)
-    
-    # Create categories with their products
-    categories = []
-    for item in menu_data["items"]:
-        if item.get("is_category", False):
-            category_id = item.get("reference_handler")
-            category = {
-                "id": category_id,
-                "name": item.get("name", "Unknown Category"),
-                "products": []
-            }
-            
-            # Add products to this category
-            if category_id in items_by_category:
-                for product in items_by_category[category_id]:
-                    category["products"].append({
-                        "plu": product.get("plu", ""),
-                        "name": product.get("name", ""),
-                        "price": product.get("price", 0),
-                        "description": product.get("description", ""),
-                        "available": product.get("available", True)
-                    })
-            
-            categories.append(category)
-    
-    menu_payload["data"]["menu"]["categories"] = categories
-    
-    # Send the menu update request
+    # Send the menu update request to ensure the database is populated
     menu_response = api_request.post("/menu_update", data=menu_payload)
     assert menu_response.status == 200
     
@@ -665,62 +666,63 @@ def test_voice_menu_query_flow(api_request):
     
     This is an end-to-end test focused on the menu information capabilities.
     """
-    # Load the real menu data from the JSON file
-    import json
+    # Get menu data from the database
+    from app.utils.menu_utils_db import load_menu_data
+    from app import create_app
     
-    # Load the menu data from the JSON file
-    with open('/home/proxyie/MySoftware/RedBarSushiAI/menu_data.json', 'r') as f:
-        menu_data = json.load(f)
+    # Create app context to access database
+    app = create_app()
+    with app.app_context():
+        # Load menu data from database
+        menu_data = load_menu_data(force_refresh=True)
+        
+        # Extract non-category items and organize them by parent category
+        items_by_category = {}
+        for item in menu_data["items"]:
+            if not item.get("is_category", False):
+                parent_id = item.get("parentId", "uncategorized")
+                if parent_id not in items_by_category:
+                    items_by_category[parent_id] = []
+                items_by_category[parent_id].append(item)
+        
+        # Create categories with their products in Deliverect format
+        categories = []
+        category_names = []
+        for item in menu_data["items"]:
+            if item.get("is_category", False):
+                category_id = item.get("reference_handler")
+                category_name = item.get("name", "Unknown Category")
+                category_names.append(category_name)
+                
+                category = {
+                    "id": category_id,
+                    "name": category_name,
+                    "products": []
+                }
+                
+                # Add products to this category
+                if category_id in items_by_category:
+                    for product in items_by_category[category_id]:
+                        category["products"].append({
+                            "plu": product.get("plu", ""),
+                            "name": product.get("name", ""),
+                            "price": product.get("price", 0),
+                            "description": product.get("description", ""),
+                            "available": product.get("available", True)
+                        })
+                
+                categories.append(category)
     
-    # Create a menu payload format that the API expects
+    # Create a menu payload in the format that the API expects
     menu_payload = {
         "data": {
             "menu": {
-                "categories": []
+                "categories": categories
             }
         }
     }
     
-    # Extract non-category items and organize them by parent category
-    items_by_category = {}
-    for item in menu_data["items"]:
-        if not item.get("is_category", False):
-            parent_id = item.get("parentId", "uncategorized")
-            if parent_id not in items_by_category:
-                items_by_category[parent_id] = []
-            items_by_category[parent_id].append(item)
-    
-    # Create categories with their products
-    categories = []
-    category_names = []
-    for item in menu_data["items"]:
-        if item.get("is_category", False):
-            category_id = item.get("reference_handler")
-            category_name = item.get("name", "Unknown Category")
-            category_names.append(category_name)
-            
-            category = {
-                "id": category_id,
-                "name": category_name,
-                "products": []
-            }
-            
-            # Add products to this category
-            if category_id in items_by_category:
-                for product in items_by_category[category_id]:
-                    category["products"].append({
-                        "plu": product.get("plu", ""),
-                        "name": product.get("name", ""),
-                        "price": product.get("price", 0),
-                        "description": product.get("description", ""),
-                        "available": product.get("available", True)
-                    })
-            
-            categories.append(category)
-    
-    menu_payload["data"]["menu"]["categories"] = categories
-    
-    # Ensure the menu is populated
+    # Ensure the menu is populated in the database
     menu_response = api_request.post("/menu_update", data=menu_payload)
     assert menu_response.status == 200
     

@@ -13,7 +13,8 @@ from flask import Blueprint, request, session, Response, jsonify, url_for, redir
 from twilio.twiml.voice_response import VoiceResponse
 from app.config import DELIVERECT_API_URL, BASE_URL
 from app.utils.deliverect import build_deliverect_order, get_deliverect_headers
-from app.utils.menu_utils import find_menu_item_by_name
+# Import from menu_utils_db instead of menu_utils to use database-backed implementations
+from app.utils.menu_utils_db import find_menu_item_by_name, load_menu_data
 from app.utils.order_utils import (
     build_order_description,
     calculate_bill_amount,
@@ -22,7 +23,6 @@ from app.utils.order_utils import (
     user_said_no,
     validate_modifiers,
 )
-from app.utils.menu_utils import load_menu_data
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.agent_utils import OrderParsingAgent
 from twilio.twiml.messaging_response import MessagingResponse
