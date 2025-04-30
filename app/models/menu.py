@@ -53,9 +53,14 @@ class MenuItem(db.Model):
         # For SQLite or other databases without JSONB
         properties = db.Column(db.Text, nullable=True)
         
-    # Relationships
-    modifiers = db.relationship('MenuModifier', secondary='menu_item_modifiers',
-                                backref=db.backref('menu_items', lazy='dynamic'))
+    # Relationships with explicit join conditions
+    modifiers = db.relationship(
+        'MenuModifier',
+        secondary='menu_item_modifiers',
+        primaryjoin="MenuItem.id==menu_item_modifiers.c.menu_item_id",
+        secondaryjoin="MenuModifierGroup.id==menu_item_modifiers.c.menu_modifier_group_id",
+        backref=db.backref('menu_items', lazy='dynamic')
+    )
     
     def __repr__(self):
         return f"<MenuItem {self.name}>"
@@ -301,9 +306,14 @@ class MenuModifierGroup(db.Model):
         # For SQLite or other databases without JSONB
         properties = db.Column(db.Text, nullable=True)
         
-    # Relationships
-    modifiers = db.relationship('MenuModifier', secondary='menu_modifier_group_items',
-                               backref=db.backref('modifier_groups', lazy='dynamic'))
+    # Relationships with explicit join conditions
+    modifiers = db.relationship(
+        'MenuModifier',
+        secondary='menu_modifier_group_items',
+        primaryjoin="MenuModifierGroup.id==menu_modifier_group_items.c.menu_modifier_group_id",
+        secondaryjoin="MenuModifier.id==menu_modifier_group_items.c.menu_modifier_id",
+        backref=db.backref('modifier_groups', lazy='dynamic')
+    )
     
     def __repr__(self):
         return f"<MenuModifierGroup {self.name}>"
@@ -377,13 +387,13 @@ class MenuModifierGroup(db.Model):
         return group
 
 
-# Association tables for many-to-many relationships
+# Association tables for many-to-many relationships with explicit foreign keys
 menu_item_modifiers = db.Table('menu_item_modifiers',
-    db.Column('menu_item_id', db.Integer, db.ForeignKey('menu_items.id'), primary_key=True),
-    db.Column('menu_modifier_group_id', db.Integer, db.ForeignKey('menu_modifier_groups.id'), primary_key=True)
+    db.Column('menu_item_id', db.Integer, db.ForeignKey('menu_items.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('menu_modifier_group_id', db.Integer, db.ForeignKey('menu_modifier_groups.id', ondelete='CASCADE'), primary_key=True)
 )
 
 menu_modifier_group_items = db.Table('menu_modifier_group_items',
-    db.Column('menu_modifier_group_id', db.Integer, db.ForeignKey('menu_modifier_groups.id'), primary_key=True),
-    db.Column('menu_modifier_id', db.Integer, db.ForeignKey('menu_modifiers.id'), primary_key=True)
+    db.Column('menu_modifier_group_id', db.Integer, db.ForeignKey('menu_modifier_groups.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('menu_modifier_id', db.Integer, db.ForeignKey('menu_modifiers.id', ondelete='CASCADE'), primary_key=True)
 )
