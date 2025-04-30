@@ -675,7 +675,7 @@ def main_menu():
 
         with response.gather(**gather_params) as g:
             g.say(
-                "You can ask for the menu, prices, descriptions, or say what you'd like to order."
+                "What would you like to know about our menu?"
             )
 
         # Add redirect for silence handling
@@ -763,12 +763,32 @@ def handle_menu_questions():
                 "I'll take your order now. Please tell me what you would like to order. Take your time, I'll wait."
             )
     elif intent == "ask_menu":
-        # Use AI agent to answer any menu question;
+        # Use AI agent to answer any menu question
         menu_query = user_input.strip()
-
-        ai_response = menu_matcher.interactive_order_resolution(menu_query)
+        
+        # Get session ID for conversation tracking
+        # We'll use the Twilio call SID as our session ID to keep context between turns
+        call_sid = request.values.get("CallSid")
+        # Fall back to a session variable if call SID not available
+        if not call_sid:
+            call_sid = session.get("menu_conversation_id")
+            if not call_sid:
+                import uuid
+                call_sid = str(uuid.uuid4())
+                session["menu_conversation_id"] = call_sid
+                
+        logger.info(f"Using conversation session ID: {call_sid}")
+                
+        # Check if we have an existing conversation in session
+        ai_response = menu_matcher.interactive_order_resolution(
+            menu_query, 
+            session_id=call_sid
+        )
 
         reply = ai_response.get("clarification_dialog")
+        
+        # Store the session ID for future reference
+        session["menu_conversation_id"] = ai_response.get("session_id", call_sid)
 
         # Say the reply and offer to continue the conversation
         response = VoiceResponse()

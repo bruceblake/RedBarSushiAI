@@ -42,7 +42,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     
     # Initial call to voice webhook
     voice_response = api_request.post(
-        "/webhook/voice", 
+        "", 
         data={
             "CallSid": test_call_sid,
             "AccountSid": "AC12345",
