@@ -51,18 +51,17 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
         }
     )
 
-    xml_bytes = voice_response.content
-    xml_str = voice_response.text
+    xml_content = voice_response.get_data(as_text=True)
 
     root = ET.fromstring(xml_str)
 
     assert voice_response.status == 200
     assert root.tag == "Response"
 
-    gather = root.find("./Gather")
+    gather = root.find("Gather")
     assert gather is not None
     
-    say_text = gather.findtext("./Say")
+    say_text = gather.find("Say")
     assert "Red Bar Sushi" in say_text
     
     # Extract the Gather action URL for the next step
