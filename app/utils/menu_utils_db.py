@@ -585,6 +585,89 @@ def process_product_changes(product_id, data, location_id=None):
     return menu_db_store.update_menu_item(item_data, location_id)
 
 
+def sync_reference_handlers(source_location_id=None, target_location_id=None):
+    """
+    Synchronize reference handlers between two location menu files.
+    This is used to ensure consistent PLUs and reference handlers across locations.
+
+    Args:
+        source_location_id: Location ID to use as the source (with correct reference handlers)
+        target_location_id: Location ID to update with the source reference handlers
+
+    Returns:
+        dict: Statistics about the synchronization
+    """
+    logger.info(
+        f"Synchronizing reference handlers from {source_location_id} to {target_location_id}"
+    )
+
+    try:
+        # Load source menu data
+        source_menu = load_menu_data(force_refresh=True, location_id=source_location_id)
+
+        # Load target menu data
+        target_menu = load_menu_data(force_refresh=True, location_id=target_location_id)
+
+        # Create a mapping of item name to reference handler from source
+        reference_map = {}
+        for item in source_menu.get("items", []):
+            name = item.get("name", "").lower()
+            reference = item.get("reference_handler", "")
+            if name and reference:
+                reference_map[name] = reference
+
+        # Update reference handlers in target
+        updated_count = 0
+        no_match_count = 0
+        already_match_count = 0
+
+        for item in target_menu.get("items", []):
+            name = item.get("name", "").lower()
+            if name in reference_map:
+                source_reference = reference_map[name]
+                target_reference = item.get("reference_handler", "")
+
+                if not target_reference or target_reference != source_reference:
+                    logger.info(
+                        f"Updating reference for {name}: {target_reference} -> {source_reference}"
+                    )
+                    item["reference_handler"] = source_reference
+                    updated_count += 1
+                else:
+                    already_match_count += 1
+            else:
+                no_match_count += 1
+                logger.warning(f"No matching item found in source for: {name}")
+
+        # Save updated target menu if changes were made
+        if updated_count > 0:
+            # Save to database 
+            write_menu_file(target_menu, location_id=target_location_id)
+            logger.info(
+                f"Saved updated menu with {updated_count} reference handler changes"
+            )
+
+        # Return statistics
+        return {
+            "updated": updated_count,
+            "no_match": no_match_count,
+            "already_match": already_match_count,
+            "total_source_items": len(source_menu.get("items", [])),
+            "total_target_items": len(target_menu.get("items", [])),
+        }
+    except Exception as e:
+        logger.error(f"Error synchronizing reference handlers: {str(e)}")
+        # Return error stats for test compatibility
+        return {
+            "error": str(e),
+            "updated": 0,
+            "no_match": 0,
+            "already_match": 0,
+            "total_source_items": 0,
+            "total_target_items": 0,
+        }
+
+
 def validate_modifier_constraints(order_items, return_detailed_constraints=False):
     """
     Validate that order items meet the modifier constraints defined in the menu.
