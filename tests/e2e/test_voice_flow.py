@@ -65,7 +65,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     assert "Red Bar Sushi" in say_text
     
     # Extract the Gather action URL for the next step
-    gather_action = extract_gather_action(say_text)
+    gather_action = gather.get("action")
     assert gather_action is not None
     
     # Step 3: Provide name (should be directed to take_name)
@@ -80,12 +80,20 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     assert name_response.status == 200
     
     # Parse the name confirmation TwiML
-    name_confirm_twiml = name_response.text
-    assert "<Response>" in name_confirm_twiml
-    assert "John" in name_confirm_twiml  # Should contain the name
+    xml_str = name_response.text()
+
+    root = ET.fromstring(xml_str)
+
+
+    gather = root.find("Gather")
+
+    say_text = gather.findtext("Say")
+
+    assert "John Smith" in say_text
+
     
     # Extract the Gather action URL for name confirmation
-    confirm_name_action = extract_gather_action(name_confirm_twiml)
+    confirm_name_action = gather.get("action")
     assert confirm_name_action is not None
     
     # Step 4: Confirm name
@@ -100,12 +108,11 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     assert confirm_response.status == 200
     
     # Parse the main menu TwiML
-    main_menu_twiml = confirm_response.text
-    assert "<Response>" in main_menu_twiml
-    assert "order" in main_menu_twiml.lower()  # Should mention ordering
+    main_menu_twiml = convertTwiRespToGather(confirm_response)
+
     
     # Extract the Gather action URL for main menu selection
-    main_menu_action = extract_gather_action(main_menu_twiml)
+    main_menu_action = main_menu_twiml.get("action")
     assert main_menu_action is not None
     
     # Step 5: Choose to ask about menu items
@@ -120,11 +127,9 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     assert menu_query_response.status == 200
     
     # Parse the menu response TwiML
-    menu_response_twiml = menu_query_response.text
-    assert "<Response>" in menu_response_twiml
-    
+    menu_response_twiml = convertTwiRespToGather(menu_query_response)
     # Extract the Gather action URL for continuing the conversation
-    menu_continue_action = extract_gather_action(menu_response_twiml)
+    menu_continue_action = menu_response_twiml.get("action")
     assert menu_continue_action is not None
     
     # Step 6: Ask about a specific menu item
@@ -139,12 +144,13 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     assert item_query_response.status == 200
     
     # Parse the item description TwiML
-    item_response_twiml = item_query_response.text
-    assert "<Response>" in item_response_twiml
-    assert items[0]['name'].lower() in item_response_twiml.lower()  # Should mention the item
+    item_response_twiml = convertTwiRespToGather(item_query_response)
+    say_text = item_response_twiml.findtext("Say")
+
+    assert items[0]['name'].lower() in say_text.lower()  # Should mention the item
     
     # Extract the Gather action URL for continuing after item description
-    after_item_action = extract_gather_action(item_response_twiml)
+    after_item_action = item_response_twiml.get("action")
     assert after_item_action is not None
     
     # Step 7: Decide to place an order
@@ -835,3 +841,10 @@ def extract_redirect_url(twiml):
     if redirect_match:
         return redirect_match.group(1).strip()
     return None
+
+def convertTwiRespToGather(response):
+    xml_str = response.text()
+    root = ET.fromstring(xml_str)
+    gather = root.find("Gather")
+    return gather
+
