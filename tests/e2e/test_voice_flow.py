@@ -61,7 +61,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     gather = root.find("Gather")
     assert gather is not None
     
-    say_text = gather.find("Say")
+    say_text = gather.findtext("Say")
     assert "Red Bar Sushi" in say_text
     
     # Extract the Gather action URL for the next step
