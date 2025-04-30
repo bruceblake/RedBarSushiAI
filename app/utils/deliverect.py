@@ -8,8 +8,9 @@ import sys
 from datetime import datetime  # timedelta removed - unused
 from flask import session
 from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET, BASE_URL
-from app.models import Location
 from app import db
+# Import directly from app.models (models.py file) to avoid circular imports
+from app.models import Location
 
 logger = logging.getLogger(__name__)
 

@@ -24,8 +24,13 @@ def init_database():
             
         logger.info("Initializing database for menu storage...")
         
-        # Import models to ensure they're registered
-        from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
+        # Import models to ensure they're registered - import directly from menu.py
+        try:
+            from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
+            logger.info("Successfully imported menu models from app.models.menu")
+        except ImportError as e:
+            logger.error(f"Error importing from app.models.menu: {e}")
+            # Fallback to any other approach if needed
         
         # Create tables if they don't exist
         try:

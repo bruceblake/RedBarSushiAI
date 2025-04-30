@@ -243,6 +243,8 @@ def create_app(test_config=None):
                     init_database()
                 except Exception as e:
                     app.logger.error(f"Failed to initialize menu database: {e}")
+                    # Continue anyway to ensure app starts
+                    app.logger.warning("App will continue starting up despite database initialization error")
 
     # Initialize WebSockets
     sock.init_app(app)
