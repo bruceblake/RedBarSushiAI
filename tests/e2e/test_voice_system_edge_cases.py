@@ -21,7 +21,7 @@ def test_human_agent_transfer_flow(api_request):
     
     # Initial call to voice webhook
     voice_response = api_request.post(
-        "/webhook/voice", 
+        "", 
         data={
             "CallSid": test_call_sid,
             "AccountSid": "AC12345",

@@ -28,7 +28,7 @@ def api_request(api_ctx):
     """
     class ApiRequest:
         def post(self, url, data=None, json=None):
-            headers = {"Content-Type": "application/json"}
+            headers = {"Content-Type": "application/x-www-form-urlencoded"}
             if data and not json:
                 json = data
             return api_ctx.post(url, headers=headers, data=json)

@@ -51,7 +51,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
         }
     )
 
-    xml_content = voice_response.get_data(as_text=True)
+    xml_str = voice_response.text()
 
     root = ET.fromstring(xml_str)
 
@@ -394,7 +394,7 @@ def test_voice_silence_handling_flow(api_request):
     
     # Step 1: Initial call to voice webhook
     voice_response = api_request.post(
-        "/webhook/voice", 
+        "", 
         data={
             "CallSid": test_call_sid,
             "AccountSid": "AC12345",
@@ -611,7 +611,7 @@ def test_voice_menu_query_flow(api_request, deliverect_menu_payload):
     
     # Step 1: Initial call to voice webhook
     voice_response = api_request.post(
-        "/webhook/voice", 
+        "", 
         data={
             "CallSid": test_call_sid,
             "AccountSid": "AC12345",
