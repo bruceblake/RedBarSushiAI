@@ -565,10 +565,10 @@ class MenuMatcher:
                     4. Base your suggestions ONLY on the menu categories, modifiers and items available
                     5. NEVER make up items that aren't in the menu
                     6. Maintain context from previous questions and answers in the conversation
+                    7. Dont include any greetings
                     
                     When suggesting menu items, be precise and use the exact item names as they appear in the menu.
                     Focus on understanding the customer's intent and helping them find the right items.""",
-                    "Dont include any greetings "
                 },
             ]
             
