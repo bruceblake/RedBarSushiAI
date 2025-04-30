@@ -71,7 +71,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     # Step 3: Provide name (should be directed to take_name)
     name_response = api_request.post(
         gather_action,
-        data={
+        form={
             "CallSid": test_call_sid,
             "SpeechResult": "John Smith",
             "Confidence": "0.8"
@@ -165,12 +165,13 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     assert order_start_response.status == 200
     
     # Parse the order start TwiML
-    order_start_twiml = order_start_response.text
-    assert "<Response>" in order_start_twiml
-    assert "order" in order_start_twiml.lower()  # Should mention ordering
+    order_start_twiml = convertTwiRespToGather(order_start_response)
+    say_text = order_start_twiml.findtext("Say")
+
+    assert "order" in say_text.lower()  # Should mention ordering
     
     # Extract the Gather action URL for the first item ordering
-    first_item_action = extract_gather_action(order_start_twiml)
+    first_item_action = order_start_twiml.get("action")
     assert first_item_action is not None
     
     # Step 8: Order first item
@@ -185,12 +186,12 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     assert first_item_response.status == 200
     
     # Parse the confirmation for first item
-    first_item_confirm_twiml = first_item_response.text
-    assert "<Response>" in first_item_confirm_twiml
+    first_item_confirm_twiml = convertTwiRespToGather(first_item_response)
+    say_text = first_item_confirm_twiml.findtext("Say")
     assert items[0]['name'].lower() in first_item_confirm_twiml.lower()  # Should confirm the item
     
     # Extract the Gather action URL for confirming first item
-    confirm_first_item_action = extract_gather_action(first_item_confirm_twiml)
+    confirm_first_item_action = first_item_confirm_twiml.get("action")
     assert confirm_first_item_action is not None
     
     # Step 9: Confirm first item addition
@@ -205,12 +206,13 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     assert first_confirm_response.status == 200
     
     # Parse the TwiML after confirming first item
-    after_first_item_twiml = first_confirm_response.text
-    assert "<Response>" in after_first_item_twiml
-    assert "anything else" in after_first_item_twiml.lower()  # Should ask about adding more
+    after_first_item_twiml = convertTwiRespToGather(first_confirm_response)
+    say_text = after_first_item_twiml.findtext("Say")
+
+    assert "anything else" in say_text.lower()  # Should ask about adding more
     
     # Extract the Gather action URL for adding more items
-    add_more_action = extract_gather_action(after_first_item_twiml)
+    add_more_action = after_first_item_twiml.get("action")
     assert add_more_action is not None
     
     # Step 10: Add a second item
