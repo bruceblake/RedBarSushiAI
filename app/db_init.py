@@ -24,32 +24,105 @@ def init_database():
             
         logger.info("Initializing database for menu storage...")
         
-        # Import models to ensure they're registered - import directly from menu.py
+        # Create the tables directly with SQL as a fallback option
+        # This won't rely on SQLAlchemy models, avoiding import issues
         try:
-            from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
-            logger.info("Successfully imported menu models from app.models.menu")
-        except ImportError as e:
-            logger.error(f"Error importing from app.models.menu: {e}")
-            # Fallback to any other approach if needed
-        
-        # Create tables if they don't exist
-        try:
+            # First check if the tables exist 
             db.engine.execute("SELECT 1 FROM menu_items LIMIT 1")
             logger.info("Menu tables already exist in database")
+            tables_exist = True
         except Exception:
-            logger.info("Creating menu tables in database...")
-            db.create_all()
-            logger.info("Menu tables created successfully")
+            logger.info("Tables don't exist yet, creating with SQL...")
+            tables_exist = False
             
-        # Check if we should migrate existing data
-        should_migrate = current_app.config.get("MIGRATE_MENU_DATA", True)
-        if should_migrate:
-            # Only migrate if we don't already have data
+            # Create tables using direct SQL
             try:
-                item_count = MenuItem.query.count()
-                if item_count > 0:
-                    logger.info(f"Database already contains {item_count} menu items - skipping migration")
-                else:
+                # Create tables with SQL - only if they don't exist
+                create_tables_sql = """
+                CREATE TABLE IF NOT EXISTS menu_items (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    reference_handler VARCHAR(255),
+                    plu VARCHAR(255),
+                    price FLOAT,
+                    description TEXT,
+                    category VARCHAR(255),
+                    parent_id VARCHAR(255),
+                    available BOOLEAN DEFAULT TRUE,
+                    snoozed BOOLEAN DEFAULT FALSE,
+                    is_category BOOLEAN DEFAULT FALSE,
+                    is_variant BOOLEAN DEFAULT FALSE,
+                    snooze_start TIMESTAMP,
+                    snooze_end TIMESTAMP,
+                    snooze_until TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    location_id VARCHAR(36),
+                    properties JSONB
+                );
+
+                CREATE TABLE IF NOT EXISTS menu_modifiers (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    reference_handler VARCHAR(255),
+                    price FLOAT DEFAULT 0.0,
+                    available BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    location_id VARCHAR(36),
+                    properties JSONB
+                );
+
+                CREATE TABLE IF NOT EXISTS menu_modifier_groups (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    reference_handler VARCHAR(255),
+                    min_allowed INTEGER DEFAULT 0,
+                    max_allowed INTEGER,
+                    multi_max INTEGER DEFAULT 1,
+                    is_variant_group BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    location_id VARCHAR(36),
+                    properties JSONB
+                );
+
+                CREATE TABLE IF NOT EXISTS menu_item_modifiers (
+                    menu_item_id INTEGER REFERENCES menu_items(id) ON DELETE CASCADE,
+                    menu_modifier_group_id INTEGER REFERENCES menu_modifier_groups(id) ON DELETE CASCADE,
+                    PRIMARY KEY (menu_item_id, menu_modifier_group_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS menu_modifier_group_items (
+                    menu_modifier_group_id INTEGER REFERENCES menu_modifier_groups(id) ON DELETE CASCADE,
+                    menu_modifier_id INTEGER REFERENCES menu_modifiers(id) ON DELETE CASCADE,
+                    PRIMARY KEY (menu_modifier_group_id, menu_modifier_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_menu_items_reference_handler ON menu_items(reference_handler);
+                CREATE INDEX IF NOT EXISTS idx_menu_items_plu ON menu_items(plu);
+                CREATE INDEX IF NOT EXISTS idx_menu_modifiers_reference_handler ON menu_modifiers(reference_handler);
+                CREATE INDEX IF NOT EXISTS idx_menu_modifier_groups_reference_handler ON menu_modifier_groups(reference_handler);
+                """
+                
+                db.engine.execute(create_tables_sql)
+                logger.info("Successfully created menu tables with direct SQL")
+            except Exception as sql_error:
+                logger.error(f"Error creating tables with SQL: {sql_error}")
+                # Try with SQLAlchemy as fallback
+                try:
+                    # Import models here to avoid top-level circular imports
+                    from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
+                    db.create_all()
+                    logger.info("Created tables using SQLAlchemy ORM")
+                except Exception as orm_error:
+                    logger.error(f"Failed to create tables with ORM too: {orm_error}")
+        
+        # Check if we should migrate existing data - only if tables were just created
+        if not tables_exist:
+            should_migrate = current_app.config.get("MIGRATE_MENU_DATA", True)
+            if should_migrate:
+                try:
                     # Import migration module
                     from app.utils.menu_migration import migrate_menu_to_database
                     
@@ -68,8 +141,8 @@ def init_database():
                             logger.error(f"Failed to migrate menu data: {result.get('error')}")
                     else:
                         logger.warning(f"Menu file not found at {menu_file} - cannot migrate data")
-            except Exception as e:
-                logger.error(f"Error checking or migrating menu data: {e}", exc_info=True)
+                except Exception as e:
+                    logger.error(f"Error migrating menu data: {e}", exc_info=True)
                 
         # Set configuration to use database
         current_app.config["MENU_BACKEND"] = "database"
