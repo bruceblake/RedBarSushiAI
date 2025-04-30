@@ -27,12 +27,31 @@ def api_request(api_ctx):
     and adds default headers.
     """
     class ApiRequest:
-        def post(self, url, data=None, json=None):
-            headers = {"Content-Type": "application/x-www-form-urlencoded"}
-            if data and not json:
-                json = data
-            return api_ctx.post(url, headers=headers, data=json)
-        
+         # ---- POST ------------------------------------------------------------
+        def post(self, url, *, form=None, json=None, data=None, **kw):
+            """
+            • form=  →  x-www-form-urlencoded (Twilio style, fills request.form)
+            • json=  →  application/json (for your own APIs)
+            • data=  →  raw bytes / str
+            """
+            if form is not None:                            # ✅ what Twilio sends
+                return api_ctx.post(
+                    url,
+                    form=form,                              # Playwright builds form body
+                    **kw,
+                )
+
+            if json is not None:
+                return api_ctx.post(
+                    url,
+                    headers={"Content-Type": "application/json"},
+                    data=json,                              # Playwright will JSON-encode
+                    **kw,
+                )
+
+            return api_ctx.post(url, data=data, **kw)       # fall-back 
+
+
         def get(self, url, params=None):
             return api_ctx.get(url, params=params)
     
