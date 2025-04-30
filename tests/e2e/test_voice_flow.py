@@ -99,7 +99,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     # Step 4: Confirm name
     confirm_response = api_request.post(
         confirm_name_action,
-        data={
+        form={
             "CallSid": test_call_sid,
             "SpeechResult": "yes",
             "Confidence": "0.9"
@@ -118,7 +118,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     # Step 5: Choose to ask about menu items
     menu_query_response = api_request.post(
         main_menu_action,
-        data={
+        form={
             "CallSid": test_call_sid,
             "SpeechResult": "tell me about your menu",
             "Confidence": "0.85"
@@ -135,7 +135,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     # Step 6: Ask about a specific menu item
     item_query_response = api_request.post(
         menu_continue_action,
-        data={
+        form={
             "CallSid": test_call_sid,
             "SpeechResult": f"Tell me about the {items[0]['name']}",
             "Confidence": "0.85"
