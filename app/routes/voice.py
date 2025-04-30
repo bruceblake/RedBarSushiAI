@@ -668,18 +668,58 @@ def main_menu():
         # Add redirect for silence handling
         response.redirect("/take_order")
     elif choice == "ask_menu":
-        # Set up gather params for menu questions
+        # Use AI agent to answer any menu question
+        menu_query = user_input.strip()
+        
+        # Get session ID for conversation tracking
+        # We'll use the Twilio call SID as our session ID to keep context between turns
+        call_sid = request.values.get("CallSid")
+        # Fall back to a session variable if call SID not available
+        if not call_sid:
+            call_sid = session.get("menu_conversation_id")
+            if not call_sid:
+                import uuid
+                call_sid = str(uuid.uuid4())
+                session["menu_conversation_id"] = call_sid
+                
+        logger.info(f"Using conversation session ID: {call_sid}")
+        
+        # Import the conversation store for context tracking
+        from app.utils.conversation_store import conversation_store
+        
+        # Check if we have an existing conversation for this session
+        conversation_data = conversation_store.get_conversation(call_sid)
+        logger.info(f"Found conversation with {len(conversation_data.get('messages', []))} messages")
+                
+        # Add the user's new query to the conversation
+        conversation_store.add_message(call_sid, "user", menu_query)
+        
+        # Process the query with interactive order resolution using the conversation context
+        ai_response = menu_matcher.interactive_order_resolution(
+            menu_query, 
+            session_id=call_sid
+        )
+
+        reply = ai_response.get("clarification_dialog")
+        
+        # Store the session ID for future reference
+        session["menu_conversation_id"] = ai_response.get("session_id", call_sid)
+
+        # Say the reply without prompting for another question
+        # This allows for a more natural conversation flow
+        response = VoiceResponse()
+        response.say(reply)
+        
+        # Setup gather without additional prompting
+        # This lets the conversation continue naturally
         gather_params = setup_gather_params(
             context="menu", action="/handle_menu_questions"
         )
+        
+        # Just gather the next input without additional prompting
+        response.gather(**gather_params)
 
-        with response.gather(**gather_params) as g:
-            g.say(
-                "What would you like to know about our menu?"
-            )
-
-        # Add redirect for silence handling
-        response.redirect("/handle_menu_questions")
+        return Response(str(response), mimetype="text/xml")
     elif choice == "real_person":
         # Store in session that we're transferring to a real person
         session["transfer_to_human"] = True
@@ -1585,3 +1625,14 @@ def realtime_demo():
     from flask import send_from_directory
 
     return send_from_directory("app/static", "realtime_demo.html")
+
+
+@voice_bp.route("/graceful_exit", methods=["POST", "GET"])
+def graceful_exit():
+    """
+    Provides a graceful exit with a goodbye message before ending the call.
+    """
+    response = VoiceResponse()
+    response.say("Thank you for calling Red Bar Sushi. Have a great day!")
+    response.hangup()
+    return Response(str(response), mimetype="text/xml")
