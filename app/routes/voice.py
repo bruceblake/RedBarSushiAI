@@ -803,26 +803,6 @@ def handle_menu_questions():
                 "I'll take your order now. Please tell me what you would like to order. Take your time, I'll wait."
             )
     elif intent == "ask_menu":
-        # For optimized menu handler with Redis conversation store support
-        if OPTIMIZED_MENU_HANDLER:
-            # Get the Twilio call SID to use as session ID
-            call_sid = request.values.get("CallSid")
-            # Fall back to a session variable if call SID not available
-            if not call_sid:
-                call_sid = session.get("menu_conversation_id")
-                if not call_sid:
-                    import uuid
-                    call_sid = str(uuid.uuid4())
-                    session["menu_conversation_id"] = call_sid
-                    
-            logger.info(f"Using conversation session ID: {call_sid}")
-            
-            # Let the optimized handler process the query with Redis support
-            optimized_response = handle_menu_query(user_input)
-            if optimized_response:
-                # Session ID is already handled in the optimized handler
-                return Response(str(optimized_response), mimetype="text/xml")
-        
         # Use AI agent to answer any menu question
         menu_query = user_input.strip()
         
