@@ -4,6 +4,7 @@ import time
 import re
 from urllib.parse import urlparse, parse_qs
 from twilio.twiml.voice_response import VoiceResponse
+import xml.etree.ElementTree as ET
 
 @pytest.mark.e2e
 def test_complete_voice_order_flow(api_request, create_test_menu_payload):
@@ -49,15 +50,23 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
             "From": "+15551234567"
         }
     )
+
+    xml_bytes = voice_response.data
+    xml_str = voice_response.get_data(as_text=True)
+
+    root = ET.fromstring(xml_str)
+
     assert voice_response.status == 200
+    assert root.tag == "Response"
+
+    gather = root.find("./Gather")
+    assert gather is not None
     
-    # Parse the TwiML response to get the greeting and next action
-    greeting_twiml = voice_response.text
-    assert "<Response>" in greeting_twiml
-    assert "<Say>" in greeting_twiml  # Should contain a greeting
+    say_text = gather.findtext("./Say")
+    assert "Red Bar Sushi" in say_text
     
     # Extract the Gather action URL for the next step
-    gather_action = extract_gather_action(greeting_twiml)
+    gather_action = extract_gather_action(say_text)
     assert gather_action is not None
     
     # Step 3: Provide name (should be directed to take_name)
