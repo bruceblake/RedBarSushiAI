@@ -230,7 +230,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     second_item_confirm_twiml = convertTwiRespToGather(second_item_response)
     say_text = second_item_confirm_twiml.findtext("Say")
 
-    assert items[1]['name'].lower() say_text  # Should confirm the item
+    assert items[1]['name'].lower() in say_text  # Should confirm the item
     
     # Extract the Gather action URL for confirming second item
     confirm_second_item_action = second_item_confirm_twiml.get("action")
