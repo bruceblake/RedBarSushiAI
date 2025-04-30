@@ -579,13 +579,44 @@ def main_menu_dtmf_only():
 
 @voice_bp.route("/main_menu", methods=["POST"])
 def main_menu():
-    user_resp = (request.form.get("SpeechResult", "") or "").lower()
+    speech_input = (request.form.get("SpeechResult", "") or "").lower()
     dtmf_input = request.form.get("Digits", "")
 
-    # Track silence for retries
-    silence = not user_resp and not dtmf_input
-    silence_retry_count = session.get("menu_silence_retry_count", 0)
+    # Check for silence (no input)
+    if not speech_input and not dtmf_input:
+        # Track silence retries
+        menu_silence_retry_count = session.get("menu_silence_retry_count", 0)
+        session["menu_silence_retry_count"] = menu_silence_retry_count + 1
+        
+        logger.info(f"Silence detected in main_menu (attempt {menu_silence_retry_count+1})")
+        
+        response = VoiceResponse()
+        
+        if menu_silence_retry_count >= 2:
+            # After multiple silences, provide appropriate fallback
+            logger.info("Multiple silences in main_menu - proceeding to fallback")
+            response.say("Since I didn't hear from you, I'll guide you through the menu options differently.")
+            response.redirect("/main_menu_fallback")
+            return Response(str(response), mimetype="text/xml")
+        else:
+            # First silence, try again with clearer options
+            with response.gather(
+                input="speech dtmf",
+                action="/main_menu",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=8,
+                num_digits=1
+            ) as g:
+                g.say("I didn't hear you. Please press 1 to order, press 2 for menu questions, or press 3 to speak with a person.")
+            return Response(str(response), mimetype="text/xml")
 
+    # Reset silence counter if we got a response
+    session["menu_silence_retry_count"] = 0
+    
+    # Determine user choice
     choice = None
     if dtmf_input == "1":
         choice = "order"
@@ -594,65 +625,14 @@ def main_menu():
     elif dtmf_input == "3":
         choice = "real_person"
     else:
-        if "1" in user_resp or "order" in user_resp:
+        if "1" in speech_input or "order" in speech_input:
             choice = "order"
-        elif "2" in user_resp or "menu" in user_resp or "question" in user_resp:
+        elif "2" in speech_input or "menu" in speech_input or "question" in speech_input:
             choice = "ask_menu"
-        elif "3" in user_resp or "person" in user_resp or "human" in user_resp:
+        elif "3" in speech_input or "person" in speech_input or "human" in speech_input:
             choice = "real_person"
-
+            
     response = VoiceResponse()
-
-    # Handle silence by incrementing counter and giving appropriate prompts
-    if silence:
-        session["menu_silence_retry_count"] = silence_retry_count + 1
-        logger.info(f"Menu silence detected. Retry count: {silence_retry_count+1}")
-
-        # After multiple silences, give clearer instructions with progressively more help
-        if silence_retry_count >= 3:
-            # Too many silent attempts, use a super clear message with long timeout
-            logger.warning(
-                "Multiple silences detected in main menu, going to DTMF-only mode"
-            )
-            # Use adaptive timeouts with retry count for main menu
-            gather_params = setup_gather_params(
-                context="menu",
-                retry_count=3,  # High retry count for more patient behavior
-                include_dtmf=True,
-                action="/main_menu",
-            )
-            gather_params["num_digits"] = 1  # Add DTMF parameter
-
-            with response.gather(**gather_params) as g:
-                g.say(
-                    "I can't hear you clearly. Please press 1 on your keypad to order, press 2 for menu questions, or press 3 to speak with a person. You can also try speaking louder."
-                )
-
-            # If we still get nothing, redirect to a basic menu that doesn't require speech
-            response.redirect("/main_menu_fallback")
-            return Response(str(response), mimetype="text/xml")
-        elif silence_retry_count >= 1:
-            # First retry with better guidance and speech + DTMF
-            # Use adaptive timeouts with medium retry count
-            gather_params = setup_gather_params(
-                context="menu",
-                retry_count=1,  # First retry count
-                include_dtmf=True,
-                action="/main_menu",
-            )
-            gather_params["num_digits"] = 1  # Add DTMF parameter
-
-            with response.gather(**gather_params) as g:
-                g.say(
-                    "I'm having trouble hearing you. Please press 1 to order, 2 for menu questions, or 3 for a real person. Or you can speak your choice clearly."
-                )
-
-            # If still nothing, we'll redirect to handle that case
-            response.redirect("/main_menu")
-            return Response(str(response), mimetype="text/xml")
-    else:
-        # Reset counter when we get input
-        session["menu_silence_retry_count"] = 0
 
     if choice == "order" and channel_status == 1:
         session["ordering_in_progress"] = True
@@ -669,7 +649,7 @@ def main_menu():
         response.redirect("/take_order")
     elif choice == "ask_menu":
         # Use AI agent to answer any menu question
-        menu_query = user_input.strip()
+        menu_query = speech_input.strip()
         
         # Get session ID for conversation tracking
         # We'll use the Twilio call SID as our session ID to keep context between turns
@@ -758,39 +738,60 @@ menu_questions_cache_duration = 300  # 5 minutes
 @voice_bp.route("/handle_menu_questions", methods=["POST"])
 def handle_menu_questions():
     """Handle menu-related questions from the caller."""
-    user_input = request.form.get("SpeechResult", "").lower()
+    speech_input = request.form.get("SpeechResult", "").lower()
+    dtmf_input = request.form.get("Digits", "")
 
     # For performance tracking
     start_time = time.time()
 
-    # Standard handler path
-    # Check for silence
-    if not user_input:
+    # Check for silence (no input)
+    if not speech_input and not dtmf_input:
+        # Track silence retries
+        menu_question_silence = session.get("menu_question_silence", 0)
+        session["menu_question_silence"] = menu_question_silence + 1
+        
+        logger.info(f"Silence detected in handle_menu_questions (attempt {menu_question_silence+1})")
+        
         response = VoiceResponse()
-        return handle_silence(
-            response=response,
-            session_key="menu_question_silence",
-            action="/handle_menu_questions",
-            context="menu",
-        )
+        
+        if menu_question_silence >= 2:
+            # After multiple silences, provide appropriate fallback
+            logger.info("Multiple silences in handle_menu_questions - proceeding to fallback")
+            response.say("Since I didn't hear from you, I'll take you back to the main menu.")
+            response.redirect("/main_menu_fallback")
+            return Response(str(response), mimetype="text/xml")
+        else:
+            # First silence, try again with clearer options
+            with response.gather(
+                input="speech dtmf",
+                action="/handle_menu_questions",
+                enhanced=True,
+                speech_model="phone_call",
+                language="en-US",
+                speech_timeout=5,
+                timeout=8,
+                num_digits=1
+            ) as g:
+                g.say("I didn't hear you. Please ask your question about our menu, or press 1 to place an order instead.")
+            return Response(str(response), mimetype="text/xml")
 
-    # Reset silence counter when we get speech
+    # Reset silence counter if we got a response
     session["menu_question_silence"] = 0
 
     # Check if we have a cached response for this query
-    cleaned_input = user_input.strip().lower()
+    cleaned_input = speech_input.strip().lower()
 
     # Start processing user input
     # Use the agent-based analysis
     start_time = time.time()
-    analysis = analyze_user_input(user_input)
+    analysis = analyze_user_input(speech_input)
     intent = analysis.get("intent", "other")
     analysis_time = time.time() - start_time
     logger.info(f"Analysis completed in {analysis_time:.2f} seconds. Intent: {intent}")
 
     response = VoiceResponse()
 
-    if intent == "order_food":
+    if intent == "order_food" or dtmf_input == "1":
         # User decided to order instead of asking questions
         session["ordering_in_progress"] = True
         # Use adaptive timeouts for order taking
@@ -804,7 +805,7 @@ def handle_menu_questions():
             )
     elif intent == "ask_menu":
         # Use AI agent to answer any menu question
-        menu_query = user_input.strip()
+        menu_query = speech_input.strip()
         
         # Get session ID for conversation tracking
         # We'll use the Twilio call SID as our session ID to keep context between turns

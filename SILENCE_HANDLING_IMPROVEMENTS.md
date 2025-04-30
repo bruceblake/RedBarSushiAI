@@ -19,6 +19,8 @@ We've implemented comprehensive silence handling across all routes that gather u
 7. **save_contact_info** - Implemented silence detection with fallback
 8. **handle_invalid_modifiers** - Added comprehensive silence handling
 9. **graceful_exit** - Enhanced with attempt tracking to avoid infinite loops
+10. **handle_menu_questions** - Added standardized silence handling with retry mechanism
+11. **main_menu** - Improved silence handling with appropriate fallbacks
 
 ## Silence Handling Pattern
 
@@ -57,6 +59,20 @@ if not speech_input and not dtmf_input:
 # Reset silence counter if we got a response
 session["something_silence_retry"] = 0
 ```
+
+## Specifically Updated in This Sprint
+
+In the current update, we've completed the final routes that required silence handling improvements:
+
+1. **handle_menu_questions** - Implemented the standard silence detection pattern with proper retry counters and fallback to main menu after multiple silences
+2. **main_menu** - Refactored silence handling to use the standardized pattern with consistent logging and UX
+
+Each route now properly handles silence by:
+- Detecting when the user provides no input
+- Tracking silence attempts with session counters
+- Providing helpful retry prompts
+- Gracefully exiting to a fallback path after multiple silent attempts
+- Resetting counters when input is received
 
 ## Benefits of These Improvements
 
