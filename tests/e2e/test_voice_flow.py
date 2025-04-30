@@ -147,7 +147,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     item_response_twiml = convertTwiRespToGather(item_query_response)
     say_text = item_response_twiml.findtext("Say")
 
-    assert items[0]['name'].lower() in say_text.lower()  # Should mention the item
+    assert items[0]['name'].lower() in say_text  # Should mention the item
     
     # Extract the Gather action URL for continuing after item description
     after_item_action = item_response_twiml.get("action")
@@ -156,7 +156,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     # Step 7: Decide to place an order
     order_start_response = api_request.post(
         after_item_action,
-        data={
+        form={
             "CallSid": test_call_sid,
             "SpeechResult": "I'd like to place an order",
             "Confidence": "0.9"
@@ -177,7 +177,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     # Step 8: Order first item
     first_item_response = api_request.post(
         first_item_action,
-        data={
+        form={
             "CallSid": test_call_sid,
             "SpeechResult": f"I want one {items[0]['name']}",
             "Confidence": "0.85"
@@ -188,7 +188,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     # Parse the confirmation for first item
     first_item_confirm_twiml = convertTwiRespToGather(first_item_response)
     say_text = first_item_confirm_twiml.findtext("Say")
-    assert items[0]['name'].lower() in first_item_confirm_twiml.lower()  # Should confirm the item
+    assert items[0]['name'].lower() in say_text  # Should confirm the item
     
     # Extract the Gather action URL for confirming first item
     confirm_first_item_action = first_item_confirm_twiml.get("action")
@@ -197,7 +197,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     # Step 9: Confirm first item addition
     first_confirm_response = api_request.post(
         confirm_first_item_action,
-        data={
+        form={
             "CallSid": test_call_sid,
             "SpeechResult": "yes that's correct",
             "Confidence": "0.9"
@@ -209,7 +209,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     after_first_item_twiml = convertTwiRespToGather(first_confirm_response)
     say_text = after_first_item_twiml.findtext("Say")
 
-    assert "anything else" in say_text.lower()  # Should ask about adding more
+    assert "anything else" in say_text  # Should ask about adding more
     
     # Extract the Gather action URL for adding more items
     add_more_action = after_first_item_twiml.get("action")
@@ -218,7 +218,7 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     # Step 10: Add a second item
     second_item_response = api_request.post(
         add_more_action,
-        data={
+        form={
             "CallSid": test_call_sid,
             "SpeechResult": f"Yes, add one {items[1]['name']}",
             "Confidence": "0.85"
@@ -227,18 +227,19 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     assert second_item_response.status == 200
     
     # Parse the confirmation for second item
-    second_item_confirm_twiml = second_item_response.text
-    assert "<Response>" in second_item_confirm_twiml
-    assert items[1]['name'].lower() in second_item_confirm_twiml.lower()  # Should confirm the item
+    second_item_confirm_twiml = convertTwiRespToGather(second_item_response)
+    say_text = second_item_confirm_twiml.findtext("Say")
+
+    assert items[1]['name'].lower() say_text  # Should confirm the item
     
     # Extract the Gather action URL for confirming second item
-    confirm_second_item_action = extract_gather_action(second_item_confirm_twiml)
+    confirm_second_item_action = second_item_confirm_twiml.get("action")
     assert confirm_second_item_action is not None
     
     # Step 11: Confirm second item addition
     second_confirm_response = api_request.post(
         confirm_second_item_action,
-        data={
+        form={
             "CallSid": test_call_sid,
             "SpeechResult": "yes",
             "Confidence": "0.9"
