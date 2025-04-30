@@ -7,7 +7,7 @@ from twilio.twiml.voice_response import VoiceResponse
 import xml.etree.ElementTree as ET
 
 @pytest.mark.e2e
-def test_complete_voice_order_flow(api_request, create_test_menu_payload):
+def test_complete_voice_order_flow(api_request):
     """
     Test a complete voice call flow from greeting to order completion.
     
@@ -21,21 +21,78 @@ def test_complete_voice_order_flow(api_request, create_test_menu_payload):
     
     This is a true end-to-end test that simulates a complete voice call.
     """
-    # Step 1: First create a menu that the voice system will use
-    menu_payload = create_test_menu_payload(payload_type="standard", num_items=5, include_modifiers=True)
+    # Step 1: Use the real menu data instead of test data
+    import json
+    import os
+    
+    # Load the menu data from the JSON file
+    with open('/home/proxyie/MySoftware/RedBarSushiAI/menu_data.json', 'r') as f:
+        menu_data = json.load(f)
+    
+    # Create a menu payload format that the API expects
+    menu_payload = {
+        "data": {
+            "menu": {
+                "categories": []
+            }
+        }
+    }
+    
+    # Extract non-category items and organize them by parent category
+    items_by_category = {}
+    for item in menu_data["items"]:
+        if not item.get("is_category", False):
+            parent_id = item.get("parentId", "uncategorized")
+            if parent_id not in items_by_category:
+                items_by_category[parent_id] = []
+            items_by_category[parent_id].append(item)
+    
+    # Create categories with their products
+    categories = []
+    for item in menu_data["items"]:
+        if item.get("is_category", False):
+            category_id = item.get("reference_handler")
+            category = {
+                "id": category_id,
+                "name": item.get("name", "Unknown Category"),
+                "products": []
+            }
+            
+            # Add products to this category
+            if category_id in items_by_category:
+                for product in items_by_category[category_id]:
+                    category["products"].append({
+                        "plu": product.get("plu", ""),
+                        "name": product.get("name", ""),
+                        "price": product.get("price", 0),
+                        "description": product.get("description", ""),
+                        "available": product.get("available", True)
+                    })
+            
+            categories.append(category)
+    
+    menu_payload["data"]["menu"]["categories"] = categories
+    
+    # Send the menu update request
     menu_response = api_request.post("/menu_update", data=menu_payload)
     assert menu_response.status == 200
     
     # Extract items from the menu for use in testing
+    # Filter for only non-category items
     items = []
-    if "data" in menu_payload and "menu" in menu_payload["data"]:
-        for cat in menu_payload["data"]["menu"]["categories"]:
-            for item in cat["products"]:
-                items.append({
-                    "plu": item["plu"],
-                    "name": item["name"],
-                    "price": item["price"]
-                })
+    for item in menu_data["items"]:
+        if not item.get("is_category", False) and item.get("available", True) and not item.get("snoozed", False):
+            items.append({
+                "plu": item.get("plu", ""),
+                "name": item.get("name", ""),
+                "price": item.get("price", 0)
+            })
+    
+    # Make sure we have enough items for the test
+    assert len(items) >= 2, "Not enough menu items available for testing"
+    
+    # Print the first few items we'll be testing with
+    print(f"Testing with menu items: {items[0]['name']}, {items[1]['name']}")
     
     # Step 2: Initiate a mock voice call
     # Generate a test CallSid
@@ -595,7 +652,7 @@ def test_voice_silence_handling_flow(api_request):
     assert "order" in dtmf_twiml.lower() or "help" in dtmf_twiml.lower()
 
 @pytest.mark.e2e
-def test_voice_menu_query_flow(api_request, deliverect_menu_payload):
+def test_voice_menu_query_flow(api_request):
     """
     Test a voice call flow focused on menu inquiries and item information.
     
@@ -608,30 +665,84 @@ def test_voice_menu_query_flow(api_request, deliverect_menu_payload):
     
     This is an end-to-end test focused on the menu information capabilities.
     """
-    # First ensure the menu is populated
-    menu_response = api_request.post("/menu_update", data=deliverect_menu_payload)
+    # Load the real menu data from the JSON file
+    import json
+    
+    # Load the menu data from the JSON file
+    with open('/home/proxyie/MySoftware/RedBarSushiAI/menu_data.json', 'r') as f:
+        menu_data = json.load(f)
+    
+    # Create a menu payload format that the API expects
+    menu_payload = {
+        "data": {
+            "menu": {
+                "categories": []
+            }
+        }
+    }
+    
+    # Extract non-category items and organize them by parent category
+    items_by_category = {}
+    for item in menu_data["items"]:
+        if not item.get("is_category", False):
+            parent_id = item.get("parentId", "uncategorized")
+            if parent_id not in items_by_category:
+                items_by_category[parent_id] = []
+            items_by_category[parent_id].append(item)
+    
+    # Create categories with their products
+    categories = []
+    category_names = []
+    for item in menu_data["items"]:
+        if item.get("is_category", False):
+            category_id = item.get("reference_handler")
+            category_name = item.get("name", "Unknown Category")
+            category_names.append(category_name)
+            
+            category = {
+                "id": category_id,
+                "name": category_name,
+                "products": []
+            }
+            
+            # Add products to this category
+            if category_id in items_by_category:
+                for product in items_by_category[category_id]:
+                    category["products"].append({
+                        "plu": product.get("plu", ""),
+                        "name": product.get("name", ""),
+                        "price": product.get("price", 0),
+                        "description": product.get("description", ""),
+                        "available": product.get("available", True)
+                    })
+            
+            categories.append(category)
+    
+    menu_payload["data"]["menu"]["categories"] = categories
+    
+    # Ensure the menu is populated
+    menu_response = api_request.post("/menu_update", data=menu_payload)
     assert menu_response.status == 200
     
-    # Extract some menu items for testing
+    # Extract test items from the real menu data
     test_items = []
-    categories = []
-    
-    if "data" in deliverect_menu_payload and "menu" in deliverect_menu_payload["data"]:
-        menu = deliverect_menu_payload["data"]["menu"]
-        
-        # Extract categories
-        for category in menu.get("categories", []):
-            categories.append(category["name"])
-            # Extract items from each category
-            for product in category.get("products", []):
+    for item in menu_data["items"]:
+        if not item.get("is_category", False) and item.get("available", True) and not item.get("snoozed", False):
+            # Only include items with decent descriptions for better testing
+            if item.get("description") and len(item.get("description", "")) > 10:
                 test_items.append({
-                    "name": product["name"],
-                    "description": product.get("description", ""),
-                    "price": product.get("price", 0)
+                    "name": item.get("name", ""),
+                    "description": item.get("description", ""),
+                    "price": item.get("price", 0)
                 })
     
+    # Ensure we have menu items to test with
     assert len(test_items) > 0, "No menu items found for testing"
-    assert len(categories) > 0, "No menu categories found for testing"
+    assert len(category_names) > 0, "No menu categories found for testing"
+    
+    # Print some of the test items we'll be using
+    print(f"Testing with categories: {', '.join(category_names[:3])}")
+    print(f"Testing with items: {test_items[0]['name']}, {test_items[1]['name']}")
     
     # Generate a test CallSid
     test_call_sid = f"CA{''.join(['1234567890'[i % 10] for i in range(32)])}"
