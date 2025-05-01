@@ -663,7 +663,7 @@ def validate_and_fix_menu_data(menu_data, location_id=None):
                     if lookup_location_id:
                         logger.info(f"[MENU-FIX] Using location_id {lookup_location_id} for database lookup of {item_name}")
                     
-                    menu_data_db = menu_db_store.get_menu_data(location_id=lookup_location_id, force_refresh=True)
+                    menu_data_db = menu_db_store._get_menu_data_from_db(location_id=lookup_location_id, cache_key=f"menu:{lookup_location_id if lookup_location_id else 'default'}")
                     
                     # Check if database contains items
                     if not menu_data_db.get("items"):
@@ -872,7 +872,7 @@ def validate_and_fix_menu_data(menu_data, location_id=None):
                         price_invalid = False
                     else:
                         # Check if database is empty (special initialization case)
-                        menu_data_db_check = menu_db_store.get_menu_data(force_refresh=True)
+                        menu_data_db_check = menu_db_store._get_menu_data_from_db(cache_key="menu:default")
                         if not menu_data_db_check.get("items"):
                             logger.warning(f"[MENU-FIX] EMPTY DB VALIDATION: Special handling for {item_name} during database initialization")
                             
@@ -1027,7 +1027,7 @@ def validate_and_fix_menu_data(menu_data, location_id=None):
         ):
             # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
             # Get menu data from database
-            menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+            menu_data_db = menu_db_store._get_menu_data_from_db(cache_key="menu:default")
             db_group = None
             
             for db_grp in menu_data_db.get("modifierGroups", []):
@@ -1053,7 +1053,7 @@ def validate_and_fix_menu_data(menu_data, location_id=None):
             # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
             # Try to find matching group in database if not already fetched
             if 'db_group' not in locals() or db_group is None:
-                menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                menu_data_db = menu_db_store._get_menu_data_from_db(cache_key="menu:default")
                 db_group = None
                 
                 for db_grp in menu_data_db.get("modifierGroups", []):
@@ -1078,7 +1078,7 @@ def validate_and_fix_menu_data(menu_data, location_id=None):
             # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
             # Try to find matching group in database if not already fetched
             if 'db_group' not in locals() or db_group is None:
-                menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                menu_data_db = menu_db_store._get_menu_data_from_db(cache_key="menu:default")
                 db_group = None
                 
                 for db_grp in menu_data_db.get("modifierGroups", []):
@@ -1249,7 +1249,7 @@ def validate_and_fix_menu_data(menu_data, location_id=None):
         if price_invalid:
             # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
             # Get menu data from database
-            menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+            menu_data_db = menu_db_store._get_menu_data_from_db(cache_key="menu:default")
             db_modifier = None
             
             for db_mod in menu_data_db.get("modifiers", []):

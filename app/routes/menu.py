@@ -344,12 +344,44 @@ def menu_update():
                     # If we have a callback URL, send a FAILED status
                     if callback_url:
                         try:
+                            # Format the callback URL if it needs additional correction
+                            final_callback_url = callback_url
+                            if "?" not in callback_url and "&status=" not in callback_url:
+                                if callback_url.endswith("/"):
+                                    final_callback_url = f"{callback_url}?status=FAILED"
+                                else:
+                                    final_callback_url = f"{callback_url}?status=FAILED"
+                            
+                            logger.info(f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}")
+                            
+                            # Try GET first (some Deliverect endpoints expect GET)
+                            try:
+                                get_response = requests.get(
+                                    final_callback_url,
+                                    headers={
+                                        "Accept": "application/json",
+                                        "User-Agent": "RedBarSushiAI/1.0",
+                                    },
+                                    timeout=10,
+                                )
+                                logger.info(f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}")
+                            except Exception as get_e:
+                                logger.warning(f"[MENU-UPDATE] GET error callback attempt failed: {get_e}")
+                            
+                            # Then try POST with the payload
                             callback_response = requests.post(
-                                callback_url,
+                                final_callback_url,
                                 json={
                                     "status": "FAILED",
                                     "comment": "Empty menu data - no items found",
+                                    "timestamp": datetime.now().isoformat(),
                                 },
+                                headers={
+                                    "Content-Type": "application/json",
+                                    "Accept": "application/json",
+                                    "User-Agent": "RedBarSushiAI/1.0",
+                                },
+                                timeout=10,
                             )
                             logger.info(
                                 f"[MENU-UPDATE] Callback response: {callback_response.status_code}"
@@ -483,12 +515,44 @@ def menu_update():
                 # If we have a callback URL, send a FAILED status
                 if callback_url:
                     try:
+                        # Format the callback URL if it needs additional correction
+                        final_callback_url = callback_url
+                        if "?" not in callback_url and "&status=" not in callback_url:
+                            if callback_url.endswith("/"):
+                                final_callback_url = f"{callback_url}?status=FAILED"
+                            else:
+                                final_callback_url = f"{callback_url}?status=FAILED"
+                        
+                        logger.info(f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}")
+                        
+                        # Try GET first (some Deliverect endpoints expect GET)
+                        try:
+                            get_response = requests.get(
+                                final_callback_url,
+                                headers={
+                                    "Accept": "application/json",
+                                    "User-Agent": "RedBarSushiAI/1.0",
+                                },
+                                timeout=10,
+                            )
+                            logger.info(f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}")
+                        except Exception as get_e:
+                            logger.warning(f"[MENU-UPDATE] GET error callback attempt failed: {get_e}")
+                        
+                        # Then try POST with the payload
                         callback_response = requests.post(
-                            callback_url,
+                            final_callback_url,
                             json={
                                 "status": "FAILED",
                                 "comment": "Failed to save menu data",
+                                "timestamp": datetime.now().isoformat(),
                             },
+                            headers={
+                                "Content-Type": "application/json",
+                                "Accept": "application/json",
+                                "User-Agent": "RedBarSushiAI/1.0",
+                            },
+                            timeout=10,
                         )
                         logger.info(
                             f"[MENU-UPDATE] Callback response: {callback_response.status_code}"
@@ -543,12 +607,44 @@ def menu_update():
                 # If we have a callback URL, send a FAILED status
                 if callback_url:
                     try:
+                        # Format the callback URL if it needs additional correction
+                        final_callback_url = callback_url
+                        if "?" not in callback_url and "&status=" not in callback_url:
+                            if callback_url.endswith("/"):
+                                final_callback_url = f"{callback_url}?status=FAILED"
+                            else:
+                                final_callback_url = f"{callback_url}?status=FAILED"
+                        
+                        logger.info(f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}")
+                        
+                        # Try GET first (some Deliverect endpoints expect GET)
+                        try:
+                            get_response = requests.get(
+                                final_callback_url,
+                                headers={
+                                    "Accept": "application/json",
+                                    "User-Agent": "RedBarSushiAI/1.0",
+                                },
+                                timeout=10,
+                            )
+                            logger.info(f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}")
+                        except Exception as get_e:
+                            logger.warning(f"[MENU-UPDATE] GET error callback attempt failed: {get_e}")
+                        
+                        # Then try POST with the payload
                         callback_response = requests.post(
-                            callback_url,
+                            final_callback_url,
                             json={
                                 "status": "FAILED",
                                 "comment": "Menu reload verification failed - menu has 0 items",
+                                "timestamp": datetime.now().isoformat(),
                             },
+                            headers={
+                                "Content-Type": "application/json",
+                                "Accept": "application/json",
+                                "User-Agent": "RedBarSushiAI/1.0",
+                            },
+                            timeout=10,
                         )
                         logger.info(
                             f"[MENU-UPDATE] Callback response: {callback_response.status_code}"

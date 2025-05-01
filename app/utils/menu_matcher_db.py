@@ -34,6 +34,11 @@ class MenuMatcher:
         if self._menu_data is None:
             self._menu_data = load_menu_data()
         return self._menu_data
+        
+    @menu_data.setter
+    def menu_data(self, value):
+        """Setter for menu_data property."""
+        self._menu_data = value
 
     def find_menu_item(
         self,
@@ -375,7 +380,7 @@ class MenuMatcher:
                     "[MENU-MATCHER] No menu items available to match against"
                 )
                 # Try to reload menu data in case it wasn't loaded properly
-                self.menu_data = load_menu_data(force_refresh=True)
+                self._menu_data = load_menu_data(force_refresh=True)
 
                 # If reload didn't help, return None
                 if not self.menu_data.get("items", []):
