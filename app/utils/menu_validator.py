@@ -415,8 +415,9 @@ def validate_and_fix_menu_data(menu_data):
         # Ensure price is valid - prioritize preserving existing prices
         price_invalid = False
 
-        # Check if this is a category - categories don't need prices
+        # Check if this is a category or variant product - these have special price handling
         is_category = False
+        is_variant_product = False
         
         # Multiple ways to identify a category:
         # 1. explicit is_category flag
@@ -449,6 +450,24 @@ def validate_and_fix_menu_data(menu_data):
                ):
                 is_category = True
         
+        # Also check for variant products (per Deliverect docs)
+        # Variant products can have zero price if they use subItems to define variants with prices
+        if item.get("isVariant") == True:
+            is_variant_product = True
+            logger.info(f"[MENU-FIX] Item {item_name} identified as a variant product with isVariant flag")
+        # Check if it has modifiers or subProducts with prices
+        elif "subItems" in item and isinstance(item.get("subItems"), list) and len(item.get("subItems")) > 0:
+            is_variant_product = True
+            logger.info(f"[MENU-FIX] Item {item_name} identified as a variant product with subItems")
+        # Check for variant group membership
+        elif "isVariantGroup" in item and item.get("isVariantGroup") == True:
+            is_variant_product = True
+            logger.info(f"[MENU-FIX] Item {item_name} identified as a variant group")
+        # Variant products in Deliverect often have zero price with variants as separate products
+        elif item.get("price") == 0 and "subProducts" in item and isinstance(item.get("subProducts"), list) and len(item.get("subProducts")) > 0:
+            is_variant_product = True
+            logger.info(f"[MENU-FIX] Item {item_name} identified as variant container with subProducts and zero price")
+        
         if is_category:
             # Mark explicitly as a category for future reference
             item["is_category"] = True
@@ -460,6 +479,29 @@ def validate_and_fix_menu_data(menu_data):
                 item_fixed = True
                 # Skip price validation for categories
                 price_invalid = False
+        elif is_variant_product:
+            # Mark explicitly as a variant product for future reference
+            item["is_variant"] = True
+            
+            # Variant parent products are allowed to have zero price - the variants themselves have prices
+            if "price" not in item or item["price"] is None:
+                item["price"] = 0
+                logger.info(f"[MENU-FIX] Item {item_name} identified as a variant product, allowing zero price")
+                item_fixed = True
+                # Skip price validation for variant products
+                price_invalid = False
+            elif not isinstance(item["price"], (int, float)):
+                try:
+                    # Try to convert to float
+                    item["price"] = float(item["price"])
+                    logger.info(f"[MENU-FIX] Converted non-numeric price for variant {item_name} to {item['price']}")
+                    item_fixed = True
+                except (ValueError, TypeError):
+                    # Set to zero for variant products
+                    item["price"] = 0
+                    logger.info(f"[MENU-FIX] Reset invalid price for variant {item_name} to zero")
+                    item_fixed = True
+            # We don't check if price is zero for variant products - this is valid per Deliverect docs
         else:
             # For regular items, check price validity comprehensively
             price_invalid = False
@@ -487,11 +529,52 @@ def validate_and_fix_menu_data(menu_data):
                 logger.info(f"[MENU-FIX] Item {item_name} has non-positive price: {item['price']}")
 
             if price_invalid:
-                # First check: original PLU reference for items with special PLU formats
-                if "is_variant" in item and item.get("base_plu"):
-                    # This is an item with PLU like "P-BURG-CHE###PRNT" - find the base product
+                # Following Deliverect docs: For variants with PLU formats containing ###, 
+                # we need to handle price mapping from original PLU in referenceId
+                
+                # First check: Check if referenceId exists (highest priority per Deliverect docs)
+                if "referenceId" in item and item.get("referenceId"):
+                    reference_id = item.get("referenceId")
+                    logger.info(f"[MENU-FIX] Found referenceId {reference_id} for {item_name}, looking for base product")
+                    
+                    # Try to find a matching item by referenceId as PLU in the current menu data
+                    base_item = None
+                    for other_item in menu_data.get("items", []):
+                        if (other_item.get("plu") == reference_id or 
+                            other_item.get("reference_handler") == reference_id):
+                            if isinstance(other_item.get("price"), (int, float)) and other_item.get("price") > 0:
+                                base_item = other_item
+                                break
+                    
+                    if base_item:
+                        item["price"] = base_item.get("price")
+                        logger.info(f"[MENU-FIX] Set price for {item_name} from base product with referenceId {reference_id}: {item['price']}")
+                        price_invalid = False
+                
+                # Second check: Handle PLUs with ### pattern (per Deliverect docs)
+                elif item.get("plu") and "###" in item.get("plu"):
+                    # Extract the base PLU (everything before the ###)
+                    base_plu = item.get("plu").split("###")[0]
+                    if base_plu:
+                        logger.info(f"[MENU-FIX] Extracted base PLU {base_plu} from {item.get('plu')} for {item_name}")
+                        
+                        # Try to find a matching item by extracted base PLU
+                        base_item = None
+                        for other_item in menu_data.get("items", []):
+                            if other_item.get("plu") == base_plu or other_item.get("reference_handler") == base_plu:
+                                if isinstance(other_item.get("price"), (int, float)) and other_item.get("price") > 0:
+                                    base_item = other_item
+                                    break
+                        
+                        if base_item:
+                            item["price"] = base_item.get("price")
+                            logger.info(f"[MENU-FIX] Set price for {item_name} from base product with PLU {base_plu}: {item['price']}")
+                            price_invalid = False
+                
+                # Third check: Similar for variants with base_plu already extracted
+                elif "is_variant" in item and item.get("base_plu"):
                     base_plu = item.get("base_plu")
-                    logger.info(f"[MENU-FIX] Looking for base product with PLU {base_plu} for {item_name}")
+                    logger.info(f"[MENU-FIX] Using pre-extracted base PLU {base_plu} for {item_name}")
                     
                     # Try to find a matching item by PLU
                     base_item = None
@@ -505,35 +588,47 @@ def validate_and_fix_menu_data(menu_data):
                         item["price"] = base_item.get("price")
                         logger.info(f"[MENU-FIX] Set price for {item_name} from base product with PLU {base_plu}: {item['price']}")
                         price_invalid = False
-
-                # Second check: referenceId in the original product
+                
+                # Fourth check: Special case for original_plu with ### (similar to second check)
                 elif "original_plu" in item and "###" in item.get("original_plu", ""):
-                    # Look for the matching referenceId in the original data
-                    extracted_base = item.get("plu")
-                    logger.info(f"[MENU-FIX] Looking for base product with referenceId {extracted_base} for {item_name}")
+                    # Look for the base PLU (before ###)
+                    base_plu = item.get("original_plu").split("###")[0]
+                    logger.info(f"[MENU-FIX] Looking for base product with original_plu base {base_plu} for {item_name}")
                     
-                    # Try to find a matching item by referenceId
+                    # Check if we have a saved extracted base in PLU or reference_handler
+                    extracted_base = item.get("plu") or item.get("reference_handler")
+                    if not extracted_base:
+                        extracted_base = base_plu
+                    
+                    # Try to find a matching item
                     for other_item in menu_data.get("items", []):
-                        if (other_item.get("referenceId") == extracted_base or 
-                            other_item.get("plu") == extracted_base or 
-                            other_item.get("reference_handler") == extracted_base):
+                        if (other_item.get("plu") == extracted_base or 
+                            other_item.get("reference_handler") == extracted_base or
+                            other_item.get("plu") == base_plu):
                             if isinstance(other_item.get("price"), (int, float)) and other_item.get("price") > 0:
                                 item["price"] = other_item.get("price")
-                                logger.info(f"[MENU-FIX] Set price for {item_name} from product with referenceId {extracted_base}: {item['price']}")
+                                logger.info(f"[MENU-FIX] Set price for {item_name} from product with PLU {extracted_base}: {item['price']}")
                                 price_invalid = False
                                 break
                 
-                # Third check: preserving existing prices from the current menu
+                # Fifth check: preserving existing prices from the current menu
                 if price_invalid and item_name_lower in existing_items and existing_items[item_name_lower].get("price"):
                     # Preserve the existing price
                     item["price"] = existing_items[item_name_lower]["price"]
                     logger.info(f"[MENU-FIX] Preserved existing price for {item_name}: {item['price']}")
                     price_invalid = False
                 
-                # Fourth check: database lookup - STRICT DATABASE-ONLY VALIDATION
+                # Sixth check: database lookup - STRICT DATABASE-ONLY VALIDATION
                 if price_invalid:
                     # Get menu data from database
                     menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                    
+                    # Check if database contains items
+                    if not menu_data_db.get("items"):
+                        # Database is empty, fail validation
+                        error_msg = f"Item {item_name} has missing or invalid price and database is empty"
+                        logger.error(f"[MENU-ERROR] {error_msg}")
+                        raise ValueError(error_msg)
                     
                     # Try to find matching item in database by name
                     db_item = None
@@ -551,11 +646,33 @@ def validate_and_fix_menu_data(menu_data):
                                 db_item = db_item_entry
                                 break
                     
+                    # If still not found and item has a PLU with special format, try to match by base PLU
+                    if not db_item and item.get("plu") and ("#" in item.get("plu") or "-" in item.get("plu")):
+                        plu = item.get("plu")
+                        possible_base_plu = None
+                        
+                        # Extract possible base PLU from patterns based on Deliverect docs
+                        if "###" in plu:
+                            possible_base_plu = plu.split("###")[0]
+                        elif "-" in plu:
+                            parts = plu.split("-")
+                            if len(parts) > 1:
+                                possible_base_plu = "-".join(parts[:-1]) if len(parts) > 2 else parts[0]
+                        
+                        if possible_base_plu:
+                            logger.info(f"[MENU-FIX] Extracted possible base PLU {possible_base_plu} from {plu} for database search")
+                            for db_item_entry in menu_data_db.get("items", []):
+                                if (db_item_entry.get("plu") == possible_base_plu or 
+                                    db_item_entry.get("reference_handler") == possible_base_plu):
+                                    db_item = db_item_entry
+                                    break
+                    
                     if db_item and isinstance(db_item.get("price"), (int, float)) and db_item.get("price") > 0:
                         item["price"] = db_item.get("price")
                         logger.info(f"[MENU-FIX] Set price for {item_name} using database match: {item['price']}")
+                        price_invalid = False
                     else:
-                        # ABSOLUTELY NO FALLBACKS - If the item doesn't exist in the database with a valid price, it MUST fail
+                        # Truly couldn't find a valid price - fail with error
                         error_msg = f"Item {item_name} has missing or invalid price and no matching price found in database"
                         logger.error(f"[MENU-ERROR] {error_msg}")
                         raise ValueError(error_msg)
