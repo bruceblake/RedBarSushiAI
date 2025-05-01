@@ -598,6 +598,7 @@ def menu_update():
                         "ai_matching": True,  # Indicate that AI agent will handle matching
                         "source": "deliverect" if is_deliverect else "custom",
                         "storage": "database",
+                        "status": "ONLINE",  # Explicit status for Deliverect dashboard
                     }
                 ),
                 200,
