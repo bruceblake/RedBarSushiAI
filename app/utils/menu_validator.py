@@ -14,9 +14,16 @@ def validate_and_fix_menu_data(menu_data):
     Validates and fixes issues in menu data before it's saved.
     This function enforces strict validation for Deliverect integration.
     
-    IMPORTANT: This validator uses ONLY DATABASE VALUES for validation with ABSOLUTELY
-    NO FALLBACKS. If menu items, modifiers, or groups cannot be validated using the
-    database, this function will raise an error rather than use any hardcoded defaults.
+    IMPORTANT: This validator uses DATABASE VALUES for validation when available. 
+    For empty database scenarios (first-run), it will attempt to extract pricing 
+    information from the source data itself, without using any hardcoded values:
+    
+    Empty DB Strategy:
+    1. Use raw_price from original data if available
+    2. Convert prices in cents format to dollars if detected
+    3. For variants, find and use the base product price from the same data set
+    4. Allow zero prices for variant containers (per Deliverect spec)
+    5. Fail validation if no valid price source is available
     
     Supports the official Deliverect menu format including:
     - Menu structure with categories, products, modifiers, and modifierGroups
@@ -30,6 +37,7 @@ def validate_and_fix_menu_data(menu_data):
     - Non-string values in name fields
     - Missing or invalid structure fields
     - Improperly formatted prices, references, IDs
+    - Special case: First-time initialization with empty database
 
     Args:
         menu_data: Dict containing Deliverect-compatible menu data with items, modifiers, etc.
@@ -39,8 +47,8 @@ def validate_and_fix_menu_data(menu_data):
 
     Raises:
         ValueError: If menu items are missing required fields or cannot be validated 
-                   against the database. This function will NOT use hardcoded fallbacks
-                   and will strictly fail if database validation fails.
+                   against the database, and no valid price data can be extracted 
+                   from the source data itself.
     """
     # Make sure we have valid input data
     if menu_data is None:
@@ -541,7 +549,8 @@ def validate_and_fix_menu_data(menu_data):
                     base_item = None
                     for other_item in menu_data.get("items", []):
                         if (other_item.get("plu") == reference_id or 
-                            other_item.get("reference_handler") == reference_id):
+                            other_item.get("reference_handler") == reference_id or
+                            other_item.get("reference_price_source") == reference_id):
                             if isinstance(other_item.get("price"), (int, float)) and other_item.get("price") > 0:
                                 base_item = other_item
                                 break
@@ -625,10 +634,66 @@ def validate_and_fix_menu_data(menu_data):
                     
                     # Check if database contains items
                     if not menu_data_db.get("items"):
-                        # Database is empty, fail validation
-                        error_msg = f"Item {item_name} has missing or invalid price and database is empty"
-                        logger.error(f"[MENU-ERROR] {error_msg}")
-                        raise ValueError(error_msg)
+                        # Look first at the product definition (original JSON data) to see if we can use the price
+                        # from the source data without using hardcoded values
+                        original_price = None
+                        
+                        # Get raw price from the incoming menu data
+                        if item.get("raw_price") is not None:
+                            original_price = item.get("raw_price")
+                            logger.info(f"[MENU-FIX] Empty DB: Using raw_price from original data for {item_name}: {original_price}")
+                        # If price is in cents format from Deliverect, convert it
+                        elif "price" in item and isinstance(item["price"], (int, float)) and item["price"] > 100:
+                            # Price might be in cents format - normalize by dividing by 100
+                            original_price = item["price"] / 100
+                            logger.info(f"[MENU-FIX] Empty DB: Normalized cents price for {item_name}: {original_price}")
+                            
+                        if original_price is not None and original_price > 0:
+                            item["price"] = original_price
+                            price_invalid = False
+                        # If this is a variant product, it's valid to have zero price
+                        elif "isVariant" in item or item.get("is_variant"):
+                            # For variant containers specifically, zero price is expected
+                            item["price"] = 0
+                            logger.info(f"[MENU-FIX] Empty DB: Setting zero price for variant container {item_name}")
+                            price_invalid = False
+                        # For items with PLU variants, we need to get price from the base product
+                        elif item.get("plu") and "###" in item.get("plu", ""):
+                            # Extract the base PLU from the PLU or use already extracted base_plu
+                            base_plu = item.get("base_plu") if item.get("base_plu") else item.get("plu").split("###")[0]
+                            
+                            # Find the base product in the incoming menu data
+                            base_product = None
+                            for other_item in menu_data.get("items", []):
+                                if (other_item.get("plu") == base_plu or 
+                                    other_item.get("reference_handler") == base_plu or
+                                    other_item.get("reference_price_source") == base_plu):
+                                    base_product = other_item
+                                    break
+                                    
+                            # If we found the base product and it has a price, use it
+                            if base_product and "price" in base_product and isinstance(base_product["price"], (int, float)) and base_product["price"] > 0:
+                                item["price"] = base_product["price"]
+                                logger.info(f"[MENU-FIX] Empty DB: Using base product price for {item_name}: {item['price']}")
+                                price_invalid = False
+                            # If base product has a raw_price, use that instead
+                            elif base_product and "raw_price" in base_product and isinstance(base_product["raw_price"], (int, float)) and base_product["raw_price"] > 0:
+                                item["price"] = base_product["raw_price"]
+                                logger.info(f"[MENU-FIX] Empty DB: Using base product raw_price for {item_name}: {item['price']}")
+                                price_invalid = False
+                       
+                        # If still invalid, we cannot validate this item without a database
+                        if price_invalid:
+                            # For variant containers with variants that have prices, it's valid
+                            if item.get("productType") == 3 or item.get("is_variant"):
+                                item["price"] = 0
+                                logger.info(f"[MENU-FIX] Empty DB: Setting zero price for variant/category {item_name}")
+                                price_invalid = False
+                            else:
+                                # No valid source of price information with empty database - fail validation
+                                error_msg = f"Item {item_name} has missing or invalid price and database is empty. No price source available."
+                                logger.error(f"[MENU-ERROR] {error_msg}")
+                                raise ValueError(error_msg)
                     
                     # Try to find matching item in database by name
                     db_item = None

@@ -1872,6 +1872,9 @@ def _convert_product_to_item(product):
     else:
         # Regular product price handling - convert from cents (Deliverect stores in cents)
         if "price" in product and product["price"] is not None:
+            # Store the original price value for potential reference
+            item["raw_price"] = product.get("price", 0) / 100
+            
             # If price is present, convert it from cents to dollars
             item["price"] = product.get("price", 0) / 100
         else:
@@ -1881,13 +1884,22 @@ def _convert_product_to_item(product):
                 # Look at the PLU without ### to see if it's the original item with a price
                 ref_id = product.get("referenceId", "")
                 logger.info(f"Checking referenceId {ref_id} for price information for {item['name']}")
-                # Leave as 0 and let menu_validator find the price in the database
+                # Leave as 0 and let menu_validator find the price in the database or from base product
                 item["price"] = 0
+                # Store the reference ID for use in menu_validator for price lookup from source data
+                item["reference_price_source"] = ref_id
             elif "plu" in product and "###" in product["plu"]:
                 # This is a variant product - need to get the base product price
                 logger.info(f"Product {item['name']} has PLU with ###: {product['plu']}, attempting to get base price")
-                # Leave as 0 and let menu_validator find the price in the database
+                # Leave as 0 and let menu_validator find the price in the database or from base product
                 item["price"] = 0
+                
+                # Store the base PLU for use in menu_validator for price lookup from source data
+                base_plu = product["plu"].split("###")[0]
+                if base_plu:
+                    item["base_plu"] = base_plu
+                    item["reference_price_source"] = base_plu
+                    item["reference_price_source"] = base_plu
             else:
                 # No price information available
                 item["price"] = 0
