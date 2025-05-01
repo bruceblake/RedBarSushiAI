@@ -40,7 +40,9 @@ def log_openai_request(
 
 
 # Add a function to log detailed information about OpenAI responses
-def log_openai_response(response: Any, function_name: str = "") -> None:
+def log_openai_response(response: Any, function_name: str = ""
+
+) -> None:
     """Log detailed information about an OpenAI API response"""
     logger.info(f"[OPENAI-RESPONSE] Function: {function_name}")
 
