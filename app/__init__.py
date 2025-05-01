@@ -198,8 +198,6 @@ def create_app(test_config=None):
     engine_options = {
         "pool_recycle": 1800,  # 30 minutes to match Render's proxy timeout
         "pool_pre_ping": True,  # Check connection before using it
-        "pool_size": 10,  # Limit pool size to prevent connection exhaustion
-        "max_overflow": 15,  # Allow some overflow connections during high load
         "pool_reset_on_return": True,  # Reset connections when returned to pool
     }
 
