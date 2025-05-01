@@ -415,57 +415,90 @@ def validate_and_fix_menu_data(menu_data):
         # Ensure price is valid - prioritize preserving existing prices
         price_invalid = False
 
-        # Check if price is missing
-        if "price" not in item:
-            price_invalid = True
-        # Check if price is None
-        elif item["price"] is None:
-            price_invalid = True
-        # Check if price is not a number
-        elif not isinstance(item["price"], (int, float)):
-            try:
-                # Try to convert to float
-                item["price"] = float(item["price"])
-            except (ValueError, TypeError):
+        # Check if this is a category - categories don't need prices
+        is_category = False
+        
+        # Multiple ways to identify a category:
+        # 1. explicit is_category flag
+        if item.get("is_category") == True:
+            is_category = True
+        # 2. productType = 3 indicates a category or modifier group
+        elif item.get("productType") == 3:
+            is_category = True
+        # 3. Has subProducts but no price - likely a category
+        elif "subProducts" in item and isinstance(item.get("subProducts"), list) and len(item.get("subProducts")) > 0:
+            is_category = True
+        # 4. From the categories section with the same ID structure
+        elif item.get("_id") and "categories" in menu_data and isinstance(menu_data["categories"], list):
+            for category in menu_data["categories"]:
+                if category.get("_id") == item.get("_id"):
+                    is_category = True
+                    break
+        
+        if is_category:
+            # Mark explicitly as a category for future reference
+            item["is_category"] = True
+            
+            # Categories don't need prices, so set a zero price and skip validation
+            if "price" not in item or item["price"] is None:
+                item["price"] = 0
+                logger.info(f"[MENU-FIX] Item {item_name} identified as a category, setting zero price")
+                item_fixed = True
+                # Skip price validation for categories
+                price_invalid = False
+        else:
+            # For regular items, check price validity
+            # Check if price is missing
+            if "price" not in item:
                 price_invalid = True
-        # Check if price is negative or zero
-        elif item["price"] <= 0:
-            price_invalid = True
+            # Check if price is None
+            elif item["price"] is None:
+                price_invalid = True
+            # Check if price is not a number
+            elif not isinstance(item["price"], (int, float)):
+                try:
+                    # Try to convert to float
+                    item["price"] = float(item["price"])
+                except (ValueError, TypeError):
+                    price_invalid = True
+            # Check if price is negative or zero
+            elif item["price"] <= 0:
+                price_invalid = True
 
-        if price_invalid:
-            # Check if it exists in current menu
-            if item_name_lower in existing_items and existing_items[
-                item_name_lower
-            ].get("price"):
-                # Preserve the existing price
-                item["price"] = existing_items[item_name_lower]["price"]
-                logger.info(
-                    f"[MENU-FIX] Preserved existing price for {item_name}: {item['price']}"
-                )
-            # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
-            else:
-                # Get menu data from database
-                menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
-                
-                # Try to find matching item in database
-                db_item = None
-                for db_item_entry in menu_data_db.get("items", []):
-                    db_item_name = db_item_entry.get("name", "").lower()
-                    if db_item_name == item_name_lower or db_item_name in item_name_lower or item_name_lower in db_item_name:
-                        db_item = db_item_entry
-                        break
-                
-                if db_item and isinstance(db_item.get("price"), (int, float)) and db_item.get("price") > 0:
-                    item["price"] = db_item.get("price")
+            if price_invalid:
+                # Check if it exists in current menu
+                if item_name_lower in existing_items and existing_items[
+                    item_name_lower
+                ].get("price"):
+                    # Preserve the existing price
+                    item["price"] = existing_items[item_name_lower]["price"]
                     logger.info(
-                        f"[MENU-FIX] Set price for {item_name} using database match: {item['price']}"
+                        f"[MENU-FIX] Preserved existing price for {item_name}: {item['price']}"
                     )
+                # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
                 else:
-                    # ABSOLUTELY NO FALLBACKS - If the item doesn't exist in the database with a valid price, it MUST fail
-                    error_msg = f"Item {item_name} has missing or invalid price and no matching price found in database"
-                    logger.error(f"[MENU-ERROR] {error_msg}")
-                    raise ValueError(error_msg)
-            item_fixed = True
+                    # Get menu data from database
+                    menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                    
+                    # Try to find matching item in database
+                    db_item = None
+                    for db_item_entry in menu_data_db.get("items", []):
+                        db_item_name = db_item_entry.get("name", "").lower()
+                        if db_item_name == item_name_lower or db_item_name in item_name_lower or item_name_lower in db_item_name:
+                            db_item = db_item_entry
+                            break
+                    
+                    if db_item and isinstance(db_item.get("price"), (int, float)) and db_item.get("price") > 0:
+                        item["price"] = db_item.get("price")
+                        logger.info(
+                            f"[MENU-FIX] Set price for {item_name} using database match: {item['price']}"
+                        )
+                    else:
+                        # ABSOLUTELY NO FALLBACKS - If the item doesn't exist in the database with a valid price, it MUST fail
+                        error_msg = f"Item {item_name} has missing or invalid price and no matching price found in database"
+                        logger.error(f"[MENU-ERROR] {error_msg}")
+                        raise ValueError(error_msg)
+                item_fixed = True
 
         # Ensure description exists (can be empty)
         if "description" not in item:

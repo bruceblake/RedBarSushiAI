@@ -1286,16 +1286,20 @@ def _process_category(category, result):
     is_test = "pytest" in sys.modules
 
     if category_name and category_id and not is_test:
+        logger.info(f"Adding category: {category_name}")
         category_item = {
-            "name": category_name,
+            "name": f"[CATEGORY] {category_name}",  # Clear category marking
             "reference_handler": category_id,
             "available": True,
-            "is_category": True,
+            "is_category": True,           # Explicitly mark as category
+            "productType": 3,              # Product type 3 = Modifier Group/Category
             "posCategoryId": posCategoryId,
-            "price": 0,
+            "price": 0,                    # Categories always have zero price
+            "_id": category_id,            # Preserve original ID
+            "category_id": category_id,    # Store for reference
         }
         # Only add if it doesn't already exist
-        if not any(existing["name"] == category_name for existing in result["items"]):
+        if not any(existing.get("category_id") == category_id for existing in result["items"]):
             result["items"].append(category_item)
             _add_name_variants(result["name_variants"], category_name)
 
@@ -1797,7 +1801,16 @@ def _convert_product_to_item(product):
     """Convert a Deliverect product to the internal item format."""
     if not isinstance(product, dict) or "name" not in product:
         return None
-
+    
+    # Check if this is a category based on productType
+    is_category = False
+    if product.get("productType") == 3:
+        is_category = True
+    # Or has subProducts but no price (likely a category)
+    elif "subProducts" in product and isinstance(product.get("subProducts"), list) and len(product.get("subProducts")) > 0:
+        if not product.get("price"):
+            is_category = True
+    
     # Basic required fields
     item = {
         "name": product["name"],
@@ -1805,11 +1818,23 @@ def _convert_product_to_item(product):
             "plu", product.get("id", product.get("_id", ""))
         ),
         "available": not product.get("snoozed", False),
-        "price": (
-            product.get("price", 0) / 100 if product.get("price") else 0
-        ),  # Convert from cents
         "description": product.get("description", ""),
     }
+    
+    # Handle prices differently for categories vs regular items
+    if is_category:
+        # Categories always have zero price
+        item["price"] = 0
+        item["is_category"] = True
+        item["productType"] = 3
+        # Prefix category names for clarity
+        if not item["name"].startswith("[CATEGORY]"):
+            item["name"] = f"[CATEGORY] {item['name']}"
+    else:
+        # Regular product price handling
+        item["price"] = (
+            product.get("price", 0) / 100 if product.get("price") else 0
+        )  # Convert from cents
 
     # Ensure the product has a plu for Deliverect integration
     if not item["reference_handler"] and product.get("_id", ""):
@@ -1820,10 +1845,39 @@ def _convert_product_to_item(product):
         item["plu"] = item["reference_handler"]
     elif "plu" in product:
         item["plu"] = product["plu"]
+        
+        # Handle special PLU format with # characters (variant prices)
+        if "#" in product["plu"]:
+            # Store original PLU for reference
+            item["original_plu"] = product["plu"]
+            
+            # Check for referenceId which contains the original PLU
+            if "referenceId" in product:
+                item["plu"] = product["referenceId"]
+                item["reference_handler"] = product["referenceId"]
+            else:
+                # Extract base PLU without # characters if no referenceId
+                clean_plu = product["plu"].split("#")[0]
+                if clean_plu:
+                    logger.info(f"Extracted base PLU {clean_plu} from {product['plu']}")
+                    item["plu"] = clean_plu
+                    item["reference_handler"] = clean_plu
+            
+            # Extract variant price difference if available in PLU
+            import re
+            price_match = re.search(r'#V(\d+)#', product["plu"])
+            if price_match:
+                price_diff = int(price_match.group(1)) / 100
+                logger.info(f"Extracted variant price difference: {price_diff} from PLU {product['plu']}")
+                item["variant_price_diff"] = price_diff
 
     # Store the original Deliverect ID for future reference
     if "_id" in product:
         item["deliverect_item_id"] = product["_id"]
+        
+    # Copy productType if present (important for distinguishing categories/groups)
+    if "productType" in product:
+        item["productType"] = product["productType"]
     elif "id" in product:
         item["deliverect_item_id"] = product["id"]
 
