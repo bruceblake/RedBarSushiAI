@@ -370,7 +370,21 @@ class MenuMatcher:
                 "tell me some",
                 "what are your",
                 "what's available",
-                "what is available"
+                "what is available",
+                "tell me some things",
+                "what kind of",
+                "do you have",
+                "what dishes",
+                "what are the options",
+                "menu options",
+                "tell me what",
+                "could you tell me",
+                "can you tell me",
+                "yeah can you tell me",
+                "tell me what's",
+                "what do you offer",
+                "show me the menu",
+                "what's in the menu"
             ]
             
             # Check if this is a general menu inquiry
@@ -569,8 +583,9 @@ class MenuMatcher:
                 conversation_data = conversation_store.get_conversation(session_id)
                 logger.info(f"[MENU-MATCHER] Retrieved conversation for session: {session_id}")
             
-            # Prepare menu categories and some example items
+            # Prepare menu categories and items, using ONLY actual menu data
             categories = {}
+            available_items = []
 
             # First, find all category items to create category map
             category_map = {}
@@ -578,14 +593,18 @@ class MenuMatcher:
                 if item.get("is_category", True):  # This item IS a category
                     reference = item.get("reference_handler", "")
                     if reference:
-                        category_map[reference] = item.get("name", "Unknown Category")
+                        # Clean up category name if it has [CATEGORY] prefix
+                        category_name = item.get("name", "Unknown Category")
+                        if category_name.startswith("[CATEGORY]"):
+                            category_name = category_name[10:].strip()
+                        category_map[reference] = category_name
+                
+                # Build list of all available non-category items
+                if not item.get("is_category", False) and item.get("available", True) and not item.get("snoozed", False):
+                    available_items.append(item)
 
-            # Now process actual menu items
-            for item in self.menu_data.get("items", []):
-                # Skip category headers
-                if item.get("is_category", False):
-                    continue
-
+            # Now process actual menu items and organize by category
+            for item in available_items:
                 # Get parent category name from parentId or use "Uncategorized"
                 parent_id = item.get("parentId", "")
                 category_name = category_map.get(parent_id, "Uncategorized")
@@ -593,23 +612,43 @@ class MenuMatcher:
                 if category_name not in categories:
                     categories[category_name] = []
 
-                categories[category_name].append(item.get("name", ""))
+                # Add item name and price for better menu display
+                item_price = item.get("price", 0)
+                item_price_str = f"${item_price:.2f}" if isinstance(item_price, (int, float)) else ""
+                
+                # Include price with item name for better menu representation
+                item_entry = {
+                    "name": item.get("name", ""),
+                    "price": item_price_str,
+                    "description": item.get("description", "")
+                }
+                
+                categories[category_name].append(item_entry)
+            
+            # Log the actual menu categories being used
+            logger.info(f"[MENU-MATCHER] Using ACTUAL menu with {len(categories)} categories and {len(available_items)} items")
+            for category, items in categories.items():
+                logger.info(f"[MENU-MATCHER] Category '{category}' has {len(items)} items")
+                if len(items) > 0:
+                    logger.info(f"[MENU-MATCHER] Sample items in '{category}': {[item['name'] for item in items[:3]]}")
 
-            # Build prompt for AI to clarify the order
+            # Build prompt for AI to clarify the order with ACTUAL menu data emphasis
             messages = [
                 {
                     "role": "system",
                     "content": """You are an AI assistant for a restaurant that helps customers clarify their orders.
                     Your goal is to understand what the customer wants to order and suggest the appropriate menu items.
                     
-                    Important rules:
-                    1. ONLY suggest actual menu items, not category names
-                    2. Ask clarifying questions when the order is ambiguous
-                    3. Be friendly, and helpful in your responses
-                    4. Base your suggestions ONLY on the menu categories, modifiers and items available
-                    5. NEVER make up items that aren't in the menu
-                    6. Maintain context from previous questions and answers in the conversation
-                    7. Dont include any greetings
+                    CRITICAL RULES:
+                    1. ONLY suggest ACTUAL menu items from the categories and items provided - NEVER invent items
+                    2. When talking about the menu, ONLY mention items that are in our actual menu data
+                    3. Ask clarifying questions when the order is ambiguous
+                    4. Be friendly and helpful in your responses
+                    5. Base your suggestions ONLY on the menu categories and items available in the data provided
+                    6. NEVER make up items that aren't in the menu data provided to you
+                    7. Maintain context from previous questions and answers in the conversation
+                    8. Don't include any greetings
+                    9. For general menu questions, always list several actual menu items with their prices, organized by category
                     
                     When suggesting menu items, be precise and use the exact item names as they appear in the menu.
                     Focus on understanding the customer's intent and helping them find the right items.""",
@@ -624,10 +663,28 @@ class MenuMatcher:
                         "content": message["content"]
                     })
                 
-                # Add the new user request
+                # Format the menu data with complete information for display
+            formatted_menu = {}
+            for category, items in categories.items():
+                # For each category, include item name, price, and description
+                formatted_menu[category] = [{
+                    "name": item["name"],
+                    "price": item["price"],
+                    "description": item["description"] if len(item["description"]) > 0 else "No description available"
+                } for item in items]
+            
+            # Create a detailed menu representation for the AI
+            menu_representation = "ACTUAL MENU DATA (Use ONLY these items when discussing the menu):\n"
+            for category, items in formatted_menu.items():
+                menu_representation += f"\n== {category} ==\n"
+                for item in items:
+                    menu_representation += f"- {item['name']} ({item['price']})\n"
+            
+            # Add the new user request with ACTUAL menu data
+            if conversation_data and "messages" in conversation_data and conversation_data["messages"]:
                 messages.append({
                     "role": "user",
-                    "content": f"Customer request: '{customer_request}'\n\nPlease address this request while remembering our previous conversation."
+                    "content": f"Customer request: '{customer_request}'\n\n{menu_representation}\n\nPlease address this request while remembering our previous conversation. ONLY mention items from our ACTUAL menu above."
                 })
                 
                 # Also add the request to the stored conversation
@@ -635,10 +692,10 @@ class MenuMatcher:
                 
                 logger.info(f"[MENU-MATCHER] Using existing conversation with {len(conversation_data['messages'])} messages")
             else:
-                # This is a new conversation
+                # This is a new conversation - include full menu details
                 messages.append({
                     "role": "user",
-                    "content": f"Customer request: '{customer_request}'\n\nMenu Categories and Example Items:\n{json.dumps(categories, indent=2)}\n\nHow would you clarify the order? Ask specific questions to determine what the customer wants.",
+                    "content": f"Customer request: '{customer_request}'\n\n{menu_representation}\n\nHow would you clarify the order? Ask specific questions to determine what the customer wants. ONLY mention items from our ACTUAL menu above.",
                 })
                 
                 # Initialize conversation in the store
@@ -867,11 +924,64 @@ class MenuMatcher:
                         })
                     conversation.append({"role": "user", "content": customer_response})
 
-            # Add the menu context
+            # Format the menu data with complete information for display
+            formatted_menu = {}
+            available_items = []
+            category_map = {}
+            
+            # First, identify categories
+            for item in self.menu_data.get("items", []):
+                if item.get("is_category", True):  # This item IS a category
+                    reference = item.get("reference_handler", "")
+                    if reference:
+                        # Clean up category name if it has [CATEGORY] prefix
+                        category_name = item.get("name", "Unknown Category")
+                        if category_name.startswith("[CATEGORY]"):
+                            category_name = category_name[10:].strip()
+                        category_map[reference] = category_name
+                        
+                # Build list of all available non-category items
+                if not item.get("is_category", False) and item.get("available", True) and not item.get("snoozed", False):
+                    available_items.append(item)
+            
+            # Organize items by category
+            categories = {}
+            for item in available_items:
+                # Get parent category name from parentId or use "Uncategorized"
+                parent_id = item.get("parentId", "")
+                category_name = category_map.get(parent_id, "Uncategorized")
+
+                if category_name not in categories:
+                    categories[category_name] = []
+
+                # Add item name and price for better menu display
+                item_price = item.get("price", 0)
+                item_price_str = f"${item_price:.2f}" if isinstance(item_price, (int, float)) else ""
+                
+                # Include price with item name for better menu representation
+                item_entry = {
+                    "name": item.get("name", ""),
+                    "price": item_price_str,
+                    "description": item.get("description", "")
+                }
+                
+                categories[category_name].append(item_entry)
+                
+            # Create a detailed menu representation for the AI
+            menu_representation = "ACTUAL MENU DATA (Use ONLY these items when processing orders):\n"
+            for category, items in categories.items():
+                menu_representation += f"\n== {category} ==\n"
+                for item in items:
+                    menu_representation += f"- {item['name']} ({item['price']})\n"
+            
+            # Log how many actual menu items are being used
+            logger.info(f"[MENU-MATCHER] Using ACTUAL menu with {len(categories)} categories and {len(available_items)} items")
+            
+            # Add the menu context with ACTUAL menu data
             messages.append(
                 {
                     "role": "user",
-                    "content": f"Available menu items:\n{json.dumps(menu_summary[:50], indent=2)}\n\nPlease process this conversation and identify the order.",
+                    "content": f"{menu_representation}\n\nPlease process this conversation and identify the order. ONLY match against items from our ACTUAL menu data above.",
                 }
             )
 
