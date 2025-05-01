@@ -255,6 +255,12 @@ class MenuDBStore:
             # Import models here to avoid circular imports
             from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
             from app import db
+            from flask import current_app, has_app_context
+            
+            # Check if we're in an application context
+            if not has_app_context():
+                logger.warning("Working outside of application context, returning empty menu structure")
+                return {"items": [], "modifiers": [], "modifierGroups": []}
             
             # Query database for menu items
             query = MenuItem.query
@@ -295,12 +301,12 @@ class MenuDBStore:
         except SQLAlchemyError as e:
             logger.error(f"Database error retrieving menu data: {str(e)}")
             # Return empty menu data structure
-            return {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
+            return {"items": [], "modifiers": [], "modifierGroups": []}
             
         except Exception as e:
             logger.error(f"Unexpected error retrieving menu data: {str(e)}")
             # Return empty menu data structure
-            return {"items": [], "modifiers": [], "modifierGroups": [], "name_variants": {}}
+            return {"items": [], "modifiers": [], "modifierGroups": []}
     
     def store_menu_data(self, menu_data: Dict[str, Any], location_id: Optional[str] = None) -> bool:
         """
@@ -317,6 +323,12 @@ class MenuDBStore:
             # Import models here to avoid circular imports
             from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
             from app import db
+            from flask import current_app, has_app_context
+            
+            # Check if we're in an application context
+            if not has_app_context():
+                logger.warning("Working outside of application context, cannot store menu data to database")
+                return False
             
             # Try to begin a transaction - this will raise an exception if one is already in progress
             try:
@@ -386,7 +398,8 @@ class MenuDBStore:
         except SQLAlchemyError as e:
             # Rollback on error, but only if we started the transaction
             try:
-                db.session.rollback()
+                if 'in_transaction' in locals() and not in_transaction:
+                    db.session.rollback()
             except:
                 pass
             logger.error(f"Database error storing menu data: {str(e)}")
@@ -395,7 +408,8 @@ class MenuDBStore:
         except Exception as e:
             # Rollback on error, but only if we started the transaction
             try:
-                db.session.rollback()
+                if 'in_transaction' in locals() and not in_transaction:
+                    db.session.rollback()
             except:
                 pass
             logger.error(f"Unexpected error storing menu data: {str(e)}")
@@ -416,6 +430,12 @@ class MenuDBStore:
             # Import models here to avoid circular imports
             from app.models.menu import MenuItem
             from app import db
+            from flask import current_app, has_app_context
+            
+            # Check if we're in an application context
+            if not has_app_context():
+                logger.warning("Working outside of application context, cannot update menu item in database")
+                return False
             
             # Find the item by reference_handler or name
             query = MenuItem.query

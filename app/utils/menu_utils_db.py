@@ -121,29 +121,15 @@ def load_menu_data(force_refresh=False, location_id=None):
     Returns:
         dict: The menu data
     """
-    # Load from database via the store
+    # Load from database via the store ONLY - no file fallback
     menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=force_refresh)
     
-    # If no items were found and we have a menu_data.json file, load from file and populate the database
-    if not menu_data.get("items") and not force_refresh:
-        # First, check if we should load from menu_data.json
-        menu_file_path = os.path.join(os.getcwd(), "menu_data.json")
-        if os.path.exists(menu_file_path):
-            try:
-                logger.info(f"Database has no menu items. Loading from file: {menu_file_path}")
-                
-                # Load from file
-                with open(menu_file_path, 'r') as f:
-                    file_menu_data = json.load(f)
-                    
-                # Store in database
-                if menu_db_store.store_menu_data(file_menu_data, location_id):
-                    logger.info(f"Successfully migrated menu data from file to database")
-                    
-                    # Now load from database again
-                    menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
-            except Exception as e:
-                logger.error(f"Error migrating menu data from file to database: {str(e)}")
+    # If no items are found, return empty structure but don't try to load from file
+    if not menu_data.get("items"):
+        logger.info(f"Database has no menu items. Using empty menu structure.")
+        # Ensure we have a valid structure even if empty
+        if not isinstance(menu_data, dict):
+            menu_data = {"items": [], "modifiers": [], "modifierGroups": []}
     
     return menu_data
 
