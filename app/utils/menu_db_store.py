@@ -491,17 +491,56 @@ class MenuDBStore:
                         logger.error(f"[MENU-STORE] Error during rollback: {rollback_error}")
                 raise commit_error
             
-            # Invalidate cache
-            cache_key = f"menu:{location_id if location_id else 'default'}"
+            # Thoroughly invalidate all related caches
+            logger.info("[MENU-STORE] Invalidating all menu caches")
+            
+            # Clear Redis cache for both specific location and default
+            specific_key = f"menu:{location_id if location_id else 'default'}"
+            default_key = "menu:default"
+            
             if self.redis_client:
-                self.redis_client.delete(cache_key)
-                
-            # Also invalidate memory cache
+                try:
+                    # Delete the specific location key
+                    self.redis_client.delete(specific_key)
+                    logger.info(f"[MENU-STORE] Deleted Redis cache key: {specific_key}")
+                    
+                    # Delete default key if different
+                    if specific_key != default_key:
+                        self.redis_client.delete(default_key)
+                        logger.info(f"[MENU-STORE] Deleted Redis cache key: {default_key}")
+                    
+                    # Clear any menu_item: cache keys
+                    pattern = "menu_item:*"
+                    menu_item_keys = self.redis_client.keys(pattern)
+                    if menu_item_keys:
+                        self.redis_client.delete(*menu_item_keys)
+                        logger.info(f"[MENU-STORE] Deleted {len(menu_item_keys)} menu item Redis cache keys")
+                        
+                    # Clear any other menu: pattern keys
+                    menu_keys = self.redis_client.keys("menu:*")
+                    if menu_keys:
+                        self.redis_client.delete(*menu_keys)
+                        logger.info(f"[MENU-STORE] Deleted {len(menu_keys)} menu Redis cache keys")
+                except Exception as e:
+                    logger.error(f"[MENU-STORE] Error clearing Redis cache: {e}")
+            
+            # Clear in-memory cache
             global _memory_cache, _memory_cache_timestamps
-            if cache_key in _memory_cache:
-                del _memory_cache[cache_key]
-            if cache_key in _memory_cache_timestamps:
-                del _memory_cache_timestamps[cache_key]
+            keys_to_remove = []
+            
+            # Find all menu-related keys
+            for key in list(_memory_cache.keys()):
+                if key.startswith("menu:") or key.startswith("menu_item:"):
+                    keys_to_remove.append(key)
+            
+            # Remove all identified keys
+            for key in keys_to_remove:
+                if key in _memory_cache:
+                    del _memory_cache[key]
+                if key in _memory_cache_timestamps:
+                    del _memory_cache_timestamps[key]
+            
+            logger.info(f"[MENU-STORE] Cleared {len(keys_to_remove)} menu-related in-memory cache entries")
                 
             logger.info(f"Stored menu data in database: {len(menu_data.get('items', []))} items")
             return True
@@ -636,17 +675,56 @@ class MenuDBStore:
                 # we shouldn't commit, and this might throw an error
                 logger.warning(f"Commit may have failed, but continuing: {e}")
             
-            # Invalidate cache
-            cache_key = f"menu:{location_id if location_id else 'default'}"
+            # Thoroughly invalidate all related caches
+            logger.info("[MENU-STORE] Invalidating all menu caches")
+            
+            # Clear Redis cache for both specific location and default
+            specific_key = f"menu:{location_id if location_id else 'default'}"
+            default_key = "menu:default"
+            
             if self.redis_client:
-                self.redis_client.delete(cache_key)
-                
-            # Also invalidate memory cache
+                try:
+                    # Delete the specific location key
+                    self.redis_client.delete(specific_key)
+                    logger.info(f"[MENU-STORE] Deleted Redis cache key: {specific_key}")
+                    
+                    # Delete default key if different
+                    if specific_key != default_key:
+                        self.redis_client.delete(default_key)
+                        logger.info(f"[MENU-STORE] Deleted Redis cache key: {default_key}")
+                    
+                    # Clear any menu_item: cache keys
+                    pattern = "menu_item:*"
+                    menu_item_keys = self.redis_client.keys(pattern)
+                    if menu_item_keys:
+                        self.redis_client.delete(*menu_item_keys)
+                        logger.info(f"[MENU-STORE] Deleted {len(menu_item_keys)} menu item Redis cache keys")
+                        
+                    # Clear any other menu: pattern keys
+                    menu_keys = self.redis_client.keys("menu:*")
+                    if menu_keys:
+                        self.redis_client.delete(*menu_keys)
+                        logger.info(f"[MENU-STORE] Deleted {len(menu_keys)} menu Redis cache keys")
+                except Exception as e:
+                    logger.error(f"[MENU-STORE] Error clearing Redis cache: {e}")
+            
+            # Clear in-memory cache
             global _memory_cache, _memory_cache_timestamps
-            if cache_key in _memory_cache:
-                del _memory_cache[cache_key]
-            if cache_key in _memory_cache_timestamps:
-                del _memory_cache_timestamps[cache_key]
+            keys_to_remove = []
+            
+            # Find all menu-related keys
+            for key in list(_memory_cache.keys()):
+                if key.startswith("menu:") or key.startswith("menu_item:"):
+                    keys_to_remove.append(key)
+            
+            # Remove all identified keys
+            for key in keys_to_remove:
+                if key in _memory_cache:
+                    del _memory_cache[key]
+                if key in _memory_cache_timestamps:
+                    del _memory_cache_timestamps[key]
+            
+            logger.info(f"[MENU-STORE] Cleared {len(keys_to_remove)} menu-related in-memory cache entries")
                 
             return True
             

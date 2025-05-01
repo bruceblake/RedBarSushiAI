@@ -358,6 +358,36 @@ class MenuMatcher:
         # We already tried fast matching in the main find_menu_item method,
         # so go directly to AI matching for better performance
         try:
+            # First check if input is asking about menu in general
+            menu_question_patterns = [
+                "what's on the menu", 
+                "what is on the menu", 
+                "what do you have", 
+                "tell me about the menu", 
+                "what food do you have",
+                "menu items",
+                "what can i order",
+                "tell me some",
+                "what are your",
+                "what's available",
+                "what is available"
+            ]
+            
+            # Check if this is a general menu inquiry
+            is_menu_inquiry = False
+            item_name_lower = item_name.lower()
+            for pattern in menu_question_patterns:
+                if pattern in item_name_lower:
+                    logger.info(f"[MENU-MATCHER] Detected general menu inquiry: '{item_name}'")
+                    is_menu_inquiry = True
+                    break
+                    
+            if is_menu_inquiry:
+                # For general menu questions, don't try to find a specific item
+                # Return None to let the calling function handle this as a general menu inquiry
+                logger.info(f"[MENU-MATCHER] Handling as general menu inquiry, not specific item request")
+                return None
+                
             # Check if we have menu items to work with
             menu_items = []
             for item in self.menu_data.get("items", []):
@@ -380,6 +410,7 @@ class MenuMatcher:
                     "[MENU-MATCHER] No menu items available to match against"
                 )
                 # Try to reload menu data in case it wasn't loaded properly
+                # Force refresh from database to bypass any cache issues
                 self._menu_data = load_menu_data(force_refresh=True)
 
                 # If reload didn't help, return None
