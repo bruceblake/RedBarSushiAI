@@ -531,10 +531,26 @@ def validate_and_fix_menu_data(menu_data):
                 except (ValueError, TypeError):
                     price_invalid = True
                     logger.info(f"[MENU-FIX] Item {item_name} has invalid non-numeric price: {item.get('price')}")
-            # Check if price is negative or zero
-            elif item["price"] <= 0:
+            # Check if price is negative
+            elif item["price"] < 0:
                 price_invalid = True
-                logger.info(f"[MENU-FIX] Item {item_name} has non-positive price: {item['price']}")
+                logger.info(f"[MENU-FIX] Item {item_name} has negative price: {item['price']}")
+            # For zero prices, check if this might be a variant container
+            elif item["price"] == 0:
+                # Check for signs this might be a variant container before marking as invalid
+                if (item.get("plu") and (
+                       "###" in item.get("plu") or "#" in item.get("plu") or 
+                       "-PRNT" in item.get("plu") or "-VAR" in item.get("plu")
+                    )) or (
+                    item.get("name") and any(term in item.get("name", "").lower() for term in 
+                         ["variant", "option", "container", "parent", "choose", "selection"])
+                    ):
+                    # This appears to be a variant container, allow zero price
+                    logger.info(f"[MENU-FIX] Allowing zero price for apparent variant container: {item_name}")
+                    # Don't set price_invalid - leave as valid
+                else:
+                    price_invalid = True
+                    logger.info(f"[MENU-FIX] Item {item_name} has zero price: {item['price']}")
 
             if price_invalid:
                 # Following Deliverect docs: For variants with PLU formats containing ###, 
@@ -682,13 +698,14 @@ def validate_and_fix_menu_data(menu_data):
                                 logger.info(f"[MENU-FIX] Empty DB: Using base product raw_price for {item_name}: {item['price']}")
                                 price_invalid = False
                        
-                        # If still invalid, we need a special case for empty database initialization
+                        # If still invalid, we need to handle specific cases for empty database initialization
                         if price_invalid:
-                            # For variant containers with variants that have prices, it's valid
+                            # For variant containers with variants that have prices, zero price is valid
                             if item.get("productType") == 3 or item.get("is_variant"):
                                 item["price"] = 0
                                 logger.info(f"[MENU-FIX] Empty DB: Setting zero price for variant/category {item_name}")
                                 price_invalid = False
+                            # For specific pattern PLUs, allow zero prices (such as variant containers from Deliverect)
                             elif "plu" in item and (
                                 item["plu"].startswith("P-BURG-CHE") or
                                 item["plu"].startswith("P-BURG-CHK") or
@@ -698,9 +715,29 @@ def validate_and_fix_menu_data(menu_data):
                             ):
                                 # System initialization case - we need to allow this item through
                                 # For empty database initialization with known menu structure
-                                # Accept this item with original reported price (or 0 if none)
+                                # Accept this item with original reported price (even if zero)
                                 item["price"] = item.get("price", 0)
                                 logger.warning(f"[MENU-FIX] Empty DB initialization case - accepting item {item_name} with PLU {item['plu']} and price {item['price']}")
+                                price_invalid = False
+                            # Allow zero prices for any items that match known variant formatting patterns
+                            elif item.get("plu") and (
+                                    "###" in item.get("plu") or  # Deliverect variant pattern
+                                    "#" in item.get("plu") or    # Common variant marker
+                                    "-PRNT" in item.get("plu") or # Variant parent indicator
+                                    item.get("plu").endswith("-V") or # Another variant pattern
+                                    item.get("plu").endswith("-P") or # Another parent pattern
+                                    "-VAR" in item.get("plu") or # Common variant indicator
+                                    (item.get("original_plu") and "###" in item.get("original_plu"))
+                                ):
+                                # These match known variant container patterns used by POS systems
+                                item["price"] = 0
+                                logger.warning(f"[MENU-FIX] Empty DB: Allowing zero price for detected variant container {item_name} with PLU pattern")
+                                price_invalid = False
+                            # Also allow zero prices for items with references to variants in the name
+                            elif item.get("name") and any(variant_term in item.get("name", "").lower() for variant_term in 
+                                    ["variant", "option", "container", "parent", "choose", "selection"]):
+                                item["price"] = 0
+                                logger.warning(f"[MENU-FIX] Empty DB: Allowing zero price for likely variant container based on name: {item_name}")
                                 price_invalid = False
                             else:
                                 # No valid source of price information with empty database - fail validation
