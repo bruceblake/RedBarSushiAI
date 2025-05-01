@@ -586,6 +586,292 @@ def process_product_changes(product_id, data, location_id=None):
     return menu_db_store.update_menu_item(item_data, location_id)
 
 
+def process_modifier_changes(modifier_id, data):
+    """
+    Process changes to a modifier from Deliverect.
+
+    Args:
+        modifier_id: The ID of the modifier to update
+        data: The updated modifier data
+
+    Returns:
+        bool: Success status
+    """
+    # Update the modifier in the database
+    try:
+        # Get the existing modifier
+        modifier = MenuModifier.query.filter_by(reference_handler=modifier_id).first()
+        
+        if not modifier:
+            logger.warning(f"Modifier with ID {modifier_id} not found")
+            return False
+            
+        # Update modifier properties
+        if "name" in data:
+            modifier.name = data["name"]
+        if "price" in data:
+            # Convert price to dollars if needed (Deliverect uses cents)
+            price = data["price"]
+            if price > 100:  # Assume it's in cents if > 100
+                price = price / 100
+            modifier.price = price
+        if "available" in data:
+            modifier.available = data["available"]
+            
+        # Save changes
+        db.session.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating modifier: {e}")
+        db.session.rollback()
+        return False
+
+
+def process_modifier_group_changes(group_id, data):
+    """
+    Process changes to a modifier group from Deliverect.
+
+    Args:
+        group_id: The ID of the modifier group to update
+        data: The updated group data
+
+    Returns:
+        bool: Success status
+    """
+    # Update the modifier group in the database
+    try:
+        # Get the existing modifier group
+        group = MenuModifierGroup.query.filter_by(reference_handler=group_id).first()
+        
+        if not group:
+            logger.warning(f"Modifier group with ID {group_id} not found")
+            return False
+            
+        # Update group properties
+        if "name" in data:
+            group.name = data["name"]
+        if "minAllowed" in data:
+            group.min_allowed = data["minAllowed"]
+        if "maxAllowed" in data:
+            group.max_allowed = data["maxAllowed"]
+        
+        # Handle modifiers if present
+        if "modifiers" in data and isinstance(data["modifiers"], list):
+            # Get the modifiers by reference_handler
+            modifiers = MenuModifier.query.filter(
+                MenuModifier.reference_handler.in_(data["modifiers"])
+            ).all()
+            
+            # Update the relationship
+            group.modifiers = modifiers
+            
+        # Save changes
+        db.session.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating modifier group: {e}")
+        db.session.rollback()
+        return False
+
+
+def process_meal_deal(meal_deal_item, selections=None):
+    """
+    Process a meal deal selection, handling child products and modifiers,
+    with proper handling of nested modifiers, quantities, and component validation.
+    
+    This is a database-backed version of the function.
+
+    Args:
+        meal_deal_item: The meal deal menu item (combo product)
+        selections: Dictionary of child product selections (component_id -> selection details)
+
+    Returns:
+        dict: Processed meal deal item with child items and their modifiers
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if not selections:
+        selections = {}
+    
+    # For consistency with the original function, we'll still return a dictionary
+    # structured like the original JSON format
+    result = {
+        "name": meal_deal_item.get("name", "Meal Deal"),
+        "reference_handler": meal_deal_item.get("reference_handler", ""),
+        "price": meal_deal_item.get("price", 0.0),
+        "quantity": 1,
+        "modifier": [],  # Modifiers applied to the entire meal deal
+        "childItems": [],  # Component items in the meal deal
+        "isCombo": True,  # Mark this as a combo meal for proper handling
+    }
+    
+    # Check if we have all required components
+    required_components = []
+    for child in meal_deal_item.get("childProducts", []):
+        child_id = child.get("id")
+        if child.get("required", True):  # Assume components are required by default
+            required_components.append(child_id)
+    
+    # Verify all required components are present
+    for component_id in required_components:
+        if component_id not in selections:
+            logger.warning(
+                f"Required component {component_id} missing from meal deal {result['name']}"
+            )
+    
+    # Process each child product (component)
+    for child in meal_deal_item.get("childProducts", []):
+        child_id = child.get("id")
+        selection = selections.get(child_id, {})
+        
+        # Get quantity for this component (default to 1)
+        quantity = selection.get("quantity", 1)
+        
+        # Create child item with proper structure
+        child_item = {
+            "name": child.get("name"),
+            "reference_handler": child_id,
+            "price": 0.0,  # Price is included in the meal deal
+            "quantity": quantity,
+            "modifier": [],  # Will be populated below
+            "for_component": child_id,  # Track which component this belongs to
+        }
+        
+        # Process modifiers for this component
+        if "modifier" in selection and selection["modifier"]:
+            # Handle different possible formats of the modifier data
+            if isinstance(selection["modifier"], list):
+                # Create properly structured modifiers with quantities
+                for mod in selection["modifier"]:
+                    if isinstance(mod, dict):
+                        # Get quantity - ensure it's properly handled
+                        mod_quantity = mod.get("quantity", 1)
+                        if isinstance(mod_quantity, str):
+                            try:
+                                mod_quantity = int(mod_quantity)
+                            except (ValueError, TypeError):
+                                mod_quantity = 1
+                                
+                        # Copy existing modifier with proper structure
+                        processed_mod = {
+                            "name": mod.get("name", ""),
+                            "reference_handler": mod.get("reference_handler", ""),
+                            "price": mod.get("price", 0.0),
+                            "quantity": mod_quantity,
+                            "for_component": child_id  # Track which component this modifier belongs to
+                        }
+                        
+                        # Add to child item modifiers
+                        child_item["modifier"].append(processed_mod)
+                    elif isinstance(mod, str):
+                        # Handle string modifiers (simple names)
+                        child_item["modifier"].append({
+                            "name": mod,
+                            "reference_handler": f"MOD-{mod.lower().replace(' ', '-')}",
+                            "price": 0.0,
+                            "quantity": 1,
+                            "for_component": child_id
+                        })
+            elif isinstance(selection["modifier"], dict):
+                # Handle dictionary format modifiers
+                for mod_name, mod_details in selection["modifier"].items():
+                    quantity = 1
+                    if isinstance(mod_details, dict) and "quantity" in mod_details:
+                        quantity = mod_details.get("quantity", 1)
+                        
+                    child_item["modifier"].append({
+                        "name": mod_name,
+                        "reference_handler": mod_details.get("reference_handler", 
+                                                        f"MOD-{mod_name.lower().replace(' ', '-')}"),
+                        "price": mod_details.get("price", 0.0) if isinstance(mod_details, dict) else 0.0,
+                        "quantity": quantity,
+                        "for_component": child_id
+                    })
+                    
+        # Add the processed child item to the meal deal
+        result["childItems"].append(child_item)
+        
+    # Process modifiers that apply to the entire meal deal
+    if "modifier" in meal_deal_item and meal_deal_item["modifier"]:
+        for mod in meal_deal_item["modifier"]:
+            if isinstance(mod, dict):
+                # Handle dictionary modifiers
+                result["modifier"].append({
+                    "name": mod.get("name", ""),
+                    "reference_handler": mod.get("reference_handler", ""),
+                    "price": mod.get("price", 0.0),
+                    "quantity": mod.get("quantity", 1)
+                })
+            elif isinstance(mod, str):
+                # Handle string modifiers
+                result["modifier"].append({
+                    "name": mod,
+                    "reference_handler": f"MOD-{mod.lower().replace(' ', '-')}",
+                    "price": 0.0,
+                    "quantity": 1
+                })
+                
+    return result
+
+
+def update_menu_ordering(data, location_id=None):
+    """
+    Update the ordering of menu items based on Deliverect data.
+
+    Args:
+        data: The ordering data
+        location_id: Optional location ID
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        # Check if we have valid ordering data
+        if not isinstance(data, dict) or "categories" not in data:
+            return False
+            
+        # Extract category ordering
+        categories = data.get("categories", [])
+        if not isinstance(categories, list):
+            return False
+            
+        # Create a mapping of category ID to ordering
+        category_order = {}
+        
+        # Start a transaction
+        for idx, category in enumerate(categories):
+            cat_id = category.get("id")
+            if not cat_id:
+                continue
+                
+            category_order[cat_id] = idx
+            
+            # Process product ordering within category
+            products = category.get("products", [])
+            if not isinstance(products, list):
+                continue
+                
+            for prod_idx, product in enumerate(products):
+                prod_id = product.get("id")
+                if not prod_id:
+                    continue
+                    
+                # Find the menu item and update its ordering
+                menu_item = MenuItem.query.filter_by(reference_handler=prod_id).first()
+                if menu_item:
+                    menu_item.ordering = prod_idx
+                    menu_item.category_ordering = idx
+                    
+        # Commit the changes
+        db.session.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating menu ordering: {e}")
+        db.session.rollback()
+        return False
+
+
 def sync_reference_handlers(source_location_id=None, target_location_id=None):
     """
     Synchronize reference handlers between two location menu files.

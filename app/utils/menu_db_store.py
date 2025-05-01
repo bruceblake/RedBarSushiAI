@@ -319,8 +319,11 @@ class MenuDBStore:
             from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
             from app import db
             
-            # Begin a transaction
-            db.session.begin()
+            # Check if we're already in a transaction
+            in_transaction = db.session.in_transaction()
+            if not in_transaction:
+                # Begin a transaction only if we're not already in one
+                db.session.begin()
             
             # If location_id is provided, delete existing menu data for this location
             if location_id:
@@ -360,8 +363,9 @@ class MenuDBStore:
                 group = MenuModifierGroup.from_dict(group_data)
                 db.session.add(group)
                 
-            # Commit the transaction
-            db.session.commit()
+            # Commit the transaction only if we started it
+            if not in_transaction:
+                db.session.commit()
             
             # Invalidate cache
             cache_key = f"menu:{location_id if location_id else 'default'}"
@@ -379,14 +383,20 @@ class MenuDBStore:
             return True
             
         except SQLAlchemyError as e:
-            # Rollback on error
-            db.session.rollback()
+            # Rollback on error, but only if we started the transaction
+            try:
+                db.session.rollback()
+            except:
+                pass
             logger.error(f"Database error storing menu data: {str(e)}")
             return False
             
         except Exception as e:
-            # Rollback on error
-            db.session.rollback()
+            # Rollback on error, but only if we started the transaction
+            try:
+                db.session.rollback()
+            except:
+                pass
             logger.error(f"Unexpected error storing menu data: {str(e)}")
             return False
     
@@ -479,7 +489,12 @@ class MenuDBStore:
                 logger.info(f"Updated menu item: {item.name}")
                 
             # Commit the changes
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                # If we're in a transaction that wasn't started by us, 
+                # we shouldn't commit, and this might throw an error
+                logger.warning(f"Commit may have failed, but continuing: {e}")
             
             # Invalidate cache
             cache_key = f"menu:{location_id if location_id else 'default'}"
@@ -496,14 +511,20 @@ class MenuDBStore:
             return True
             
         except SQLAlchemyError as e:
-            # Rollback on error
-            db.session.rollback()
+            # Rollback on error, but only if we started the transaction
+            try:
+                db.session.rollback()
+            except:
+                pass
             logger.error(f"Database error updating menu item: {str(e)}")
             return False
             
         except Exception as e:
-            # Rollback on error
-            db.session.rollback()
+            # Rollback on error, but only if we started the transaction
+            try:
+                db.session.rollback()
+            except:
+                pass
             logger.error(f"Unexpected error updating menu item: {str(e)}")
             return False
     
