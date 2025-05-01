@@ -470,23 +470,31 @@ class MenuDBStore:
                     else:
                         # Ensure properties is initialized
                         if item.properties is None:
-                            if hasattr(MenuItem, 'properties') and getattr(MenuItem, 'properties').type.python_type == dict:
-                                item.properties = {}
-                            else:
+                            try:
+                                if hasattr(MenuItem, 'properties') and hasattr(getattr(MenuItem, 'properties').type, 'python_type') and getattr(MenuItem, 'properties').type.python_type == dict:
+                                    item.properties = {}
+                                else:
+                                    item.properties = json.dumps({})
+                            except (AttributeError, TypeError):
+                                # If any attribute checks fail, just use JSON as fallback
                                 item.properties = json.dumps({})
                                 
                         # Update the properties
-                        if isinstance(item.properties, dict):
-                            item.properties[key] = value
-                        else:
-                            # Load the JSON, update, and save back
-                            try:
-                                props = json.loads(item.properties) if item.properties else {}
-                                props[key] = value
-                                item.properties = json.dumps(props)
-                            except:
-                                # If parsing fails, initialize with just this property
-                                item.properties = json.dumps({key: value})
+                        try:
+                            if isinstance(item.properties, dict):
+                                item.properties[key] = value
+                            else:
+                                # Load the JSON, update, and save back
+                                try:
+                                    props = json.loads(item.properties) if item.properties else {}
+                                    props[key] = value
+                                    item.properties = json.dumps(props)
+                                except:
+                                    # If parsing fails, initialize with just this property
+                                    item.properties = json.dumps({key: value})
+                        except (AttributeError, TypeError):
+                            # If attribute error, create new JSON object
+                            item.properties = json.dumps({key: value})
                 
                 logger.info(f"Updated menu item: {item.name}")
                 

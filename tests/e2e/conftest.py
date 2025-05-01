@@ -4,8 +4,8 @@ import pytest
 import json
 from playwright.sync_api import APIRequestContext, Playwright
 
-# Import the database test fixtures
-from tests.e2e.db_test_fixtures import setup_test_database, use_database_for_menu
+# Import the database test fixtures directly from the same directory
+from db_test_fixtures import setup_test_database, use_database_for_menu
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
 

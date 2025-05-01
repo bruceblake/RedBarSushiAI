@@ -47,7 +47,7 @@ class MenuItem(db.Model, TimestampMixin):
     # Use JSONB if PostgreSQL, otherwise fallback to JSON text storage
     try:
         # For PostgreSQL
-        properties = db.Column(MutableDict.as_mutable(JSONB), nullable=True)
+        properties = db.Column(MutableDict.as_mutable(JSONB), nullable=True, default=dict())
     except:
         # For SQLite or other databases without JSONB
         properties = db.Column(db.Text, nullable=True)
@@ -163,10 +163,14 @@ class MenuItem(db.Model, TimestampMixin):
                 properties[key] = value
                 
         # If we have PostgreSQL with JSONB
-        if hasattr(cls, 'properties') and isinstance(item.properties, MutableDict):
-            item.properties = properties
-        else:
-            # Fallback to JSON text for other databases
+        try:
+            if hasattr(cls, 'properties') and hasattr(getattr(cls, 'properties'), 'type') and hasattr(getattr(cls, 'properties').type, 'python_type') and getattr(cls, 'properties').type.python_type == dict:
+                item.properties = properties
+            else:
+                # Fallback to JSON text for other databases
+                item.properties = json.dumps(properties)
+        except (AttributeError, TypeError):
+            # If any attribute checks fail, just use JSON as fallback
             item.properties = json.dumps(properties)
             
         return item
@@ -195,7 +199,7 @@ class MenuModifier(db.Model, TimestampMixin):
     # Store additional properties as JSON
     try:
         # For PostgreSQL
-        properties = db.Column(MutableDict.as_mutable(JSONB), nullable=True)
+        properties = db.Column(MutableDict.as_mutable(JSONB), nullable=True, default=dict())
     except:
         # For SQLite or other databases without JSONB
         properties = db.Column(db.Text, nullable=True)
@@ -258,10 +262,14 @@ class MenuModifier(db.Model, TimestampMixin):
                 properties[key] = value
                 
         # If we have PostgreSQL with JSONB
-        if hasattr(cls, 'properties') and isinstance(modifier.properties, MutableDict):
-            modifier.properties = properties
-        else:
-            # Fallback to JSON text for other databases
+        try:
+            if hasattr(cls, 'properties') and hasattr(getattr(cls, 'properties'), 'type') and hasattr(getattr(cls, 'properties').type, 'python_type') and getattr(cls, 'properties').type.python_type == dict:
+                modifier.properties = properties
+            else:
+                # Fallback to JSON text for other databases
+                modifier.properties = json.dumps(properties)
+        except (AttributeError, TypeError):
+            # If any attribute checks fail, just use JSON as fallback
             modifier.properties = json.dumps(properties)
             
         return modifier
@@ -294,7 +302,7 @@ class MenuModifierGroup(db.Model, TimestampMixin):
     # Store additional properties as JSON
     try:
         # For PostgreSQL
-        properties = db.Column(MutableDict.as_mutable(JSONB), nullable=True)
+        properties = db.Column(MutableDict.as_mutable(JSONB), nullable=True, default=dict())
     except:
         # For SQLite or other databases without JSONB
         properties = db.Column(db.Text, nullable=True)
@@ -369,10 +377,14 @@ class MenuModifierGroup(db.Model, TimestampMixin):
                 properties[key] = value
                 
         # If we have PostgreSQL with JSONB
-        if hasattr(cls, 'properties') and isinstance(group.properties, MutableDict):
-            group.properties = properties
-        else:
-            # Fallback to JSON text for other databases
+        try:
+            if hasattr(cls, 'properties') and hasattr(getattr(cls, 'properties'), 'type') and hasattr(getattr(cls, 'properties').type, 'python_type') and getattr(cls, 'properties').type.python_type == dict:
+                group.properties = properties
+            else:
+                # Fallback to JSON text for other databases
+                group.properties = json.dumps(properties)
+        except (AttributeError, TypeError):
+            # If any attribute checks fail, just use JSON as fallback
             group.properties = json.dumps(properties)
             
         return group
