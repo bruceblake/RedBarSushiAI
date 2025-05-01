@@ -197,9 +197,10 @@ def create_app(test_config=None):
     # Configure SQLAlchemy engine options based on database type
     engine_options = {
         "pool_recycle": 1800,  # 30 minutes to match Render's proxy timeout
-        "pool_pre_ping": True,
+        "pool_pre_ping": True, # Check connection before using it
         "pool_size": 10,       # Limit pool size to prevent connection exhaustion
         "max_overflow": 15,    # Allow some overflow connections during high load
+        "pool_reset_on_return": True, # Reset connections when returned to pool
     }
 
     # Only add options compatible with the specific database type
@@ -207,8 +208,8 @@ def create_app(test_config=None):
         if "sqlite" in SQLALCHEMY_DATABASE_URI:
             # SQLite doesn't support pool_timeout or connect_timeout
             pass
-        else:
-            # For MySQL, PostgreSQL and other full DB engines
+        elif "postgresql" in SQLALCHEMY_DATABASE_URI or "postgres" in SQLALCHEMY_DATABASE_URI:
+            # PostgreSQL-specific optimizations for Render
             engine_options.update(
                 {
                     "pool_timeout": 30,        # Increased timeout for connection acquisition
@@ -217,7 +218,20 @@ def create_app(test_config=None):
                         "keepalives": 1,        # Enable TCP keepalives
                         "keepalives_idle": 60,  # Send keepalive after 60 seconds of inactivity
                         "keepalives_interval": 10,  # 10 seconds between keepalives
-                        "keepalives_count": 3   # Number of keepalives before dropping connection
+                        "keepalives_count": 3,   # Number of keepalives before dropping connection
+                        # Additional PostgreSQL-specific settings for better reliability
+                        "application_name": "RedBarSushiAI",  # Identify app in pg_stat_activity
+                        "options": "-c statement_timeout=60000",  # 60s statement timeout
+                    },
+                }
+            )
+        else:
+            # For MySQL and other full DB engines
+            engine_options.update(
+                {
+                    "pool_timeout": 30,        # Increased timeout for connection acquisition
+                    "connect_args": {
+                        "connect_timeout": 15,  # Increased connection timeout
                     },
                 }
             )
@@ -240,6 +254,7 @@ def create_app(test_config=None):
         logger.info("Skipping database initialization in API schema validation mode")
 
     if not skip_db_init:
+        # Initialize SQLAlchemy with our app
         db.init_app(app)
         
         # Initialize the database for menu storage if configured
@@ -247,12 +262,23 @@ def create_app(test_config=None):
             with app.app_context():
                 try:
                     # Import here to avoid circular imports
-                    from app.db_init import init_database
+                    from app.db_init import init_database, fresh_session
+                    
+                    # Ensure we have a fresh session for initialization
+                    fresh_session()
+                    
+                    # Initialize database with retry logic
                     init_database()
                 except Exception as e:
-                    app.logger.error(f"Failed to initialize menu database: {e}")
+                    app.logger.error(f"Failed to initialize menu database: {e}", exc_info=True)
                     # Continue anyway to ensure app starts
                     app.logger.warning("App will continue starting up despite database initialization error")
+                    
+                    # Try to clean up the session to prevent future errors
+                    try:
+                        db.session.remove()
+                    except:
+                        pass
 
     # Initialize WebSockets
     sock.init_app(app)
@@ -445,13 +471,29 @@ def create_app(test_config=None):
 
         # Check database connection
         try:
-            # Simple database ping
+            # Simple database ping with proper session handling
             with app.app_context():
-                db.session.execute("SELECT 1").scalar()
-            health_info["checks"]["database"] = "ok"
+                # Import from db_init to use our fresh session logic
+                from app.db_init import fresh_session, verify_connection
+                
+                # Ensure we have a fresh session
+                fresh_session()
+                
+                # Use our verify_connection function that handles session lifecycle
+                if verify_connection():
+                    health_info["checks"]["database"] = "ok"
+                else:
+                    health_info["checks"]["database"] = "error: Connection verification failed"
+                    health_info["status"] = "degraded"
         except Exception as e:
             health_info["checks"]["database"] = f"error: {str(e)}"
             health_info["status"] = "degraded"
+            
+            # Clean up the session to prevent future errors
+            try:
+                db.session.remove()
+            except:
+                pass
 
         # Check Redis if we're using it
         redis_url = os.environ.get("CELERY_BROKER_URL")

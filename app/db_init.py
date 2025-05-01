@@ -18,9 +18,15 @@ logger = logging.getLogger(__name__)
 def verify_connection():
     """Verify database connection is active and working."""
     try:
-        with db.session.connection() as conn:
-            result = conn.execute(text("SELECT 1"))
-            return result.scalar() == 1
+        # Ensure we have a fresh session before verification
+        fresh_session()
+        
+        # Use a with block to ensure the connection is properly closed
+        with db.session() as session:
+            with session.connection() as conn:
+                result = conn.execute(text("SELECT 1"))
+                value = result.scalar()
+                return value == 1
     except Exception as e:
         logger.warning(f"Connection verification failed: {e}")
         return False
@@ -28,12 +34,17 @@ def verify_connection():
 def check_table_exists(table_name):
     """Check if a table exists in the database."""
     try:
+        # Ensure a fresh session before checking
+        fresh_session()
+        
         # Try a direct query approach that works with all SQLAlchemy versions
-        with db.session.connection() as conn:
-            result = conn.execute(text(
-                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = :table_name)"
-            ), {"table_name": table_name})
-            return result.scalar()
+        # Use a with block to ensure proper session closure
+        with db.session() as session:
+            with session.connection() as conn:
+                result = conn.execute(text(
+                    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = :table_name)"
+                ), {"table_name": table_name})
+                return result.scalar()
     except Exception as e:
         logger.warning(f"Error checking if table exists: {e}")
         return False
@@ -47,6 +58,24 @@ def create_tables():
     # Create tables
     db.create_all()
     logger.info("Created all database tables")
+
+def fresh_session():
+    """
+    Create a fresh database session by removing any existing session
+    and forcing SQLAlchemy to create a new one.
+    """
+    # Remove existing session
+    db.session.remove()
+    
+    # The next access to db.session will create a fresh session
+    # Force this creation now with a simple operation
+    try:
+        # Just access the session to force SQLAlchemy to create a new one
+        _ = db.session.registry
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create fresh session: {e}")
+        return False
 
 def execute_with_retry(func, *args, **kwargs):
     """
@@ -68,19 +97,30 @@ def execute_with_retry(func, *args, **kwargs):
     attempt = 0
     last_error = None
     
+    # Create a wrapper function to ensure each execution uses a fresh session
+    def session_wrapped_func(*args, **kwargs):
+        # Create fresh session before each attempt
+        fresh_session()
+        
+        # Verify connection is valid
+        if not verify_connection():
+            logger.warning("Connection verification failed, creating new session for operation")
+            # Try once more with a completely fresh session
+            fresh_session()
+            if not verify_connection():
+                raise OperationalError("Failed to establish database connection after refresh", None, None)
+        
+        # Execute the actual function
+        return func(*args, **kwargs)
+    
     while attempt < max_retries:
         try:
             # If not first attempt, log retry info
             if attempt > 0:
                 logger.info(f"Retry attempt {attempt}/{max_retries} for database operation")
             
-            # Verify connection first (for non-first attempts)
-            if attempt > 0 and not verify_connection():
-                logger.warning("Connection verification failed before retry")
-                # Continue to retry with a fresh connection
-                
-            # Execute the function
-            result = func(*args, **kwargs)
+            # Always ensure we have a fresh session before each attempt
+            result = session_wrapped_func(*args, **kwargs)
             
             # If we got here, it worked! Log success on retry
             if attempt > 0:
@@ -113,7 +153,7 @@ def execute_with_retry(func, *args, **kwargs):
             time.sleep(delay)
             
             # Clean up session to ensure fresh connection on retry
-            db.session.remove()
+            fresh_session()
         
         except Exception as e:
             # Non-connection errors should not be retried
@@ -178,10 +218,28 @@ def init_database():
             # Import here to avoid circular imports
             from app.models.menu import MenuItem
             
-            # Check if we already have menu data in the database
-            with db.session.connection() as conn:
-                result = conn.execute(text("SELECT COUNT(*) FROM menu_items"))
-                item_count = result.scalar()
+            # Use a dedicated function for checking item count to ensure clean session scope
+            def get_menu_item_count():
+                # Ensure we have a fresh session
+                fresh_session()
+                
+                try:
+                    # Create a new session for this operation
+                    with db.session() as session:
+                        with session.connection() as conn:
+                            result = conn.execute(text("SELECT COUNT(*) FROM menu_items"))
+                            return result.scalar()
+                except Exception as e:
+                    logger.error(f"Error checking menu item count: {e}", exc_info=True)
+                    return None
+            
+            # Get current item count with a fresh session
+            item_count = get_menu_item_count()
+            
+            # Check if we got a valid response
+            if item_count is None:
+                logger.error("Failed to check menu item count - connection issue")
+                return False
             
             if item_count == 0:
                 # No menu items in database, migrate from file
@@ -198,6 +256,10 @@ def init_database():
                     # Check if file exists
                     if os.path.exists(menu_file):
                         logger.info(f"Migrating menu data from {menu_file} to database...")
+                        
+                        # Ensure we have a fresh session before migration
+                        fresh_session()
+                        
                         result = migrate_menu_to_database(file_path=menu_file, force=True)
                         
                         if result.get("success"):
