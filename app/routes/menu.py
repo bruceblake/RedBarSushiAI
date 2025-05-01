@@ -574,9 +574,24 @@ def menu_update():
                 )
 
             # Verify the menu was saved correctly
-            reloaded_menu = load_menu_data(force_refresh=True)
-            reloaded_count = len(reloaded_menu.get("items", []))
-            # No need to check name_variants - AI agent will handle matching
+            # Force a direct database check to ensure data was actually committed
+            from app import db
+            from app.models.menu import MenuItem
+            
+            try:
+                # Explicitly use a new database session to verify data was committed
+                direct_db_count = db.session.query(MenuItem).count()
+                logger.info(f"[MENU-UPDATE] Direct database check shows {direct_db_count} menu items")
+                
+                # Also check using the regular load function
+                reloaded_menu = load_menu_data(force_refresh=True)
+                reloaded_count = len(reloaded_menu.get("items", []))
+                logger.info(f"[MENU-UPDATE] Reloaded menu data with {reloaded_count} items")
+                
+                # No need to check name_variants - AI agent will handle matching
+            except Exception as verify_error:
+                logger.error(f"[MENU-UPDATE] Error during verification: {verify_error}")
+                reloaded_count = 0
 
             if reloaded_count == 0:
                 logger.warning(

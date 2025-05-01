@@ -475,20 +475,20 @@ class MenuDBStore:
             except Exception as inspect_error:
                 logger.error(f"[MENU-STORE] Error checking table existence: {inspect_error}")
             
-            # Commit the transaction only if we started it
+            # Always commit the transaction regardless of who started it
             try:
-                if not in_transaction:
-                    logger.info("[MENU-STORE] Committing transaction to database")
-                    db.session.commit()
-                    logger.info("[MENU-STORE] Transaction committed successfully")
-                else:
-                    logger.info("[MENU-STORE] Not committing transaction as it was started elsewhere")
+                logger.info("[MENU-STORE] Force committing transaction to database")
+                db.session.commit()
+                logger.info("[MENU-STORE] Transaction committed successfully")
             except Exception as commit_error:
                 logger.error(f"[MENU-STORE] Error committing transaction: {commit_error}")
-                # Handle transaction error
+                # Only rollback if we started the transaction
                 if not in_transaction:
-                    db.session.rollback()
-                    logger.info("[MENU-STORE] Transaction rolled back")
+                    try:
+                        db.session.rollback()
+                        logger.info("[MENU-STORE] Transaction rolled back")
+                    except Exception as rollback_error:
+                        logger.error(f"[MENU-STORE] Error during rollback: {rollback_error}")
                 raise commit_error
             
             # Invalidate cache
