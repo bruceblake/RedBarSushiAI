@@ -79,12 +79,6 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
                     f"[OPENAI-CONTENT] {content[:200]}..."
                 )  # Log first 200 chars
         logger.info(f"[OPENAI-FULL] {str(response)[:500]}...")  # Log first 500 chars
-    except Exception as e:
-        logger.error(
-            f"[OPENAI-RESPONSE-ERROR] Failed to log response: {str(e)}"
-        )  # Broad except, but safe for logging
-        logger.error(f"[OPENAI-RESPONSE-RAW] {str(response)[:500]}...")
-
 
 # Ensure OpenAI API key is set
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
