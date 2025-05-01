@@ -222,6 +222,57 @@ class MenuDBStore:
             logger.error(f"Error storing in memory cache: {str(e)}")
             return False
     
+    def _get_menu_data_from_db(self, location_id: Optional[str] = None, cache_key: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Helper method to retrieve menu data directly from the database.
+        
+        Args:
+            location_id: Optional location ID to filter menu data
+            cache_key: Optional cache key for storing the result
+            
+        Returns:
+            dict: The complete menu data
+        """
+        # Import models here to avoid circular imports
+        from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
+        
+        # Query database for menu items
+        query = MenuItem.query
+        
+        # Filter by location if specified
+        if location_id:
+            query = query.filter_by(location_id=location_id)
+            
+        # Execute query and convert to dictionaries
+        items = [item.to_dict() for item in query.all()]
+        
+        # Query modifiers
+        mod_query = MenuModifier.query
+        if location_id:
+            mod_query = mod_query.filter_by(location_id=location_id)
+        modifiers = [mod.to_dict() for mod in mod_query.all()]
+        
+        # Query modifier groups
+        group_query = MenuModifierGroup.query
+        if location_id:
+            group_query = group_query.filter_by(location_id=location_id)
+        modifier_groups = [group.to_dict() for group in group_query.all()]
+        
+        # Construct the complete menu data
+        menu_data = {
+            "items": items,
+            "modifiers": modifiers,
+            "modifierGroups": modifier_groups,
+        }
+        
+        # Cache the result if a cache key was provided
+        if cache_key:
+            self._store_in_redis(cache_key, menu_data)
+            self._store_in_memory_cache(cache_key, menu_data)
+        
+        logger.info(f"Loaded menu data from database: {len(items)} items, {len(modifiers)} modifiers, {len(modifier_groups)} groups")
+        return menu_data
+        
     def get_menu_data(self, location_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
         """
         Get the complete menu data, using a cache-first approach.
@@ -259,44 +310,31 @@ class MenuDBStore:
             
             # Check if we're in an application context
             if not has_app_context():
-                logger.warning("Working outside of application context, returning empty menu structure")
+                logger.warning("Working outside of application context, checking file backup")
+                # Instead of creating an app context, try to load from the file backup
+                try:
+                    # Look for a backup file first
+                    menu_file_path = os.path.join(os.getcwd(), "menu_data.json")
+                    if os.path.exists(menu_file_path):
+                        logger.info(f"Loading menu from backup file: {menu_file_path}")
+                        with open(menu_file_path, 'r') as f:
+                            menu_data = json.load(f)
+                        if menu_data and "items" in menu_data and len(menu_data["items"]) > 0:
+                            logger.info(f"Loaded {len(menu_data['items'])} items from backup file")
+                            # Cache the result
+                            if cache_key:
+                                self._store_in_redis(cache_key, menu_data)
+                                self._store_in_memory_cache(cache_key, menu_data)
+                            return menu_data
+                except Exception as e:
+                    logger.error(f"Failed to load menu from backup file: {e}")
+                    
+                # If we get here, there's no file or an error occurred
+                logger.warning("No menu data available outside application context")
                 return {"items": [], "modifiers": [], "modifierGroups": []}
             
-            # Query database for menu items
-            query = MenuItem.query
-            
-            # Filter by location if specified
-            if location_id:
-                query = query.filter_by(location_id=location_id)
-                
-            # Execute query and convert to dictionaries
-            items = [item.to_dict() for item in query.all()]
-            
-            # Query modifiers
-            mod_query = MenuModifier.query
-            if location_id:
-                mod_query = mod_query.filter_by(location_id=location_id)
-            modifiers = [mod.to_dict() for mod in mod_query.all()]
-            
-            # Query modifier groups
-            group_query = MenuModifierGroup.query
-            if location_id:
-                group_query = group_query.filter_by(location_id=location_id)
-            modifier_groups = [group.to_dict() for group in group_query.all()]
-            
-            # Construct the complete menu data
-            menu_data = {
-                "items": items,
-                "modifiers": modifiers,
-                "modifierGroups": modifier_groups,
-            }
-            
-            # Cache the result
-            self._store_in_redis(cache_key, menu_data)
-            self._store_in_memory_cache(cache_key, menu_data)
-            
-            logger.info(f"Loaded menu data from database: {len(items)} items, {len(modifiers)} modifiers, {len(modifier_groups)} groups")
-            return menu_data
+            # Get the menu data from the database using our helper method
+            return self._get_menu_data_from_db(location_id, cache_key)
             
         except SQLAlchemyError as e:
             logger.error(f"Database error retrieving menu data: {str(e)}")
@@ -327,8 +365,27 @@ class MenuDBStore:
             
             # Check if we're in an application context
             if not has_app_context():
-                logger.warning("Working outside of application context, cannot store menu data to database")
-                return False
+                logger.warning("Working outside of application context, attempting to write to backup file")
+                # Since we can't access the database, at least save to a file
+                try:
+                    menu_file_path = os.path.join(os.getcwd(), "menu_data.json")
+                    with open(menu_file_path, 'w') as f:
+                        json.dump(menu_data, f, indent=2)
+                    logger.info(f"Saved menu data to backup file: {menu_file_path}")
+                    
+                    # Also update memory cache so it's available for this session
+                    cache_key = f"menu:{location_id if location_id else 'default'}"
+                    self._store_in_memory_cache(cache_key, menu_data)
+                    
+                    # Try Redis if available
+                    if self.redis_client:
+                        self._store_in_redis(cache_key, menu_data)
+                        
+                    logger.info("Menu data saved to backup file and caches")
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to write menu data to backup file: {e}")
+                    return False
             
             # Try to begin a transaction - this will raise an exception if one is already in progress
             try:

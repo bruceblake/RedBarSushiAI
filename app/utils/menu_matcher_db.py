@@ -25,8 +25,15 @@ class MenuMatcher:
 
     def __init__(self):
         """Initialize the menu matcher."""
-        self.menu_data = load_menu_data()
+        self._menu_data = None  # Will be loaded on first use
         self.model = "gpt-4.1-mini"  # Can be configured based on needs
+        
+    @property
+    def menu_data(self):
+        """Lazy-load menu data only when actually needed."""
+        if self._menu_data is None:
+            self._menu_data = load_menu_data()
+        return self._menu_data
 
     def find_menu_item(
         self,

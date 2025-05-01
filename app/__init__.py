@@ -367,44 +367,27 @@ def create_app(test_config=None):
 
     @app.route("/menu-check")
     def menu_check():
-        """Diagnostic endpoint to check menu status"""
-        from app.utils.menu_utils import load_menu_data, MENU_FILE_PATH
-        import os
-
+        """Diagnostic endpoint to check menu status from database"""
+        from app.utils.menu_utils_db import load_menu_data
+        from app.utils.menu_db_store import menu_db_store
+        
         result = {
-            "menu_file_path": MENU_FILE_PATH,
-            "exists": os.path.exists(MENU_FILE_PATH),
-            "locations_checked": [],
+            "database": True,
+            "storage_method": "database",
+            "database_connection": True,
             "items_count": 0,
         }
 
-        # Check common locations
-        for path in [
-            MENU_FILE_PATH,
-            os.path.join(os.getcwd(), "menu_data.json"),
-            "/app/menu_data.json",
-            "/var/task/menu_data.json",
-        ]:
-            exists = os.path.exists(path)
-            size = os.path.getsize(path) if exists else 0
-            result["locations_checked"].append(
-                {
-                    "path": path,
-                    "exists": exists,
-                    "size": size,
-                    "permissions": oct(os.stat(path).st_mode) if exists else "N/A",
-                }
-            )
-
-        # Actually load the menu
+        # Load the menu from database
         try:
             menu = load_menu_data(force_refresh=True)
             result["load_success"] = True
             result["items_count"] = len(menu.get("items", []))
+            result["modifiers_count"] = len(menu.get("modifiers", []))
+            result["groups_count"] = len(menu.get("modifierGroups", []))
             result["items_sample"] = [
                 item.get("name") for item in menu.get("items", [])[:5]
             ]
-            result["variants_count"] = len(menu.get("name_variants", {}))
         except Exception as e:
             result["load_success"] = False
             result["error"] = str(e)
@@ -512,7 +495,7 @@ def create_app(test_config=None):
 
         # Check menu data
         try:
-            from app.utils.menu_utils import load_menu_data
+            from app.utils.menu_utils_db import load_menu_data
 
             menu = load_menu_data()
             items_count = len(menu.get("items", []))

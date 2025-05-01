@@ -3,7 +3,8 @@ Agent utility functions for handling OpenAI Agents integration.
 This module provides the core functionality for our AI agents.
 """
 
-from app.utils.menu_utils_db import load_menu_data
+# Defer import to prevent database access during module import
+# from app.utils.menu_utils_db import load_menu_data
 import os
 import json
 import logging
@@ -110,36 +111,48 @@ except ImportError:
     AGENT_API_AVAILABLE = False
     # Using older version of OpenAI API - will use alternative implementation
 
-# For non-agent API fallback, test if we can access the API at all
-if not AGENT_API_AVAILABLE and OPENAI_API_KEY:
-    # Try to confirm API key works
-    try:
-        # Simple test call
-        messages = [{"role": "user", "content": "Test"}]
-
-        # Log the API request
-        log_openai_request("gpt-4.1-mini", messages, "api_key_test")
-
+# Don't test API access at module import - defer until needed
+# Create a function to test API access that can be called when appropriate
+def test_openai_api_key():
+    """Test if the OpenAI API key works."""
+    global OPENAI_API_KEY
+    
+    if not AGENT_API_AVAILABLE and OPENAI_API_KEY:
+        # Try to confirm API key works
         try:
-            response = openai.chat.completions.create(
-                model="gpt-4.1-mini", messages=messages, max_tokens=1
-            )
+            # Simple test call
+            messages = [{"role": "user", "content": "Test"}]
 
-            # Log the API response
-            log_openai_response(response, "api_key_test")
+            # Log the API request
+            log_openai_request("gpt-4.1-mini", messages, "api_key_test")
 
-            # If we got here, API key works for chat completions
-            logger.info("OpenAI API key confirmed working for chat completions")
+            try:
+                response = openai.chat.completions.create(
+                    model="gpt-4.1-mini", messages=messages, max_tokens=1
+                )
+
+                # Log the API response
+                log_openai_response(response, "api_key_test")
+
+                # If we got here, API key works for chat completions
+                logger.info("OpenAI API key confirmed working for chat completions")
+                return True
+            except Exception as e:
+                logger.error(f"Error during OpenAI API call: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise
         except Exception as e:
-            logger.error(f"Error during OpenAI API call: {e}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
-    except Exception as e:
-        logger.error(f"Error testing OpenAI API key: {e}")
-        # Mark as unavailable so we use simpler fallbacks
-        OPENAI_API_KEY = None
+            logger.error(f"Error testing OpenAI API key: {e}")
+            # Mark as unavailable so we use simpler fallbacks
+            OPENAI_API_KEY = None
+            return False
+    return OPENAI_API_KEY is not None
 
-from app.utils.menu_utils_db import load_menu_data, find_menu_item_by_name
+# The API key will be tested when first needed, not during import
+
+# Defer import to avoid database access during module import
+# These will be imported at function call time to avoid application context issues
+# from app.utils.menu_utils_db import load_menu_data, find_menu_item_by_name
 
 # The menu_matcher will be imported at runtime in the verify function to avoid circular imports
 
@@ -149,6 +162,8 @@ class SushiMenuTool:
 
     def __init__(self):
         """Initialize the tool with menu data."""
+        # Import here to avoid application context issues during module import
+        from app.utils.menu_utils_db import load_menu_data
         self.menu_data = load_menu_data()
         self.current_conversation = []  # To track conversation context
         self.last_refresh_time = time.time()
@@ -169,6 +184,8 @@ class SushiMenuTool:
         logger.info(f"conversation {self.current_conversation}")
 
         # First try to find exact matches
+        # Import at function call time to avoid application context issues
+        from app.utils.menu_utils_db import find_menu_item_by_name
         item = find_menu_item_by_name(query)
         if item:
             return {"found": True, "items": [item], "query": query}
@@ -309,6 +326,8 @@ class SushiMenuTool:
         """
         # Ensure we have fresh menu data
         if time.time() - self.last_refresh_time > 300:  # Refresh every 5 minutes
+            # Import at function call time to avoid application context issues
+            from app.utils.menu_utils_db import load_menu_data
             self.menu_data = load_menu_data(force_refresh=True)
             self.last_refresh_time = time.time()
 
@@ -492,7 +511,7 @@ class SushiMenuTool:
         suggestions = suggestion_data.get("suggestions", [])
 
         # Use OpenAI to generate a natural language prompt if available
-        if OPENAI_API_KEY:
+        if OPENAI_API_KEY and test_openai_api_key():
             try:
                 # Prepare prompt for OpenAI
                 system_msg = (
@@ -575,6 +594,8 @@ class SushiMenuTool:
             logger.error(f"[MENU-TOOL] Error in AI matching: {str(e)}")
 
         # If AI matching fails, try exact match as fallback
+        # Import at function call time to avoid application context issues
+        from app.utils.menu_utils_db import find_menu_item_by_name
         item = find_menu_item_by_name(item_name)
         if item:
             return {
@@ -598,6 +619,8 @@ class SushiMenuTool:
             dict: The item details
         """
         # First try direct lookup
+        # Import at function call time to avoid application context issues
+        from app.utils.menu_utils_db import find_menu_item_by_name
         item = find_menu_item_by_name(item_name)
 
         # If direct lookup fails, try AI matching

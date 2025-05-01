@@ -9,15 +9,14 @@ from datetime import datetime
 
 # app.utils.helpers is imported by other modules
 from app.utils.menu_validator import validate_and_fix_menu_data
-# Import from menu_utils_db instead of menu_utils to use database-backed implementations
+# Import all menu utilities from database-backed implementation only
 from app.utils.menu_utils_db import (
     load_menu_data,
     write_menu_file,
     sync_reference_handlers,
     process_deliverect_menu
 )
-# Still import path constants from menu_utils for backward compatibility
-from app.utils.menu_utils import MENU_FILE_PATH, USE_REDBAR_MENU
+# No imports from menu_utils - we're not using file storage
 
 menu_bp = Blueprint("menu", __name__)
 logger = logging.getLogger(__name__)
@@ -518,12 +517,12 @@ def menu_update():
                 # This is a critical error - try to write the processed data again
                 try:
                     logger.info(
-                        "[MENU-UPDATE] Attempting to write processed data again"
+                        "[MENU-UPDATE] Attempting to store processed data in database again"
                     )
-                    # Write directly to the file as a last resort
-                    with open(MENU_FILE_PATH, "w") as f:
-                        json.dump(processed_data, f, indent=2)
-                    logger.info(f"[MENU-UPDATE] Wrote directly to {MENU_FILE_PATH}")
+                    # Store directly in the database as a last resort
+                    from app.utils.menu_db_store import menu_db_store
+                    if menu_db_store.store_menu_data(processed_data, location_id):
+                        logger.info("[MENU-UPDATE] Successfully stored menu in database on second attempt")
 
                     # Reload one more time to confirm
                     restored_menu = load_menu_data(force_refresh=True)
