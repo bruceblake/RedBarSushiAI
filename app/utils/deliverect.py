@@ -1302,6 +1302,21 @@ def _process_category(category, result):
         if not any(existing.get("category_id") == category_id for existing in result["items"]):
             result["items"].append(category_item)
             _add_name_variants(result["name_variants"], category_name)
+            
+    # Process products in this category to ensure they have category information
+    if isinstance(products, list):
+        for product in products:
+            if isinstance(product, dict):
+                # Ensure product has the category information
+                product["category"] = category_name
+                product["category_id"] = category_id
+                
+                # If product is directly under a category and has subProducts,
+                # it might be a subcategory itself
+                if ("subProducts" in product and 
+                    isinstance(product.get("subProducts"), list) and 
+                    len(product.get("subProducts", [])) > 0):
+                    product["is_category"] = True
 
     # Special handling for Extra/Add-on categories - these often contain modifiers
     is_extras_category = False
@@ -1802,13 +1817,37 @@ def _convert_product_to_item(product):
     if not isinstance(product, dict) or "name" not in product:
         return None
     
-    # Check if this is a category based on productType
+    # Improved category detection logic
     is_category = False
+    
+    # Method 1: Check productType (3 = Category or Modifier Group)
     if product.get("productType") == 3:
         is_category = True
-    # Or has subProducts but no price (likely a category)
+        
+    # Method 2: Check for explicit category flag
+    elif product.get("is_category") == True:
+        is_category = True
+        
+    # Method 3: Check special naming patterns
+    elif isinstance(product.get("name"), str) and (
+        product.get("name").startswith("[CATEGORY]") or
+        "category" in product.get("name", "").lower()
+    ):
+        is_category = True
+        
+    # Method 4: Has subProducts but no price (likely a category)
     elif "subProducts" in product and isinstance(product.get("subProducts"), list) and len(product.get("subProducts")) > 0:
         if not product.get("price"):
+            is_category = True
+            
+    # Method 5: Check if product has zero price
+    elif product.get("price") == 0 or product.get("price") is None:
+        # Check if this looks like a category based on context
+        if (isinstance(product.get("name"), str) and 
+            ("categor" in product.get("name", "").lower() or 
+             "section" in product.get("name", "").lower() or
+             "group" in product.get("name", "").lower() or
+             "menu" in product.get("name", "").lower())):
             is_category = True
     
     # Basic required fields
@@ -1831,10 +1870,27 @@ def _convert_product_to_item(product):
         if not item["name"].startswith("[CATEGORY]"):
             item["name"] = f"[CATEGORY] {item['name']}"
     else:
-        # Regular product price handling
-        item["price"] = (
-            product.get("price", 0) / 100 if product.get("price") else 0
-        )  # Convert from cents
+        # Regular product price handling - convert from cents (Deliverect stores in cents)
+        if "price" in product and product["price"] is not None:
+            # If price is present, convert it from cents to dollars
+            item["price"] = product.get("price", 0) / 100
+        else:
+            # If no price in the product data, check if there's a reference price in the original PLU's product
+            # For PLUs with ### (like P-BURG-CHE###PRNT), we need to find the base product price
+            if "referenceId" in product:
+                # Look at the PLU without ### to see if it's the original item with a price
+                ref_id = product.get("referenceId", "")
+                logger.info(f"Checking referenceId {ref_id} for price information for {item['name']}")
+                # Leave as 0 and let menu_validator find the price in the database
+                item["price"] = 0
+            elif "plu" in product and "###" in product["plu"]:
+                # This is a variant product - need to get the base product price
+                logger.info(f"Product {item['name']} has PLU with ###: {product['plu']}, attempting to get base price")
+                # Leave as 0 and let menu_validator find the price in the database
+                item["price"] = 0
+            else:
+                # No price information available
+                item["price"] = 0
 
     # Ensure the product has a plu for Deliverect integration
     if not item["reference_handler"] and product.get("_id", ""):
@@ -1846,22 +1902,35 @@ def _convert_product_to_item(product):
     elif "plu" in product:
         item["plu"] = product["plu"]
         
-        # Handle special PLU format with # characters (variant prices)
+        # Handle special PLU format with # characters (variant prices or parent-child relationships)
         if "#" in product["plu"]:
             # Store original PLU for reference
             item["original_plu"] = product["plu"]
             
-            # Check for referenceId which contains the original PLU
+            # Check for referenceId which contains the original PLU (prioritize this)
             if "referenceId" in product:
                 item["plu"] = product["referenceId"]
                 item["reference_handler"] = product["referenceId"]
+                logger.info(f"Using referenceId {product['referenceId']} for {item['name']} (original PLU: {product['plu']})")
             else:
                 # Extract base PLU without # characters if no referenceId
-                clean_plu = product["plu"].split("#")[0]
-                if clean_plu:
-                    logger.info(f"Extracted base PLU {clean_plu} from {product['plu']}")
-                    item["plu"] = clean_plu
-                    item["reference_handler"] = clean_plu
+                # For PLUs like "P-BURG-CHE###PRNT", we want to extract "P-BURG-CHE"
+                if "###" in product["plu"]:
+                    clean_plu = product["plu"].split("###")[0]
+                    if clean_plu:
+                        logger.info(f"Extracted base PLU {clean_plu} from {product['plu']} with ### format")
+                        item["plu"] = clean_plu
+                        item["reference_handler"] = clean_plu
+                        # Store the relationship info for later price lookup
+                        item["is_variant"] = True
+                        item["base_plu"] = clean_plu
+                else:
+                    # For other # formats like "#V300#"
+                    clean_plu = product["plu"].split("#")[0]
+                    if clean_plu:
+                        logger.info(f"Extracted base PLU {clean_plu} from {product['plu']} with # format")
+                        item["plu"] = clean_plu
+                        item["reference_handler"] = clean_plu
             
             # Extract variant price difference if available in PLU
             import re

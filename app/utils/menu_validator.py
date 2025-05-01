@@ -434,6 +434,20 @@ def validate_and_fix_menu_data(menu_data):
                 if category.get("_id") == item.get("_id"):
                     is_category = True
                     break
+        # 5. Name starts with category marker
+        elif isinstance(item.get("name"), str) and item.get("name").startswith("[CATEGORY]"):
+            is_category = True
+        # 6. Use contextual information to identify categories based on patterns, not hardcoded values
+        elif isinstance(item.get("name"), str):
+            # Look for potential category naming patterns
+            item_name_lower = item.get("name", "").lower()
+            if (("categor" in item_name_lower) or
+                ("section" in item_name_lower) or 
+                ("group" in item_name_lower) or
+                (len(menu_data.get("categories", [])) > 0 and 
+                 any(category.get("name", "").lower() == item_name_lower for category in menu_data.get("categories", [])))
+               ):
+                is_category = True
         
         if is_category:
             # Mark explicitly as a category for future reference
@@ -447,40 +461,81 @@ def validate_and_fix_menu_data(menu_data):
                 # Skip price validation for categories
                 price_invalid = False
         else:
-            # For regular items, check price validity
+            # For regular items, check price validity comprehensively
+            price_invalid = False
+            
             # Check if price is missing
             if "price" not in item:
                 price_invalid = True
+                logger.info(f"[MENU-FIX] Item {item_name} is missing price field")
             # Check if price is None
             elif item["price"] is None:
                 price_invalid = True
+                logger.info(f"[MENU-FIX] Item {item_name} has None price")
             # Check if price is not a number
             elif not isinstance(item["price"], (int, float)):
                 try:
                     # Try to convert to float
                     item["price"] = float(item["price"])
+                    logger.info(f"[MENU-FIX] Converted non-numeric price for {item_name} to {item['price']}")
                 except (ValueError, TypeError):
                     price_invalid = True
+                    logger.info(f"[MENU-FIX] Item {item_name} has invalid non-numeric price: {item.get('price')}")
             # Check if price is negative or zero
             elif item["price"] <= 0:
                 price_invalid = True
+                logger.info(f"[MENU-FIX] Item {item_name} has non-positive price: {item['price']}")
 
             if price_invalid:
-                # Check if it exists in current menu
-                if item_name_lower in existing_items and existing_items[
-                    item_name_lower
-                ].get("price"):
+                # First check: original PLU reference for items with special PLU formats
+                if "is_variant" in item and item.get("base_plu"):
+                    # This is an item with PLU like "P-BURG-CHE###PRNT" - find the base product
+                    base_plu = item.get("base_plu")
+                    logger.info(f"[MENU-FIX] Looking for base product with PLU {base_plu} for {item_name}")
+                    
+                    # Try to find a matching item by PLU
+                    base_item = None
+                    for other_item in menu_data.get("items", []):
+                        if other_item.get("plu") == base_plu or other_item.get("reference_handler") == base_plu:
+                            if isinstance(other_item.get("price"), (int, float)) and other_item.get("price") > 0:
+                                base_item = other_item
+                                break
+                    
+                    if base_item:
+                        item["price"] = base_item.get("price")
+                        logger.info(f"[MENU-FIX] Set price for {item_name} from base product with PLU {base_plu}: {item['price']}")
+                        price_invalid = False
+
+                # Second check: referenceId in the original product
+                elif "original_plu" in item and "###" in item.get("original_plu", ""):
+                    # Look for the matching referenceId in the original data
+                    extracted_base = item.get("plu")
+                    logger.info(f"[MENU-FIX] Looking for base product with referenceId {extracted_base} for {item_name}")
+                    
+                    # Try to find a matching item by referenceId
+                    for other_item in menu_data.get("items", []):
+                        if (other_item.get("referenceId") == extracted_base or 
+                            other_item.get("plu") == extracted_base or 
+                            other_item.get("reference_handler") == extracted_base):
+                            if isinstance(other_item.get("price"), (int, float)) and other_item.get("price") > 0:
+                                item["price"] = other_item.get("price")
+                                logger.info(f"[MENU-FIX] Set price for {item_name} from product with referenceId {extracted_base}: {item['price']}")
+                                price_invalid = False
+                                break
+                
+                # Third check: preserving existing prices from the current menu
+                if price_invalid and item_name_lower in existing_items and existing_items[item_name_lower].get("price"):
                     # Preserve the existing price
                     item["price"] = existing_items[item_name_lower]["price"]
-                    logger.info(
-                        f"[MENU-FIX] Preserved existing price for {item_name}: {item['price']}"
-                    )
-                # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
-                else:
+                    logger.info(f"[MENU-FIX] Preserved existing price for {item_name}: {item['price']}")
+                    price_invalid = False
+                
+                # Fourth check: database lookup - STRICT DATABASE-ONLY VALIDATION
+                if price_invalid:
                     # Get menu data from database
                     menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
                     
-                    # Try to find matching item in database
+                    # Try to find matching item in database by name
                     db_item = None
                     for db_item_entry in menu_data_db.get("items", []):
                         db_item_name = db_item_entry.get("name", "").lower()
@@ -488,11 +543,17 @@ def validate_and_fix_menu_data(menu_data):
                             db_item = db_item_entry
                             break
                     
+                    # If not found by name, try by PLU/reference_handler
+                    if not db_item and (item.get("plu") or item.get("reference_handler")):
+                        for db_item_entry in menu_data_db.get("items", []):
+                            if (db_item_entry.get("plu") == item.get("plu") or 
+                                db_item_entry.get("reference_handler") == item.get("reference_handler")):
+                                db_item = db_item_entry
+                                break
+                    
                     if db_item and isinstance(db_item.get("price"), (int, float)) and db_item.get("price") > 0:
                         item["price"] = db_item.get("price")
-                        logger.info(
-                            f"[MENU-FIX] Set price for {item_name} using database match: {item['price']}"
-                        )
+                        logger.info(f"[MENU-FIX] Set price for {item_name} using database match: {item['price']}")
                     else:
                         # ABSOLUTELY NO FALLBACKS - If the item doesn't exist in the database with a valid price, it MUST fail
                         error_msg = f"Item {item_name} has missing or invalid price and no matching price found in database"

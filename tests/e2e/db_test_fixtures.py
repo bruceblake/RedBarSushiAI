@@ -22,6 +22,19 @@ from app.utils.menu_migration import migrate_menu_to_database
 from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
 
 
+@pytest.fixture(scope="function")
+def app():
+    """
+    Create and configure a Flask app for testing.
+    """
+    # Import here to avoid circular imports
+    from run import create_app
+    
+    app = create_app(testing=True)
+    app.config['TESTING'] = True
+    
+    yield app
+
 @pytest.fixture(scope="function", autouse=True)
 def setup_test_database(app):
     """
