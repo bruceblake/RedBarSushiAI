@@ -6,11 +6,12 @@ These models are used to store menu data in a relational database.
 import json
 from datetime import datetime
 from app import db
+from app.models.base import TimestampMixin
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 
 
-class MenuItem(db.Model):
+class MenuItem(db.Model, TimestampMixin):
     """
     Menu item model that maps to a database table.
     Stores menu items with all their properties.
@@ -37,9 +38,7 @@ class MenuItem(db.Model):
     snooze_end = db.Column(db.DateTime, nullable=True)
     snooze_until = db.Column(db.DateTime, nullable=True)
     
-    # Metadata
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Metadata is now provided by TimestampMixin
     
     # Location tracking
     location_id = db.Column(db.String(36), nullable=True)
@@ -53,12 +52,11 @@ class MenuItem(db.Model):
         # For SQLite or other databases without JSONB
         properties = db.Column(db.Text, nullable=True)
         
-    # Simplified relationship with viewonly=True to avoid validation errors
-    modifiers = db.relationship(
-        'MenuModifier',
+    # One-to-many relationship with modifier groups
+    modifier_groups = db.relationship(
+        'MenuModifierGroup',
         secondary='menu_item_modifiers',
-        viewonly=True,
-        backref=db.backref('menu_items', lazy='dynamic', viewonly=True)
+        lazy='dynamic'
     )
     
     def __repr__(self):
@@ -174,7 +172,7 @@ class MenuItem(db.Model):
         return item
 
 
-class MenuModifier(db.Model):
+class MenuModifier(db.Model, TimestampMixin):
     """
     Menu modifier model that maps to a database table.
     Stores modifiers that can be applied to menu items.
@@ -189,9 +187,7 @@ class MenuModifier(db.Model):
     # Status flags
     available = db.Column(db.Boolean, default=True)
     
-    # Metadata
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Metadata is now provided by TimestampMixin
     
     # Location tracking
     location_id = db.Column(db.String(36), nullable=True)
@@ -271,7 +267,7 @@ class MenuModifier(db.Model):
         return modifier
 
 
-class MenuModifierGroup(db.Model):
+class MenuModifierGroup(db.Model, TimestampMixin):
     """
     Menu modifier group model that maps to a database table.
     Stores groups of modifiers that can be applied to menu items.
@@ -290,9 +286,7 @@ class MenuModifierGroup(db.Model):
     # Flags
     is_variant_group = db.Column(db.Boolean, default=False)
     
-    # Metadata
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Metadata is now provided by TimestampMixin
     
     # Location tracking
     location_id = db.Column(db.String(36), nullable=True)
@@ -305,14 +299,11 @@ class MenuModifierGroup(db.Model):
         # For SQLite or other databases without JSONB
         properties = db.Column(db.Text, nullable=True)
         
-    # Relationships with explicit join conditions and viewonly=True to avoid validation errors
+    # Many-to-many relationship with modifiers
     modifiers = db.relationship(
         'MenuModifier',
         secondary='menu_modifier_group_items',
-        primaryjoin="MenuModifierGroup.id==menu_modifier_group_items.c.menu_modifier_group_id",
-        secondaryjoin="MenuModifier.id==menu_modifier_group_items.c.menu_modifier_id",
-        viewonly=True,
-        backref=db.backref('modifier_groups', lazy='dynamic', viewonly=True)
+        lazy='dynamic'
     )
     
     def __repr__(self):

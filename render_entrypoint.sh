@@ -99,6 +99,8 @@ fi
 export MENU_BACKEND="database"
 export INITIALIZE_MENU_DATABASE="true" 
 export MIGRATE_MENU_DATA="true"
+export DB_RETRY_ATTEMPTS="5"
+export DB_RETRY_DELAY="3"
 
 # Test the database connection with retry logic
 test_database_connection() {

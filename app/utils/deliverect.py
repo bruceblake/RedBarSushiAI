@@ -9,12 +9,8 @@ from datetime import datetime  # timedelta removed - unused
 from flask import session
 from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET, BASE_URL
 from app import db
-# Import from new wrapper module to avoid circular imports
-try:
-    from app.utils.app_models import Location
-except ImportError:
-    # Fallback: direct import (may cause circular imports in some cases)
-    from app.models import Location
+# Import the Location model directly from its module to avoid circular imports
+from app.models.location import Location
 
 logger = logging.getLogger(__name__)
 
