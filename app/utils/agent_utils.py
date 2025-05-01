@@ -47,8 +47,10 @@ def log_openai_response(response: Any, function_name: str = "") -> None:
         if hasattr(response, "choices") and response.choices:
             choice = response.choices[0]
             if hasattr(choice, "message"):
-                content = choice.message.content
-
+    except Exception as e:
+        logger.error(
+            f"[OPENAI-REQUEST-ERROR] Failed to log messages: {str(e)}"
+        )  # Broad except, but safe for logging
 
 def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     """
