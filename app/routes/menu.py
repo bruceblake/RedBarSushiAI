@@ -453,22 +453,14 @@ def menu_update():
                 if menu_db_store.store_menu_data(processed_data, location_id=location_id):
                     logger.info(f"[MENU-UPDATE] Successfully stored menu in database with location_id: {location_id if location_id else 'default'}")
                     
-                    # For backward compatibility, still write to file
-                    if write_menu_file(processed_data):
-                        logger.info("[MENU-UPDATE] Also wrote menu to file for backward compatibility")
-                    else:
-                        logger.warning("[MENU-UPDATE] Failed to write menu to file, but database store succeeded")
-                        
                     # Database store was successful (primary source of truth)
                     menu_store_success = True
                 else:
                     logger.error("[MENU-UPDATE] Failed to store menu in database")
-                    # Try file write as fallback, but this should never happen
-                    menu_store_success = write_menu_file(processed_data)
+                    menu_store_success = False
             except Exception as db_e:
                 logger.error(f"[MENU-UPDATE] Database storage error: {db_e}")
-                # Try to write to file as fallback, but this should never happen in normal operation
-                menu_store_success = write_menu_file(processed_data)
+                menu_store_success = False
                 
             if menu_store_success:
                 logger.info("[MENU-UPDATE] Menu was successfully stored")
@@ -605,7 +597,7 @@ def menu_update():
                         "modifierGroups": len(processed_data.get("modifierGroups", [])),
                         "ai_matching": True,  # Indicate that AI agent will handle matching
                         "source": "deliverect" if is_deliverect else "custom",
-                        "menu_file_path": MENU_FILE_PATH,
+                        "storage": "database",
                     }
                 ),
                 200,

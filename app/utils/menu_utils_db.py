@@ -78,36 +78,18 @@ def menu_request_cache(func):
 
 def write_menu_file(menu_data: Dict[str, Any], file_path: Optional[str] = None, location_id: Optional[str] = None) -> bool:
     """
-    Write menu data to both the database and a file for backward compatibility.
+    Write menu data to the database - file writing functionality removed.
     
     Args:
         menu_data: The menu data to write
-        file_path: Optional file path to also write to disk
+        file_path: Ignored parameter (kept for compatibility)
         location_id: Optional location ID
         
     Returns:
         bool: True if successful, False otherwise
     """
-    # First, store in the database
-    db_result = menu_db_store.store_menu_data(menu_data, location_id)
-    
-    # If a file path is provided, also write to file for backward compatibility
-    if file_path:
-        try:
-            # Ensure the directory exists
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            
-            # Write to the file
-            with open(file_path, 'w') as f:
-                json.dump(menu_data, f, indent=2)
-                
-            logger.info(f"Wrote menu data to file: {file_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error writing menu file: {str(e)}")
-            return False
-    
-    return db_result
+    # Store in the database only
+    return menu_db_store.store_menu_data(menu_data, location_id)
 
 
 def load_menu_data(force_refresh=False, location_id=None):

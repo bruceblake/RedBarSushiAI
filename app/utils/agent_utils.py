@@ -2607,7 +2607,9 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
     try:
         if OPENAI_API_KEY:
             # Prepare messages for intent classification
-
+            
+            # Import here to avoid circular imports
+            from app.utils.menu_utils_db import load_menu_data
             menu_data = load_menu_data()
             # Prepare menu categories and some example items
             categories = {}
