@@ -319,11 +319,13 @@ class MenuDBStore:
             from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
             from app import db
             
-            # Check if we're already in a transaction
-            in_transaction = db.session.in_transaction()
-            if not in_transaction:
-                # Begin a transaction only if we're not already in one
+            # Try to begin a transaction - this will raise an exception if one is already in progress
+            try:
                 db.session.begin()
+                in_transaction = False  # We started the transaction
+            except Exception as tx_error:
+                logger.debug(f"Transaction already in progress: {tx_error}")
+                in_transaction = True  # Transaction was already started elsewhere
             
             # If location_id is provided, delete existing menu data for this location
             if location_id:

@@ -14,8 +14,16 @@ logger = logging.getLogger(__name__)
 
 def check_table_exists(table_name):
     """Check if a table exists in the database."""
-    inspector = inspect(db.engine)
-    return table_name in inspector.get_table_names()
+    try:
+        # Try a direct query approach that works with all SQLAlchemy versions
+        with db.session.connection() as conn:
+            result = conn.execute(text(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = :table_name)"
+            ), {"table_name": table_name})
+            return result.scalar()
+    except Exception as e:
+        logger.warning(f"Error checking if table exists: {e}")
+        return False
 
 def create_tables():
     """Create all tables using SQLAlchemy ORM."""
@@ -60,7 +68,7 @@ def init_database():
             
             # Check if we already have menu data in the database
             try:
-                with db.engine.connect() as conn:
+                with db.session.connection() as conn:
                     result = conn.execute(text("SELECT COUNT(*) FROM menu_items"))
                     item_count = result.scalar()
                 
