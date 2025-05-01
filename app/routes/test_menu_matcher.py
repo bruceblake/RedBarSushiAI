@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 def menu_matcher_imports():
     """Import menu matcher safely inside a fixture"""
     try:
-        from app.utils.menu_matcher import menu_matcher, find_menu_item_ai
+        from app.utils.menu_matcher_db import menu_matcher, find_menu_item_ai
 
         return menu_matcher, find_menu_item_ai
     except ImportError:
@@ -42,7 +42,7 @@ def _manual_test_menu_matcher():
     # Import required modules for manual testing
     try:
         from app import create_app
-        from app.utils.menu_matcher import menu_matcher, find_menu_item_ai
+        from app.utils.menu_matcher_db import menu_matcher, find_menu_item_ai
 
         app = create_app()
 

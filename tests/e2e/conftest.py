@@ -27,11 +27,13 @@ def app():
         sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
         from app import create_app
     
-    test_app = create_app(testing=True)
-    test_app.config['TESTING'] = True
-    # Set SQLite as the database engine for tests
-    test_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-    test_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # Create a test configuration dictionary
+    test_config = {
+        'TESTING': True,
+        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+        'SQLALCHEMY_TRACK_MODIFICATIONS': False
+    }
+    test_app = create_app(test_config=test_config)
     
     yield test_app
 

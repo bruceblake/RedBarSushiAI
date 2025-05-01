@@ -16,7 +16,7 @@ from app.utils.menu_utils import (
     load_menu_data,
     is_item_snoozed_timebased,
 )
-from app.utils.menu_matcher import find_menu_item_ai
+from app.utils.menu_matcher_db import find_menu_item_ai
 from app.utils.snooze_validator import is_item_available, validate_items_availability
 
 logger = logging.getLogger(__name__)

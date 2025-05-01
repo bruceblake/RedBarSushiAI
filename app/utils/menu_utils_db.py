@@ -200,7 +200,7 @@ def find_menu_item_by_name(
     # No match in database, try AI matching
     try:
         # Lazy import to avoid circular imports
-        from app.utils.menu_matcher import find_menu_item_ai
+        from app.utils.menu_matcher_db import find_menu_item_ai
         
         ai_match = find_menu_item_ai(item_name, check_availability, context)
         if ai_match:

@@ -14,8 +14,8 @@ from flask import session, request, Response
 from twilio.twiml.voice_response import VoiceResponse
 
 from app.utils.agent_utils import analyze_user_input, OrderParsingAgent
-from app.utils.menu_utils import get_popular_menu_items
-from app.utils.menu_matcher import menu_matcher
+from app.utils.menu_utils_db import get_popular_menu_items
+from app.utils.menu_matcher_db import menu_matcher
 from app.utils.conversation_store import conversation_store
 
 logger = logging.getLogger(__name__)

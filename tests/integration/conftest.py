@@ -14,8 +14,11 @@ def app():
     # Import here to avoid circular imports
     from run import create_app
     
-    app = create_app(testing=True)
-    app.config['TESTING'] = True
+    # Create a test configuration dictionary
+    test_config = {
+        'TESTING': True
+    }
+    app = create_app(test_config=test_config)
     
     # Use temporary files for testing
     with tempfile.NamedTemporaryFile(suffix='.json') as temp_menu_file:

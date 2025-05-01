@@ -9,7 +9,7 @@ import os
 import traceback
 import uuid
 import openai
-from app.utils.menu_matcher import menu_matcher
+from app.utils.menu_matcher_db import menu_matcher
 
 # Import WebSocket handler from Flask-Sock
 from app import sock

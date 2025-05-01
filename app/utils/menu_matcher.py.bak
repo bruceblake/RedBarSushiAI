@@ -1,6 +1,6 @@
 """
-Menu item matching using AI to find the best match from database.
-This is an updated version of menu_matcher.py that uses the database-backed menu store.
+Menu item matching using AI to find the best match when exact matches aren't found.
+This module provides advanced menu item matching and customer interaction capabilities.
 """
 
 import os
@@ -525,6 +525,21 @@ class MenuMatcher:
             if session_id:
                 conversation_data = conversation_store.get_conversation(session_id)
                 logger.info(f"[MENU-MATCHER] Retrieved conversation for session: {session_id}")
+                # Check if we actually have messages in the conversation
+                if not conversation_data.get("messages"):
+                    logger.info(f"[MENU-MATCHER] No messages found in conversation, initializing empty conversation")
+                    conversation_data = {
+                        "id": session_id,
+                        "created_at": time.time(),
+                        "updated_at": time.time(),
+                        "messages": [],
+                        "context": context or {},
+                        "resolved": False,
+                        "items": []
+                    }
+                    # Save the empty conversation to ensure consistency
+                    conversation_store.save_conversation(session_id, conversation_data)
+                    logger.info(f"[MENU-MATCHER] Saved initialized empty conversation for consistency")
             
             # Prepare menu categories and some example items
             categories = {}
@@ -575,22 +590,53 @@ class MenuMatcher:
             
             # Add conversation messages if available from the store
             if conversation_data and "messages" in conversation_data and conversation_data["messages"]:
+                # Only add previous messages if there's actually some content
+                has_actual_content = False
                 for message in conversation_data["messages"]:
+                    if message.get("content") and message.get("content").strip():
+                        has_actual_content = True
+                        break
+                
+                if has_actual_content:
+                    for message in conversation_data["messages"]:
+                        if message.get("content") and message.get("content").strip():
+                            messages.append({
+                                "role": message["role"],
+                                "content": message["content"]
+                            })
+                    
+                    # Add the new user request with context reference
                     messages.append({
-                        "role": message["role"],
-                        "content": message["content"]
+                        "role": "user",
+                        "content": f"Customer request: '{customer_request}'\n\nPlease address this request while remembering our previous conversation."
                     })
-                
-                # Add the new user request
-                messages.append({
-                    "role": "user",
-                    "content": f"Customer request: '{customer_request}'\n\nPlease address this request while remembering our previous conversation."
-                })
-                
-                # Also add the request to the stored conversation
-                conversation_store.add_message(session_id, "user", customer_request)
-                
-                logger.info(f"[MENU-MATCHER] Using existing conversation with {len(conversation_data['messages'])} messages")
+                    
+                    # Also add the request to the stored conversation
+                    conversation_store.add_message(session_id, "user", customer_request)
+                    
+                    logger.info(f"[MENU-MATCHER] Using existing conversation with {len(conversation_data['messages'])} messages")
+                else:
+                    # No actual message content, treat as new conversation
+                    logger.info(f"[MENU-MATCHER] Conversation exists but has no content, treating as new conversation")
+                    messages.append({
+                        "role": "user",
+                        "content": f"Customer request: '{customer_request}'\n\nMenu Categories and Example Items:\n{json.dumps(categories, indent=2)}\n\nHow would you clarify the order? Ask specific questions to determine what the customer wants."
+                    })
+                    
+                    # Initialize conversation in the store with this first message
+                    if session_id:
+                        conversation_store.save_conversation(session_id, {
+                            "id": session_id,
+                            "created_at": time.time(),
+                            "updated_at": time.time(),
+                            "messages": [
+                                {"role": "user", "content": customer_request, "timestamp": time.time()}
+                            ],
+                            "context": context or {},
+                            "resolved": False,
+                            "items": []
+                        })
+                        logger.info(f"[MENU-MATCHER] Initialized new conversation for session: {session_id}")
             else:
                 # This is a new conversation
                 messages.append({

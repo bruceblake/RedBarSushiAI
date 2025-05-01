@@ -469,7 +469,6 @@ def take_order():
                 "items": [],
                 "modifiers": [],
                 "modifierGroups": [],
-                "name_variants": {},
             }
 
             # Get available items from menu structure (will be empty)

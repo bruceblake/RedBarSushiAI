@@ -3,7 +3,7 @@ Agent utility functions for handling OpenAI Agents integration.
 This module provides the core functionality for our AI agents.
 """
 
-from app.utils.menu_utils import load_menu_data
+from app.utils.menu_utils_db import load_menu_data
 import os
 import json
 import logging
@@ -139,7 +139,7 @@ if not AGENT_API_AVAILABLE and OPENAI_API_KEY:
         # Mark as unavailable so we use simpler fallbacks
         OPENAI_API_KEY = None
 
-from app.utils.menu_utils import load_menu_data, find_menu_item_by_name
+from app.utils.menu_utils_db import load_menu_data, find_menu_item_by_name
 
 # The menu_matcher will be imported at runtime in the verify function to avoid circular imports
 
@@ -176,7 +176,7 @@ class SushiMenuTool:
         # If exact match fails, try AI matching
         try:
             # Import here to avoid circular imports
-            from app.utils.menu_matcher import find_menu_item_ai
+            from app.utils.menu_matcher_db import find_menu_item_ai
 
             ai_match = find_menu_item_ai(
                 query, check_availability=False, context=context
@@ -556,7 +556,7 @@ class SushiMenuTool:
 
         try:
             # Import here to avoid circular imports
-            from app.utils.menu_matcher import find_menu_item_ai
+            from app.utils.menu_matcher_db import find_menu_item_ai
 
             ai_match = find_menu_item_ai(
                 item_name, check_availability=False, context=context
@@ -1955,7 +1955,7 @@ else:
 
                         # Import menu_matcher for AI-powered fuzzy matching
                         try:
-                            from app.utils.menu_matcher import find_menu_item_ai
+                            from app.utils.menu_matcher_db import find_menu_item_ai
 
                             for item_name in still_unverified:
                                 logger.info(

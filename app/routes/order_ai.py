@@ -8,7 +8,7 @@ import logging
 import json
 import uuid
 
-from app.utils.menu_matcher import menu_matcher
+from app.utils.menu_matcher_db import menu_matcher
 
 order_ai_bp = Blueprint("order_ai", __name__)
 logger = logging.getLogger(__name__)
