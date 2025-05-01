@@ -171,6 +171,7 @@ def menu_update():
         # Handle the async format with body, menus, stores, callback
         if isinstance(data, dict) and "body" in data:
             body = data.get("body", {})
+            logger.info(f"[MENU-UPDATE] Found body structure: {type(body).__name__}")
 
             if isinstance(body, dict):
                 # Extract callback URL
@@ -190,6 +191,18 @@ def menu_update():
                     # Use the first menu as our data to process
                     data = menus[0]
                     logger.info("[MENU-UPDATE] Using first menu for processing")
+        
+        # Try to extract callback URL from top level too (some Deliverect versions)
+        if callback_url is None and isinstance(data, dict) and "callback" in data:
+            callback_url = data.get("callback")
+            logger.info(f"[MENU-UPDATE] Found top-level callback URL: {callback_url}")
+            
+        # Handle array format with first element containing callback
+        if callback_url is None and isinstance(data, list) and len(data) > 0:
+            first_item = data[0]
+            if isinstance(first_item, dict) and "callback" in first_item:
+                callback_url = first_item.get("callback")
+                logger.info(f"[MENU-UPDATE] Found callback URL in first array item: {callback_url}")
 
         # Process the menu data through our robust formatter
         try:
@@ -562,18 +575,63 @@ def menu_update():
             # If we have a callback URL, send a success status
             if callback_url:
                 try:
+                    logger.info(f"[MENU-UPDATE] Sending ONLINE status to callback URL: {callback_url}")
+                    
+                    # Format the callback URL if it needs additional correction
+                    final_callback_url = callback_url
+                    if "?" not in callback_url and "&status=" not in callback_url:
+                        if callback_url.endswith("/"):
+                            final_callback_url = f"{callback_url}?status=ONLINE"
+                        else:
+                            final_callback_url = f"{callback_url}?status=ONLINE"
+                    
+                    logger.info(f"[MENU-UPDATE] Using formatted callback URL: {final_callback_url}")
+                    
+                    # Try GET first (some Deliverect endpoints expect GET)
+                    try:
+                        get_response = requests.get(
+                            final_callback_url,
+                            headers={
+                                "Accept": "application/json",
+                                "User-Agent": "RedBarSushiAI/1.0",
+                            },
+                            timeout=10,
+                        )
+                        logger.info(f"[MENU-UPDATE] Deliverect GET callback response: {get_response.status_code} - {get_response.text}")
+                    except Exception as get_e:
+                        logger.warning(f"[MENU-UPDATE] GET callback attempt failed: {get_e}")
+                    
+                    callback_payload = {
+                        "status": "ONLINE",
+                        "comment": f"Menu update successful with {reloaded_count} items",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                    logger.info(f"[MENU-UPDATE] Callback payload: {callback_payload}")
+                    
                     callback_response = requests.post(
-                        callback_url,
-                        json={
-                            "status": "ONLINE",
-                            "comment": f"Menu update successful with {reloaded_count} items",
+                        final_callback_url,
+                        json=callback_payload,
+                        headers={
+                            "Content-Type": "application/json",
+                            "Accept": "application/json",
+                            "User-Agent": "RedBarSushiAI/1.0",
                         },
+                        timeout=10,
                     )
+                    
                     logger.info(
-                        f"[MENU-UPDATE] Callback response: {callback_response.status_code}"
+                        f"[MENU-UPDATE] Callback response: {callback_response.status_code} - {callback_response.text}"
                     )
+                    
+                    # Try to parse response for more detailed logging
+                    try:
+                        resp_json = callback_response.json()
+                        logger.info(f"[MENU-UPDATE] Callback response JSON: {resp_json}")
+                    except:
+                        logger.info("[MENU-UPDATE] Callback response is not JSON")
+                        
                 except Exception as callback_e:
-                    logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
+                    logger.error(f"[MENU-UPDATE] Error sending callback: {str(callback_e)}")
 
             # Remove name_variants field if it exists - AI agent will handle matching
             if "name_variants" in processed_data:
@@ -586,6 +644,57 @@ def menu_update():
             logger.info(
                 "[MENU-UPDATE] No name variants needed - AI agent will handle menu item matching"
             )
+
+            # Send success callback to Deliverect if applicable and callback_url not already used
+            if is_deliverect and callback_url and not processed_data.get("callback_sent"):
+                try:
+                    logger.info(f"[MENU-UPDATE] Sending explicit status callback to Deliverect: {callback_url}")
+                    
+                    # Format the callback URL if it needs additional correction
+                    final_callback_url = callback_url
+                    if "?" not in callback_url and "&status=" not in callback_url:
+                        if callback_url.endswith("/"):
+                            final_callback_url = f"{callback_url}?status=ONLINE"
+                        else:
+                            final_callback_url = f"{callback_url}?status=ONLINE"
+                    
+                    logger.info(f"[MENU-UPDATE] Using formatted callback URL: {final_callback_url}")
+                    
+                    # Try GET first (some Deliverect endpoints expect GET)
+                    try:
+                        get_response = requests.get(
+                            final_callback_url,
+                            headers={
+                                "Accept": "application/json",
+                                "User-Agent": "RedBarSushiAI/1.0",
+                            },
+                            timeout=10,
+                        )
+                        logger.info(f"[MENU-UPDATE] Deliverect GET callback response: {get_response.status_code} - {get_response.text}")
+                    except Exception as get_e:
+                        logger.warning(f"[MENU-UPDATE] GET callback attempt failed: {get_e}")
+                    
+                    # Then try POST with the payload
+                    callback_response = requests.post(
+                        final_callback_url,
+                        json={
+                            "status": "ONLINE",
+                            "comment": f"Successfully processed menu with {len(processed_data.get('items', []))} items",
+                            "timestamp": datetime.now().isoformat(),
+                        },
+                        headers={
+                            "Content-Type": "application/json",
+                            "Accept": "application/json",
+                            "User-Agent": "RedBarSushiAI/1.0",
+                        },
+                        timeout=10,
+                    )
+                    logger.info(f"[MENU-UPDATE] Deliverect callback response: {callback_response.status_code} - {callback_response.text}")
+                    
+                    # Mark that we've sent a callback to avoid duplicate sends
+                    processed_data["callback_sent"] = True
+                except Exception as callback_e:
+                    logger.error(f"[MENU-UPDATE] Error sending callback to Deliverect: {callback_e}")
 
             # Return success response
             return (
@@ -613,18 +722,53 @@ def menu_update():
             # If we have a callback URL, send a FAILED status
             if callback_url:
                 try:
+                    # Format the callback URL if it needs additional correction
+                    final_callback_url = callback_url
+                    if "?" not in callback_url and "&status=" not in callback_url:
+                        if callback_url.endswith("/"):
+                            final_callback_url = f"{callback_url}?status=FAILED"
+                        else:
+                            final_callback_url = f"{callback_url}?status=FAILED"
+                    
+                    logger.info(f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}")
+                    
+                    # Try GET first (some Deliverect endpoints expect GET)
+                    try:
+                        get_response = requests.get(
+                            final_callback_url,
+                            headers={
+                                "Accept": "application/json",
+                                "User-Agent": "RedBarSushiAI/1.0",
+                            },
+                            timeout=5,
+                        )
+                        logger.info(f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}")
+                    except Exception as get_e:
+                        logger.warning(f"[MENU-UPDATE] GET error callback attempt failed: {get_e}")
+                    
+                    callback_payload = {
+                        "status": "FAILED",
+                        "comment": str(e)[:200],  # Limit length of error message
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                    logger.info(f"[MENU-UPDATE] Error callback payload: {callback_payload}")
+                    
                     callback_response = requests.post(
-                        callback_url,
-                        json={
-                            "status": "FAILED",
-                            "comment": str(e)[:200],
-                        },  # Limit length of error message
+                        final_callback_url,
+                        json=callback_payload,
+                        headers={
+                            "Content-Type": "application/json",
+                            "Accept": "application/json",
+                            "User-Agent": "RedBarSushiAI/1.0",
+                        },
+                        timeout=5,
                     )
+                    
                     logger.info(
-                        f"[MENU-UPDATE] Callback response: {callback_response.status_code}"
+                        f"[MENU-UPDATE] Error callback response: {callback_response.status_code} - {callback_response.text}"
                     )
                 except Exception as callback_e:
-                    logger.error(f"[MENU-UPDATE] Error sending callback: {callback_e}")
+                    logger.error(f"[MENU-UPDATE] Error sending error callback: {callback_e}")
 
             # Check for memory errors
             error_str = str(e).lower()
