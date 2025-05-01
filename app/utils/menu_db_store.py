@@ -509,18 +509,93 @@ class MenuDBStore:
                         self.redis_client.delete(default_key)
                         logger.info(f"[MENU-STORE] Deleted Redis cache key: {default_key}")
                     
-                    # Clear any menu_item: cache keys
-                    pattern = "menu_item:*"
-                    menu_item_keys = self.redis_client.keys(pattern)
-                    if menu_item_keys:
-                        self.redis_client.delete(*menu_item_keys)
-                        logger.info(f"[MENU-STORE] Deleted {len(menu_item_keys)} menu item Redis cache keys")
+                    # Clear specific menu cache keys related to current operation
+                    # Instead of using pattern matching which can be expensive on large Redis instances,
+                    # focus on deleting the most important known keys
+                    
+                    # Clear primary cache keys first (specific location and default)
+                    cache_keys_to_delete = [
+                        specific_key,            # Current location key
+                        default_key,             # Default location key
+                        f"menu_item:*:{location_id if location_id else 'default'}"  # Item patterns for this location
+                    ]
+                    
+                    # Delete known keys for this specific location
+                    for key in cache_keys_to_delete:
+                        try:
+                            if "*" not in key:  # Only direct keys, not patterns
+                                self.redis_client.delete(key)
+                                logger.info(f"[MENU-STORE] Deleted Redis cache key: {key}")
+                        except Exception as e:
+                            logger.error(f"[MENU-STORE] Error deleting Redis key {key}: {e}")
                         
-                    # Clear any other menu: pattern keys
-                    menu_keys = self.redis_client.keys("menu:*")
-                    if menu_keys:
-                        self.redis_client.delete(*menu_keys)
-                        logger.info(f"[MENU-STORE] Deleted {len(menu_keys)} menu Redis cache keys")
+                    # For exact keys related to common menu operations, delete directly
+                    for operation in ["menu_item", "menu_category", "menu_modifier"]:
+                        try:
+                            # Delete with this location ID
+                            if location_id:
+                                cache_key = f"{operation}:{location_id}"
+                                self.redis_client.delete(cache_key)
+                            # Also delete default version
+                            cache_key = f"{operation}:default"
+                            self.redis_client.delete(cache_key)
+                        except Exception as e:
+                            logger.error(f"[MENU-STORE] Error deleting operation key {operation}: {e}")
+                            
+                    # If running in a small Redis instance (dev/test), 
+                    # we can use scan instead of keys for pattern matching
+                    try:
+                        # Only use this in dev/test environments or with small Redis instances
+                        # Check Redis info to determine instance size
+                        info = self.redis_client.info()
+                        total_keys = info.get('db0', {}).get('keys', 0) if isinstance(info.get('db0'), dict) else 0
+                        
+                        # Only do pattern scanning if Redis has a reasonable number of keys
+                        if total_keys < 10000:  # Only scan if Redis is small
+                            logger.info(f"[MENU-STORE] Redis instance has {total_keys} keys, safe to use scan")
+                            
+                            # Scan for menu item pattern keys
+                            menu_item_keys = []
+                            cursor = '0'
+                            pattern = "menu_item:*"
+                            
+                            # Use scan instead of keys, to avoid blocking Redis
+                            while cursor != 0:
+                                cursor, keys = self.redis_client.scan(cursor=cursor, match=pattern, count=100)
+                                if keys:
+                                    menu_item_keys.extend(keys)
+                                    
+                            # Delete found keys in batches to avoid huge commands
+                            if menu_item_keys:
+                                # Delete in smaller batches of 100 keys
+                                for i in range(0, len(menu_item_keys), 100):
+                                    batch = menu_item_keys[i:i+100]
+                                    if batch:
+                                        self.redis_client.delete(*batch)
+                                logger.info(f"[MENU-STORE] Deleted {len(menu_item_keys)} menu item Redis cache keys using scan")
+                                
+                            # Repeat for menu: pattern (again with scan for safety)
+                            menu_keys = []
+                            cursor = '0'
+                            pattern = "menu:*"
+                            
+                            while cursor != 0:
+                                cursor, keys = self.redis_client.scan(cursor=cursor, match=pattern, count=100)
+                                if keys:
+                                    menu_keys.extend(keys)
+                                    
+                            # Delete found menu: keys in batches
+                            if menu_keys:
+                                for i in range(0, len(menu_keys), 100):
+                                    batch = menu_keys[i:i+100]
+                                    if batch:
+                                        self.redis_client.delete(*batch)
+                                logger.info(f"[MENU-STORE] Deleted {len(menu_keys)} menu Redis cache keys using scan")
+                        else:
+                            logger.info(f"[MENU-STORE] Large Redis instance detected with {total_keys} keys, skipping pattern scan")
+                    except Exception as scan_error:
+                        logger.error(f"[MENU-STORE] Error during Redis scan operation: {scan_error}")
+                        # Fall back to the specific key deletion we already did
                 except Exception as e:
                     logger.error(f"[MENU-STORE] Error clearing Redis cache: {e}")
             
@@ -693,18 +768,93 @@ class MenuDBStore:
                         self.redis_client.delete(default_key)
                         logger.info(f"[MENU-STORE] Deleted Redis cache key: {default_key}")
                     
-                    # Clear any menu_item: cache keys
-                    pattern = "menu_item:*"
-                    menu_item_keys = self.redis_client.keys(pattern)
-                    if menu_item_keys:
-                        self.redis_client.delete(*menu_item_keys)
-                        logger.info(f"[MENU-STORE] Deleted {len(menu_item_keys)} menu item Redis cache keys")
+                    # Clear specific menu cache keys related to current operation
+                    # Instead of using pattern matching which can be expensive on large Redis instances,
+                    # focus on deleting the most important known keys
+                    
+                    # Clear primary cache keys first (specific location and default)
+                    cache_keys_to_delete = [
+                        specific_key,            # Current location key
+                        default_key,             # Default location key
+                        f"menu_item:*:{location_id if location_id else 'default'}"  # Item patterns for this location
+                    ]
+                    
+                    # Delete known keys for this specific location
+                    for key in cache_keys_to_delete:
+                        try:
+                            if "*" not in key:  # Only direct keys, not patterns
+                                self.redis_client.delete(key)
+                                logger.info(f"[MENU-STORE] Deleted Redis cache key: {key}")
+                        except Exception as e:
+                            logger.error(f"[MENU-STORE] Error deleting Redis key {key}: {e}")
                         
-                    # Clear any other menu: pattern keys
-                    menu_keys = self.redis_client.keys("menu:*")
-                    if menu_keys:
-                        self.redis_client.delete(*menu_keys)
-                        logger.info(f"[MENU-STORE] Deleted {len(menu_keys)} menu Redis cache keys")
+                    # For exact keys related to common menu operations, delete directly
+                    for operation in ["menu_item", "menu_category", "menu_modifier"]:
+                        try:
+                            # Delete with this location ID
+                            if location_id:
+                                cache_key = f"{operation}:{location_id}"
+                                self.redis_client.delete(cache_key)
+                            # Also delete default version
+                            cache_key = f"{operation}:default"
+                            self.redis_client.delete(cache_key)
+                        except Exception as e:
+                            logger.error(f"[MENU-STORE] Error deleting operation key {operation}: {e}")
+                            
+                    # If running in a small Redis instance (dev/test), 
+                    # we can use scan instead of keys for pattern matching
+                    try:
+                        # Only use this in dev/test environments or with small Redis instances
+                        # Check Redis info to determine instance size
+                        info = self.redis_client.info()
+                        total_keys = info.get('db0', {}).get('keys', 0) if isinstance(info.get('db0'), dict) else 0
+                        
+                        # Only do pattern scanning if Redis has a reasonable number of keys
+                        if total_keys < 10000:  # Only scan if Redis is small
+                            logger.info(f"[MENU-STORE] Redis instance has {total_keys} keys, safe to use scan")
+                            
+                            # Scan for menu item pattern keys
+                            menu_item_keys = []
+                            cursor = '0'
+                            pattern = "menu_item:*"
+                            
+                            # Use scan instead of keys, to avoid blocking Redis
+                            while cursor != 0:
+                                cursor, keys = self.redis_client.scan(cursor=cursor, match=pattern, count=100)
+                                if keys:
+                                    menu_item_keys.extend(keys)
+                                    
+                            # Delete found keys in batches to avoid huge commands
+                            if menu_item_keys:
+                                # Delete in smaller batches of 100 keys
+                                for i in range(0, len(menu_item_keys), 100):
+                                    batch = menu_item_keys[i:i+100]
+                                    if batch:
+                                        self.redis_client.delete(*batch)
+                                logger.info(f"[MENU-STORE] Deleted {len(menu_item_keys)} menu item Redis cache keys using scan")
+                                
+                            # Repeat for menu: pattern (again with scan for safety)
+                            menu_keys = []
+                            cursor = '0'
+                            pattern = "menu:*"
+                            
+                            while cursor != 0:
+                                cursor, keys = self.redis_client.scan(cursor=cursor, match=pattern, count=100)
+                                if keys:
+                                    menu_keys.extend(keys)
+                                    
+                            # Delete found menu: keys in batches
+                            if menu_keys:
+                                for i in range(0, len(menu_keys), 100):
+                                    batch = menu_keys[i:i+100]
+                                    if batch:
+                                        self.redis_client.delete(*batch)
+                                logger.info(f"[MENU-STORE] Deleted {len(menu_keys)} menu Redis cache keys using scan")
+                        else:
+                            logger.info(f"[MENU-STORE] Large Redis instance detected with {total_keys} keys, skipping pattern scan")
+                    except Exception as scan_error:
+                        logger.error(f"[MENU-STORE] Error during Redis scan operation: {scan_error}")
+                        # Fall back to the specific key deletion we already did
                 except Exception as e:
                     logger.error(f"[MENU-STORE] Error clearing Redis cache: {e}")
             

@@ -358,43 +358,79 @@ class MenuMatcher:
         # We already tried fast matching in the main find_menu_item method,
         # so go directly to AI matching for better performance
         try:
-            # First check if input is asking about menu in general
-            menu_question_patterns = [
-                "what's on the menu", 
-                "what is on the menu", 
-                "what do you have", 
-                "tell me about the menu", 
-                "what food do you have",
-                "menu items",
-                "what can i order",
-                "tell me some",
-                "what are your",
-                "what's available",
-                "what is available",
-                "tell me some things",
-                "what kind of",
-                "do you have",
-                "what dishes",
-                "what are the options",
-                "menu options",
-                "tell me what",
-                "could you tell me",
-                "can you tell me",
-                "yeah can you tell me",
-                "tell me what's",
-                "what do you offer",
-                "show me the menu",
-                "what's in the menu"
+            # First check if input is asking about menu in general - use advanced pattern matching
+            # Define core patterns about menu inquiries (what's on menu, etc.)
+            menu_core_patterns = [
+                "menu", "on the menu", "in the menu", "have on", "serve", "offer", "available",
+                "options", "dishes", "food", "choices", "specials", "popular", "best", "recommend"
             ]
             
-            # Check if this is a general menu inquiry
+            # Define question patterns (what do you, can you tell me, etc.)
+            question_patterns = [
+                "what", "tell me", "show me", "can you", "could you", "would you", "may i", "should i",
+                "give me", "list", "i want to know", "i'd like to know", "tell us", "yeah", "yes"
+            ]
+            
+            # Build advanced combined pattern matching
+            menu_question_patterns = [
+                # Direct menu questions
+                "what's on the menu", "what is on the menu", "what do you have", "what's in the menu",
+                "tell me about the menu", "what food do you have", "menu items", "what can i order",
+                "do you have", "what dishes", "what are the options", "tell me what's",
+                "what do you offer", "show me the menu", "i want to see the menu",
+                
+                # Generic inquiries that likely refer to menu
+                "tell me some", "what are your", "what's available", "what is available",
+                "tell me some things", "what kind of", "tell me what", "could you tell me",
+                "can you tell me", "yeah can you tell me", "yes tell me", 
+                
+                # Common order starters
+                "i want to order", "i would like to order", "i want to get", "i would like to get",
+                "i want to try", "i would like to try", "what should i get",
+                
+                # Common menu browsing questions 
+                "any specials", "what's good", "what's popular", "what do you recommend",
+                "what should i order", "what's the best", "what is the best"
+            ]
+            
+            # Check if this is a general menu inquiry using basic pattern matching
             is_menu_inquiry = False
-            item_name_lower = item_name.lower()
+            item_name_lower = item_name.lower().strip()
+            
+            # First try direct pattern matching
             for pattern in menu_question_patterns:
                 if pattern in item_name_lower:
-                    logger.info(f"[MENU-MATCHER] Detected general menu inquiry: '{item_name}'")
+                    logger.info(f"[MENU-MATCHER] Detected general menu inquiry with direct pattern: '{pattern}' in '{item_name}'")
                     is_menu_inquiry = True
                     break
+                    
+            # If no direct match, try more advanced pattern matching with combinations
+            if not is_menu_inquiry:
+                # Check for a combination of question pattern + menu core pattern
+                for q_pattern in question_patterns:
+                    if q_pattern in item_name_lower:
+                        for m_pattern in menu_core_patterns:
+                            if m_pattern in item_name_lower:
+                                logger.info(f"[MENU-MATCHER] Detected general menu inquiry with combined patterns: '{q_pattern}' + '{m_pattern}' in '{item_name}'")
+                                is_menu_inquiry = True
+                                break
+                        if is_menu_inquiry:
+                            break
+            
+            # Special case detection for very short inquiries that are likely menu related
+            if not is_menu_inquiry and len(item_name_lower.split()) <= 3:
+                short_menu_patterns = ["menu", "food", "eat", "order", "options", "items", "dishes"]
+                for pattern in short_menu_patterns:
+                    if pattern in item_name_lower:
+                        logger.info(f"[MENU-MATCHER] Detected short menu inquiry: '{pattern}' in '{item_name}'")
+                        is_menu_inquiry = True
+                        break
+                        
+            # Log the final determination        
+            if is_menu_inquiry:
+                logger.info(f"[MENU-MATCHER] Handling as general menu inquiry: '{item_name}'")
+            else:
+                logger.info(f"[MENU-MATCHER] Not a general menu inquiry, proceeding with item matching: '{item_name}'")
                     
             if is_menu_inquiry:
                 # For general menu questions, don't try to find a specific item
@@ -639,18 +675,21 @@ class MenuMatcher:
                     "content": """You are an AI assistant for a restaurant that helps customers clarify their orders.
                     Your goal is to understand what the customer wants to order and suggest the appropriate menu items.
                     
-                    CRITICAL RULES:
+                    ===CRITICAL MANDATORY RULES===
                     1. ONLY suggest ACTUAL menu items from the categories and items provided - NEVER invent items
-                    2. When talking about the menu, ONLY mention items that are in our actual menu data
+                    2. When talking about the menu, you may ONLY reference items that appear in the ACTUAL MENU DATA section
                     3. Ask clarifying questions when the order is ambiguous
                     4. Be friendly and helpful in your responses
-                    5. Base your suggestions ONLY on the menu categories and items available in the data provided
-                    6. NEVER make up items that aren't in the menu data provided to you
-                    7. Maintain context from previous questions and answers in the conversation
+                    5. Base your suggestions ONLY on the menu categories and items available in the ACTUAL MENU DATA
+                    6. NEVER, under any circumstances, mention food items that are not explicitly listed in the ACTUAL MENU DATA
+                    7. If you're unsure if an item exists, assume it does NOT exist unless you can see it in the ACTUAL MENU DATA
                     8. Don't include any greetings
-                    9. For general menu questions, always list several actual menu items with their prices, organized by category
+                    9. For general menu questions, list several actual menu items with their prices, organized by category
+                    10. COMPARE EVERY ITEM YOU MENTION AGAINST THE ACTUAL MENU DATA before responding
                     
-                    When suggesting menu items, be precise and use the exact item names as they appear in the menu.
+                    If you catch yourself about to mention a food item not in the ACTUAL MENU DATA, stop and replace it with an actual menu item.
+                    
+                    When suggesting menu items, use ONLY the exact item names as they appear in the ACTUAL MENU DATA.
                     Focus on understanding the customer's intent and helping them find the right items.""",
                 },
             ]
