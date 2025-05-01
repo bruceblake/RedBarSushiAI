@@ -891,6 +891,35 @@ def get_menu():
     return jsonify(menu_data), 200
 
 
+@menu_bp.route("/clear_menu_data", methods=["POST"])
+def clear_menu_data():
+    """Clear all menu data from the database for testing purposes."""
+    from app import db
+    from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
+    
+    try:
+        # Delete all menu items
+        MenuItem.query.delete()
+        
+        # Delete all modifiers
+        MenuModifier.query.delete()
+        
+        # Delete all modifier groups  
+        MenuModifierGroup.query.delete()
+        
+        # Commit the changes
+        db.session.commit()
+        
+        # Force refresh cache in menu_db_store
+        from app.utils.menu_db_store import menu_db_store
+        menu_db_store.get_menu_data(force_refresh=True)
+        
+        return jsonify({"status": "success", "message": "All menu data cleared successfully"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @menu_bp.route("/clear_menu_cache", methods=["GET"])
 def clear_menu_cache():
     """
