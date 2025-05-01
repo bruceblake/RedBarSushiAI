@@ -283,7 +283,6 @@ class MenuDBStore:
                 "items": items,
                 "modifiers": modifiers,
                 "modifierGroups": modifier_groups,
-                "name_variants": {}  # Empty for compatibility with existing code
             }
             
             # Cache the result

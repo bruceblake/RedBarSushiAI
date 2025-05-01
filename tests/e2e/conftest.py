@@ -14,6 +14,27 @@ except ImportError:
     # If app or tests can't be imported, add the project root to the path
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
+# Add app fixture here for e2e tests
+@pytest.fixture(scope="function")
+def app():
+    """
+    Create and configure a Flask app for testing.
+    """
+    # Import here to avoid circular imports
+    try:
+        from app import create_app
+    except ImportError:
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+        from app import create_app
+    
+    test_app = create_app(testing=True)
+    test_app.config['TESTING'] = True
+    # Set SQLite as the database engine for tests
+    test_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+    test_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    yield test_app
+
 # Import the database test fixtures
 try:
     # Try the absolute import first (which works with proper package structure)

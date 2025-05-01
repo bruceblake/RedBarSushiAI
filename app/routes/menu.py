@@ -261,7 +261,17 @@ def menu_update():
 
             # Second pass - validate and fix any remaining issues
             logger.info("[MENU-UPDATE] Validating and fixing menu data")
-            processed_data = validate_and_fix_menu_data(processed_data)
+            # Extract location_id from request args, form, or JSON
+            location_id = request.args.get('location_id') or request.form.get('location_id')
+            if not location_id and isinstance(data, dict) and 'location_id' in data:
+                location_id = data.get('location_id')
+            
+            if location_id:
+                logger.info(f"[MENU-UPDATE] Using location_id {location_id} for menu validation")
+                processed_data = validate_and_fix_menu_data(processed_data, location_id=location_id)
+            else:
+                logger.info("[MENU-UPDATE] No location_id provided, using default validation")
+                processed_data = validate_and_fix_menu_data(processed_data)
 
             # CRITICAL: Verify that PLUs were preserved during processing
             # This ensures proper integration with Deliverect

@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def validate_and_fix_menu_data(menu_data):
+def validate_and_fix_menu_data(menu_data, location_id=None):
     """
     Validates and fixes issues in menu data before it's saved.
     This function enforces strict validation for Deliverect integration.
@@ -24,6 +24,10 @@ def validate_and_fix_menu_data(menu_data):
     3. For variants, find and use the base product price from the same data set
     4. Allow zero prices for variant containers (per Deliverect spec)
     5. Fail validation if no valid price source is available
+    
+    Args:
+        menu_data: Dict containing Deliverect-compatible menu data with items, modifiers, etc.
+        location_id: Optional location ID for filtering database lookups for validation
     
     Supports the official Deliverect menu format including:
     - Menu structure with categories, products, modifiers, and modifierGroups
@@ -645,8 +649,21 @@ def validate_and_fix_menu_data(menu_data):
                 
                 # Sixth check: database lookup - STRICT DATABASE-ONLY VALIDATION
                 if price_invalid:
-                    # Get menu data from database
-                    menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                    # Get menu data from database - pass any available location_id in the context
+                    # This fixes the issue where menu items can't be found because location_id isn't set
+                    item_location_id = None
+                    # Try accessing as attribute (SQLAlchemy model) or dictionary key
+                    if hasattr(item, 'location_id'):
+                        item_location_id = getattr(item, 'location_id', None)
+                    elif isinstance(item, dict) and 'location_id' in item:
+                        item_location_id = item.get('location_id')
+                    
+                    # If item has location_id, use it. Otherwise fall back to function param
+                    lookup_location_id = item_location_id if item_location_id else location_id
+                    if lookup_location_id:
+                        logger.info(f"[MENU-FIX] Using location_id {lookup_location_id} for database lookup of {item_name}")
+                    
+                    menu_data_db = menu_db_store.get_menu_data(location_id=lookup_location_id, force_refresh=True)
                     
                     # Check if database contains items
                     if not menu_data_db.get("items"):
@@ -746,19 +763,56 @@ def validate_and_fix_menu_data(menu_data):
                                 raise ValueError(error_msg)
                     
                     # Try to find matching item in database by name
+                    # Ensure we're using the same location_id for consistency
+                    item_location_id = None
+                    # Try accessing as attribute (SQLAlchemy model) or dictionary key
+                    if hasattr(item, 'location_id'):
+                        item_location_id = getattr(item, 'location_id', None)
+                    elif isinstance(item, dict) and 'location_id' in item:
+                        item_location_id = item.get('location_id')
+                    
+                    # If item has location_id, use it. Otherwise fall back to function param
+                    lookup_location_id = item_location_id if item_location_id else location_id
+                    if lookup_location_id and menu_data_db.get("items"):
+                        logger.info(f"[MENU-FIX] Using location_id {lookup_location_id} for database lookup of {item_name}")
+                    
                     db_item = None
                     for db_item_entry in menu_data_db.get("items", []):
+                        # If item has location_id, make sure we only match items with same location_id
+                        if lookup_location_id:
+                            db_entry_location = None
+                            if hasattr(db_item_entry, 'location_id'):
+                                db_entry_location = getattr(db_item_entry, 'location_id', None)
+                            elif isinstance(db_item_entry, dict) and 'location_id' in db_item_entry:
+                                db_entry_location = db_item_entry.get('location_id')
+                                
+                            if db_entry_location != lookup_location_id:
+                                continue
+                            
                         db_item_name = db_item_entry.get("name", "").lower()
                         if db_item_name == item_name_lower or db_item_name in item_name_lower or item_name_lower in db_item_name:
                             db_item = db_item_entry
+                            logger.info(f"[MENU-FIX] Found matching item in database: {db_item_name}")
                             break
                     
                     # If not found by name, try by PLU/reference_handler
                     if not db_item and (item.get("plu") or item.get("reference_handler")):
                         for db_item_entry in menu_data_db.get("items", []):
+                            # If item has location_id, make sure we only match items with same location_id
+                            if lookup_location_id:
+                                db_entry_location = None
+                                if hasattr(db_item_entry, 'location_id'):
+                                    db_entry_location = getattr(db_item_entry, 'location_id', None)
+                                elif isinstance(db_item_entry, dict) and 'location_id' in db_item_entry:
+                                    db_entry_location = db_item_entry.get('location_id')
+                                    
+                                if db_entry_location != lookup_location_id:
+                                    continue
+                                
                             if (db_item_entry.get("plu") == item.get("plu") or 
                                 db_item_entry.get("reference_handler") == item.get("reference_handler")):
                                 db_item = db_item_entry
+                                logger.info(f"[MENU-FIX] Found matching item in database by PLU/reference: {db_item_entry.get('name')}")
                                 break
                     
                     # If still not found and item has a PLU with special format, try to match by base PLU
@@ -777,9 +831,21 @@ def validate_and_fix_menu_data(menu_data):
                         if possible_base_plu:
                             logger.info(f"[MENU-FIX] Extracted possible base PLU {possible_base_plu} from {plu} for database search")
                             for db_item_entry in menu_data_db.get("items", []):
+                                # If item has location_id, make sure we only match items with same location_id
+                                if lookup_location_id:
+                                    db_entry_location = None
+                                    if hasattr(db_item_entry, 'location_id'):
+                                        db_entry_location = getattr(db_item_entry, 'location_id', None)
+                                    elif isinstance(db_item_entry, dict) and 'location_id' in db_item_entry:
+                                        db_entry_location = db_item_entry.get('location_id')
+                                        
+                                    if db_entry_location != lookup_location_id:
+                                        continue
+                                    
                                 if (db_item_entry.get("plu") == possible_base_plu or 
                                     db_item_entry.get("reference_handler") == possible_base_plu):
                                     db_item = db_item_entry
+                                    logger.info(f"[MENU-FIX] Found matching item in database by base PLU: {db_item_entry.get('name')}")
                                     break
                     
                     if db_item and isinstance(db_item.get("price"), (int, float)) and db_item.get("price") > 0:

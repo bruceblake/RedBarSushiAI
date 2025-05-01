@@ -23,17 +23,24 @@ from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
 
 
 @pytest.fixture(scope="function")
-def app():
+def _app():
     """
     Create and configure a Flask app for testing.
+    This is a placeholder - the real fixture is defined in conftest.py
     """
     # Import here to avoid circular imports
-    from run import create_app
+    try:
+        from app import create_app
+    except ImportError:
+        import sys
+        import os
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+        from app import create_app
     
-    app = create_app(testing=True)
-    app.config['TESTING'] = True
+    test_app = create_app(testing=True)
+    test_app.config['TESTING'] = True
     
-    yield app
+    yield test_app
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_test_database(app):
