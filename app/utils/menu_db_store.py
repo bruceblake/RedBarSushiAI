@@ -243,8 +243,20 @@ class MenuDBStore:
         if location_id:
             query = query.filter_by(location_id=location_id)
             
+        # Log the query being executed
+        try:
+            query_str = str(query.statement.compile(compile_kwargs={"literal_binds": True}))
+            logger.info(f"[MENU-DB] Executing SQL query: {query_str}")
+        except Exception as e:
+            logger.info(f"[MENU-DB] Could not log query: {e}")
+        
         # Execute query and convert to dictionaries
-        items = [item.to_dict() for item in query.all()]
+        try:
+            items = [item.to_dict() for item in query.all()]
+            logger.info(f"[MENU-DB] Found {len(items)} menu items in database")
+        except Exception as e:
+            logger.error(f"[MENU-DB] Error querying menu items: {e}")
+            items = []
         
         # Query modifiers
         mod_query = MenuModifier.query
@@ -407,13 +419,24 @@ class MenuDBStore:
                 MenuModifierGroup.query.filter_by(location_id=None).delete()
                 
             # Store items
+            successfully_added_items = 0
             for item_data in menu_data.get("items", []):
-                # Add location_id to the data
-                if location_id:
-                    item_data["location_id"] = location_id
+                try:
+                    # Add location_id to the data
+                    if location_id:
+                        item_data["location_id"] = location_id
                     
-                item = MenuItem.from_dict(item_data)
-                db.session.add(item)
+                    # Log the item data for debugging (only the main fields)
+                    logger.info(f"[MENU-STORE] Processing item: {item_data.get('name')}, PLU: {item_data.get('plu')}, Price: {item_data.get('price')}")
+                    
+                    item = MenuItem.from_dict(item_data)
+                    db.session.add(item)
+                    successfully_added_items += 1
+                except Exception as item_error:
+                    logger.error(f"[MENU-STORE] Error adding item {item_data.get('name', 'Unknown')}: {item_error}")
+                    continue  # Skip this item but continue processing others
+            
+            logger.info(f"[MENU-STORE] Successfully added {successfully_added_items} items to the session")
                 
             # Store modifiers
             for modifier_data in menu_data.get("modifiers", []):
@@ -433,9 +456,40 @@ class MenuDBStore:
                 group = MenuModifierGroup.from_dict(group_data)
                 db.session.add(group)
                 
+            # Check if tables exist before committing
+            try:
+                from sqlalchemy import inspect
+                inspector = inspect(db.engine)
+                tables = inspector.get_table_names()
+                required_tables = ['menu_items', 'menu_modifiers', 'menu_modifier_groups']
+                missing_tables = [table for table in required_tables if table not in tables]
+                
+                if missing_tables:
+                    logger.error(f"[MENU-STORE] Missing required tables: {missing_tables}. Tables found: {tables}")
+                    # If tables are missing, we'll try to create them
+                    from app.db_init import create_tables
+                    logger.info("[MENU-STORE] Attempting to create missing tables")
+                    create_tables()
+                else:
+                    logger.info(f"[MENU-STORE] All required tables exist: {required_tables}")
+            except Exception as inspect_error:
+                logger.error(f"[MENU-STORE] Error checking table existence: {inspect_error}")
+            
             # Commit the transaction only if we started it
-            if not in_transaction:
-                db.session.commit()
+            try:
+                if not in_transaction:
+                    logger.info("[MENU-STORE] Committing transaction to database")
+                    db.session.commit()
+                    logger.info("[MENU-STORE] Transaction committed successfully")
+                else:
+                    logger.info("[MENU-STORE] Not committing transaction as it was started elsewhere")
+            except Exception as commit_error:
+                logger.error(f"[MENU-STORE] Error committing transaction: {commit_error}")
+                # Handle transaction error
+                if not in_transaction:
+                    db.session.rollback()
+                    logger.info("[MENU-STORE] Transaction rolled back")
+                raise commit_error
             
             # Invalidate cache
             cache_key = f"menu:{location_id if location_id else 'default'}"
