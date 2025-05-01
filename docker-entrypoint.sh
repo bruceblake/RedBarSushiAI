@@ -202,19 +202,51 @@ echo "DEBUG: Directory contents: $(ls -la)"
 
 # Expand environment variables in the SQLALCHEMY_DATABASE_URI
 if [ -n "$DB_USER" ] && [ -n "$DB_PASSWORD" ] && [ -n "$DB_HOST" ] && [ -n "$DB_PORT" ] && [ -n "$DB_NAME" ]; then
-    # Check if DB_HOST is "db" - this is only for local docker-compose
-    if [ "$DB_HOST" = "db" ] && [ "$RENDER" = "true" ]; then
-        # In Render, we need to use the actual database URL from the environment
-        echo "WARNING: DB_HOST is set to 'db' but we're running on Render. Looking for RENDER_DATABASE_URL..."
-        if [ -n "$RENDER_DATABASE_URL" ]; then
+    # Handle database connection correctly based on environment
+    if [ "$RENDER" = "true" ]; then
+        # We're running on Render, prioritize external database URLs
+        if [ -n "$DATABASE_URL" ]; then
+            # User-provided external database URL has highest priority
+            export SQLALCHEMY_DATABASE_URI="$DATABASE_URL"
+            echo "Using DATABASE_URL for external database connection"
+        elif [ -n "$RENDER_DATABASE_URL" ]; then
+            # Render-provided external database URL
             export SQLALCHEMY_DATABASE_URI="$RENDER_DATABASE_URL"
-            echo "Using RENDER_DATABASE_URL for database connection"
+            echo "Using RENDER_DATABASE_URL for external database connection"
+        elif [ -n "$INTERNAL_DATABASE_URL" ]; then
+            # Transform internal URL to external URL
+            internal_url="$INTERNAL_DATABASE_URL"
+            # Extract parts
+            if [[ "$internal_url" == postgresql://* ]]; then
+                user_part="${internal_url#postgresql://}"
+                user_part="${user_part%%@*}"
+                host_part="${internal_url#*@}"
+                host="${host_part%%:*}"
+                rest="${host_part#*:}"
+                
+                # Add .virginia-postgres.render.com to hostname if it's not already a render.com domain
+                if [[ "$host" != *".render.com" ]]; then
+                    external_host="${host}.virginia-postgres.render.com"
+                    external_url="postgresql://${user_part}@${external_host}:${rest}"
+                    export SQLALCHEMY_DATABASE_URI="$external_url"
+                    echo "Transformed internal URL to external URL for database connection"
+                else
+                    # Already has render.com domain
+                    export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
+                    echo "Using INTERNAL_DATABASE_URL for database connection"
+                fi
+            else
+                # Not in expected format, use as-is
+                export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
+                echo "Using INTERNAL_DATABASE_URL for database connection (unknown format)"
+            fi
         else
-            export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-            echo "WARNING: Using potentially incorrect database URL. RENDER_DATABASE_URL is not set."
+            # Fallback to component-based construction
+            export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}.virginia-postgres.render.com:${DB_PORT}/${DB_NAME}"
+            echo "WARNING: Constructed external database URL from components - may not be correct"
         fi
     else
-        # Normal case - construct the URI from parts
+        # Normal case for non-Render environments - construct the URI from parts
         export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
         echo "Database URI set to postgresql connection string (credentials hidden)"
     fi
@@ -275,10 +307,36 @@ else
     echo "Testing database connection..."
     echo "SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI:0:25}..." # Show just the start, not credentials
     
-    # If using RENDER_DATABASE_URL directly, log and use it
-    if [ -n "$RENDER_DATABASE_URL" ]; then
-        echo "RENDER_DATABASE_URL is set, using it directly"
+    # Handle database URL with priority for external URLs
+    if [ -n "$DATABASE_URL" ]; then
+        echo "DATABASE_URL is set, using external URL directly"
+        export SQLALCHEMY_DATABASE_URI="$DATABASE_URL"
+    elif [ -n "$RENDER_DATABASE_URL" ]; then
+        echo "RENDER_DATABASE_URL is set, using external URL directly"
         export SQLALCHEMY_DATABASE_URI="$RENDER_DATABASE_URL"
+    elif [ -n "$INTERNAL_DATABASE_URL" ] && [ "$RENDER" = "true" ]; then
+        echo "Only INTERNAL_DATABASE_URL is available, transforming to external URL"
+        # Extract hostname from internal URL and add .virginia-postgres.render.com
+        internal_url="$INTERNAL_DATABASE_URL"
+        if [[ "$internal_url" == postgresql://* ]] && [[ "$internal_url" == *"@"* ]]; then
+            user_part="${internal_url#postgresql://}"
+            user_part="${user_part%%@*}"
+            host_part="${internal_url#*@}"
+            host="${host_part%%:*}"
+            rest="${host_part#*:}"
+            
+            # Transform hostname if it's not already a render.com domain
+            if [[ "$host" != *".render.com" ]]; then
+                external_host="${host}.virginia-postgres.render.com"
+                external_url="postgresql://${user_part}@${external_host}:${rest}"
+                export SQLALCHEMY_DATABASE_URI="$external_url"
+                echo "Using transformed external URL: ${external_url}"
+            else
+                export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
+            fi
+        else
+            export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
+        fi
     fi
     
     python -c "

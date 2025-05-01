@@ -67,13 +67,44 @@ fi
 setup_database_connection() {
 	# Use Render's database URL if available (most reliable approach)
 	if [ -n "$RENDER_DATABASE_URL" ]; then
-		log "Using RENDER_DATABASE_URL for database connection"
+		log "Using RENDER_DATABASE_URL for database connection (EXTERNAL URL)"
 		export SQLALCHEMY_DATABASE_URI="$RENDER_DATABASE_URL"
 		return 0
 	elif [ -n "$INTERNAL_DATABASE_URL" ]; then
-		log "Using INTERNAL_DATABASE_URL for database connection"
-		export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
-		return 0
+		# Don't use internal URL - it won't work outside the private network
+		log "WARNING: INTERNAL_DATABASE_URL found but using EXTERNAL URL instead"
+		if [ -n "$DATABASE_URL" ]; then
+			# Use the manually set external URL
+			log "Using DATABASE_URL (external) instead of internal URL"
+			export SQLALCHEMY_DATABASE_URI="$DATABASE_URL"
+			return 0
+		else
+			# If INTERNAL_DATABASE_URL is set but no DATABASE_URL, 
+			# construct external URL by appending domain to internal host
+			internal_url="$INTERNAL_DATABASE_URL"
+			# Extract parts from the internal URL
+			if [[ "$internal_url" == postgresql://* ]]; then
+				user_part="${internal_url#postgresql://}"
+				user_part="${user_part%%@*}"
+				host_part="${internal_url#*@}"
+				host="${host_part%%:*}"
+				rest="${host_part#*:}"
+				
+				# Transform internal host to external host
+				if [[ "$host" != *".render.com" ]]; then
+					external_host="${host}.virginia-postgres.render.com"
+					external_url="postgresql://${user_part}@${external_host}:${rest}"
+					log "Transformed internal URL to external URL: ${external_url}"
+					export SQLALCHEMY_DATABASE_URI="$external_url"
+					return 0
+				fi
+			fi
+			
+			# If we can't transform, warn but still use the internal URL
+			log "WARNING: Could not transform internal URL to external URL"
+			export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
+			return 0
+		fi
 	else
 		log "WARNING: No Render database URL found, trying to construct from components"
 		# Construct from components if needed
