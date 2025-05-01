@@ -41,8 +41,9 @@ def migrate_menu_to_database(file_path=None, location_id=None, force=False):
             return {"success": False, "error": "Menu file not found"}
         
         # Read the menu data from file
-        with open(file_path, 'r') as f:
-            menu_data = json.load(f)
+        # Use safe_load_json to handle potential JSON errors
+        from app.utils.json_utils import safe_load_json
+        menu_data = safe_load_json(file_path, default={"items": [], "modifiers": [], "modifierGroups": []})
             
         # Process Deliverect format if needed
         if "channels" in menu_data or "products" in menu_data:
