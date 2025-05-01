@@ -196,8 +196,10 @@ def create_app(test_config=None):
 
     # Configure SQLAlchemy engine options based on database type
     engine_options = {
-        "pool_recycle": 280,
+        "pool_recycle": 1800,  # 30 minutes to match Render's proxy timeout
         "pool_pre_ping": True,
+        "pool_size": 10,       # Limit pool size to prevent connection exhaustion
+        "max_overflow": 15,    # Allow some overflow connections during high load
     }
 
     # Only add options compatible with the specific database type
@@ -209,8 +211,14 @@ def create_app(test_config=None):
             # For MySQL, PostgreSQL and other full DB engines
             engine_options.update(
                 {
-                    "pool_timeout": 20,
-                    "connect_args": {"connect_timeout": 10},
+                    "pool_timeout": 30,        # Increased timeout for connection acquisition
+                    "connect_args": {
+                        "connect_timeout": 15,  # Increased connection timeout
+                        "keepalives": 1,        # Enable TCP keepalives
+                        "keepalives_idle": 60,  # Send keepalive after 60 seconds of inactivity
+                        "keepalives_interval": 10,  # 10 seconds between keepalives
+                        "keepalives_count": 3   # Number of keepalives before dropping connection
+                    },
                 }
             )
 
