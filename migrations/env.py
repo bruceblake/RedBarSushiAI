@@ -6,7 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 # Add the parent directory to sys.path to import app
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Import the SQLAlchemy models
 from app import create_app, db
@@ -19,7 +19,7 @@ fileConfig(config.config_file_name)
 
 # Set the SQLAlchemy URL from the app config
 app = create_app()
-config.set_main_option('sqlalchemy.url', app.config['SQLALCHEMY_DATABASE_URI'])
+config.set_main_option("sqlalchemy.url", app.config["SQLALCHEMY_DATABASE_URI"])
 
 # add your model's MetaData object here
 # for 'autogenerate' support
@@ -69,9 +69,7 @@ def run_migrations_online():
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

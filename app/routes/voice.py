@@ -587,15 +587,19 @@ def main_menu():
         # Track silence retries
         menu_silence_retry_count = session.get("menu_silence_retry_count", 0)
         session["menu_silence_retry_count"] = menu_silence_retry_count + 1
-        
-        logger.info(f"Silence detected in main_menu (attempt {menu_silence_retry_count+1})")
-        
+
+        logger.info(
+            f"Silence detected in main_menu (attempt {menu_silence_retry_count+1})"
+        )
+
         response = VoiceResponse()
-        
+
         if menu_silence_retry_count >= 2:
             # After multiple silences, provide appropriate fallback
             logger.info("Multiple silences in main_menu - proceeding to fallback")
-            response.say("Since I didn't hear from you, I'll guide you through the menu options differently.")
+            response.say(
+                "Since I didn't hear from you, I'll guide you through the menu options differently."
+            )
             response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
         else:
@@ -608,14 +612,16 @@ def main_menu():
                 language="en-US",
                 speech_timeout=5,
                 timeout=8,
-                num_digits=1
+                num_digits=1,
             ) as g:
-                g.say("I didn't hear you. Please press 1 to order, press 2 for menu questions, or press 3 to speak with a person.")
+                g.say(
+                    "I didn't hear you. Please press 1 to order, press 2 for menu questions, or press 3 to speak with a person."
+                )
             return Response(str(response), mimetype="text/xml")
 
     # Reset silence counter if we got a response
     session["menu_silence_retry_count"] = 0
-    
+
     # Determine user choice
     choice = None
     if dtmf_input == "1":
@@ -627,11 +633,13 @@ def main_menu():
     else:
         if "1" in speech_input or "order" in speech_input:
             choice = "order"
-        elif "2" in speech_input or "menu" in speech_input or "question" in speech_input:
+        elif (
+            "2" in speech_input or "menu" in speech_input or "question" in speech_input
+        ):
             choice = "ask_menu"
         elif "3" in speech_input or "person" in speech_input or "human" in speech_input:
             choice = "real_person"
-            
+
     response = VoiceResponse()
 
     if choice == "order" and channel_status == 1:
@@ -650,7 +658,7 @@ def main_menu():
     elif choice == "ask_menu":
         # Use AI agent to answer any menu question
         menu_query = speech_input.strip()
-        
+
         # Get session ID for conversation tracking
         # We'll use the Twilio call SID as our session ID to keep context between turns
         call_sid = request.values.get("CallSid")
@@ -659,29 +667,31 @@ def main_menu():
             call_sid = session.get("menu_conversation_id")
             if not call_sid:
                 import uuid
+
                 call_sid = str(uuid.uuid4())
                 session["menu_conversation_id"] = call_sid
-                
+
         logger.info(f"Using conversation session ID: {call_sid}")
-        
+
         # Import the conversation store for context tracking
         from app.utils.conversation_store import conversation_store
-        
+
         # Check if we have an existing conversation for this session
         conversation_data = conversation_store.get_conversation(call_sid)
-        logger.info(f"Found conversation with {len(conversation_data.get('messages', []))} messages")
-                
+        logger.info(
+            f"Found conversation with {len(conversation_data.get('messages', []))} messages"
+        )
+
         # Add the user's new query to the conversation
         conversation_store.add_message(call_sid, "user", menu_query)
-        
+
         # Process the query with interactive order resolution using the conversation context
         ai_response = menu_matcher.interactive_order_resolution(
-            menu_query, 
-            session_id=call_sid
+            menu_query, session_id=call_sid
         )
 
         reply = ai_response.get("clarification_dialog")
-        
+
         # Store the session ID for future reference
         session["menu_conversation_id"] = ai_response.get("session_id", call_sid)
 
@@ -689,13 +699,13 @@ def main_menu():
         # This allows for a more natural conversation flow
         response = VoiceResponse()
         response.say(reply)
-        
+
         # Setup gather without additional prompting
         # This lets the conversation continue naturally
         gather_params = setup_gather_params(
             context="menu", action="/handle_menu_questions"
         )
-        
+
         # Just gather the next input without additional prompting
         response.gather(**gather_params)
 
@@ -749,15 +759,21 @@ def handle_menu_questions():
         # Track silence retries
         menu_question_silence = session.get("menu_question_silence", 0)
         session["menu_question_silence"] = menu_question_silence + 1
-        
-        logger.info(f"Silence detected in handle_menu_questions (attempt {menu_question_silence+1})")
-        
+
+        logger.info(
+            f"Silence detected in handle_menu_questions (attempt {menu_question_silence+1})"
+        )
+
         response = VoiceResponse()
-        
+
         if menu_question_silence >= 2:
             # After multiple silences, provide appropriate fallback
-            logger.info("Multiple silences in handle_menu_questions - proceeding to fallback")
-            response.say("Since I didn't hear from you, I'll take you back to the main menu.")
+            logger.info(
+                "Multiple silences in handle_menu_questions - proceeding to fallback"
+            )
+            response.say(
+                "Since I didn't hear from you, I'll take you back to the main menu."
+            )
             response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
         else:
@@ -770,9 +786,11 @@ def handle_menu_questions():
                 language="en-US",
                 speech_timeout=5,
                 timeout=8,
-                num_digits=1
+                num_digits=1,
             ) as g:
-                g.say("I didn't hear you. Please ask your question about our menu, or press 1 to place an order instead.")
+                g.say(
+                    "I didn't hear you. Please ask your question about our menu, or press 1 to place an order instead."
+                )
             return Response(str(response), mimetype="text/xml")
 
     # Reset silence counter if we got a response
@@ -806,7 +824,7 @@ def handle_menu_questions():
     elif intent == "ask_menu":
         # Use AI agent to answer any menu question
         menu_query = speech_input.strip()
-        
+
         # Get session ID for conversation tracking
         # We'll use the Twilio call SID as our session ID to keep context between turns
         call_sid = request.values.get("CallSid")
@@ -815,29 +833,31 @@ def handle_menu_questions():
             call_sid = session.get("menu_conversation_id")
             if not call_sid:
                 import uuid
+
                 call_sid = str(uuid.uuid4())
                 session["menu_conversation_id"] = call_sid
-                
+
         logger.info(f"Using conversation session ID: {call_sid}")
-        
+
         # Import the conversation store for context tracking
         from app.utils.conversation_store import conversation_store
-        
+
         # Check if we have an existing conversation for this session
         conversation_data = conversation_store.get_conversation(call_sid)
-        logger.info(f"Found conversation with {len(conversation_data.get('messages', []))} messages")
-                
+        logger.info(
+            f"Found conversation with {len(conversation_data.get('messages', []))} messages"
+        )
+
         # Add the user's new query to the conversation
         conversation_store.add_message(call_sid, "user", menu_query)
-        
+
         # Process the query with interactive order resolution using the conversation context
         ai_response = menu_matcher.interactive_order_resolution(
-            menu_query, 
-            session_id=call_sid
+            menu_query, session_id=call_sid
         )
 
         reply = ai_response.get("clarification_dialog")
-        
+
         # Store the session ID for future reference
         session["menu_conversation_id"] = ai_response.get("session_id", call_sid)
 
@@ -845,13 +865,13 @@ def handle_menu_questions():
         # This allows for a more natural conversation flow
         response = VoiceResponse()
         response.say(reply)
-        
+
         # Setup gather without additional prompting
         # This lets the conversation continue naturally
         gather_params = setup_gather_params(
             context="menu", action="/handle_menu_questions"
         )
-        
+
         # Just gather the next input without additional prompting
         response.gather(**gather_params)
 

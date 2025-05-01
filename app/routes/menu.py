@@ -9,13 +9,15 @@ from datetime import datetime
 
 # app.utils.helpers is imported by other modules
 from app.utils.menu_validator import validate_and_fix_menu_data
+
 # Import all menu utilities from database-backed implementation only
 from app.utils.menu_utils_db import (
     load_menu_data,
     write_menu_file,
     sync_reference_handlers,
-    process_deliverect_menu
+    process_deliverect_menu,
 )
+
 # No imports from menu_utils - we're not using file storage
 
 menu_bp = Blueprint("menu", __name__)
@@ -191,18 +193,20 @@ def menu_update():
                     # Use the first menu as our data to process
                     data = menus[0]
                     logger.info("[MENU-UPDATE] Using first menu for processing")
-        
+
         # Try to extract callback URL from top level too (some Deliverect versions)
         if callback_url is None and isinstance(data, dict) and "callback" in data:
             callback_url = data.get("callback")
             logger.info(f"[MENU-UPDATE] Found top-level callback URL: {callback_url}")
-            
+
         # Handle array format with first element containing callback
         if callback_url is None and isinstance(data, list) and len(data) > 0:
             first_item = data[0]
             if isinstance(first_item, dict) and "callback" in first_item:
                 callback_url = first_item.get("callback")
-                logger.info(f"[MENU-UPDATE] Found callback URL in first array item: {callback_url}")
+                logger.info(
+                    f"[MENU-UPDATE] Found callback URL in first array item: {callback_url}"
+                )
 
         # Process the menu data through our robust formatter
         try:
@@ -274,15 +278,23 @@ def menu_update():
             # Second pass - validate and fix any remaining issues
             logger.info("[MENU-UPDATE] Validating and fixing menu data")
             # Extract location_id from request args, form, or JSON
-            location_id = request.args.get('location_id') or request.form.get('location_id')
-            if not location_id and isinstance(data, dict) and 'location_id' in data:
-                location_id = data.get('location_id')
-            
+            location_id = request.args.get("location_id") or request.form.get(
+                "location_id"
+            )
+            if not location_id and isinstance(data, dict) and "location_id" in data:
+                location_id = data.get("location_id")
+
             if location_id:
-                logger.info(f"[MENU-UPDATE] Using location_id {location_id} for menu validation")
-                processed_data = validate_and_fix_menu_data(processed_data, location_id=location_id)
+                logger.info(
+                    f"[MENU-UPDATE] Using location_id {location_id} for menu validation"
+                )
+                processed_data = validate_and_fix_menu_data(
+                    processed_data, location_id=location_id
+                )
             else:
-                logger.info("[MENU-UPDATE] No location_id provided, using default validation")
+                logger.info(
+                    "[MENU-UPDATE] No location_id provided, using default validation"
+                )
                 processed_data = validate_and_fix_menu_data(processed_data)
 
             # CRITICAL: Verify that PLUs were preserved during processing
@@ -346,14 +358,19 @@ def menu_update():
                         try:
                             # Format the callback URL if it needs additional correction
                             final_callback_url = callback_url
-                            if "?" not in callback_url and "&status=" not in callback_url:
+                            if (
+                                "?" not in callback_url
+                                and "&status=" not in callback_url
+                            ):
                                 if callback_url.endswith("/"):
                                     final_callback_url = f"{callback_url}?status=FAILED"
                                 else:
                                     final_callback_url = f"{callback_url}?status=FAILED"
-                            
-                            logger.info(f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}")
-                            
+
+                            logger.info(
+                                f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}"
+                            )
+
                             # Try GET first (some Deliverect endpoints expect GET)
                             try:
                                 get_response = requests.get(
@@ -364,10 +381,14 @@ def menu_update():
                                     },
                                     timeout=10,
                                 )
-                                logger.info(f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}")
+                                logger.info(
+                                    f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}"
+                                )
                             except Exception as get_e:
-                                logger.warning(f"[MENU-UPDATE] GET error callback attempt failed: {get_e}")
-                            
+                                logger.warning(
+                                    f"[MENU-UPDATE] GET error callback attempt failed: {get_e}"
+                                )
+
                             # Then try POST with the payload
                             callback_response = requests.post(
                                 final_callback_url,
@@ -488,16 +509,22 @@ def menu_update():
             # Always store in the database first and foremost
             try:
                 from app.utils.menu_db_store import menu_db_store
-                
+
                 # Extract location_id if available
-                location_id = request.args.get('location_id') or request.form.get('location_id')
-                if not location_id and isinstance(data, dict) and 'location_id' in data:
-                    location_id = data.get('location_id')
-                
+                location_id = request.args.get("location_id") or request.form.get(
+                    "location_id"
+                )
+                if not location_id and isinstance(data, dict) and "location_id" in data:
+                    location_id = data.get("location_id")
+
                 # Store directly in database with location_id if present
-                if menu_db_store.store_menu_data(processed_data, location_id=location_id):
-                    logger.info(f"[MENU-UPDATE] Successfully stored menu in database with location_id: {location_id if location_id else 'default'}")
-                    
+                if menu_db_store.store_menu_data(
+                    processed_data, location_id=location_id
+                ):
+                    logger.info(
+                        f"[MENU-UPDATE] Successfully stored menu in database with location_id: {location_id if location_id else 'default'}"
+                    )
+
                     # Database store was successful (primary source of truth)
                     menu_store_success = True
                 else:
@@ -506,11 +533,13 @@ def menu_update():
             except Exception as db_e:
                 logger.error(f"[MENU-UPDATE] Database storage error: {db_e}")
                 menu_store_success = False
-                
+
             if menu_store_success:
                 logger.info("[MENU-UPDATE] Menu was successfully stored")
             else:
-                logger.error("[MENU-UPDATE] Failed to store menu in database and file fallback failed")
+                logger.error(
+                    "[MENU-UPDATE] Failed to store menu in database and file fallback failed"
+                )
 
                 # If we have a callback URL, send a FAILED status
                 if callback_url:
@@ -522,9 +551,11 @@ def menu_update():
                                 final_callback_url = f"{callback_url}?status=FAILED"
                             else:
                                 final_callback_url = f"{callback_url}?status=FAILED"
-                        
-                        logger.info(f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}")
-                        
+
+                        logger.info(
+                            f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}"
+                        )
+
                         # Try GET first (some Deliverect endpoints expect GET)
                         try:
                             get_response = requests.get(
@@ -535,10 +566,14 @@ def menu_update():
                                 },
                                 timeout=10,
                             )
-                            logger.info(f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}")
+                            logger.info(
+                                f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}"
+                            )
                         except Exception as get_e:
-                            logger.warning(f"[MENU-UPDATE] GET error callback attempt failed: {get_e}")
-                        
+                            logger.warning(
+                                f"[MENU-UPDATE] GET error callback attempt failed: {get_e}"
+                            )
+
                         # Then try POST with the payload
                         callback_response = requests.post(
                             final_callback_url,
@@ -577,17 +612,21 @@ def menu_update():
             # Force a direct database check to ensure data was actually committed
             from app import db
             from app.models.menu import MenuItem
-            
+
             try:
                 # Explicitly use a new database session to verify data was committed
                 direct_db_count = db.session.query(MenuItem).count()
-                logger.info(f"[MENU-UPDATE] Direct database check shows {direct_db_count} menu items")
-                
+                logger.info(
+                    f"[MENU-UPDATE] Direct database check shows {direct_db_count} menu items"
+                )
+
                 # Also check using the regular load function
                 reloaded_menu = load_menu_data(force_refresh=True)
                 reloaded_count = len(reloaded_menu.get("items", []))
-                logger.info(f"[MENU-UPDATE] Reloaded menu data with {reloaded_count} items")
-                
+                logger.info(
+                    f"[MENU-UPDATE] Reloaded menu data with {reloaded_count} items"
+                )
+
                 # No need to check name_variants - AI agent will handle matching
             except Exception as verify_error:
                 logger.error(f"[MENU-UPDATE] Error during verification: {verify_error}")
@@ -605,8 +644,11 @@ def menu_update():
                     )
                     # Store directly in the database as a last resort
                     from app.utils.menu_db_store import menu_db_store
+
                     if menu_db_store.store_menu_data(processed_data, location_id):
-                        logger.info("[MENU-UPDATE] Successfully stored menu in database on second attempt")
+                        logger.info(
+                            "[MENU-UPDATE] Successfully stored menu in database on second attempt"
+                        )
 
                     # Reload one more time to confirm
                     restored_menu = load_menu_data(force_refresh=True)
@@ -629,9 +671,11 @@ def menu_update():
                                 final_callback_url = f"{callback_url}?status=FAILED"
                             else:
                                 final_callback_url = f"{callback_url}?status=FAILED"
-                        
-                        logger.info(f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}")
-                        
+
+                        logger.info(
+                            f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}"
+                        )
+
                         # Try GET first (some Deliverect endpoints expect GET)
                         try:
                             get_response = requests.get(
@@ -642,10 +686,14 @@ def menu_update():
                                 },
                                 timeout=10,
                             )
-                            logger.info(f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}")
+                            logger.info(
+                                f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}"
+                            )
                         except Exception as get_e:
-                            logger.warning(f"[MENU-UPDATE] GET error callback attempt failed: {get_e}")
-                        
+                            logger.warning(
+                                f"[MENU-UPDATE] GET error callback attempt failed: {get_e}"
+                            )
+
                         # Then try POST with the payload
                         callback_response = requests.post(
                             final_callback_url,
@@ -686,8 +734,10 @@ def menu_update():
             # If we have a callback URL, send a success status
             if callback_url:
                 try:
-                    logger.info(f"[MENU-UPDATE] Sending ONLINE status to callback URL: {callback_url}")
-                    
+                    logger.info(
+                        f"[MENU-UPDATE] Sending ONLINE status to callback URL: {callback_url}"
+                    )
+
                     # Format the callback URL if it needs additional correction
                     final_callback_url = callback_url
                     if "?" not in callback_url and "&status=" not in callback_url:
@@ -695,9 +745,11 @@ def menu_update():
                             final_callback_url = f"{callback_url}?status=ONLINE"
                         else:
                             final_callback_url = f"{callback_url}?status=ONLINE"
-                    
-                    logger.info(f"[MENU-UPDATE] Using formatted callback URL: {final_callback_url}")
-                    
+
+                    logger.info(
+                        f"[MENU-UPDATE] Using formatted callback URL: {final_callback_url}"
+                    )
+
                     # Try GET first (some Deliverect endpoints expect GET)
                     try:
                         get_response = requests.get(
@@ -708,17 +760,21 @@ def menu_update():
                             },
                             timeout=10,
                         )
-                        logger.info(f"[MENU-UPDATE] Deliverect GET callback response: {get_response.status_code} - {get_response.text}")
+                        logger.info(
+                            f"[MENU-UPDATE] Deliverect GET callback response: {get_response.status_code} - {get_response.text}"
+                        )
                     except Exception as get_e:
-                        logger.warning(f"[MENU-UPDATE] GET callback attempt failed: {get_e}")
-                    
+                        logger.warning(
+                            f"[MENU-UPDATE] GET callback attempt failed: {get_e}"
+                        )
+
                     callback_payload = {
                         "status": "ONLINE",
                         "comment": f"Menu update successful with {reloaded_count} items",
                         "timestamp": datetime.now().isoformat(),
                     }
                     logger.info(f"[MENU-UPDATE] Callback payload: {callback_payload}")
-                    
+
                     callback_response = requests.post(
                         final_callback_url,
                         json=callback_payload,
@@ -729,20 +785,24 @@ def menu_update():
                         },
                         timeout=10,
                     )
-                    
+
                     logger.info(
                         f"[MENU-UPDATE] Callback response: {callback_response.status_code} - {callback_response.text}"
                     )
-                    
+
                     # Try to parse response for more detailed logging
                     try:
                         resp_json = callback_response.json()
-                        logger.info(f"[MENU-UPDATE] Callback response JSON: {resp_json}")
+                        logger.info(
+                            f"[MENU-UPDATE] Callback response JSON: {resp_json}"
+                        )
                     except:
                         logger.info("[MENU-UPDATE] Callback response is not JSON")
-                        
+
                 except Exception as callback_e:
-                    logger.error(f"[MENU-UPDATE] Error sending callback: {str(callback_e)}")
+                    logger.error(
+                        f"[MENU-UPDATE] Error sending callback: {str(callback_e)}"
+                    )
 
             # Remove name_variants field if it exists - AI agent will handle matching
             if "name_variants" in processed_data:
@@ -757,10 +817,16 @@ def menu_update():
             )
 
             # Send success callback to Deliverect if applicable and callback_url not already used
-            if is_deliverect and callback_url and not processed_data.get("callback_sent"):
+            if (
+                is_deliverect
+                and callback_url
+                and not processed_data.get("callback_sent")
+            ):
                 try:
-                    logger.info(f"[MENU-UPDATE] Sending explicit status callback to Deliverect: {callback_url}")
-                    
+                    logger.info(
+                        f"[MENU-UPDATE] Sending explicit status callback to Deliverect: {callback_url}"
+                    )
+
                     # Format the callback URL if it needs additional correction
                     final_callback_url = callback_url
                     if "?" not in callback_url and "&status=" not in callback_url:
@@ -768,9 +834,11 @@ def menu_update():
                             final_callback_url = f"{callback_url}?status=ONLINE"
                         else:
                             final_callback_url = f"{callback_url}?status=ONLINE"
-                    
-                    logger.info(f"[MENU-UPDATE] Using formatted callback URL: {final_callback_url}")
-                    
+
+                    logger.info(
+                        f"[MENU-UPDATE] Using formatted callback URL: {final_callback_url}"
+                    )
+
                     # Try GET first (some Deliverect endpoints expect GET)
                     try:
                         get_response = requests.get(
@@ -781,10 +849,14 @@ def menu_update():
                             },
                             timeout=10,
                         )
-                        logger.info(f"[MENU-UPDATE] Deliverect GET callback response: {get_response.status_code} - {get_response.text}")
+                        logger.info(
+                            f"[MENU-UPDATE] Deliverect GET callback response: {get_response.status_code} - {get_response.text}"
+                        )
                     except Exception as get_e:
-                        logger.warning(f"[MENU-UPDATE] GET callback attempt failed: {get_e}")
-                    
+                        logger.warning(
+                            f"[MENU-UPDATE] GET callback attempt failed: {get_e}"
+                        )
+
                     # Then try POST with the payload
                     callback_response = requests.post(
                         final_callback_url,
@@ -800,12 +872,16 @@ def menu_update():
                         },
                         timeout=10,
                     )
-                    logger.info(f"[MENU-UPDATE] Deliverect callback response: {callback_response.status_code} - {callback_response.text}")
-                    
+                    logger.info(
+                        f"[MENU-UPDATE] Deliverect callback response: {callback_response.status_code} - {callback_response.text}"
+                    )
+
                     # Mark that we've sent a callback to avoid duplicate sends
                     processed_data["callback_sent"] = True
                 except Exception as callback_e:
-                    logger.error(f"[MENU-UPDATE] Error sending callback to Deliverect: {callback_e}")
+                    logger.error(
+                        f"[MENU-UPDATE] Error sending callback to Deliverect: {callback_e}"
+                    )
 
             # Return success response
             return (
@@ -840,9 +916,11 @@ def menu_update():
                             final_callback_url = f"{callback_url}?status=FAILED"
                         else:
                             final_callback_url = f"{callback_url}?status=FAILED"
-                    
-                    logger.info(f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}")
-                    
+
+                    logger.info(
+                        f"[MENU-UPDATE] Using formatted ERROR callback URL: {final_callback_url}"
+                    )
+
                     # Try GET first (some Deliverect endpoints expect GET)
                     try:
                         get_response = requests.get(
@@ -853,17 +931,23 @@ def menu_update():
                             },
                             timeout=5,
                         )
-                        logger.info(f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}")
+                        logger.info(
+                            f"[MENU-UPDATE] Deliverect GET error callback response: {get_response.status_code}"
+                        )
                     except Exception as get_e:
-                        logger.warning(f"[MENU-UPDATE] GET error callback attempt failed: {get_e}")
-                    
+                        logger.warning(
+                            f"[MENU-UPDATE] GET error callback attempt failed: {get_e}"
+                        )
+
                     callback_payload = {
                         "status": "FAILED",
                         "comment": str(e)[:200],  # Limit length of error message
                         "timestamp": datetime.now().isoformat(),
                     }
-                    logger.info(f"[MENU-UPDATE] Error callback payload: {callback_payload}")
-                    
+                    logger.info(
+                        f"[MENU-UPDATE] Error callback payload: {callback_payload}"
+                    )
+
                     callback_response = requests.post(
                         final_callback_url,
                         json=callback_payload,
@@ -874,12 +958,14 @@ def menu_update():
                         },
                         timeout=5,
                     )
-                    
+
                     logger.info(
                         f"[MENU-UPDATE] Error callback response: {callback_response.status_code} - {callback_response.text}"
                     )
                 except Exception as callback_e:
-                    logger.error(f"[MENU-UPDATE] Error sending error callback: {callback_e}")
+                    logger.error(
+                        f"[MENU-UPDATE] Error sending error callback: {callback_e}"
+                    )
 
             # Check for memory errors
             error_str = str(e).lower()
@@ -1137,11 +1223,17 @@ def get_menu():
 
     # Load menu data directly from database with optional location - force refresh to ensure latest
     from app.utils.menu_db_store import menu_db_store
-    menu_data = menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
+
+    menu_data = menu_db_store._get_menu_data_from_db(
+        location_id=location_id,
+        cache_key=f"menu:{location_id if location_id else 'default'}",
+    )
 
     # Log menu details
     item_count = len(menu_data.get("items", []))
-    logger.info(f"[GET-MENU] Returning menu with {item_count} items from database for location_id: {location_id if location_id else 'default'}")
+    logger.info(
+        f"[GET-MENU] Returning menu with {item_count} items from database for location_id: {location_id if location_id else 'default'}"
+    )
     if item_count > 0:
         for idx, item in enumerate(menu_data.get("items", [])[:3]):  # Log first 3 items
             logger.info(
@@ -1169,25 +1261,28 @@ def clear_menu_data():
     """Clear all menu data from the database for testing purposes."""
     from app import db
     from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
-    
+
     try:
         # Delete all menu items
         MenuItem.query.delete()
-        
+
         # Delete all modifiers
         MenuModifier.query.delete()
-        
-        # Delete all modifier groups  
+
+        # Delete all modifier groups
         MenuModifierGroup.query.delete()
-        
+
         # Commit the changes
         db.session.commit()
-        
+
         # Force refresh cache in menu_db_store
         from app.utils.menu_db_store import menu_db_store
+
         menu_db_store._get_menu_data_from_db(cache_key="menu:default")
-        
-        return jsonify({"status": "success", "message": "All menu data cleared successfully"})
+
+        return jsonify(
+            {"status": "success", "message": "All menu data cleared successfully"}
+        )
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1200,14 +1295,20 @@ def clear_menu_cache():
     """
     # Get location_id from query parameters
     location_id = request.args.get("location_id")
-    
+
     # Force a full reload from database
     from app.utils.menu_db_store import menu_db_store
-    menu_data = menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
+
+    menu_data = menu_db_store._get_menu_data_from_db(
+        location_id=location_id,
+        cache_key=f"menu:{location_id if location_id else 'default'}",
+    )
 
     # Log reloaded data
     item_count = len(menu_data.get("items", []))
-    logger.info(f"[CLEAR-CACHE] Reloaded menu with {item_count} items from database for location_id: {location_id if location_id else 'default'}")
+    logger.info(
+        f"[CLEAR-CACHE] Reloaded menu with {item_count} items from database for location_id: {location_id if location_id else 'default'}"
+    )
     if item_count > 0:
         for idx, item in enumerate(menu_data.get("items", [])[:5]):  # Log first 5 items
             logger.info(
@@ -1241,38 +1342,48 @@ def delete_menu():
         # Import required models
         from app import db
         from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
-        
+
         # Build query for deletion based on location_id
         if location_id:
-            logger.info(f"[DELETE-MENU] Deleting menu data for location_id: {location_id}")
+            logger.info(
+                f"[DELETE-MENU] Deleting menu data for location_id: {location_id}"
+            )
             items_query = MenuItem.query.filter_by(location_id=location_id)
             modifiers_query = MenuModifier.query.filter_by(location_id=location_id)
             groups_query = MenuModifierGroup.query.filter_by(location_id=location_id)
         else:
-            logger.info("[DELETE-MENU] Deleting all menu data (no location_id specified)")
+            logger.info(
+                "[DELETE-MENU] Deleting all menu data (no location_id specified)"
+            )
             items_query = MenuItem.query
             modifiers_query = MenuModifier.query
             groups_query = MenuModifierGroup.query
-            
+
         # Get counts before deletion
         items_count = items_query.count()
         modifiers_count = modifiers_query.count()
         groups_count = groups_query.count()
-        
+
         # Delete the data
         items_query.delete()
         modifiers_query.delete()
         groups_query.delete()
-        
+
         # Commit the changes
         db.session.commit()
-        
+
         # Force cache to be cleared
         from app.utils.menu_db_store import menu_db_store
-        menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
-        
+
+        menu_db_store._get_menu_data_from_db(
+            location_id=location_id,
+            cache_key=f"menu:{location_id if location_id else 'default'}",
+        )
+
         # Log the result
-        logger.info(f"[DELETE-MENU] Successfully deleted {items_count} items, {modifiers_count} modifiers, and {groups_count} groups")
+        logger.info(
+            f"[DELETE-MENU] Successfully deleted {items_count} items, {modifiers_count} modifiers, and {groups_count} groups"
+        )
 
         return (
             jsonify(
@@ -1290,7 +1401,9 @@ def delete_menu():
     except Exception as e:
         logger.error(f"[DELETE-MENU] Error: {str(e)}")
         return (
-            jsonify({"success": False, "error": f"Failed to delete menu data: {str(e)}"}),
+            jsonify(
+                {"success": False, "error": f"Failed to delete menu data: {str(e)}"}
+            ),
             500,
         )
 
@@ -1305,7 +1418,7 @@ def toggle_menu():
     # Get the current and target location IDs from query parameters
     current_location_id = request.args.get("current_location_id", "default")
     target_location_id = request.args.get("target_location_id")
-    
+
     # If target_location_id not provided, use "default" as the target
     if not target_location_id:
         # Check for use_redbar parameter for backward compatibility
@@ -1314,14 +1427,22 @@ def toggle_menu():
             target_location_id = "redbar" if use_redbar else "default"
         else:
             # Toggle between default and redbar if no specific target provided
-            target_location_id = "redbar" if current_location_id == "default" else "default"
-    
-    logger.info(f"[TOGGLE-MENU] Switching from location_id '{current_location_id}' to '{target_location_id}'")
+            target_location_id = (
+                "redbar" if current_location_id == "default" else "default"
+            )
+
+    logger.info(
+        f"[TOGGLE-MENU] Switching from location_id '{current_location_id}' to '{target_location_id}'"
+    )
 
     # Force refresh the menu data from the target location
     try:
         from app.utils.menu_db_store import menu_db_store
-        menu_data = menu_db_store._get_menu_data_from_db(location_id=target_location_id, cache_key=f"menu:{target_location_id if target_location_id else 'default'}")
+
+        menu_data = menu_db_store._get_menu_data_from_db(
+            location_id=target_location_id,
+            cache_key=f"menu:{target_location_id if target_location_id else 'default'}",
+        )
         item_count = len(menu_data.get("items", []))
 
         return jsonify(
@@ -1338,10 +1459,10 @@ def toggle_menu():
         return (
             jsonify(
                 {
-                    "success": False, 
-                    "error": str(e), 
+                    "success": False,
+                    "error": str(e),
                     "current_location_id": current_location_id,
-                    "target_location_id": target_location_id
+                    "target_location_id": target_location_id,
                 }
             ),
             500,
@@ -1385,36 +1506,51 @@ def menu_settings():
     """Show current menu settings and database configuration"""
     # Get the current location ID from query parameters
     location_id = request.args.get("location_id", "default")
-    
+
     # List all available location_ids in the database
     try:
         from app import db
         from app.models.menu import MenuItem
         from sqlalchemy import distinct
-        
+
         # Get distinct location_ids from the database
         locations_query = db.session.query(distinct(MenuItem.location_id)).all()
         available_locations = [loc[0] for loc in locations_query if loc[0] is not None]
-        
+
         # Add "default" (None) location if it has items
-        if db.session.query(MenuItem).filter(MenuItem.location_id.is_(None)).count() > 0:
+        if (
+            db.session.query(MenuItem).filter(MenuItem.location_id.is_(None)).count()
+            > 0
+        ):
             available_locations.append("default")
-            
+
         # Force refresh the menu data to ensure we're looking at what's actually loaded
         from app.utils.menu_db_store import menu_db_store
-        menu_data = menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
+
+        menu_data = menu_db_store._get_menu_data_from_db(
+            location_id=location_id,
+            cache_key=f"menu:{location_id if location_id else 'default'}",
+        )
         item_count = len(menu_data.get("items", []))
 
         # Sample items to help identify the menu content
         items_sample = [item.get("name") for item in menu_data.get("items", [])[:5]]
-        
+
         # Count items by location
         location_counts = {}
         for loc in available_locations:
             if loc == "default":
-                count = db.session.query(MenuItem).filter(MenuItem.location_id.is_(None)).count()
+                count = (
+                    db.session.query(MenuItem)
+                    .filter(MenuItem.location_id.is_(None))
+                    .count()
+                )
             else:
-                count = db.session.query(MenuItem).filter(MenuItem.location_id == loc).count()
+                count = (
+                    db.session.query(MenuItem)
+                    .filter(MenuItem.location_id == loc)
+                    .count()
+                )
             location_counts[loc] = count
 
         return jsonify(
@@ -1453,32 +1589,46 @@ def debug_menu():
     import os
     import sys
     import platform
-    
+
     # Get location_id from query parameters
     location_id = request.args.get("location_id")
 
     try:
         # Force a full reload from database
         from app.utils.menu_db_store import menu_db_store
-        menu_data = menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
+
+        menu_data = menu_db_store._get_menu_data_from_db(
+            location_id=location_id,
+            cache_key=f"menu:{location_id if location_id else 'default'}",
+        )
         item_count = len(menu_data.get("items", []))
-        
+
         # Database status info
         from app import db
         from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
         from sqlalchemy import distinct, func, text
-        
+
         # Get database statistics
         db_stats = {
             "total_items": db.session.query(func.count(MenuItem.id)).scalar() or 0,
-            "total_modifiers": db.session.query(func.count(MenuModifier.id)).scalar() or 0,
-            "total_modifier_groups": db.session.query(func.count(MenuModifierGroup.id)).scalar() or 0,
+            "total_modifiers": db.session.query(func.count(MenuModifier.id)).scalar()
+            or 0,
+            "total_modifier_groups": db.session.query(
+                func.count(MenuModifierGroup.id)
+            ).scalar()
+            or 0,
         }
-        
+
         # Get location statistics
-        locations_query = db.session.query(MenuItem.location_id, func.count(MenuItem.id)).group_by(MenuItem.location_id).all()
-        location_stats = {loc[0] if loc[0] else "default": loc[1] for loc in locations_query}
-        
+        locations_query = (
+            db.session.query(MenuItem.location_id, func.count(MenuItem.id))
+            .group_by(MenuItem.location_id)
+            .all()
+        )
+        location_stats = {
+            loc[0] if loc[0] else "default": loc[1] for loc in locations_query
+        }
+
         # Get most recent item update time
         try:
             # This is SQLAlchemy-specific and might vary depending on database backend
@@ -1486,13 +1636,15 @@ def debug_menu():
             db_stats["last_item_id"] = last_update_query
         except:
             db_stats["last_item_id"] = "Unable to determine"
-            
+
         # Try to get table info
         try:
             table_info = {}
             for table_name in ["menu_items", "menu_modifiers", "menu_modifier_groups"]:
                 # This is PostgreSQL-specific, would need adaptation for other databases
-                result = db.session.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
+                result = db.session.execute(
+                    text(f"SELECT COUNT(*) FROM {table_name}")
+                ).scalar()
                 table_info[table_name] = result
             db_stats["table_counts"] = table_info
         except Exception as e:
@@ -1504,7 +1656,11 @@ def debug_menu():
             "python_version": sys.version,
             "cwd": os.getcwd(),
             "database_configured": True,
-            "database_type": db.engine.name if hasattr(db, 'engine') and hasattr(db.engine, 'name') else "Unknown",
+            "database_type": (
+                db.engine.name
+                if hasattr(db, "engine") and hasattr(db.engine, "name")
+                else "Unknown"
+            ),
         }
 
         # Return detailed status
@@ -1533,7 +1689,7 @@ def debug_menu():
         return (
             jsonify(
                 {
-                    "success": False, 
+                    "success": False,
                     "error": str(e),
                     "source": "database",
                     "location_id": location_id if location_id else "default",

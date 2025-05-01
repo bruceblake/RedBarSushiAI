@@ -96,28 +96,29 @@ def handle_menu_query(user_input):
         if not session_id:
             session_id = str(uuid.uuid4())
             session["menu_conversation_id"] = session_id
-        
+
         logger.info(f"Using conversation session ID: {session_id}")
-        
+
         # Try to use interactive order resolution with Redis context support
         ai_start = time.time()
         ai_response = menu_matcher.interactive_order_resolution(
-            user_input, 
-            session_id=session_id
+            user_input, session_id=session_id
         )
-        logger.info(f"Interactive resolution completed in {time.time() - ai_start:.2f} seconds")
-        
+        logger.info(
+            f"Interactive resolution completed in {time.time() - ai_start:.2f} seconds"
+        )
+
         # Store the session ID for future reference
         session["menu_conversation_id"] = ai_response.get("session_id", session_id)
-        
+
         # Get the clarification dialog from the response
         clarification = ai_response.get("clarification_dialog", "")
-        
+
         if clarification:
             # Just say the reply without prompting for more questions
             # This allows for a more natural conversation flow
             response.say(clarification)
-            
+
             # Just gather the next input without additional prompting
             response.gather(
                 input="speech",
@@ -137,7 +138,9 @@ def handle_menu_query(user_input):
             if ai_cache_key in ai_responses_cache:
                 cached_ai, timestamp = ai_responses_cache[ai_cache_key]
                 if current_time - timestamp < ai_responses_cache_duration:
-                    logger.info(f"Using cached AI response for: '{cleaned_input[:30]}...'")
+                    logger.info(
+                        f"Using cached AI response for: '{cleaned_input[:30]}...'"
+                    )
                     ai_response_text = cached_ai
 
             if not ai_response_text:
@@ -191,13 +194,13 @@ def handle_menu_query(user_input):
                                 f"- {item.get('name')}: {price_str}. {desc}"
                             )
 
-                menu_context_text = "Here are our menu items by category:\n" + "\n".join(
-                    menu_context
+                menu_context_text = (
+                    "Here are our menu items by category:\n" + "\n".join(menu_context)
                 )
-                
+
                 # Get existing conversation from the store
                 conversation_data = conversation_store.get_conversation(session_id)
-                
+
                 # Create message array with conversation history if available
                 messages = []
                 system_msg = (
@@ -209,48 +212,64 @@ def handle_menu_query(user_input):
                     "Organize your response to clearly separate menu categories for better understanding. "
                     "Maintain context from previous questions when answering follow-up questions."
                 )
-                
+
                 messages.append({"role": "system", "content": system_msg})
-                
+
                 # Add conversation history if available
-                if conversation_data and "messages" in conversation_data and conversation_data["messages"]:
+                if (
+                    conversation_data
+                    and "messages" in conversation_data
+                    and conversation_data["messages"]
+                ):
                     # Add previous messages
                     for message in conversation_data["messages"]:
-                        messages.append({
-                            "role": message["role"],
-                            "content": message["content"]
-                        })
-                    
+                        messages.append(
+                            {"role": message["role"], "content": message["content"]}
+                        )
+
                     # Add the current query with menu context
-                    messages.append({
-                        "role": "user",
-                        "content": f"Menu information:\n{menu_context_text}\n\nCustomer question: {user_input}\n\nAnswer the question while maintaining context from our previous conversation."
-                    })
-                    
-                    logger.info(f"Using conversation history with {len(conversation_data['messages'])} messages")
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"Menu information:\n{menu_context_text}\n\nCustomer question: {user_input}\n\nAnswer the question while maintaining context from our previous conversation.",
+                        }
+                    )
+
+                    logger.info(
+                        f"Using conversation history with {len(conversation_data['messages'])} messages"
+                    )
                 else:
                     # No conversation history, just add the current query
-                    messages.append({
-                        "role": "user",
-                        "content": f"Menu information:\n{menu_context_text}\n\nCustomer question: {user_input}",
-                    })
-                    
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"Menu information:\n{menu_context_text}\n\nCustomer question: {user_input}",
+                        }
+                    )
+
                     # Initialize the conversation in the store
-                    conversation_store.save_conversation(session_id, {
-                        "id": session_id,
-                        "created_at": time.time(),
-                        "updated_at": time.time(),
-                        "messages": [
-                            {"role": "user", "content": user_input, "timestamp": time.time()}
-                        ],
-                        "context": {},
-                        "resolved": False,
-                        "items": []
-                    })
+                    conversation_store.save_conversation(
+                        session_id,
+                        {
+                            "id": session_id,
+                            "created_at": time.time(),
+                            "updated_at": time.time(),
+                            "messages": [
+                                {
+                                    "role": "user",
+                                    "content": user_input,
+                                    "timestamp": time.time(),
+                                }
+                            ],
+                            "context": {},
+                            "resolved": False,
+                            "items": [],
+                        },
+                    )
 
                 # Create OpenAI client and send concise request with optimized parameters
                 client = openai.OpenAI()
-                
+
                 ai_start = time.time()
                 ai_result = client.chat.completions.create(
                     model="gpt-4.1-mini",
@@ -258,12 +277,16 @@ def handle_menu_query(user_input):
                     temperature=0.1,  # Lower temperature for faster, more deterministic responses
                     max_tokens=300,  # Increased to allow for category-structured responses
                 )
-                logger.info(f"AI request completed in {time.time() - ai_start:.2f} seconds")
+                logger.info(
+                    f"AI request completed in {time.time() - ai_start:.2f} seconds"
+                )
 
                 ai_response_text = ai_result.choices[0].message.content.strip()
-                
+
                 # Store the assistant's response in the conversation
-                conversation_store.add_message(session_id, "assistant", ai_response_text)
+                conversation_store.add_message(
+                    session_id, "assistant", ai_response_text
+                )
 
                 # Cache the AI response
                 ai_responses_cache[ai_cache_key] = (ai_response_text, time.time())
@@ -271,16 +294,16 @@ def handle_menu_query(user_input):
                 # Limit cache size to avoid memory issues
                 if len(ai_responses_cache) > 100:
                     # Remove oldest entries
-                    oldest_keys = sorted(ai_responses_cache.items(), key=lambda x: x[1][1])[
-                        :30
-                    ]
+                    oldest_keys = sorted(
+                        ai_responses_cache.items(), key=lambda x: x[1][1]
+                    )[:30]
                     for key, _ in oldest_keys:
                         ai_responses_cache.pop(key, None)
 
             # Just say the AI response without prompting for more questions
             # This allows for a more natural conversation flow
             response.say(ai_response_text)
-            
+
             # Just gather the next input without additional prompting
             response.gather(
                 input="speech",
@@ -289,7 +312,7 @@ def handle_menu_query(user_input):
                 speech_model="phone_call",
                 language="en-US",
                 speech_timeout=5,  # Reduced for better responsiveness
-                timeout=7  # Also reduced
+                timeout=7,  # Also reduced
             )
 
     elif intent == "get_menu_item_price" or intent == "describe_menu_item":
@@ -299,7 +322,7 @@ def handle_menu_query(user_input):
         if not session_id:
             session_id = str(uuid.uuid4())
             session["menu_conversation_id"] = session_id
-        
+
         # Handle specific menu item queries
         # This part could also be further optimized with similar caching techniques
         # The general idea is the same as above
@@ -368,14 +391,14 @@ def handle_menu_query(user_input):
 
             # Cache the generated description
             menu_questions_cache[item_cache_key] = (item_desc, time.time())
-            
+
             # Store the interaction in the conversation store
             conversation_store.add_message(session_id, "user", user_input)
             conversation_store.add_message(session_id, "assistant", item_desc)
 
         # Say the item description and gather next input without additional prompting
         response.say(item_desc)
-        
+
         # Just gather the next input
         response.gather(
             input="speech",
@@ -384,7 +407,7 @@ def handle_menu_query(user_input):
             speech_model="phone_call",
             language="en-US",
             speech_timeout=5,  # Fixed value for more predictable behavior
-            timeout=7  # Added fixed timeout
+            timeout=7,  # Added fixed timeout
         )
 
     else:

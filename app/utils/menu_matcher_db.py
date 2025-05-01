@@ -27,14 +27,14 @@ class MenuMatcher:
         """Initialize the menu matcher."""
         self._menu_data = None  # Will be loaded on first use
         self.model = "gpt-4.1-mini"  # Can be configured based on needs
-        
+
     @property
     def menu_data(self):
         """Lazy-load menu data only when actually needed."""
         if self._menu_data is None:
             self._menu_data = load_menu_data()
         return self._menu_data
-        
+
     @menu_data.setter
     def menu_data(self, value):
         """Setter for menu_data property."""
@@ -361,49 +361,103 @@ class MenuMatcher:
             # First check if input is asking about menu in general - use advanced pattern matching
             # Define core patterns about menu inquiries (what's on menu, etc.)
             menu_core_patterns = [
-                "menu", "on the menu", "in the menu", "have on", "serve", "offer", "available",
-                "options", "dishes", "food", "choices", "specials", "popular", "best", "recommend"
+                "menu",
+                "on the menu",
+                "in the menu",
+                "have on",
+                "serve",
+                "offer",
+                "available",
+                "options",
+                "dishes",
+                "food",
+                "choices",
+                "specials",
+                "popular",
+                "best",
+                "recommend",
             ]
-            
+
             # Define question patterns (what do you, can you tell me, etc.)
             question_patterns = [
-                "what", "tell me", "show me", "can you", "could you", "would you", "may i", "should i",
-                "give me", "list", "i want to know", "i'd like to know", "tell us", "yeah", "yes"
+                "what",
+                "tell me",
+                "show me",
+                "can you",
+                "could you",
+                "would you",
+                "may i",
+                "should i",
+                "give me",
+                "list",
+                "i want to know",
+                "i'd like to know",
+                "tell us",
+                "yeah",
+                "yes",
             ]
-            
+
             # Build advanced combined pattern matching
             menu_question_patterns = [
                 # Direct menu questions
-                "what's on the menu", "what is on the menu", "what do you have", "what's in the menu",
-                "tell me about the menu", "what food do you have", "menu items", "what can i order",
-                "do you have", "what dishes", "what are the options", "tell me what's",
-                "what do you offer", "show me the menu", "i want to see the menu",
-                
+                "what's on the menu",
+                "what is on the menu",
+                "what do you have",
+                "what's in the menu",
+                "tell me about the menu",
+                "what food do you have",
+                "menu items",
+                "what can i order",
+                "do you have",
+                "what dishes",
+                "what are the options",
+                "tell me what's",
+                "what do you offer",
+                "show me the menu",
+                "i want to see the menu",
                 # Generic inquiries that likely refer to menu
-                "tell me some", "what are your", "what's available", "what is available",
-                "tell me some things", "what kind of", "tell me what", "could you tell me",
-                "can you tell me", "yeah can you tell me", "yes tell me", 
-                
+                "tell me some",
+                "what are your",
+                "what's available",
+                "what is available",
+                "tell me some things",
+                "what kind of",
+                "tell me what",
+                "could you tell me",
+                "can you tell me",
+                "yeah can you tell me",
+                "yes tell me",
                 # Common order starters
-                "i want to order", "i would like to order", "i want to get", "i would like to get",
-                "i want to try", "i would like to try", "what should i get",
-                
-                # Common menu browsing questions 
-                "any specials", "what's good", "what's popular", "what do you recommend",
-                "what should i order", "what's the best", "what is the best"
+                "i want to order",
+                "i would like to order",
+                "i want to get",
+                "i would like to get",
+                "i want to try",
+                "i would like to try",
+                "what should i get",
+                # Common menu browsing questions
+                "any specials",
+                "what's good",
+                "what's popular",
+                "what do you recommend",
+                "what should i order",
+                "what's the best",
+                "what is the best",
             ]
-            
+
             # Check if this is a general menu inquiry using basic pattern matching
             is_menu_inquiry = False
             item_name_lower = item_name.lower().strip()
-            
+
             # First try direct pattern matching
             for pattern in menu_question_patterns:
                 if pattern in item_name_lower:
-                    logger.info(f"[MENU-MATCHER] Detected general menu inquiry with direct pattern: '{pattern}' in '{item_name}'")
+                    logger.info(
+                        f"[MENU-MATCHER] Detected general menu inquiry with direct pattern: '{pattern}' in '{item_name}'"
+                    )
                     is_menu_inquiry = True
                     break
-                    
+
             # If no direct match, try more advanced pattern matching with combinations
             if not is_menu_inquiry:
                 # Check for a combination of question pattern + menu core pattern
@@ -411,33 +465,51 @@ class MenuMatcher:
                     if q_pattern in item_name_lower:
                         for m_pattern in menu_core_patterns:
                             if m_pattern in item_name_lower:
-                                logger.info(f"[MENU-MATCHER] Detected general menu inquiry with combined patterns: '{q_pattern}' + '{m_pattern}' in '{item_name}'")
+                                logger.info(
+                                    f"[MENU-MATCHER] Detected general menu inquiry with combined patterns: '{q_pattern}' + '{m_pattern}' in '{item_name}'"
+                                )
                                 is_menu_inquiry = True
                                 break
                         if is_menu_inquiry:
                             break
-            
+
             # Special case detection for very short inquiries that are likely menu related
             if not is_menu_inquiry and len(item_name_lower.split()) <= 3:
-                short_menu_patterns = ["menu", "food", "eat", "order", "options", "items", "dishes"]
+                short_menu_patterns = [
+                    "menu",
+                    "food",
+                    "eat",
+                    "order",
+                    "options",
+                    "items",
+                    "dishes",
+                ]
                 for pattern in short_menu_patterns:
                     if pattern in item_name_lower:
-                        logger.info(f"[MENU-MATCHER] Detected short menu inquiry: '{pattern}' in '{item_name}'")
+                        logger.info(
+                            f"[MENU-MATCHER] Detected short menu inquiry: '{pattern}' in '{item_name}'"
+                        )
                         is_menu_inquiry = True
                         break
-                        
-            # Log the final determination        
+
+            # Log the final determination
             if is_menu_inquiry:
-                logger.info(f"[MENU-MATCHER] Handling as general menu inquiry: '{item_name}'")
+                logger.info(
+                    f"[MENU-MATCHER] Handling as general menu inquiry: '{item_name}'"
+                )
             else:
-                logger.info(f"[MENU-MATCHER] Not a general menu inquiry, proceeding with item matching: '{item_name}'")
-                    
+                logger.info(
+                    f"[MENU-MATCHER] Not a general menu inquiry, proceeding with item matching: '{item_name}'"
+                )
+
             if is_menu_inquiry:
                 # For general menu questions, don't try to find a specific item
                 # Return None to let the calling function handle this as a general menu inquiry
-                logger.info(f"[MENU-MATCHER] Handling as general menu inquiry, not specific item request")
+                logger.info(
+                    f"[MENU-MATCHER] Handling as general menu inquiry, not specific item request"
+                )
                 return None
-                
+
             # Check if we have menu items to work with
             menu_items = []
             for item in self.menu_data.get("items", []):
@@ -590,7 +662,10 @@ class MenuMatcher:
             return None
 
     def interactive_order_resolution(
-        self, customer_request: str, context: Dict[str, Any] = None, session_id: str = None
+        self,
+        customer_request: str,
+        context: Dict[str, Any] = None,
+        session_id: str = None,
     ) -> Dict[str, Any]:
         """
         Interactively resolve an order with the customer when the request is ambiguous.
@@ -606,19 +681,22 @@ class MenuMatcher:
         try:
             # Import the conversation store
             from app.utils.conversation_store import conversation_store
-            
+
             # Generate a session ID if none provided
             if not session_id:
                 import uuid
+
                 session_id = str(uuid.uuid4())
                 logger.info(f"[MENU-MATCHER] Created new session ID: {session_id}")
-            
+
             # Get conversation from store or initialize a new one
             conversation_data = None
             if session_id:
                 conversation_data = conversation_store.get_conversation(session_id)
-                logger.info(f"[MENU-MATCHER] Retrieved conversation for session: {session_id}")
-            
+                logger.info(
+                    f"[MENU-MATCHER] Retrieved conversation for session: {session_id}"
+                )
+
             # Prepare menu categories and items, using ONLY actual menu data
             categories = {}
             available_items = []
@@ -634,9 +712,13 @@ class MenuMatcher:
                         if category_name.startswith("[CATEGORY]"):
                             category_name = category_name[10:].strip()
                         category_map[reference] = category_name
-                
+
                 # Build list of all available non-category items
-                if not item.get("is_category", False) and item.get("available", True) and not item.get("snoozed", False):
+                if (
+                    not item.get("is_category", False)
+                    and item.get("available", True)
+                    and not item.get("snoozed", False)
+                ):
                     available_items.append(item)
 
             # Now process actual menu items and organize by category
@@ -650,23 +732,31 @@ class MenuMatcher:
 
                 # Add item name and price for better menu display
                 item_price = item.get("price", 0)
-                item_price_str = f"${item_price:.2f}" if isinstance(item_price, (int, float)) else ""
-                
+                item_price_str = (
+                    f"${item_price:.2f}" if isinstance(item_price, (int, float)) else ""
+                )
+
                 # Include price with item name for better menu representation
                 item_entry = {
                     "name": item.get("name", ""),
                     "price": item_price_str,
-                    "description": item.get("description", "")
+                    "description": item.get("description", ""),
                 }
-                
+
                 categories[category_name].append(item_entry)
-            
+
             # Log the actual menu categories being used
-            logger.info(f"[MENU-MATCHER] Using ACTUAL menu with {len(categories)} categories and {len(available_items)} items")
+            logger.info(
+                f"[MENU-MATCHER] Using ACTUAL menu with {len(categories)} categories and {len(available_items)} items"
+            )
             for category, items in categories.items():
-                logger.info(f"[MENU-MATCHER] Category '{category}' has {len(items)} items")
+                logger.info(
+                    f"[MENU-MATCHER] Category '{category}' has {len(items)} items"
+                )
                 if len(items) > 0:
-                    logger.info(f"[MENU-MATCHER] Sample items in '{category}': {[item['name'] for item in items[:3]]}")
+                    logger.info(
+                        f"[MENU-MATCHER] Sample items in '{category}': {[item['name'] for item in items[:3]]}"
+                    )
 
             # Build prompt for AI to clarify the order with ACTUAL menu data emphasis
             messages = [
@@ -693,64 +783,95 @@ class MenuMatcher:
                     Focus on understanding the customer's intent and helping them find the right items.""",
                 },
             ]
-            
+
             # Add conversation messages if available from the store
-            if conversation_data and "messages" in conversation_data and conversation_data["messages"]:
+            if (
+                conversation_data
+                and "messages" in conversation_data
+                and conversation_data["messages"]
+            ):
                 for message in conversation_data["messages"]:
-                    messages.append({
-                        "role": message["role"],
-                        "content": message["content"]
-                    })
-                
+                    messages.append(
+                        {"role": message["role"], "content": message["content"]}
+                    )
+
                 # Format the menu data with complete information for display
             formatted_menu = {}
             for category, items in categories.items():
                 # For each category, include item name, price, and description
-                formatted_menu[category] = [{
-                    "name": item["name"],
-                    "price": item["price"],
-                    "description": item["description"] if len(item["description"]) > 0 else "No description available"
-                } for item in items]
-            
+                formatted_menu[category] = [
+                    {
+                        "name": item["name"],
+                        "price": item["price"],
+                        "description": (
+                            item["description"]
+                            if len(item["description"]) > 0
+                            else "No description available"
+                        ),
+                    }
+                    for item in items
+                ]
+
             # Create a detailed menu representation for the AI
-            menu_representation = "ACTUAL MENU DATA (Use ONLY these items when discussing the menu):\n"
+            menu_representation = (
+                "ACTUAL MENU DATA (Use ONLY these items when discussing the menu):\n"
+            )
             for category, items in formatted_menu.items():
                 menu_representation += f"\n== {category} ==\n"
                 for item in items:
                     menu_representation += f"- {item['name']} ({item['price']})\n"
-            
+
             # Add the new user request with ACTUAL menu data
-            if conversation_data and "messages" in conversation_data and conversation_data["messages"]:
-                messages.append({
-                    "role": "user",
-                    "content": f"Customer request: '{customer_request}'\n\n{menu_representation}\n\nPlease address this request while remembering our previous conversation. ONLY mention items from our ACTUAL menu above."
-                })
-                
+            if (
+                conversation_data
+                and "messages" in conversation_data
+                and conversation_data["messages"]
+            ):
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": f"Customer request: '{customer_request}'\n\n{menu_representation}\n\nPlease address this request while remembering our previous conversation. ONLY mention items from our ACTUAL menu above.",
+                    }
+                )
+
                 # Also add the request to the stored conversation
                 conversation_store.add_message(session_id, "user", customer_request)
-                
-                logger.info(f"[MENU-MATCHER] Using existing conversation with {len(conversation_data['messages'])} messages")
+
+                logger.info(
+                    f"[MENU-MATCHER] Using existing conversation with {len(conversation_data['messages'])} messages"
+                )
             else:
                 # This is a new conversation - include full menu details
-                messages.append({
-                    "role": "user",
-                    "content": f"Customer request: '{customer_request}'\n\n{menu_representation}\n\nHow would you clarify the order? Ask specific questions to determine what the customer wants. ONLY mention items from our ACTUAL menu above.",
-                })
-                
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": f"Customer request: '{customer_request}'\n\n{menu_representation}\n\nHow would you clarify the order? Ask specific questions to determine what the customer wants. ONLY mention items from our ACTUAL menu above.",
+                    }
+                )
+
                 # Initialize conversation in the store
                 if session_id:
-                    conversation_store.save_conversation(session_id, {
-                        "id": session_id,
-                        "created_at": time.time(),
-                        "updated_at": time.time(),
-                        "messages": [
-                            {"role": "user", "content": customer_request, "timestamp": time.time()}
-                        ],
-                        "context": context or {},
-                        "resolved": False,
-                        "items": []
-                    })
-                    logger.info(f"[MENU-MATCHER] Initialized new conversation for session: {session_id}")
+                    conversation_store.save_conversation(
+                        session_id,
+                        {
+                            "id": session_id,
+                            "created_at": time.time(),
+                            "updated_at": time.time(),
+                            "messages": [
+                                {
+                                    "role": "user",
+                                    "content": customer_request,
+                                    "timestamp": time.time(),
+                                }
+                            ],
+                            "context": context or {},
+                            "resolved": False,
+                            "items": [],
+                        },
+                    )
+                    logger.info(
+                        f"[MENU-MATCHER] Initialized new conversation for session: {session_id}"
+                    )
 
             # Add additional conversation context if provided
             if context and "conversation" in context:
@@ -780,36 +901,37 @@ class MenuMatcher:
 
             # Extract the clarification dialog
             clarification = response.choices[0].message.content.strip()
-            
+
             # Store the assistant's response in the conversation
             if session_id:
                 conversation_store.add_message(session_id, "assistant", clarification)
-                logger.info(f"[MENU-MATCHER] Added assistant response to conversation: {session_id}")
-            
+                logger.info(
+                    f"[MENU-MATCHER] Added assistant response to conversation: {session_id}"
+                )
+
             # Check if we have previous items in the conversation
             items = []
             resolved = False
-            
+
             if conversation_data:
                 items = conversation_data.get("items", [])
                 resolved = conversation_data.get("resolved", False)
-            
+
             # Return the clarification along with the original request
             result = {
                 "original_request": customer_request,
                 "clarification_dialog": clarification,
                 "resolved": resolved,
                 "items": items,
-                "session_id": session_id  # Include the session ID for state tracking
+                "session_id": session_id,  # Include the session ID for state tracking
             }
-            
+
             # Update the conversation with the latest state
             if session_id:
-                conversation_store.update_conversation(session_id, {
-                    "items": items,
-                    "resolved": resolved
-                })
-            
+                conversation_store.update_conversation(
+                    session_id, {"items": items, "resolved": resolved}
+                )
+
             return result
 
         except Exception as e:
@@ -820,7 +942,7 @@ class MenuMatcher:
                 "clarification_dialog": "I'm sorry, I'm having trouble understanding your order right now. Could you please be more specific about what you'd like to order?",
                 "resolved": False,
                 "items": [],
-                "session_id": session_id
+                "session_id": session_id,
             }
 
     def process_customer_response(
@@ -839,36 +961,48 @@ class MenuMatcher:
         try:
             # Import the conversation store
             from app.utils.conversation_store import conversation_store
-            
+
             # Get session ID from order state or initialize a new one
             session_id = order_state.get("session_id")
             if not session_id:
                 import uuid
+
                 session_id = str(uuid.uuid4())
-                logger.info(f"[MENU-MATCHER] Created new session ID for customer response: {session_id}")
-                
+                logger.info(
+                    f"[MENU-MATCHER] Created new session ID for customer response: {session_id}"
+                )
+
             # Get existing conversation or create a new one
             conversation_data = None
             if session_id:
                 conversation_data = conversation_store.get_conversation(session_id)
-                logger.info(f"[MENU-MATCHER] Retrieved conversation data for: {session_id}")
-            
+                logger.info(
+                    f"[MENU-MATCHER] Retrieved conversation data for: {session_id}"
+                )
+
             # Update the conversation with the new customer response
             if session_id:
                 # First add the assistant's previous response if not already in the store
                 assistant_message = order_state.get("clarification_dialog", "")
                 if assistant_message:
-                    conversation_store.add_message(session_id, "assistant", assistant_message)
-                
+                    conversation_store.add_message(
+                        session_id, "assistant", assistant_message
+                    )
+
                 # Then add the customer's new response
                 conversation_store.add_message(session_id, "user", customer_response)
-                
+
                 # Update other state information
-                conversation_store.update_conversation(session_id, {
-                    "items": order_state.get("items", []),
-                    "resolved": order_state.get("resolved", False)
-                })
-                logger.info(f"[MENU-MATCHER] Updated conversation with customer response: {session_id}")
+                conversation_store.update_conversation(
+                    session_id,
+                    {
+                        "items": order_state.get("items", []),
+                        "resolved": order_state.get("resolved", False),
+                    },
+                )
+                logger.info(
+                    f"[MENU-MATCHER] Updated conversation with customer response: {session_id}"
+                )
 
             # Build a menu summary for the AI
             menu_summary = []
@@ -935,39 +1069,43 @@ class MenuMatcher:
             if conversation_data and "messages" in conversation_data:
                 # Add messages from conversation store
                 for message in conversation_data["messages"]:
-                    messages.append({
-                        "role": message["role"],
-                        "content": message["content"]
-                    })
-                    
+                    messages.append(
+                        {"role": message["role"], "content": message["content"]}
+                    )
+
                     # Also build the conversation array for backward compatibility
-                    conversation.append({
-                        "role": message["role"],
-                        "content": message["content"]
-                    })
-                    
-                logger.info(f"[MENU-MATCHER] Using {len(conversation_data['messages'])} messages from conversation store")
+                    conversation.append(
+                        {"role": message["role"], "content": message["content"]}
+                    )
+
+                logger.info(
+                    f"[MENU-MATCHER] Using {len(conversation_data['messages'])} messages from conversation store"
+                )
             else:
                 # Fallback to legacy conversation from order_state if available
                 conversation = order_state.get("conversation", [])
                 if conversation:
                     # Add the conversation to messages
                     for msg in conversation:
-                        messages.append({"role": msg["role"], "content": msg["content"]})
-                    
+                        messages.append(
+                            {"role": msg["role"], "content": msg["content"]}
+                        )
+
                     # Add current messages to the conversation array
                     if "clarification_dialog" in order_state:
-                        conversation.append({
-                            "role": "assistant", 
-                            "content": order_state.get("clarification_dialog", "")
-                        })
+                        conversation.append(
+                            {
+                                "role": "assistant",
+                                "content": order_state.get("clarification_dialog", ""),
+                            }
+                        )
                     conversation.append({"role": "user", "content": customer_response})
 
             # Format the menu data with complete information for display
             formatted_menu = {}
             available_items = []
             category_map = {}
-            
+
             # First, identify categories
             for item in self.menu_data.get("items", []):
                 if item.get("is_category", True):  # This item IS a category
@@ -978,11 +1116,15 @@ class MenuMatcher:
                         if category_name.startswith("[CATEGORY]"):
                             category_name = category_name[10:].strip()
                         category_map[reference] = category_name
-                        
+
                 # Build list of all available non-category items
-                if not item.get("is_category", False) and item.get("available", True) and not item.get("snoozed", False):
+                if (
+                    not item.get("is_category", False)
+                    and item.get("available", True)
+                    and not item.get("snoozed", False)
+                ):
                     available_items.append(item)
-            
+
             # Organize items by category
             categories = {}
             for item in available_items:
@@ -995,27 +1137,33 @@ class MenuMatcher:
 
                 # Add item name and price for better menu display
                 item_price = item.get("price", 0)
-                item_price_str = f"${item_price:.2f}" if isinstance(item_price, (int, float)) else ""
-                
+                item_price_str = (
+                    f"${item_price:.2f}" if isinstance(item_price, (int, float)) else ""
+                )
+
                 # Include price with item name for better menu representation
                 item_entry = {
                     "name": item.get("name", ""),
                     "price": item_price_str,
-                    "description": item.get("description", "")
+                    "description": item.get("description", ""),
                 }
-                
+
                 categories[category_name].append(item_entry)
-                
+
             # Create a detailed menu representation for the AI
-            menu_representation = "ACTUAL MENU DATA (Use ONLY these items when processing orders):\n"
+            menu_representation = (
+                "ACTUAL MENU DATA (Use ONLY these items when processing orders):\n"
+            )
             for category, items in categories.items():
                 menu_representation += f"\n== {category} ==\n"
                 for item in items:
                     menu_representation += f"- {item['name']} ({item['price']})\n"
-            
+
             # Log how many actual menu items are being used
-            logger.info(f"[MENU-MATCHER] Using ACTUAL menu with {len(categories)} categories and {len(available_items)} items")
-            
+            logger.info(
+                f"[MENU-MATCHER] Using ACTUAL menu with {len(categories)} categories and {len(available_items)} items"
+            )
+
             # Add the menu context with ACTUAL menu data
             messages.append(
                 {
@@ -1070,28 +1218,32 @@ class MenuMatcher:
                             )
 
                     order_state["items"] = identified_items
-                    
+
                     # Update items in the conversation store
                     if session_id:
-                        conversation_store.update_conversation(session_id, {
-                            "items": identified_items
-                        })
+                        conversation_store.update_conversation(
+                            session_id, {"items": identified_items}
+                        )
 
                 # If the order is not resolved, add the next question
                 if not order_state["resolved"] and "next_question" in parsed_response:
                     next_question = parsed_response["next_question"]
                     order_state["clarification_dialog"] = next_question
-                    
+
                     # Store the assistant's response
                     if session_id:
-                        conversation_store.add_message(session_id, "assistant", next_question)
+                        conversation_store.add_message(
+                            session_id, "assistant", next_question
+                        )
                 elif not order_state["resolved"]:
                     default_question = "Could you please clarify what you'd like to order from our menu?"
                     order_state["clarification_dialog"] = default_question
-                    
+
                     # Store the assistant's response
                     if session_id:
-                        conversation_store.add_message(session_id, "assistant", default_question)
+                        conversation_store.add_message(
+                            session_id, "assistant", default_question
+                        )
                 else:
                     # Order is resolved, create a confirmation message
                     confirmation = "Great! Here's your order:\n"
@@ -1102,13 +1254,15 @@ class MenuMatcher:
                         confirmation += "\n"
                     confirmation += "\nIs this correct?"
                     order_state["clarification_dialog"] = confirmation
-                    
+
                     # Store the assistant's response
                     if session_id:
-                        conversation_store.add_message(session_id, "assistant", confirmation)
-                        conversation_store.update_conversation(session_id, {
-                            "resolved": True
-                        })
+                        conversation_store.add_message(
+                            session_id, "assistant", confirmation
+                        )
+                        conversation_store.update_conversation(
+                            session_id, {"resolved": True}
+                        )
 
                 return order_state
 
@@ -1118,11 +1272,11 @@ class MenuMatcher:
                 )
                 error_msg = "I'm having trouble understanding your order. Could you tell me exactly what items you'd like to order from our menu?"
                 order_state["clarification_dialog"] = error_msg
-                
+
                 # Store the error message in the conversation
                 if session_id:
                     conversation_store.add_message(session_id, "assistant", error_msg)
-                
+
                 return order_state
 
         except Exception as e:
@@ -1130,11 +1284,13 @@ class MenuMatcher:
             logger.error(f"[MENU-MATCHER] Traceback: {traceback.format_exc()}")
             error_msg = "I'm sorry, I'm having trouble processing your response. Could you please try again with a clear list of items you'd like to order?"
             order_state["clarification_dialog"] = error_msg
-            
+
             # Store the error message in the conversation
             if "session_id" in order_state and order_state["session_id"]:
-                conversation_store.add_message(order_state["session_id"], "assistant", error_msg)
-                
+                conversation_store.add_message(
+                    order_state["session_id"], "assistant", error_msg
+                )
+
             return order_state
 
 

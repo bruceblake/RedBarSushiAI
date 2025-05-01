@@ -6,11 +6,12 @@ from urllib.parse import urlparse, parse_qs
 from twilio.twiml.voice_response import VoiceResponse
 import xml.etree.ElementTree as ET
 
+
 @pytest.mark.e2e
 def test_complete_voice_order_flow(api_request):
     """
     Test a complete voice call flow from greeting to order completion.
-    
+
     This test verifies the entire voice call journey:
     1. Initial greeting and name collection
     2. Menu inquiry about items
@@ -18,20 +19,20 @@ def test_complete_voice_order_flow(api_request):
     4. Handling payment information
     5. Confirming and placing the order
     6. Verifying order completion and notifications
-    
+
     This is a true end-to-end test that simulates a complete voice call.
     """
     # Step 1: Use the real menu data from the database
     # Get menu data from application database instead of JSON file
     from app.utils.menu_utils_db import load_menu_data
     from app import create_app
-    
+
     # Create app context to access database
     app = create_app()
     with app.app_context():
         # Load menu data from database
         menu_data = load_menu_data(force_refresh=True)
-        
+
         # Extract non-category items and organize them by parent category
         items_by_category = {}
         for item in menu_data["items"]:
@@ -40,7 +41,7 @@ def test_complete_voice_order_flow(api_request):
                 if parent_id not in items_by_category:
                     items_by_category[parent_id] = []
                 items_by_category[parent_id].append(item)
-        
+
         # Create categories with their products in Deliverect format
         categories = []
         for item in menu_data["items"]:
@@ -49,64 +50,66 @@ def test_complete_voice_order_flow(api_request):
                 category = {
                     "id": category_id,
                     "name": item.get("name", "Unknown Category"),
-                    "products": []
+                    "products": [],
                 }
-                
+
                 # Add products to this category
                 if category_id in items_by_category:
                     for product in items_by_category[category_id]:
-                        category["products"].append({
-                            "plu": product.get("plu", ""),
-                            "name": product.get("name", ""),
-                            "price": product.get("price", 0),
-                            "description": product.get("description", ""),
-                            "available": product.get("available", True)
-                        })
-                
+                        category["products"].append(
+                            {
+                                "plu": product.get("plu", ""),
+                                "name": product.get("name", ""),
+                                "price": product.get("price", 0),
+                                "description": product.get("description", ""),
+                                "available": product.get("available", True),
+                            }
+                        )
+
                 categories.append(category)
-    
+
     # Create a menu payload in the format that the API expects
-    menu_payload = {
-        "data": {
-            "menu": {
-                "categories": categories
-            }
-        }
-    }
-    
+    menu_payload = {"data": {"menu": {"categories": categories}}}
+
     # Send the menu update request to ensure the database is populated
     menu_response = api_request.post("/menu_update", data=menu_payload)
     assert menu_response.status == 200
-    
+
     # Extract items from the menu for use in testing
     # Filter for only non-category items
     items = []
     for item in menu_data["items"]:
-        if not item.get("is_category", False) and item.get("available", True) and not item.get("snoozed", False):
-            items.append({
-                "plu": item.get("plu", ""),
-                "name": item.get("name", ""),
-                "price": item.get("price", 0)
-            })
-    
+        if (
+            not item.get("is_category", False)
+            and item.get("available", True)
+            and not item.get("snoozed", False)
+        ):
+            items.append(
+                {
+                    "plu": item.get("plu", ""),
+                    "name": item.get("name", ""),
+                    "price": item.get("price", 0),
+                }
+            )
+
     # Make sure we have enough items for the test
     assert len(items) >= 2, "Not enough menu items available for testing"
-    
+
     # Print the first few items we'll be testing with
     print(f"Testing with menu items: {items[0]['name']}, {items[1]['name']}")
-    
+
     # Step 2: Initiate a mock voice call
     # Generate a test CallSid
     test_call_sid = f"CA{''.join(['1234567890'[i % 10] for i in range(32)])}"
-    
+
     # Initial call to voice webhook
     voice_response = api_request.post(
-        "", 
+        "",
         data={
             "CallSid": test_call_sid,
             "AccountSid": "AC12345",
-            "From": "+15551234567"
-        }
+            "From": "+15551234567",
+        },
     )
 
     xml_str = voice_response.text()
@@ -118,30 +121,29 @@ def test_complete_voice_order_flow(api_request):
 
     gather = root.find("Gather")
     assert gather is not None
-    
+
     say_text = gather.findtext("Say")
     assert "Red Bar Sushi" in say_text
-    
+
     # Extract the Gather action URL for the next step
     gather_action = gather.get("action")
     assert gather_action is not None
-    
+
     # Step 3: Provide name (should be directed to take_name)
     name_response = api_request.post(
         gather_action,
         form={
             "CallSid": test_call_sid,
             "SpeechResult": "John Smith",
-            "Confidence": "0.8"
-        }
+            "Confidence": "0.8",
+        },
     )
     assert name_response.status == 200
-    
+
     # Parse the name confirmation TwiML
     xml_str = name_response.text()
 
     root = ET.fromstring(xml_str)
-
 
     gather = root.find("Gather")
 
@@ -149,299 +151,300 @@ def test_complete_voice_order_flow(api_request):
 
     assert "John Smith" in say_text
 
-    
     # Extract the Gather action URL for name confirmation
     confirm_name_action = gather.get("action")
     assert confirm_name_action is not None
-    
+
     # Step 4: Confirm name
     confirm_response = api_request.post(
         confirm_name_action,
-        form={
-            "CallSid": test_call_sid,
-            "SpeechResult": "yes",
-            "Confidence": "0.9"
-        }
+        form={"CallSid": test_call_sid, "SpeechResult": "yes", "Confidence": "0.9"},
     )
     assert confirm_response.status == 200
-    
+
     # Parse the main menu TwiML
     main_menu_twiml = convertTwiRespToGather(confirm_response)
 
-    
     # Extract the Gather action URL for main menu selection
     main_menu_action = main_menu_twiml.get("action")
     assert main_menu_action is not None
-    
+
     # Step 5: Choose to ask about menu items
     menu_query_response = api_request.post(
         main_menu_action,
         form={
             "CallSid": test_call_sid,
             "SpeechResult": "tell me about your menu",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert menu_query_response.status == 200
-    
+
     # Parse the menu response TwiML
     menu_response_twiml = convertTwiRespToGather(menu_query_response)
     # Extract the Gather action URL for continuing the conversation
     menu_continue_action = menu_response_twiml.get("action")
     assert menu_continue_action is not None
-    
+
     # Step 6: Ask about a specific menu item
     item_query_response = api_request.post(
         menu_continue_action,
         form={
             "CallSid": test_call_sid,
             "SpeechResult": f"Tell me about the {items[0]['name']}",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert item_query_response.status == 200
-    
+
     # Parse the item description TwiML
     item_response_twiml = convertTwiRespToGather(item_query_response)
     say_text = item_response_twiml.findtext("Say") or ""
-    
+
     # Also check the raw response text in case the structure changed
     raw_text = item_query_response.text().lower()
-    
+
     # Log for debugging
     print(f"Item name: {items[0]['name']}")
     print(f"Say text: {say_text}")
     print(f"Raw response text: {raw_text}")
-    
+
     # Check either in the Say element or in the raw response
-    assert items[0]['name'].lower() in say_text.lower() or items[0]['name'].lower() in raw_text  # Should mention the item
-    
+    assert (
+        items[0]["name"].lower() in say_text.lower()
+        or items[0]["name"].lower() in raw_text
+    )  # Should mention the item
+
     # Extract the Gather action URL for continuing after item description
     after_item_action = item_response_twiml.get("action")
     assert after_item_action is not None
-    
+
     # Step 7: Decide to place an order
     order_start_response = api_request.post(
         after_item_action,
         form={
             "CallSid": test_call_sid,
             "SpeechResult": "I'd like to place an order",
-            "Confidence": "0.9"
-        }
+            "Confidence": "0.9",
+        },
     )
     assert order_start_response.status == 200
-    
+
     # Parse the order start TwiML
     order_start_twiml = convertTwiRespToGather(order_start_response)
     say_text = order_start_twiml.findtext("Say")
 
     assert "order" in say_text.lower()  # Should mention ordering
-    
+
     # Extract the Gather action URL for the first item ordering
     first_item_action = order_start_twiml.get("action")
     assert first_item_action is not None
-    
+
     # Step 8: Order first item
     first_item_response = api_request.post(
         first_item_action,
         form={
             "CallSid": test_call_sid,
             "SpeechResult": f"I want one {items[0]['name']}",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert first_item_response.status == 200
-    
+
     # Parse the confirmation for first item
     first_item_confirm_twiml = convertTwiRespToGather(first_item_response)
     say_text = first_item_confirm_twiml.findtext("Say") or ""
-    
+
     # Also check the raw response text in case the structure changed
     raw_text = first_item_response.text().lower()
-    
+
     # Check either in the Say element or in the raw response
-    assert items[0]['name'].lower() in say_text.lower() or items[0]['name'].lower() in raw_text  # Should confirm the item
-    
+    assert (
+        items[0]["name"].lower() in say_text.lower()
+        or items[0]["name"].lower() in raw_text
+    )  # Should confirm the item
+
     # Extract the Gather action URL for confirming first item
     confirm_first_item_action = first_item_confirm_twiml.get("action")
     assert confirm_first_item_action is not None
-    
+
     # Step 9: Confirm first item addition
     first_confirm_response = api_request.post(
         confirm_first_item_action,
         form={
             "CallSid": test_call_sid,
             "SpeechResult": "yes that's correct",
-            "Confidence": "0.9"
-        }
+            "Confidence": "0.9",
+        },
     )
     assert first_confirm_response.status == 200
-    
+
     # Parse the TwiML after confirming first item
     after_first_item_twiml = convertTwiRespToGather(first_confirm_response)
     say_text = after_first_item_twiml.findtext("Say")
 
     assert "anything else" in say_text  # Should ask about adding more
-    
+
     # Extract the Gather action URL for adding more items
     add_more_action = after_first_item_twiml.get("action")
     assert add_more_action is not None
-    
+
     # Step 10: Add a second item
     second_item_response = api_request.post(
         add_more_action,
         form={
             "CallSid": test_call_sid,
             "SpeechResult": f"Yes, add one {items[1]['name']}",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert second_item_response.status == 200
-    
+
     # Parse the confirmation for second item
     second_item_confirm_twiml = convertTwiRespToGather(second_item_response)
     say_text = second_item_confirm_twiml.findtext("Say") or ""
-    
+
     # Also check the raw response text in case the structure changed
     raw_text = second_item_response.text().lower()
-    
+
     # Check either in the Say element or in the raw response
-    assert items[1]['name'].lower() in say_text.lower() or items[1]['name'].lower() in raw_text  # Should confirm the item
-    
+    assert (
+        items[1]["name"].lower() in say_text.lower()
+        or items[1]["name"].lower() in raw_text
+    )  # Should confirm the item
+
     # Extract the Gather action URL for confirming second item
     confirm_second_item_action = second_item_confirm_twiml.get("action")
     assert confirm_second_item_action is not None
-    
+
     # Step 11: Confirm second item addition
     second_confirm_response = api_request.post(
         confirm_second_item_action,
-        form={
-            "CallSid": test_call_sid,
-            "SpeechResult": "yes",
-            "Confidence": "0.9"
-        }
+        form={"CallSid": test_call_sid, "SpeechResult": "yes", "Confidence": "0.9"},
     )
     assert second_confirm_response.status == 200
-    
+
     # Parse the TwiML after confirming second item
     after_second_item_twiml = second_confirm_response.text
     assert "<Response>" in after_second_item_twiml
-    assert "anything else" in after_second_item_twiml.lower()  # Should ask about adding more
-    
+    assert (
+        "anything else" in after_second_item_twiml.lower()
+    )  # Should ask about adding more
+
     # Extract the Gather action URL for adding more items
     add_more_action2 = extract_gather_action(after_second_item_twiml)
     assert add_more_action2 is not None
-    
+
     # Step 12: Finish adding items
     finish_adding_response = api_request.post(
         add_more_action2,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "No that's all",
-            "Confidence": "0.9"
-        }
+            "Confidence": "0.9",
+        },
     )
     assert finish_adding_response.status == 200
-    
+
     # Parse the order summary TwiML
     order_summary_twiml = finish_adding_response.text
     assert "<Response>" in order_summary_twiml
     assert "order" in order_summary_twiml.lower()  # Should summarize the order
-    
+
     # Both ordered items should be mentioned in the summary
-    assert items[0]['name'].lower() in order_summary_twiml.lower()
-    assert items[1]['name'].lower() in order_summary_twiml.lower()
-    
+    assert items[0]["name"].lower() in order_summary_twiml.lower()
+    assert items[1]["name"].lower() in order_summary_twiml.lower()
+
     # Extract the Gather action URL for confirming full order
     confirm_full_order_action = extract_gather_action(order_summary_twiml)
     assert confirm_full_order_action is not None
-    
+
     # Step 13: Confirm full order
     confirm_full_response = api_request.post(
         confirm_full_order_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "Yes, the order is correct",
-            "Confidence": "0.9"
-        }
+            "Confidence": "0.9",
+        },
     )
     assert confirm_full_response.status == 200
-    
+
     # Parse the pickup time TwiML
     pickup_twiml = confirm_full_response.text
     assert "<Response>" in pickup_twiml
     assert "pickup" in pickup_twiml.lower()  # Should ask about pickup time
-    
+
     # Extract the Gather action URL for pickup time
     pickup_action = extract_gather_action(pickup_twiml)
     assert pickup_action is not None
-    
+
     # Step 14: Provide pickup time
     pickup_response = api_request.post(
         pickup_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "As soon as possible",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert pickup_response.status == 200
-    
+
     # Parse the payment method TwiML
     payment_twiml = pickup_response.text
     assert "<Response>" in payment_twiml
     assert "payment" in payment_twiml.lower()  # Should ask about payment
-    
+
     # Extract the Gather action URL for payment method
     payment_action = extract_gather_action(payment_twiml)
     assert payment_action is not None
-    
+
     # Step 15: Provide payment method
     payment_response = api_request.post(
         payment_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "I'll pay with cash",
-            "Confidence": "0.9"
-        }
+            "Confidence": "0.9",
+        },
     )
     assert payment_response.status == 200
-    
+
     # Parse the final confirmation TwiML
     final_confirm_twiml = payment_response.text
     assert "<Response>" in final_confirm_twiml
     assert "confirm" in final_confirm_twiml.lower()  # Should ask for final confirmation
-    
+
     # Extract the Gather action URL for final confirmation
     final_confirm_action = extract_gather_action(final_confirm_twiml)
     assert final_confirm_action is not None
-    
+
     # Step 16: Give final confirmation
     final_response = api_request.post(
         final_confirm_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "Yes, place the order",
-            "Confidence": "0.95"
-        }
+            "Confidence": "0.95",
+        },
     )
     assert final_response.status == 200
-    
+
     # Parse the order completion TwiML
     completion_twiml = final_response.text
     assert "<Response>" in completion_twiml
     assert "thank you" in completion_twiml.lower()  # Should thank the customer
     assert "order" in completion_twiml.lower()  # Should mention the order
-    
+
     # Verify the order was actually created in the system
     # Wait briefly for async processing
     time.sleep(1)
-    
+
     # Get recent orders to verify ours was created
     orders_response = api_request.get("/orders/recent")
     assert orders_response.status == 200
     orders = orders_response.json()
-    
+
     # Find our order by customer name
     our_order = None
     for order in orders:
@@ -449,233 +452,219 @@ def test_complete_voice_order_flow(api_request):
             if order["customer"]["name"] == "John Smith":
                 our_order = order
                 break
-    
+
     assert our_order is not None, "Order was not created in the system"
-    
+
     # Verify order contains the items we requested
     assert len(our_order["items"]) == 2
-    
+
     # Match items by name (case insensitive)
     order_item_names = [item["name"].lower() for item in our_order["items"]]
     assert items[0]["name"].lower() in order_item_names
     assert items[1]["name"].lower() in order_item_names
 
+
 @pytest.mark.e2e
 def test_voice_silence_handling_flow(api_request):
     """
     Test the voice call flow with silence at different points to verify proper silence handling.
-    
+
     This test verifies:
     1. The system properly detects silence (no speech or DTMF input)
     2. The system provides appropriate prompts after silence
     3. The system falls back gracefully after multiple silences
     4. The system can recover from silence and continue the conversation
     5. The system uses adaptive timeouts based on context
-    
+
     This is a true end-to-end test focused on the robustness of the voice interface.
     """
     # Generate a test CallSid
     test_call_sid = f"CA{''.join(['1234567890'[i % 10] for i in range(32)])}"
-    
+
     # Step 1: Initial call to voice webhook
     voice_response = api_request.post(
-        "", 
+        "",
         data={
             "CallSid": test_call_sid,
             "AccountSid": "AC12345",
-            "From": "+15551234567"
-        }
+            "From": "+15551234567",
+        },
     )
     assert voice_response.status == 200
-    
+
     # Parse the TwiML response to get the greeting and next action
     greeting_twiml = voice_response.text
     assert "<Response>" in greeting_twiml
-    
+
     # Extract the Gather action URL for the next step
     gather_action = extract_gather_action(greeting_twiml)
     assert gather_action is not None
-    
+
     # Step 2: Test silence on name collection
     # First silence (no SpeechResult or Digits)
-    silence_response1 = api_request.post(
-        gather_action,
-        data={
-            "CallSid": test_call_sid
-        }
-    )
+    silence_response1 = api_request.post(gather_action, data={"CallSid": test_call_sid})
     assert silence_response1.status == 200
-    
+
     # Parse the first silence response
     silence1_twiml = silence_response1.text
     assert "<Response>" in silence1_twiml
-    assert "didn't hear" in silence1_twiml.lower() or "sorry" in silence1_twiml.lower()  # Should acknowledge silence
-    
+    assert (
+        "didn't hear" in silence1_twiml.lower() or "sorry" in silence1_twiml.lower()
+    )  # Should acknowledge silence
+
     # Extract the new Gather action URL
     silence1_action = extract_gather_action(silence1_twiml)
     assert silence1_action is not None
-    
+
     # Second silence (no SpeechResult or Digits)
     silence_response2 = api_request.post(
-        silence1_action,
-        data={
-            "CallSid": test_call_sid
-        }
+        silence1_action, data={"CallSid": test_call_sid}
     )
     assert silence_response2.status == 200
-    
+
     # Parse the second silence response
     silence2_twiml = silence_response2.text
     assert "<Response>" in silence2_twiml
     # Second silence should give clearer instructions or a fallback
-    assert "name" in silence2_twiml.lower()  # Should still be trying to get name or fallback
-    
+    assert (
+        "name" in silence2_twiml.lower()
+    )  # Should still be trying to get name or fallback
+
     # Extract the new Gather action URL
     silence2_action = extract_gather_action(silence2_twiml)
     assert silence2_action is not None
-    
+
     # Now provide a name after silence to test recovery
     name_response = api_request.post(
         silence2_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "Sarah Johnson",
-            "Confidence": "0.8"
-        }
+            "Confidence": "0.8",
+        },
     )
     assert name_response.status == 200
-    
+
     # Parse the name confirmation TwiML
     name_confirm_twiml = name_response.text
     assert "<Response>" in name_confirm_twiml
     assert "Sarah" in name_confirm_twiml  # Should contain the name
-    
+
     # Extract the Gather action URL for name confirmation
     confirm_name_action = extract_gather_action(name_confirm_twiml)
     assert confirm_name_action is not None
-    
+
     # Confirm name
     confirm_response = api_request.post(
         confirm_name_action,
-        data={
-            "CallSid": test_call_sid,
-            "SpeechResult": "yes",
-            "Confidence": "0.9"
-        }
+        data={"CallSid": test_call_sid, "SpeechResult": "yes", "Confidence": "0.9"},
     )
     assert confirm_response.status == 200
-    
+
     # Parse the main menu TwiML
     main_menu_twiml = confirm_response.text
     assert "<Response>" in main_menu_twiml
-    
+
     # Extract the Gather action URL for main menu selection
     main_menu_action = extract_gather_action(main_menu_twiml)
     assert main_menu_action is not None
-    
+
     # Step 3: Test multiple silences at main menu to force fallback to DTMF
     # First silence at main menu
-    main_silence1 = api_request.post(
-        main_menu_action,
-        data={
-            "CallSid": test_call_sid
-        }
-    )
+    main_silence1 = api_request.post(main_menu_action, data={"CallSid": test_call_sid})
     assert main_silence1.status == 200
-    
+
     # Parse the first main menu silence response
     main_silence1_twiml = main_silence1.text
     assert "<Response>" in main_silence1_twiml
-    assert "didn't hear" in main_silence1_twiml.lower() or "sorry" in main_silence1_twiml.lower()
-    
+    assert (
+        "didn't hear" in main_silence1_twiml.lower()
+        or "sorry" in main_silence1_twiml.lower()
+    )
+
     # Extract the new Gather action URL
     main_silence1_action = extract_gather_action(main_silence1_twiml)
     assert main_silence1_action is not None
-    
+
     # Second silence at main menu
     main_silence2 = api_request.post(
-        main_silence1_action,
-        data={
-            "CallSid": test_call_sid
-        }
+        main_silence1_action, data={"CallSid": test_call_sid}
     )
     assert main_silence2.status == 200
-    
+
     # Parse the second main menu silence response
     main_silence2_twiml = main_silence2.text
     assert "<Response>" in main_silence2_twiml
-    
+
     # Check if system is starting to use DTMF fallback cues
     dtmf_detected = "press" in main_silence2_twiml.lower()
-    
+
     # Extract the new Gather action URL
     main_silence2_action = extract_gather_action(main_silence2_twiml)
     assert main_silence2_action is not None
-    
+
     # Third silence - should trigger a more significant fallback
     main_silence3 = api_request.post(
-        main_silence2_action,
-        data={
-            "CallSid": test_call_sid
-        }
+        main_silence2_action, data={"CallSid": test_call_sid}
     )
     assert main_silence3.status == 200
-    
+
     # Parse the third main menu silence response
     main_silence3_twiml = main_silence3.text
     assert "<Response>" in main_silence3_twiml
-    
+
     # At this point, system should be in DTMF-only mode or a significant fallback
-    assert "press" in main_silence3_twiml.lower() or "transfer" in main_silence3_twiml.lower()
-    
+    assert (
+        "press" in main_silence3_twiml.lower()
+        or "transfer" in main_silence3_twiml.lower()
+    )
+
     # Extract the final action URL (might be a Gather or a Redirect)
     final_action = extract_gather_action(main_silence3_twiml)
     if final_action is None:
         final_action = extract_redirect_url(main_silence3_twiml)
-    
+
     assert final_action is not None
-    
+
     # Now provide DTMF input to test recovery from multiple silences
     dtmf_response = api_request.post(
         final_action,
-        data={
-            "CallSid": test_call_sid,
-            "Digits": "1"  # Usually 1 is for ordering
-        }
+        data={"CallSid": test_call_sid, "Digits": "1"},  # Usually 1 is for ordering
     )
     assert dtmf_response.status == 200
-    
+
     # Verify system recovered and is proceeding with the call
     dtmf_twiml = dtmf_response.text
     assert "<Response>" in dtmf_twiml
-    
+
     # Should be either proceeding with order or offering help
     assert "order" in dtmf_twiml.lower() or "help" in dtmf_twiml.lower()
+
 
 @pytest.mark.e2e
 def test_voice_menu_query_flow(api_request):
     """
     Test a voice call flow focused on menu inquiries and item information.
-    
+
     This test verifies:
     1. The system can properly answer questions about menu items
     2. The system provides accurate information about prices, descriptions, etc.
     3. The system can handle various phrasings of menu questions
     4. The system can handle conversation transitions between menu topics
     5. The AI generates appropriate and useful responses about the menu
-    
+
     This is an end-to-end test focused on the menu information capabilities.
     """
     # Get menu data from the database
     from app.utils.menu_utils_db import load_menu_data
     from app import create_app
-    
+
     # Create app context to access database
     app = create_app()
     with app.app_context():
         # Load menu data from database
         menu_data = load_menu_data(force_refresh=True)
-        
+
         # Extract non-category items and organize them by parent category
         items_by_category = {}
         for item in menu_data["items"]:
@@ -684,7 +673,7 @@ def test_voice_menu_query_flow(api_request):
                 if parent_id not in items_by_category:
                     items_by_category[parent_id] = []
                 items_by_category[parent_id].append(item)
-        
+
         # Create categories with their products in Deliverect format
         categories = []
         category_names = []
@@ -693,137 +682,131 @@ def test_voice_menu_query_flow(api_request):
                 category_id = item.get("reference_handler")
                 category_name = item.get("name", "Unknown Category")
                 category_names.append(category_name)
-                
-                category = {
-                    "id": category_id,
-                    "name": category_name,
-                    "products": []
-                }
-                
+
+                category = {"id": category_id, "name": category_name, "products": []}
+
                 # Add products to this category
                 if category_id in items_by_category:
                     for product in items_by_category[category_id]:
-                        category["products"].append({
-                            "plu": product.get("plu", ""),
-                            "name": product.get("name", ""),
-                            "price": product.get("price", 0),
-                            "description": product.get("description", ""),
-                            "available": product.get("available", True)
-                        })
-                
+                        category["products"].append(
+                            {
+                                "plu": product.get("plu", ""),
+                                "name": product.get("name", ""),
+                                "price": product.get("price", 0),
+                                "description": product.get("description", ""),
+                                "available": product.get("available", True),
+                            }
+                        )
+
                 categories.append(category)
-    
+
     # Create a menu payload in the format that the API expects
-    menu_payload = {
-        "data": {
-            "menu": {
-                "categories": categories
-            }
-        }
-    }
-    
+    menu_payload = {"data": {"menu": {"categories": categories}}}
+
     # Ensure the menu is populated in the database
     menu_response = api_request.post("/menu_update", data=menu_payload)
     assert menu_response.status == 200
-    
+
     # Extract test items from the real menu data
     test_items = []
     for item in menu_data["items"]:
-        if not item.get("is_category", False) and item.get("available", True) and not item.get("snoozed", False):
+        if (
+            not item.get("is_category", False)
+            and item.get("available", True)
+            and not item.get("snoozed", False)
+        ):
             # Only include items with decent descriptions for better testing
             if item.get("description") and len(item.get("description", "")) > 10:
-                test_items.append({
-                    "name": item.get("name", ""),
-                    "description": item.get("description", ""),
-                    "price": item.get("price", 0)
-                })
-    
+                test_items.append(
+                    {
+                        "name": item.get("name", ""),
+                        "description": item.get("description", ""),
+                        "price": item.get("price", 0),
+                    }
+                )
+
     # Ensure we have menu items to test with
     assert len(test_items) > 0, "No menu items found for testing"
     assert len(category_names) > 0, "No menu categories found for testing"
-    
+
     # Print some of the test items we'll be using
     print(f"Testing with categories: {', '.join(category_names[:3])}")
     print(f"Testing with items: {test_items[0]['name']}, {test_items[1]['name']}")
-    
+
     # Generate a test CallSid
     test_call_sid = f"CA{''.join(['1234567890'[i % 10] for i in range(32)])}"
-    
+
     # Step 1: Initial call to voice webhook
     voice_response = api_request.post(
-        "", 
+        "",
         data={
             "CallSid": test_call_sid,
             "AccountSid": "AC12345",
-            "From": "+15551234567"
-        }
+            "From": "+15551234567",
+        },
     )
     assert voice_response.status == 200
-    
+
     # Handle initial greeting and name collection quickly
     greeting_twiml = voice_response.text
     gather_action = extract_gather_action(greeting_twiml)
-    
+
     # Provide name
     name_response = api_request.post(
         gather_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "Mike Smith",
-            "Confidence": "0.8"
-        }
+            "Confidence": "0.8",
+        },
     )
-    
+
     name_confirm_twiml = name_response.text
     confirm_name_action = extract_gather_action(name_confirm_twiml)
-    
+
     # Confirm name
     confirm_response = api_request.post(
         confirm_name_action,
-        data={
-            "CallSid": test_call_sid,
-            "SpeechResult": "yes",
-            "Confidence": "0.9"
-        }
+        data={"CallSid": test_call_sid, "SpeechResult": "yes", "Confidence": "0.9"},
     )
-    
+
     main_menu_twiml = confirm_response.text
     main_menu_action = extract_gather_action(main_menu_twiml)
-    
+
     # Step 2: Choose to ask about menu
     menu_query_response = api_request.post(
         main_menu_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "I have some questions about your menu",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert menu_query_response.status == 200
-    
+
     # Parse the menu response TwiML
     menu_response_twiml = menu_query_response.text
     assert "<Response>" in menu_response_twiml
-    
+
     # Extract the Gather action URL for continuing the conversation
     menu_continue_action = extract_gather_action(menu_response_twiml)
     assert menu_continue_action is not None
-    
+
     # Step 3: Ask about menu categories
     category_query_response = api_request.post(
         menu_continue_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "What categories of food do you have?",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert category_query_response.status == 200
-    
+
     # Parse the category response TwiML
     category_response_twiml = category_query_response.text
     assert "<Response>" in category_response_twiml
-    
+
     # Check that at least one category is mentioned
     found_category = False
     for category in categories:
@@ -831,11 +814,11 @@ def test_voice_menu_query_flow(api_request):
             found_category = True
             break
     assert found_category, "No menu categories mentioned in response"
-    
+
     # Extract the Gather action URL for continuing
     after_category_action = extract_gather_action(category_response_twiml)
     assert after_category_action is not None
-    
+
     # Step 4: Ask about a specific item
     test_item = test_items[0]  # Use the first item
     item_query_response = api_request.post(
@@ -843,115 +826,125 @@ def test_voice_menu_query_flow(api_request):
         data={
             "CallSid": test_call_sid,
             "SpeechResult": f"Tell me about the {test_item['name']}",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert item_query_response.status == 200
-    
+
     # Parse the item response TwiML
     item_response_twiml = item_query_response.text
     assert "<Response>" in item_response_twiml
-    assert test_item['name'].lower() in item_response_twiml.lower()  # Should mention the item
-    
+    assert (
+        test_item["name"].lower() in item_response_twiml.lower()
+    )  # Should mention the item
+
     # If the item has a price, it should be mentioned
-    if test_item['price'] > 0:
+    if test_item["price"] > 0:
         price_mentioned = False
         # Check for price mention (allowing for dollar signs, decimals, etc.)
-        price_dollars = test_item['price'] if test_item['price'] < 100 else test_item['price'] / 100
+        price_dollars = (
+            test_item["price"] if test_item["price"] < 100 else test_item["price"] / 100
+        )
         price_patterns = [
-            fr"\${price_dollars}",
-            fr"\${price_dollars:.2f}",
-            fr"{price_dollars} dollars",
-            fr"{price_dollars:.2f} dollars"
+            rf"\${price_dollars}",
+            rf"\${price_dollars:.2f}",
+            rf"{price_dollars} dollars",
+            rf"{price_dollars:.2f} dollars",
         ]
         for pattern in price_patterns:
             if re.search(pattern, item_response_twiml.lower()):
                 price_mentioned = True
                 break
         assert price_mentioned, "Item price not mentioned in response"
-    
+
     # Extract the Gather action URL for continuing
     after_item_action = extract_gather_action(item_response_twiml)
     assert after_item_action is not None
-    
+
     # Step 5: Ask about item price specifically
     price_query_response = api_request.post(
         after_item_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": f"How much does the {test_item['name']} cost?",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert price_query_response.status == 200
-    
+
     # Parse the price response TwiML
     price_response_twiml = price_query_response.text
     assert "<Response>" in price_response_twiml
-    assert test_item['name'].lower() in price_response_twiml.lower()  # Should mention the item
-    
+    assert (
+        test_item["name"].lower() in price_response_twiml.lower()
+    )  # Should mention the item
+
     # Price should definitely be mentioned in a price-specific query
     price_mentioned = False
-    price_dollars = test_item['price'] if test_item['price'] < 100 else test_item['price'] / 100
+    price_dollars = (
+        test_item["price"] if test_item["price"] < 100 else test_item["price"] / 100
+    )
     price_patterns = [
-        fr"\${price_dollars}",
-        fr"\${price_dollars:.2f}",
-        fr"{price_dollars} dollars",
-        fr"{price_dollars:.2f} dollars"
+        rf"\${price_dollars}",
+        rf"\${price_dollars:.2f}",
+        rf"{price_dollars} dollars",
+        rf"{price_dollars:.2f} dollars",
     ]
     for pattern in price_patterns:
         if re.search(pattern, price_response_twiml.lower()):
             price_mentioned = True
             break
     assert price_mentioned, "Item price not mentioned in price query response"
-    
+
     # Extract the Gather action URL for continuing
     after_price_action = extract_gather_action(price_response_twiml)
     assert after_price_action is not None
-    
+
     # Step 6: Ask a general question about recommendations
     recommend_query_response = api_request.post(
         after_price_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "What do you recommend?",
-            "Confidence": "0.85"
-        }
+            "Confidence": "0.85",
+        },
     )
     assert recommend_query_response.status == 200
-    
+
     # Parse the recommendation response TwiML
     recommend_response_twiml = recommend_query_response.text
     assert "<Response>" in recommend_response_twiml
-    
+
     # Should mention at least one menu item in recommendations
     item_mentioned = False
     for item in test_items:
-        if item['name'].lower() in recommend_response_twiml.lower():
+        if item["name"].lower() in recommend_response_twiml.lower():
             item_mentioned = True
             break
     assert item_mentioned, "No menu items mentioned in recommendation response"
-    
+
     # Extract the Gather action URL for continuing
     after_recommend_action = extract_gather_action(recommend_response_twiml)
     assert after_recommend_action is not None
-    
+
     # Step 7: Transition to placing an order
     order_transition_response = api_request.post(
         after_recommend_action,
         data={
             "CallSid": test_call_sid,
             "SpeechResult": "I'd like to place an order now",
-            "Confidence": "0.9"
-        }
+            "Confidence": "0.9",
+        },
     )
     assert order_transition_response.status == 200
-    
+
     # Parse the order transition TwiML
     order_transition_twiml = order_transition_response.text
     assert "<Response>" in order_transition_twiml
-    assert "order" in order_transition_twiml.lower()  # Should acknowledge the order request
-    
+    assert (
+        "order" in order_transition_twiml.lower()
+    )  # Should acknowledge the order request
+
     # Should be transitioning to the order flow
     order_keywords = ["what would you like", "what can i get", "place your order"]
     transition_detected = False
@@ -961,6 +954,7 @@ def test_voice_menu_query_flow(api_request):
             break
     assert transition_detected, "Did not detect transition to order flow"
 
+
 # Helper functions to parse TwiML
 def extract_gather_action(twiml):
     """Extract the 'action' attribute from a <Gather> tag in TwiML."""
@@ -969,23 +963,25 @@ def extract_gather_action(twiml):
         return gather_match.group(1)
     return None
 
+
 def extract_redirect_url(twiml):
     """Extract the URL from a <Redirect> tag in TwiML."""
-    redirect_match = re.search(r'<Redirect[^>]*>([^<]*)</Redirect>', twiml)
+    redirect_match = re.search(r"<Redirect[^>]*>([^<]*)</Redirect>", twiml)
     if redirect_match:
         return redirect_match.group(1).strip()
     return None
+
 
 def convertTwiRespToGather(response):
     xml_str = response.text()
     root = ET.fromstring(xml_str)
     gather = root.find("Gather")
-    
+
     # If there's no Gather element, create a mock element
     if gather is None:
         # Create a new gather element
         gather = ET.Element("Gather")
-        
+
         # Check if there's a Say element directly under the Response
         say = root.find("Say")
         if say is not None and say.text:
@@ -996,7 +992,7 @@ def convertTwiRespToGather(response):
             # Ensure there's always a Say element even if empty
             say_element = ET.SubElement(gather, "Say")
             say_element.text = ""
-        
+
         # Look for the action in any Gather element that follows Say
         next_gather = root.find("Gather")
         if next_gather is not None:
@@ -1004,6 +1000,5 @@ def convertTwiRespToGather(response):
         else:
             # Set a default action if none found
             gather.set("action", "/handle_menu_questions")
-    
-    return gather
 
+    return gather

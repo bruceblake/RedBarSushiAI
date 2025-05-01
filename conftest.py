@@ -2,6 +2,7 @@
 Root conftest.py for all tests.
 This ensures the application can be properly imported during test discovery.
 """
+
 import os
 import sys
 

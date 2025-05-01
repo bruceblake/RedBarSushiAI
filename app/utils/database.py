@@ -9,15 +9,16 @@ from app import db
 
 logger = logging.getLogger(__name__)
 
+
 def execute_query(query, params=None, fetch=True):
     """
     Execute a database query and return the results.
-    
+
     Args:
         query: SQL query string
         params: Query parameters (optional)
         fetch: Whether to fetch results (optional, default True)
-        
+
     Returns:
         Query results if fetch=True, None otherwise
     """
@@ -27,7 +28,7 @@ def execute_query(query, params=None, fetch=True):
                 result = conn.execute(text(query), params)
             else:
                 result = conn.execute(text(query))
-                
+
             if fetch:
                 return result.fetchall()
             conn.commit()

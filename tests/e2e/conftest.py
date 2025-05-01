@@ -12,7 +12,10 @@ try:
     import tests.e2e
 except ImportError:
     # If app or tests can't be imported, add the project root to the path
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+    sys.path.insert(
+        0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    )
+
 
 # Add app fixture here for e2e tests
 @pytest.fixture(scope="function")
@@ -24,18 +27,21 @@ def app():
     try:
         from app import create_app
     except ImportError:
-        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+        sys.path.insert(
+            0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+        )
         from app import create_app
-    
+
     # Create a test configuration dictionary
     test_config = {
-        'TESTING': True,
-        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
-        'SQLALCHEMY_TRACK_MODIFICATIONS': False
+        "TESTING": True,
+        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+        "SQLALCHEMY_TRACK_MODIFICATIONS": False,
     }
     test_app = create_app(test_config=test_config)
-    
+
     yield test_app
+
 
 # Import the database test fixtures
 try:
@@ -47,6 +53,7 @@ except ImportError:
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
 
+
 @pytest.fixture(scope="session")
 def api_ctx(playwright: Playwright) -> APIRequestContext:
     """
@@ -56,10 +63,11 @@ def api_ctx(playwright: Playwright) -> APIRequestContext:
     ctx = playwright.request.new_context(
         base_url=BASE_URL,
         extra_http_headers={"accept": "application/json"},
-        timeout=10_000,          # 10 s per request
+        timeout=10_000,  # 10 s per request
     )
     yield ctx
     ctx.dispose()
+
 
 @pytest.fixture
 def api_request(api_ctx):
@@ -67,18 +75,19 @@ def api_request(api_ctx):
     Wrapper around the Playwright API context that simplifies common operations
     and adds default headers.
     """
+
     class ApiRequest:
-         # ---- POST ------------------------------------------------------------
+        # ---- POST ------------------------------------------------------------
         def post(self, url, *, form=None, json=None, data=None, **kw):
             """
             • form=  →  x-www-form-urlencoded (Twilio style, fills request.form)
             • json=  →  application/json (for your own APIs)
             • data=  →  raw bytes / str
             """
-            if form is not None:                            # ✅ what Twilio sends
+            if form is not None:  # ✅ what Twilio sends
                 return api_ctx.post(
                     url,
-                    form=form,                              # Playwright builds form body
+                    form=form,  # Playwright builds form body
                     **kw,
                 )
 
@@ -86,35 +95,37 @@ def api_request(api_ctx):
                 return api_ctx.post(
                     url,
                     headers={"Content-Type": "application/json"},
-                    data=json,                              # Playwright will JSON-encode
+                    data=json,  # Playwright will JSON-encode
                     **kw,
                 )
 
-            return api_ctx.post(url, data=data, **kw)       # fall-back 
-
+            return api_ctx.post(url, data=data, **kw)  # fall-back
 
         def get(self, url, params=None):
             return api_ctx.get(url, params=params)
-    
+
     return ApiRequest()
+
 
 # The setup_test_database fixture is already defined with autouse=True in db_test_fixtures.py
 # This automatically applies it to all e2e tests
+
 
 @pytest.fixture
 def create_test_menu_payload():
     """
     Factory fixture to create test menu payloads with different structures.
     """
+
     def _create_payload(payload_type="standard", num_items=3, include_modifiers=True):
         """
         Create a test menu payload.
-        
+
         Args:
             payload_type: The type of payload to create ("standard", "async", "direct", "simple")
             num_items: Number of items to include
             include_modifiers: Whether to include modifiers
-            
+
         Returns:
             A dict containing the menu payload
         """
@@ -127,10 +138,11 @@ def create_test_menu_payload():
                 "description": f"Description for test item {i}",
                 "price": 10.0 + i,
                 "available": True,
-                "productType": 1
-            } for i in range(1, num_items + 1)
+                "productType": 1,
+            }
+            for i in range(1, num_items + 1)
         ]
-        
+
         # Modifiers if requested
         modifiers = []
         if include_modifiers:
@@ -142,10 +154,11 @@ def create_test_menu_payload():
                     "price": 1.0 * i,
                     "available": True,
                     "productType": 2,
-                    "parentId": "mod-group-1"
-                } for i in range(1, 3)
+                    "parentId": "mod-group-1",
+                }
+                for i in range(1, 3)
             ]
-        
+
         # Modifier groups if modifiers are included
         modifier_groups = []
         if include_modifiers:
@@ -157,10 +170,10 @@ def create_test_menu_payload():
                     "max": 2,
                     "multiMax": 1,
                     "productType": 3,
-                    "subProducts": [mod["id"] for mod in modifiers]
+                    "subProducts": [mod["id"] for mod in modifiers],
                 }
             ]
-        
+
         if payload_type == "standard":
             # Standard Deliverect format
             return {
@@ -168,20 +181,20 @@ def create_test_menu_payload():
                 "data": {
                     "menu": {
                         "categories": [
-                            {
-                                "id": "cat-1",
-                                "name": "Test Category",
-                                "products": items
-                            }
+                            {"id": "cat-1", "name": "Test Category", "products": items}
                         ],
-                        "modifierGroups": {
-                            modifier_groups[0]["id"]: modifier_groups[0]
-                        } if include_modifiers else {},
-                        "modifiers": {
-                            modifier["id"]: modifier for modifier in modifiers
-                        } if include_modifiers else {}
+                        "modifierGroups": (
+                            {modifier_groups[0]["id"]: modifier_groups[0]}
+                            if include_modifiers
+                            else {}
+                        ),
+                        "modifiers": (
+                            {modifier["id"]: modifier for modifier in modifiers}
+                            if include_modifiers
+                            else {}
+                        ),
                     }
-                }
+                },
             }
         elif payload_type == "async":
             # Async Deliverect format
@@ -193,19 +206,23 @@ def create_test_menu_payload():
                                 {
                                     "id": "cat-1",
                                     "name": "Test Category",
-                                    "products": items
+                                    "products": items,
                                 }
                             ],
-                            "modifierGroups": {
-                                modifier_groups[0]["id"]: modifier_groups[0]
-                            } if include_modifiers else {},
-                            "modifiers": {
-                                modifier["id"]: modifier for modifier in modifiers
-                            } if include_modifiers else {}
+                            "modifierGroups": (
+                                {modifier_groups[0]["id"]: modifier_groups[0]}
+                                if include_modifiers
+                                else {}
+                            ),
+                            "modifiers": (
+                                {modifier["id"]: modifier for modifier in modifiers}
+                                if include_modifiers
+                                else {}
+                            ),
                         }
                     ],
                     "stores": ["test-channel-link-id"],
-                    "callback": "https://api.staging.deliverect.com/testchannel/menuStatus/test123"
+                    "callback": "https://api.staging.deliverect.com/testchannel/menuStatus/test123",
                 }
             }
         elif payload_type == "direct":
@@ -218,29 +235,40 @@ def create_test_menu_payload():
                         "price": item["price"],
                         "available": item["available"],
                         "plu": item["plu"],
-                        "reference_handler": item["plu"]
-                    } for item in items
+                        "reference_handler": item["plu"],
+                    }
+                    for item in items
                 ],
-                "modifiers": [
-                    {
-                        "name": modifier["name"],
-                        "price": modifier["price"],
-                        "available": modifier["available"],
-                        "plu": modifier["plu"],
-                        "reference_handler": modifier["plu"],
-                        "group_id": modifier["parentId"]
-                    } for modifier in modifiers
-                ] if include_modifiers else [],
-                "modifierGroups": [
-                    {
-                        "id": group["id"],
-                        "name": group["name"],
-                        "minAllowed": group["min"],
-                        "maxAllowed": group["max"],
-                        "multiMax": group["multiMax"],
-                        "modifiers": [mod["id"] for mod in modifiers]
-                    } for group in modifier_groups
-                ] if include_modifiers else []
+                "modifiers": (
+                    [
+                        {
+                            "name": modifier["name"],
+                            "price": modifier["price"],
+                            "available": modifier["available"],
+                            "plu": modifier["plu"],
+                            "reference_handler": modifier["plu"],
+                            "group_id": modifier["parentId"],
+                        }
+                        for modifier in modifiers
+                    ]
+                    if include_modifiers
+                    else []
+                ),
+                "modifierGroups": (
+                    [
+                        {
+                            "id": group["id"],
+                            "name": group["name"],
+                            "minAllowed": group["min"],
+                            "maxAllowed": group["max"],
+                            "multiMax": group["multiMax"],
+                            "modifiers": [mod["id"] for mod in modifiers],
+                        }
+                        for group in modifier_groups
+                    ]
+                    if include_modifiers
+                    else []
+                ),
             }
         elif payload_type == "simple":
             # Simple list of items
@@ -250,13 +278,15 @@ def create_test_menu_payload():
                     "description": item["description"],
                     "price": item["price"],
                     "available": item["available"],
-                    "plu": item["plu"]
-                } for item in items
+                    "plu": item["plu"],
+                }
+                for item in items
             ]
         else:
             raise ValueError(f"Unknown payload type: {payload_type}")
-    
+
     return _create_payload
+
 
 @pytest.fixture
 def deliverect_menu_payload():
@@ -276,7 +306,7 @@ def deliverect_menu_payload():
                 "categories": [
                     {
                         "id": "extras",
-                        "name": "Add Extras", 
+                        "name": "Add Extras",
                         "products": [
                             {
                                 "id": "wasabi-extra",
@@ -285,7 +315,7 @@ def deliverect_menu_payload():
                                 "price": 0.50,
                                 "available": True,
                                 "productType": 2,
-                                "plu": "wasabi-extra"
+                                "plu": "wasabi-extra",
                             },
                             {
                                 "id": "ginger-extra",
@@ -294,9 +324,9 @@ def deliverect_menu_payload():
                                 "price": 0.50,
                                 "available": True,
                                 "productType": 2,
-                                "plu": "ginger-extra"
-                            }
-                        ]
+                                "plu": "ginger-extra",
+                            },
+                        ],
                     },
                     {
                         "id": "appetizers",
@@ -308,7 +338,7 @@ def deliverect_menu_payload():
                                 "description": "Steamed soybeans with sea salt",
                                 "price": 5.95,
                                 "available": True,
-                                "plu": "edamame"
+                                "plu": "edamame",
                             },
                             {
                                 "id": "miso-soup",
@@ -316,9 +346,9 @@ def deliverect_menu_payload():
                                 "description": "Traditional Japanese soup with tofu and seaweed",
                                 "price": 3.95,
                                 "available": True,
-                                "plu": "miso-soup"
-                            }
-                        ]
+                                "plu": "miso-soup",
+                            },
+                        ],
                     },
                     {
                         "id": "rolls",
@@ -331,7 +361,7 @@ def deliverect_menu_payload():
                                 "price": 7.95,
                                 "available": True,
                                 "modifierGroups": ["toppings-group"],
-                                "plu": "cal-roll"
+                                "plu": "cal-roll",
                             },
                             {
                                 "id": "spicy-tuna",
@@ -340,10 +370,10 @@ def deliverect_menu_payload():
                                 "price": 8.95,
                                 "available": True,
                                 "modifierGroups": ["toppings-group"],
-                                "plu": "spicy-tuna"
-                            }
-                        ]
-                    }
+                                "plu": "spicy-tuna",
+                            },
+                        ],
+                    },
                 ],
                 "modifierGroups": {
                     "toppings-group": {
@@ -353,7 +383,7 @@ def deliverect_menu_payload():
                         "max": 5,
                         "multiMax": 2,
                         "productType": 3,
-                        "subProducts": ["wasabi-extra", "ginger-extra"]
+                        "subProducts": ["wasabi-extra", "ginger-extra"],
                     }
                 },
                 "modifiers": {
@@ -363,7 +393,7 @@ def deliverect_menu_payload():
                         "price": 50,
                         "productType": 2,
                         "parentId": "toppings-group",
-                        "plu": "wasabi-extra"
+                        "plu": "wasabi-extra",
                     },
                     "ginger-extra": {
                         "id": "ginger-extra",
@@ -371,12 +401,13 @@ def deliverect_menu_payload():
                         "price": 50,
                         "productType": 2,
                         "parentId": "toppings-group",
-                        "plu": "ginger-extra"
-                    }
-                }
-            }
-        }
+                        "plu": "ginger-extra",
+                    },
+                },
+            },
+        },
     }
+
 
 @pytest.fixture
 def async_menu_payload(deliverect_menu_payload):
@@ -388,6 +419,6 @@ def async_menu_payload(deliverect_menu_payload):
         "body": {
             "menus": [menu],
             "stores": ["test-channel-link-id"],
-            "callback": "https://api.staging.deliverect.com/testchannel/menuStatus/test123"
+            "callback": "https://api.staging.deliverect.com/testchannel/menuStatus/test123",
         }
     }

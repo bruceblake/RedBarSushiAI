@@ -9,7 +9,7 @@ from flask import Flask, jsonify, request
 logging.basicConfig(
     stream=sys.stderr,
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("run")
 
@@ -19,35 +19,50 @@ logger.info(f"Python version: {sys.version}")
 logger.info(f"Python path: {sys.executable}")
 logger.info(f"Environment: {os.environ.get('DOCKER', 'local')}")
 
+
 # Set up a dummy app in case the main app fails to load
 def create_fallback_app(error_message):
     fallback = Flask(__name__)
-    
-    @fallback.route('/')
+
+    @fallback.route("/")
     def index():
-        return jsonify({
-            "status": "error",
-            "message": "Application failed to initialize properly",
-            "error": error_message
-        }), 500
-        
-    @fallback.route('/healthcheck')
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Application failed to initialize properly",
+                    "error": error_message,
+                }
+            ),
+            500,
+        )
+
+    @fallback.route("/healthcheck")
     def healthcheck():
-        return jsonify({
-            "status": "error",
-            "message": "Application in fallback mode",
-            "error": error_message
-        }), 500
-        
-    @fallback.route('/voice', methods=['GET', 'POST'])
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Application in fallback mode",
+                    "error": error_message,
+                }
+            ),
+            500,
+        )
+
+    @fallback.route("/voice", methods=["GET", "POST"])
     def voice_fallback():
         from twilio.twiml.voice_response import VoiceResponse
+
         response = VoiceResponse()
-        response.say("We're sorry, our system is currently experiencing technical difficulties. Please try again later.")
+        response.say(
+            "We're sorry, our system is currently experiencing technical difficulties. Please try again later."
+        )
         response.hangup()
         return str(response)
-        
+
     return fallback
+
 
 # Create the Flask application with retry logic
 max_retries = 3
@@ -58,13 +73,16 @@ last_error = None
 while retry_count < max_retries:
     try:
         from app import create_app
+
         app = create_app()
         logger.info(f"Application created successfully on attempt {retry_count + 1}")
         break
     except Exception as e:
         last_error = str(e)
         retry_count += 1
-        logger.error(f"ERROR creating application (attempt {retry_count}/{max_retries}): {e}")
+        logger.error(
+            f"ERROR creating application (attempt {retry_count}/{max_retries}): {e}"
+        )
         if retry_count < max_retries:
             logger.info(f"Retrying in {retry_delay} seconds...")
             time.sleep(retry_delay)
@@ -73,33 +91,41 @@ while retry_count < max_retries:
             logger.error("Maximum retries reached, creating fallback app")
             app = create_fallback_app(str(e))
 
+
 # Add a simple route to test basic functionality
-@app.route('/hello')
+@app.route("/hello")
 def hello():
     return {"message": "Hello from RedBarSushiAI\!"}
 
+
 # Add a special Twilio webhook for staging environment testing
-@app.route('/staging-test', methods=['GET', 'POST'])
+@app.route("/staging-test", methods=["GET", "POST"])
 def staging_test():
     from twilio.twiml.voice_response import VoiceResponse
+
     response = VoiceResponse()
-    
+
     # Check environment variables to clearly identify which environment is responding
-    is_staging = os.environ.get('FLASK_ENV') == 'staging' or os.environ.get('IS_STAGING')
+    is_staging = os.environ.get("FLASK_ENV") == "staging" or os.environ.get(
+        "IS_STAGING"
+    )
     env_name = "STAGING" if is_staging else "PRODUCTION"
-    
+
     # Add debugging information
     print(f"=== STAGING TEST ENDPOINT CALLED ===")
     print(f"Environment: {env_name}")
     print(f"Request URL: {request.url}")
     print(f"Host: {request.host}")
-    
+
     # Return a very clear message about which environment is responding
-    response.say(f"This is the {env_name} environment of Red Bar Sushi A I. The host name is {request.host}.")
+    response.say(
+        f"This is the {env_name} environment of Red Bar Sushi A I. The host name is {request.host}."
+    )
     response.hangup()
-    
+
     return str(response)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=False)

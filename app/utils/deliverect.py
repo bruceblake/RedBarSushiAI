@@ -9,6 +9,7 @@ from datetime import datetime  # timedelta removed - unused
 from flask import session
 from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET, BASE_URL
 from app import db
+
 # Import the Location model directly from its module to avoid circular imports
 from app.models.location import Location
 
@@ -1291,18 +1292,20 @@ def _process_category(category, result):
             "name": f"[CATEGORY] {category_name}",  # Clear category marking
             "reference_handler": category_id,
             "available": True,
-            "is_category": True,           # Explicitly mark as category
-            "productType": 3,              # Product type 3 = Modifier Group/Category
+            "is_category": True,  # Explicitly mark as category
+            "productType": 3,  # Product type 3 = Modifier Group/Category
             "posCategoryId": posCategoryId,
-            "price": 0,                    # Categories always have zero price
-            "_id": category_id,            # Preserve original ID
-            "category_id": category_id,    # Store for reference
+            "price": 0,  # Categories always have zero price
+            "_id": category_id,  # Preserve original ID
+            "category_id": category_id,  # Store for reference
         }
         # Only add if it doesn't already exist
-        if not any(existing.get("category_id") == category_id for existing in result["items"]):
+        if not any(
+            existing.get("category_id") == category_id for existing in result["items"]
+        ):
             result["items"].append(category_item)
             _add_name_variants(result["name_variants"], category_name)
-            
+
     # Process products in this category to ensure they have category information
     if isinstance(products, list):
         for product in products:
@@ -1310,12 +1313,14 @@ def _process_category(category, result):
                 # Ensure product has the category information
                 product["category"] = category_name
                 product["category_id"] = category_id
-                
+
                 # If product is directly under a category and has subProducts,
                 # it might be a subcategory itself
-                if ("subProducts" in product and 
-                    isinstance(product.get("subProducts"), list) and 
-                    len(product.get("subProducts", [])) > 0):
+                if (
+                    "subProducts" in product
+                    and isinstance(product.get("subProducts"), list)
+                    and len(product.get("subProducts", [])) > 0
+                ):
                     product["is_category"] = True
 
     # Special handling for Extra/Add-on categories - these often contain modifiers
@@ -1816,40 +1821,45 @@ def _convert_product_to_item(product):
     """Convert a Deliverect product to the internal item format."""
     if not isinstance(product, dict) or "name" not in product:
         return None
-    
+
     # Improved category detection logic
     is_category = False
-    
+
     # Method 1: Check productType (3 = Category or Modifier Group)
     if product.get("productType") == 3:
         is_category = True
-        
+
     # Method 2: Check for explicit category flag
     elif product.get("is_category") == True:
         is_category = True
-        
+
     # Method 3: Check special naming patterns
     elif isinstance(product.get("name"), str) and (
-        product.get("name").startswith("[CATEGORY]") or
-        "category" in product.get("name", "").lower()
+        product.get("name").startswith("[CATEGORY]")
+        or "category" in product.get("name", "").lower()
     ):
         is_category = True
-        
+
     # Method 4: Has subProducts but no price (likely a category)
-    elif "subProducts" in product and isinstance(product.get("subProducts"), list) and len(product.get("subProducts")) > 0:
+    elif (
+        "subProducts" in product
+        and isinstance(product.get("subProducts"), list)
+        and len(product.get("subProducts")) > 0
+    ):
         if not product.get("price"):
             is_category = True
-            
+
     # Method 5: Check if product has zero price
     elif product.get("price") == 0 or product.get("price") is None:
         # Check if this looks like a category based on context
-        if (isinstance(product.get("name"), str) and 
-            ("categor" in product.get("name", "").lower() or 
-             "section" in product.get("name", "").lower() or
-             "group" in product.get("name", "").lower() or
-             "menu" in product.get("name", "").lower())):
+        if isinstance(product.get("name"), str) and (
+            "categor" in product.get("name", "").lower()
+            or "section" in product.get("name", "").lower()
+            or "group" in product.get("name", "").lower()
+            or "menu" in product.get("name", "").lower()
+        ):
             is_category = True
-    
+
     # Basic required fields
     item = {
         "name": product["name"],
@@ -1859,7 +1869,7 @@ def _convert_product_to_item(product):
         "available": not product.get("snoozed", False),
         "description": product.get("description", ""),
     }
-    
+
     # Handle prices differently for categories vs regular items
     if is_category:
         # Categories always have zero price
@@ -1874,7 +1884,7 @@ def _convert_product_to_item(product):
         if "price" in product and product["price"] is not None:
             # Store the original price value for potential reference
             item["raw_price"] = product.get("price", 0) / 100
-            
+
             # If price is present, convert it from cents to dollars
             item["price"] = product.get("price", 0) / 100
         else:
@@ -1883,17 +1893,21 @@ def _convert_product_to_item(product):
             if "referenceId" in product:
                 # Look at the PLU without ### to see if it's the original item with a price
                 ref_id = product.get("referenceId", "")
-                logger.info(f"Checking referenceId {ref_id} for price information for {item['name']}")
+                logger.info(
+                    f"Checking referenceId {ref_id} for price information for {item['name']}"
+                )
                 # Leave as 0 and let menu_validator find the price in the database or from base product
                 item["price"] = 0
                 # Store the reference ID for use in menu_validator for price lookup from source data
                 item["reference_price_source"] = ref_id
             elif "plu" in product and "###" in product["plu"]:
                 # This is a variant product - need to get the base product price
-                logger.info(f"Product {item['name']} has PLU with ###: {product['plu']}, attempting to get base price")
+                logger.info(
+                    f"Product {item['name']} has PLU with ###: {product['plu']}, attempting to get base price"
+                )
                 # Leave as 0 and let menu_validator find the price in the database or from base product
                 item["price"] = 0
-                
+
                 # Store the base PLU for use in menu_validator for price lookup from source data
                 base_plu = product["plu"].split("###")[0]
                 if base_plu:
@@ -1913,24 +1927,28 @@ def _convert_product_to_item(product):
         item["plu"] = item["reference_handler"]
     elif "plu" in product:
         item["plu"] = product["plu"]
-        
+
         # Handle special PLU format with # characters (variant prices or parent-child relationships)
         if "#" in product["plu"]:
             # Store original PLU for reference
             item["original_plu"] = product["plu"]
-            
+
             # Check for referenceId which contains the original PLU (prioritize this)
             if "referenceId" in product:
                 item["plu"] = product["referenceId"]
                 item["reference_handler"] = product["referenceId"]
-                logger.info(f"Using referenceId {product['referenceId']} for {item['name']} (original PLU: {product['plu']})")
+                logger.info(
+                    f"Using referenceId {product['referenceId']} for {item['name']} (original PLU: {product['plu']})"
+                )
             else:
                 # Extract base PLU without # characters if no referenceId
                 # For PLUs like "P-BURG-CHE###PRNT", we want to extract "P-BURG-CHE"
                 if "###" in product["plu"]:
                     clean_plu = product["plu"].split("###")[0]
                     if clean_plu:
-                        logger.info(f"Extracted base PLU {clean_plu} from {product['plu']} with ### format")
+                        logger.info(
+                            f"Extracted base PLU {clean_plu} from {product['plu']} with ### format"
+                        )
                         item["plu"] = clean_plu
                         item["reference_handler"] = clean_plu
                         # Store the relationship info for later price lookup
@@ -1940,22 +1958,27 @@ def _convert_product_to_item(product):
                     # For other # formats like "#V300#"
                     clean_plu = product["plu"].split("#")[0]
                     if clean_plu:
-                        logger.info(f"Extracted base PLU {clean_plu} from {product['plu']} with # format")
+                        logger.info(
+                            f"Extracted base PLU {clean_plu} from {product['plu']} with # format"
+                        )
                         item["plu"] = clean_plu
                         item["reference_handler"] = clean_plu
-            
+
             # Extract variant price difference if available in PLU
             import re
-            price_match = re.search(r'#V(\d+)#', product["plu"])
+
+            price_match = re.search(r"#V(\d+)#", product["plu"])
             if price_match:
                 price_diff = int(price_match.group(1)) / 100
-                logger.info(f"Extracted variant price difference: {price_diff} from PLU {product['plu']}")
+                logger.info(
+                    f"Extracted variant price difference: {price_diff} from PLU {product['plu']}"
+                )
                 item["variant_price_diff"] = price_diff
 
     # Store the original Deliverect ID for future reference
     if "_id" in product:
         item["deliverect_item_id"] = product["_id"]
-        
+
     # Copy productType if present (important for distinguishing categories/groups)
     if "productType" in product:
         item["productType"] = product["productType"]
@@ -2297,7 +2320,9 @@ def build_deliverect_order(
             # In the future we might restore the tax_rate field with proper migration
             # For now we use the default rate
             location = Location.query.filter_by(id=location_id).first()
-            logger.info(f"Using default tax rate for location {location_id}: {sales_tax}")
+            logger.info(
+                f"Using default tax rate for location {location_id}: {sales_tax}"
+            )
         except Exception as e:
             logger.error(f"Error fetching location: {e}")
 

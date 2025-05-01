@@ -39,12 +39,6 @@ def log_openai_request(
         )  # Broad except, but safe for logging
 
 
-# Add a function to log detailed information about OpenAI responses
-def log_openai_response(response: Any, function_name: str = ""
-
-) -> None:
-    """Log detailed information about an OpenAI API response"""
-    logger.info(f"[OPENAI-RESPONSE] Function: {function_name}")
 
 def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     """
@@ -66,14 +60,10 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"[MENU-LOOKUP] Error finding menu item '{item_name}': {str(e)}")
         return None
-                logger.info(
-                    f"[OPENAI-CONTENT] {content[:200]}..."
-                )  # Log first 200 chars
-            elif hasattr(choice, "text"):
-                content = choice.text
-                logger.info(
-                    f"[OPENAI-CONTENT] {content[:200]}..."
-                )  # Log first 200 chars
+        logger.info(f"[OPENAI-CONTENT] {content[:200]}...")  # Log first 200 chars
+        elif hasattr(choice, "text"):
+            content = choice.text
+            logger.info(f"[OPENAI-CONTENT] {content[:200]}...")  # Log first 200 chars
         logger.info(f"[OPENAI-FULL] {str(response)[:500]}...")  # Log first 500 chars
 
 # Ensure OpenAI API key is set

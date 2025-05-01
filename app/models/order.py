@@ -6,10 +6,12 @@ from datetime import datetime
 from app import db
 from app.models.base import TimestampMixin
 
+
 class Order(db.Model, TimestampMixin):
     """
     Order model for storing customer orders.
     """
+
     __tablename__ = "order"
     id = db.Column(db.String(36), primary_key=True)
     sender = db.Column(db.String(15), nullable=False)
