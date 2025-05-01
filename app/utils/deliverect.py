@@ -1950,7 +1950,7 @@ def get_deliverect_token(location_id=None):
     if location_id:
         # Try to find location in database to get specific credentials
         try:
-            location = db.session.query(Location).filter_by(id=location_id).first()
+            location = Location.query.filter_by(id=location_id).first()
             if location and location.api_key:
                 # Parse stored credentials (in this demo we're storing the full credentials JSON)
                 creds = json.loads(location.api_key)
@@ -2161,7 +2161,7 @@ def build_deliverect_order(
     # If location is specified, try to get location-specific tax rate
     if location_id:
         try:
-            location = db.session.query(Location).filter_by(id=location_id).first()
+            location = Location.query.filter_by(id=location_id).first()
             if location and hasattr(location, "tax_rate"):
                 sales_tax = location.tax_rate
         except Exception as e:
@@ -2363,7 +2363,7 @@ def register_new_location(
         logger.info(f"Registering location {location_id} with name '{location_name}'")
 
         # Check if location already exists
-        existing = db.session.query(Location).filter_by(id=location_id).first()
+        existing = Location.query.filter_by(id=location_id).first()
         if existing:
             # Update existing location
             logger.info(f"Updating existing location {location_id}")
@@ -2373,7 +2373,7 @@ def register_new_location(
                 existing.api_key = json.dumps(api_credentials)
             if webhook_base:
                 existing.webhook_base = webhook_base
-            db.session.commit()
+            existing.save()
         else:
             # Create new location
             logger.info(f"Creating new location {location_id}")
@@ -2392,14 +2392,13 @@ def register_new_location(
                 webhook_base=webhook_base,
                 api_key=api_key_json,
             )
-            db.session.add(new_location)
-            db.session.commit()
+            new_location.save()
 
         logger.info(f"Location {location_id} registered successfully")
         return True
     except Exception as e:
         logger.error(f"Error registering location: {e}")
-        db.session.rollback()
+        # No need to rollback when using direct SQL
         return False
 
 
@@ -2416,19 +2415,19 @@ def update_location_status(location_id, status):
     """
     try:
         logger.info(f"Updating location {location_id} status to '{status}'")
-        location = db.session.query(Location).filter_by(id=location_id).first()
+        location = Location.query.filter_by(id=location_id).first()
         if not location:
             logger.warning(f"Location {location_id} not found, cannot update status")
             return False
 
         location.status = status
         location.updated_at = datetime.now()
-        db.session.commit()
+        location.save()
         logger.info(f"Location {location_id} status updated to '{status}'")
         return True
     except Exception as e:
         logger.error(f"Error updating location status: {e}")
-        db.session.rollback()
+        # No need to rollback when using direct SQL
         return False
 
 
@@ -2447,7 +2446,7 @@ def get_location_webhook_urls(location_id):
             f"Generating webhook URLs for location {location_id} with BASE_URL: {BASE_URL}"
         )
 
-        location = db.session.query(Location).filter_by(id=location_id).first()
+        location = Location.query.filter_by(id=location_id).first()
         if not location or not location.webhook_base:
             # For non-existent locations, use the regular endpoints without the location prefix
             # THIS IS THE STANDARD FORMAT EXPECTED BY DELIVERECT
