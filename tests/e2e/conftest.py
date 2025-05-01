@@ -1,11 +1,15 @@
 # tests/conftest.py
 import os
+import sys
 import pytest
 import json
 from playwright.sync_api import APIRequestContext, Playwright
 
+# Add the project root to the Python path so tests can be imported as proper modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 # Import the database test fixtures directly from the same directory
-from db_test_fixtures import setup_test_database, use_database_for_menu
+from tests.e2e.db_test_fixtures import setup_test_database, use_database_for_menu
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
 
