@@ -1026,7 +1026,7 @@ def get_menu():
 
     # Load menu data directly from database with optional location - force refresh to ensure latest
     from app.utils.menu_db_store import menu_db_store
-    menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
+    menu_data = menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
 
     # Log menu details
     item_count = len(menu_data.get("items", []))
@@ -1074,7 +1074,7 @@ def clear_menu_data():
         
         # Force refresh cache in menu_db_store
         from app.utils.menu_db_store import menu_db_store
-        menu_db_store.get_menu_data(force_refresh=True)
+        menu_db_store._get_menu_data_from_db(cache_key="menu:default")
         
         return jsonify({"status": "success", "message": "All menu data cleared successfully"})
     except Exception as e:
@@ -1092,7 +1092,7 @@ def clear_menu_cache():
     
     # Force a full reload from database
     from app.utils.menu_db_store import menu_db_store
-    menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
+    menu_data = menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
 
     # Log reloaded data
     item_count = len(menu_data.get("items", []))
@@ -1158,7 +1158,7 @@ def delete_menu():
         
         # Force cache to be cleared
         from app.utils.menu_db_store import menu_db_store
-        menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
+        menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
         
         # Log the result
         logger.info(f"[DELETE-MENU] Successfully deleted {items_count} items, {modifiers_count} modifiers, and {groups_count} groups")
@@ -1210,7 +1210,7 @@ def toggle_menu():
     # Force refresh the menu data from the target location
     try:
         from app.utils.menu_db_store import menu_db_store
-        menu_data = menu_db_store.get_menu_data(location_id=target_location_id, force_refresh=True)
+        menu_data = menu_db_store._get_menu_data_from_db(location_id=target_location_id, cache_key=f"menu:{target_location_id if target_location_id else 'default'}")
         item_count = len(menu_data.get("items", []))
 
         return jsonify(
@@ -1291,7 +1291,7 @@ def menu_settings():
             
         # Force refresh the menu data to ensure we're looking at what's actually loaded
         from app.utils.menu_db_store import menu_db_store
-        menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
+        menu_data = menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
         item_count = len(menu_data.get("items", []))
 
         # Sample items to help identify the menu content
@@ -1349,7 +1349,7 @@ def debug_menu():
     try:
         # Force a full reload from database
         from app.utils.menu_db_store import menu_db_store
-        menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
+        menu_data = menu_db_store._get_menu_data_from_db(location_id=location_id, cache_key=f"menu:{location_id if location_id else 'default'}")
         item_count = len(menu_data.get("items", []))
         
         # Database status info

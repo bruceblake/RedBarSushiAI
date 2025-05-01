@@ -21,7 +21,7 @@ class Location(db.Model, TimestampMixin):
     )  # registered, active, inactive
     webhook_base = db.Column(db.String(255), nullable=True)
     api_key = db.Column(db.String(255), nullable=True)
-    tax_rate = db.Column(db.Float, default=0.0)  # Default tax rate
+    # tax_rate removed temporarily to match existing schema
     
     def __repr__(self):
         return f"<Location {self.id} - {self.name} - {self.status}>"
@@ -33,7 +33,7 @@ class Location(db.Model, TimestampMixin):
             "name": self.name,
             "status": self.status,
             "webhook_base": self.webhook_base,
-            "tax_rate": self.tax_rate,
+            # tax_rate removed from response
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }

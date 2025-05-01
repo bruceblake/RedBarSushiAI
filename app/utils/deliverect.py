@@ -2290,13 +2290,16 @@ def build_deliverect_order(
     sales_tax = 0.06
 
     # If location is specified, try to get location-specific tax rate
+    # Note: tax_rate field removed from Location model
+    # Default to standard rate for now as the tax_rate field doesn't exist in the database
     if location_id:
         try:
+            # In the future we might restore the tax_rate field with proper migration
+            # For now we use the default rate
             location = Location.query.filter_by(id=location_id).first()
-            if location and hasattr(location, "tax_rate"):
-                sales_tax = location.tax_rate
+            logger.info(f"Using default tax rate for location {location_id}: {sales_tax}")
         except Exception as e:
-            logger.error(f"Error fetching location tax rate: {e}")
+            logger.error(f"Error fetching location: {e}")
 
     total_with_tax = total_price + (total_price * sales_tax)
 
