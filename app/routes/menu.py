@@ -441,26 +441,40 @@ def menu_update():
                 f"[MENU-UPDATE] About to write menu with {len(processed_data.get('items', []))} items, {len(processed_data.get('modifiers', []))} modifiers, {len(processed_data.get('modifierGroups', []))} groups"
             )
 
-            # Use the standard write_menu_file function to write the menu data
-            # This will handle both database storage and file writing for backward compatibility
-            if write_menu_file(processed_data):
-                logger.info(
-                    "[MENU-UPDATE] Successfully wrote menu using write_menu_file"
-                )
-                # Write was successful
+            # Always store in the database first and foremost
+            try:
+                from app.utils.menu_db_store import menu_db_store
                 
-                # Check if we need to explicitly update database
-                from flask import current_app
-                if current_app.config.get("MENU_BACKEND") == "database":
-                    # Also make sure it's in the database (extra safety check)
-                    try:
-                        from app.utils.menu_db_store import menu_db_store
-                        menu_db_store.store_menu_data(processed_data)
-                        logger.info("[MENU-UPDATE] Additionally ensured menu is stored in database")
-                    except Exception as db_e:
-                        logger.warning(f"[MENU-UPDATE] Database update failed, but file write succeeded: {db_e}")
+                # Extract location_id if available
+                location_id = request.args.get('location_id') or request.form.get('location_id')
+                if not location_id and isinstance(data, dict) and 'location_id' in data:
+                    location_id = data.get('location_id')
+                
+                # Store directly in database with location_id if present
+                if menu_db_store.store_menu_data(processed_data, location_id=location_id):
+                    logger.info(f"[MENU-UPDATE] Successfully stored menu in database with location_id: {location_id if location_id else 'default'}")
+                    
+                    # For backward compatibility, still write to file
+                    if write_menu_file(processed_data):
+                        logger.info("[MENU-UPDATE] Also wrote menu to file for backward compatibility")
+                    else:
+                        logger.warning("[MENU-UPDATE] Failed to write menu to file, but database store succeeded")
+                        
+                    # Database store was successful (primary source of truth)
+                    menu_store_success = True
+                else:
+                    logger.error("[MENU-UPDATE] Failed to store menu in database")
+                    # Try file write as fallback, but this should never happen
+                    menu_store_success = write_menu_file(processed_data)
+            except Exception as db_e:
+                logger.error(f"[MENU-UPDATE] Database storage error: {db_e}")
+                # Try to write to file as fallback, but this should never happen in normal operation
+                menu_store_success = write_menu_file(processed_data)
+                
+            if menu_store_success:
+                logger.info("[MENU-UPDATE] Menu was successfully stored")
             else:
-                logger.error("[MENU-UPDATE] Failed to write menu using write_menu_file")
+                logger.error("[MENU-UPDATE] Failed to store menu in database and file fallback failed")
 
                 # If we have a callback URL, send a FAILED status
                 if callback_url:
@@ -869,17 +883,18 @@ def sync_menu_references():
 @menu_bp.route("/menu", methods=["GET"])
 def get_menu():
     """
-    Get the current menu data
+    Get the current menu data from the database
     """
     # Get location_id from query parameters
     location_id = request.args.get("location_id")
 
-    # Load menu data with optional location - force refresh to ensure latest
-    menu_data = load_menu_data(force_refresh=True, location_id=location_id)
+    # Load menu data directly from database with optional location - force refresh to ensure latest
+    from app.utils.menu_db_store import menu_db_store
+    menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
 
     # Log menu details
     item_count = len(menu_data.get("items", []))
-    logger.info(f"[GET-MENU] Returning menu with {item_count} items")
+    logger.info(f"[GET-MENU] Returning menu with {item_count} items from database for location_id: {location_id if location_id else 'default'}")
     if item_count > 0:
         for idx, item in enumerate(menu_data.get("items", [])[:3]):  # Log first 3 items
             logger.info(
@@ -893,9 +908,10 @@ def get_menu():
         )
         menu_data.pop("name_variants", None)
 
-    # Add file location to response for debugging
-    menu_data["_debug"] = {"file_path": MENU_FILE_PATH}
+    # Add metadata to response
     menu_data["ai_matching"] = True  # Indicate that AI agent will handle matching
+    menu_data["source"] = "database"  # Indicate the source of the menu data
+    menu_data["location_id"] = location_id  # Include the location ID in the response
 
     # Return menu data
     return jsonify(menu_data), 200
@@ -933,14 +949,18 @@ def clear_menu_data():
 @menu_bp.route("/clear_menu_cache", methods=["GET"])
 def clear_menu_cache():
     """
-    Force a refresh of the menu from disk and clear any cache
+    Force a refresh of the menu from database and clear any cache
     """
-    # Force a full reload
-    menu_data = load_menu_data(force_refresh=True)
+    # Get location_id from query parameters
+    location_id = request.args.get("location_id")
+    
+    # Force a full reload from database
+    from app.utils.menu_db_store import menu_db_store
+    menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
 
     # Log reloaded data
     item_count = len(menu_data.get("items", []))
-    logger.info(f"[CLEAR-CACHE] Reloaded menu with {item_count} items")
+    logger.info(f"[CLEAR-CACHE] Reloaded menu with {item_count} items from database for location_id: {location_id if location_id else 'default'}")
     if item_count > 0:
         for idx, item in enumerate(menu_data.get("items", [])[:5]):  # Log first 5 items
             logger.info(
@@ -952,8 +972,9 @@ def clear_menu_cache():
         jsonify(
             {
                 "success": True,
-                "message": f"Menu cache cleared, {item_count} items loaded",
-                "file_path": MENU_FILE_PATH,
+                "message": f"Menu cache cleared, {item_count} items loaded from database",
+                "source": "database",
+                "location_id": location_id if location_id else "default",
             }
         ),
         200,
@@ -963,49 +984,58 @@ def clear_menu_cache():
 @menu_bp.route("/delete_menu", methods=["GET"])
 def delete_menu():
     """
-    Delete the current menu file to force a clean slate
-    This can help when the menu file is corrupted
+    Delete all menu data from the database to force a clean slate
+    This can help when the menu data is corrupted
     """
-    import os
+    # Get location_id from query parameters
+    location_id = request.args.get("location_id")
 
     try:
-        # Known menu file locations
-        menu_paths = [
-            "/home/pegasus/mysite/RedBarSushiAI/menu_data.json",
-            MENU_FILE_PATH,
-            os.path.join(os.getcwd(), "menu_data.json"),
-            "/tmp/menu_data.json",
-        ]
-
-        deleted_paths = []
-        for path in menu_paths:
-            if os.path.exists(path):
-                try:
-                    # Create a backup first
-                    backup_path = f"{path}.bak"
-                    import shutil
-
-                    shutil.copy2(path, backup_path)
-                    logger.info(f"[DELETE-MENU] Created backup at {backup_path}")
-
-                    # Now delete the file
-                    os.remove(path)
-                    deleted_paths.append(path)
-                    logger.info(f"[DELETE-MENU] Deleted menu file at {path}")
-                except Exception as e:
-                    logger.error(f"[DELETE-MENU] Failed to delete {path}: {e}")
-
-        # Force menu cache to be cleared
-        from app.utils.menu_utils import load_menu_data
-
-        _ = load_menu_data(force_refresh=True)
+        # Import required models
+        from app import db
+        from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
+        
+        # Build query for deletion based on location_id
+        if location_id:
+            logger.info(f"[DELETE-MENU] Deleting menu data for location_id: {location_id}")
+            items_query = MenuItem.query.filter_by(location_id=location_id)
+            modifiers_query = MenuModifier.query.filter_by(location_id=location_id)
+            groups_query = MenuModifierGroup.query.filter_by(location_id=location_id)
+        else:
+            logger.info("[DELETE-MENU] Deleting all menu data (no location_id specified)")
+            items_query = MenuItem.query
+            modifiers_query = MenuModifier.query
+            groups_query = MenuModifierGroup.query
+            
+        # Get counts before deletion
+        items_count = items_query.count()
+        modifiers_count = modifiers_query.count()
+        groups_count = groups_query.count()
+        
+        # Delete the data
+        items_query.delete()
+        modifiers_query.delete()
+        groups_query.delete()
+        
+        # Commit the changes
+        db.session.commit()
+        
+        # Force cache to be cleared
+        from app.utils.menu_db_store import menu_db_store
+        menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
+        
+        # Log the result
+        logger.info(f"[DELETE-MENU] Successfully deleted {items_count} items, {modifiers_count} modifiers, and {groups_count} groups")
 
         return (
             jsonify(
                 {
                     "success": True,
-                    "message": "Menu files deleted. The next menu update will start with a clean slate.",
-                    "deleted_files": deleted_paths,
+                    "message": f"Menu data deleted from database. The next menu update will start with a clean slate.",
+                    "items_deleted": items_count,
+                    "modifiers_deleted": modifiers_count,
+                    "groups_deleted": groups_count,
+                    "location_id": location_id if location_id else "all locations",
                 }
             ),
             200,
@@ -1013,7 +1043,7 @@ def delete_menu():
     except Exception as e:
         logger.error(f"[DELETE-MENU] Error: {str(e)}")
         return (
-            jsonify({"success": False, "error": f"Failed to delete menu: {str(e)}"}),
+            jsonify({"success": False, "error": f"Failed to delete menu data: {str(e)}"}),
             500,
         )
 
@@ -1021,60 +1051,51 @@ def delete_menu():
 @menu_bp.route("/toggle_menu", methods=["GET", "POST"])
 @menu_bp.route("/change_menu", methods=["GET", "POST"])
 def toggle_menu():
-    """Toggle between menu_data.json and redbar_menu_data.json"""
-    current_setting = os.environ.get("USE_REDBAR_MENU", "false").lower() == "true"
+    """
+    Switch between different menu datasets using location_id
+    This function now uses the database rather than file-based menus
+    """
+    # Get the current and target location IDs from query parameters
+    current_location_id = request.args.get("current_location_id", "default")
+    target_location_id = request.args.get("target_location_id")
+    
+    # If target_location_id not provided, use "default" as the target
+    if not target_location_id:
+        # Check for use_redbar parameter for backward compatibility
+        if request.args.get("use_redbar") is not None:
+            use_redbar = request.args.get("use_redbar").lower() in ["true", "1", "yes"]
+            target_location_id = "redbar" if use_redbar else "default"
+        else:
+            # Toggle between default and redbar if no specific target provided
+            target_location_id = "redbar" if current_location_id == "default" else "default"
+    
+    logger.info(f"[TOGGLE-MENU] Switching from location_id '{current_location_id}' to '{target_location_id}'")
 
-    # Allow explicit setting through query param
-    if request.args.get("use_redbar") is not None:
-        new_setting = request.args.get("use_redbar").lower() in ["true", "1", "yes"]
-        logger.info(
-            f"Setting USE_REDBAR_MENU to {new_setting} based on query parameter"
-        )
-    else:
-        # Toggle if no parameter provided
-        new_setting = not current_setting
-        logger.info(f"Toggling USE_REDBAR_MENU from {current_setting} to {new_setting}")
-
-    # Set environment variable
-    os.environ["USE_REDBAR_MENU"] = str(new_setting).lower()
-
-    # Update the global USE_REDBAR_MENU variable in menu_utils
-    import app.utils.menu_utils as menu_utils
-
-    menu_utils.USE_REDBAR_MENU = new_setting
-
-    # Clear the menu cache to force a reload
-    menu_utils._menu_cache = None
-    menu_utils._last_refresh_time = 0
-
-    # Reload the module to update the file paths
-    importlib.reload(menu_utils)
-
-    # Force refresh the menu data
+    # Force refresh the menu data from the target location
     try:
-        menu_data = load_menu_data(force_refresh=True)
+        from app.utils.menu_db_store import menu_db_store
+        menu_data = menu_db_store.get_menu_data(location_id=target_location_id, force_refresh=True)
         item_count = len(menu_data.get("items", []))
-
-        # Check if the actual file we're using matches what we expect
-        expected_filename = "redbar_menu_data.json" if new_setting else "menu_data.json"
-        actual_filename = os.path.basename(MENU_FILE_PATH)
-        filename_match = expected_filename in actual_filename
 
         return jsonify(
             {
                 "success": True,
-                "use_redbar_menu": new_setting,
-                "menu_file_path": MENU_FILE_PATH,
-                "filename_match": filename_match,
+                "current_location_id": current_location_id,
+                "new_location_id": target_location_id,
                 "item_count": item_count,
-                "message": f"Now using {'redbar_menu_data.json' if new_setting else 'menu_data.json'} with {item_count} items",
+                "message": f"Now using menu for location_id '{target_location_id}' with {item_count} items",
             }
         )
     except Exception as e:
-        logger.error(f"Error toggling menu: {e}")
+        logger.error(f"[TOGGLE-MENU] Error switching location_id: {e}")
         return (
             jsonify(
-                {"success": False, "error": str(e), "use_redbar_menu": new_setting}
+                {
+                    "success": False, 
+                    "error": str(e), 
+                    "current_location_id": current_location_id,
+                    "target_location_id": target_location_id
+                }
             ),
             500,
         )
@@ -1114,42 +1135,52 @@ def write_test():
 
 @menu_bp.route("/menu_settings", methods=["GET"])
 def menu_settings():
-    """Show current menu settings and configuration"""
-    # Check menu file status
-    current_setting = os.environ.get("USE_REDBAR_MENU", "false").lower() == "true"
-    menu_utils_setting = USE_REDBAR_MENU
-
-    # Get loaded menu file path
+    """Show current menu settings and database configuration"""
+    # Get the current location ID from query parameters
+    location_id = request.args.get("location_id", "default")
+    
+    # List all available location_ids in the database
     try:
+        from app import db
+        from app.models.menu import MenuItem
+        from sqlalchemy import distinct
+        
+        # Get distinct location_ids from the database
+        locations_query = db.session.query(distinct(MenuItem.location_id)).all()
+        available_locations = [loc[0] for loc in locations_query if loc[0] is not None]
+        
+        # Add "default" (None) location if it has items
+        if db.session.query(MenuItem).filter(MenuItem.location_id.is_(None)).count() > 0:
+            available_locations.append("default")
+            
         # Force refresh the menu data to ensure we're looking at what's actually loaded
-        menu_data = load_menu_data(force_refresh=True)
+        from app.utils.menu_db_store import menu_db_store
+        menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
         item_count = len(menu_data.get("items", []))
 
-        # Check specific menu items to help identify which menu we're using
+        # Sample items to help identify the menu content
         items_sample = [item.get("name") for item in menu_data.get("items", [])[:5]]
-        # Check for distinctive items to help identify the menu
-        has_redbar_items = any(name and "Roll" in name for name in items_sample)
+        
+        # Count items by location
+        location_counts = {}
+        for loc in available_locations:
+            if loc == "default":
+                count = db.session.query(MenuItem).filter(MenuItem.location_id.is_(None)).count()
+            else:
+                count = db.session.query(MenuItem).filter(MenuItem.location_id == loc).count()
+            location_counts[loc] = count
 
         return jsonify(
             {
                 "status": "success",
-                "menu_file_path": MENU_FILE_PATH,
-                "USE_REDBAR_MENU_env": current_setting,
-                "USE_REDBAR_MENU_var": menu_utils_setting,
+                "source": "database",
+                "current_location_id": location_id,
+                "available_locations": available_locations,
+                "location_counts": location_counts,
                 "item_count": item_count,
                 "items_sample": items_sample,
-                "likely_using_redbar_menu": has_redbar_items,
-                "current_menu": (
-                    "redbar_menu_data.json" if menu_utils_setting else "menu_data.json"
-                ),
-                "menu_file_exists": os.path.exists(MENU_FILE_PATH),
-                "redbar_menu_exists": os.path.exists(
-                    os.path.join(os.getcwd(), "redbar_menu_data.json")
-                ),
-                "regular_menu_exists": os.path.exists(
-                    os.path.join(os.getcwd(), "menu_data.json")
-                ),
                 "toggle_url": request.url_root + "toggle_menu",
+                "database_configured": True,
             }
         )
     except Exception as e:
@@ -1159,8 +1190,8 @@ def menu_settings():
                 {
                     "status": "error",
                     "error": str(e),
-                    "USE_REDBAR_MENU_env": current_setting,
-                    "USE_REDBAR_MENU_var": menu_utils_setting,
+                    "source": "database",
+                    "location_id": location_id,
                 }
             ),
             500,
@@ -1170,75 +1201,96 @@ def menu_settings():
 @menu_bp.route("/debug_menu", methods=["GET"])
 def debug_menu():
     """
-    Debug endpoint to get detailed information about the menu system
+    Debug endpoint to get detailed information about the menu system in the database
     """
     import os
     import sys
     import platform
+    
+    # Get location_id from query parameters
+    location_id = request.args.get("location_id")
 
-    # Force a full reload
-    menu_data = load_menu_data(force_refresh=True)
-    item_count = len(menu_data.get("items", []))
+    try:
+        # Force a full reload from database
+        from app.utils.menu_db_store import menu_db_store
+        menu_data = menu_db_store.get_menu_data(location_id=location_id, force_refresh=True)
+        item_count = len(menu_data.get("items", []))
+        
+        # Database status info
+        from app import db
+        from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
+        from sqlalchemy import distinct, func, text
+        
+        # Get database statistics
+        db_stats = {
+            "total_items": db.session.query(func.count(MenuItem.id)).scalar() or 0,
+            "total_modifiers": db.session.query(func.count(MenuModifier.id)).scalar() or 0,
+            "total_modifier_groups": db.session.query(func.count(MenuModifierGroup.id)).scalar() or 0,
+        }
+        
+        # Get location statistics
+        locations_query = db.session.query(MenuItem.location_id, func.count(MenuItem.id)).group_by(MenuItem.location_id).all()
+        location_stats = {loc[0] if loc[0] else "default": loc[1] for loc in locations_query}
+        
+        # Get most recent item update time
+        try:
+            # This is SQLAlchemy-specific and might vary depending on database backend
+            last_update_query = db.session.query(func.max(MenuItem.id)).scalar()
+            db_stats["last_item_id"] = last_update_query
+        except:
+            db_stats["last_item_id"] = "Unable to determine"
+            
+        # Try to get table info
+        try:
+            table_info = {}
+            for table_name in ["menu_item", "menu_modifier", "menu_modifier_group"]:
+                # This is PostgreSQL-specific, would need adaptation for other databases
+                result = db.session.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
+                table_info[table_name] = result
+            db_stats["table_counts"] = table_info
+        except Exception as e:
+            db_stats["table_info_error"] = str(e)
 
-    # Check file paths
-    possible_paths = [
-        "/home/pegasus/mysite/RedBarSushiAI/menu_data.json",
-        "/home/pegasus/mysite/menu_data.json",
-        os.path.join(os.getcwd(), "menu_data.json"),
-        os.path.join(os.getcwd(), "redbar_menu_data.json"),
-        "/tmp/menu_data.json",
-    ]
+        # System info
+        system_info = {
+            "platform": platform.platform(),
+            "python_version": sys.version,
+            "cwd": os.getcwd(),
+            "database_configured": True,
+            "database_type": db.engine.name if hasattr(db, 'engine') and hasattr(db.engine, 'name') else "Unknown",
+        }
 
-    file_status = []
-    for path in possible_paths:
-        exists = os.path.exists(path)
-        size = 0
-        item_count_in_file = 0
-        if exists:
-            try:
-                size = os.path.getsize(path)
-                with open(path, "r") as f:
-                    try:
-                        file_data = json.load(f)
-                        item_count_in_file = len(file_data.get("items", []))
-                    except:
-                        item_count_in_file = "Error parsing file"
-            except:
-                size = "Error getting size"
-
-        file_status.append(
-            {
-                "path": path,
-                "exists": exists,
-                "size_bytes": size,
-                "item_count": item_count_in_file,
-            }
+        # Return detailed status
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "source": "database",
+                    "current_location_id": location_id if location_id else "default",
+                    "loaded_menu_info": {
+                        "item_count": item_count,
+                        "sample_items": [
+                            item.get("name", "No name")
+                            for item in menu_data.get("items", [])[:5]
+                        ],
+                    },
+                    "database_stats": db_stats,
+                    "location_stats": location_stats,
+                    "system_info": system_info,
+                }
+            ),
+            200,
         )
-
-    # System info
-    system_info = {
-        "platform": platform.platform(),
-        "python_version": sys.version,
-        "cwd": os.getcwd(),
-        "menu_file_path": MENU_FILE_PATH,
-        "env_menu_file_path": os.getenv("MENU_FILE_PATH", "Not set"),
-    }
-
-    # Return detailed status
-    return (
-        jsonify(
-            {
-                "success": True,
-                "loaded_menu_info": {
-                    "item_count": item_count,
-                    "sample_items": [
-                        item.get("name", "No name")
-                        for item in menu_data.get("items", [])[:5]
-                    ],
-                },
-                "file_status": file_status,
-                "system_info": system_info,
-            }
-        ),
-        200,
-    )
+    except Exception as e:
+        logger.error(f"[DEBUG-MENU] Error: {str(e)}")
+        return (
+            jsonify(
+                {
+                    "success": False, 
+                    "error": str(e),
+                    "source": "database",
+                    "location_id": location_id if location_id else "default",
+                }
+            ),
+            500,
+        )
