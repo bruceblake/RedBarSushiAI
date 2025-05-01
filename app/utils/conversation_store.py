@@ -93,10 +93,41 @@ class ConversationStore:
             if self.redis_client:
                 data = self.redis_client.get(key)
                 if data:
-                    return json.loads(data)
+                    try:
+                        conversation = json.loads(data)
+                        # Verify that we actually have a proper conversation object
+                        if not isinstance(conversation.get("messages"), list):
+                            logger.warning(f"Retrieved invalid conversation format for {session_id}, initializing new conversation")
+                            # Return new conversation if format is invalid
+                            return {
+                                "id": session_id,
+                                "created_at": time.time(),
+                                "updated_at": time.time(),
+                                "messages": [],
+                                "context": {},
+                                "resolved": False,
+                                "items": []
+                            }
+                        return conversation
+                    except json.JSONDecodeError:
+                        logger.error(f"Error decoding JSON for conversation {session_id}")
             else:
                 # Fallback to in-memory store
-                return self.memory_store.get(key, {})
+                conversation = self.memory_store.get(key, {})
+                # Verify that we actually have a proper conversation object
+                if not isinstance(conversation.get("messages"), list):
+                    logger.warning(f"Retrieved invalid in-memory conversation format for {session_id}, initializing new conversation")
+                    # Return new conversation if format is invalid
+                    return {
+                        "id": session_id,
+                        "created_at": time.time(),
+                        "updated_at": time.time(),
+                        "messages": [],
+                        "context": {},
+                        "resolved": False,
+                        "items": []
+                    }
+                return conversation
         
         except Exception as e:
             logger.error(f"Error retrieving conversation {session_id}: {str(e)}")
@@ -108,7 +139,8 @@ class ConversationStore:
             "updated_at": time.time(),
             "messages": [],
             "context": {},
-            "resolved": False
+            "resolved": False,
+            "items": []
         }
     
     def save_conversation(self, session_id: str, conversation_data: Dict[str, Any], 
