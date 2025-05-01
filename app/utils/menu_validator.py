@@ -13,6 +13,18 @@ def validate_and_fix_menu_data(menu_data):
     """
     Validates and fixes issues in menu data before it's saved.
     This function enforces strict validation for Deliverect integration.
+    
+    IMPORTANT: This validator uses ONLY DATABASE VALUES for validation with ABSOLUTELY
+    NO FALLBACKS. If menu items, modifiers, or groups cannot be validated using the
+    database, this function will raise an error rather than use any hardcoded defaults.
+    
+    Supports the official Deliverect menu format including:
+    - Menu structure with categories, products, modifiers, and modifierGroups
+    - Required fields: menu, menuId, menuType, channelLinkId
+    - Product fields: _id, plu, name, price, productType, taxes, availability
+    - Modifier fields: _id, plu, name, price, productType
+    - ModifierGroup fields: _id, min, max, multiMax, subProducts
+    
     Handles various error conditions including:
     - String values in modifier groups and other data
     - Non-string values in name fields
@@ -20,15 +32,15 @@ def validate_and_fix_menu_data(menu_data):
     - Improperly formatted prices, references, IDs
 
     Args:
-        menu_data: Dict containing menu data with items, modifiers, etc.
+        menu_data: Dict containing Deliverect-compatible menu data with items, modifiers, etc.
 
     Returns:
-        dict: Fixed menu data
+        dict: Fixed menu data compatible with the Deliverect format
 
     Raises:
-        ValueError: If menu items are missing required fields after fixing attempts.
-                   Specifically will raise "Menu items must have names" if any items
-                   are missing names after attempted fixes.
+        ValueError: If menu items are missing required fields or cannot be validated 
+                   against the database. This function will NOT use hardcoded fallbacks
+                   and will strictly fail if database validation fails.
     """
     # Make sure we have valid input data
     if menu_data is None:
@@ -56,7 +68,6 @@ def validate_and_fix_menu_data(menu_data):
                     "items": valid_items,
                     "modifiers": [],
                     "modifierGroups": [],
-                    # No name_variants field - AI agent will handle matching
                 }
                 menu_data = temp_data
             else:
@@ -69,7 +80,83 @@ def validate_and_fix_menu_data(menu_data):
                 f"[MENU-FIX] Menu data is not a dictionary: {type(menu_data)}, creating empty structure"
             )
             menu_data = {}
+    
+    # Check for Deliverect format with data.menu structure
+    if isinstance(menu_data, dict) and "data" in menu_data and isinstance(menu_data["data"], dict) and "menu" in menu_data["data"]:
+        logger.info("[MENU-FORMAT] Detected Deliverect webhook menu format with data.menu structure")
+        menu_data = menu_data["data"]["menu"]
+    
+    # Check for Deliverect async update format with body.menus structure
+    elif isinstance(menu_data, dict) and "body" in menu_data and isinstance(menu_data["body"], dict) and "menus" in menu_data["body"]:
+        logger.info("[MENU-FORMAT] Detected Deliverect async menu format with body.menus structure")
+        # Use the first menu in the menus array
+        if isinstance(menu_data["body"]["menus"], list) and len(menu_data["body"]["menus"]) > 0:
+            menu_data = menu_data["body"]["menus"][0]
+        else:
+            logger.error("[MENU-FORMAT] Empty menus array in Deliverect async format")
+            raise ValueError("Empty menus array in Deliverect async format")
 
+    # Check for Deliverect categories format and convert to our internal format
+    if "categories" in menu_data and isinstance(menu_data["categories"], list):
+        logger.info("[MENU-FORMAT] Detected Deliverect categories format, converting to internal structure")
+        
+        # Create lists for our internal format
+        all_items = []
+        
+        # Process each category and extract products
+        for category in menu_data["categories"]:
+            if not isinstance(category, dict):
+                continue
+                
+            # Check for products list
+            category_products = []
+            
+            # Try to find products using various field names that might be present
+            if "products" in category and isinstance(category["products"], list):
+                category_products = category["products"]
+            elif "subProducts" in category and isinstance(category["subProducts"], list):
+                # If subProducts contains IDs, we need to look them up in the main product list
+                product_ids = category["subProducts"]
+                
+                # We may have a mapping of products by ID
+                if "products" in menu_data and isinstance(menu_data["products"], dict):
+                    category_products = [
+                        menu_data["products"].get(product_id, {"id": product_id})
+                        for product_id in product_ids
+                        if isinstance(product_id, str)
+                    ]
+            
+            # Add category info to each product and collect
+            for product in category_products:
+                if isinstance(product, dict):
+                    # Add category information to the product
+                    product["category_id"] = category.get("_id") or category.get("id", "")
+                    product["category_name"] = category.get("name", "")
+                    
+                    # Mark item as a category if it appears to be one
+                    if (product.get("productType") == 3 or 
+                        "subProducts" in product or 
+                        "subCategories" in product):
+                        product["is_category"] = True
+                        
+                    # Add each product to our items list
+                    all_items.append(product)
+        
+        # If we extracted products from categories, use them as our items
+        if all_items:
+            logger.info(f"[MENU-FORMAT] Extracted {len(all_items)} products from {len(menu_data['categories'])} categories")
+            menu_data["items"] = all_items
+    
+    # Handle case where menu data has products but not items
+    elif "products" in menu_data and isinstance(menu_data["products"], (list, dict)) and "items" not in menu_data:
+        logger.info("[MENU-FORMAT] Converting products to items format")
+        
+        if isinstance(menu_data["products"], list):
+            menu_data["items"] = menu_data["products"]
+        elif isinstance(menu_data["products"], dict):
+            # Convert dictionary of products to list
+            menu_data["items"] = list(menu_data["products"].values())
+    
     # Ensure required keys exist with proper types
     if "items" not in menu_data or not isinstance(menu_data["items"], list):
         logger.warning(
@@ -88,6 +175,12 @@ def validate_and_fix_menu_data(menu_data):
                 )
         menu_data["items"] = valid_items
 
+    # Process modifiers from Deliverect format if needed
+    if isinstance(menu_data.get("modifiers"), dict):
+        logger.info("[MENU-FORMAT] Converting Deliverect modifiers dictionary to list")
+        menu_data["modifiers"] = list(menu_data["modifiers"].values())
+    
+    # Ensure modifiers list exists and is valid
     if "modifiers" not in menu_data or not isinstance(menu_data["modifiers"], list):
         logger.warning(
             f"[MENU-FIX] modifiers is not a valid list: {type(menu_data.get('modifiers', None))}"
@@ -98,13 +191,31 @@ def validate_and_fix_menu_data(menu_data):
         valid_modifiers = []
         for i, mod in enumerate(menu_data["modifiers"]):
             if isinstance(mod, dict):
+                # Convert Deliverect modifier properties to our expected format
+                if "min" in mod and "minAllowed" not in mod:
+                    mod["minAllowed"] = mod["min"]
+                if "max" in mod and "maxAllowed" not in mod:
+                    mod["maxAllowed"] = mod["max"]
+                if "parentId" in mod and "group_id" not in mod:
+                    mod["group_id"] = mod["parentId"]
+                
+                # Ensure PLU is set as reference_handler for consistency
+                if "plu" in mod and not mod.get("reference_handler"):
+                    mod["reference_handler"] = mod["plu"]
+                    
                 valid_modifiers.append(mod)
             else:
                 logger.warning(
                     f"[MENU-FIX] Removed non-dictionary modifier at index {i}: {type(mod)}"
                 )
         menu_data["modifiers"] = valid_modifiers
-
+    
+    # Process modifier groups from Deliverect format if needed
+    if isinstance(menu_data.get("modifierGroups"), dict):
+        logger.info("[MENU-FORMAT] Converting Deliverect modifierGroups dictionary to list")
+        menu_data["modifierGroups"] = list(menu_data["modifierGroups"].values())
+    
+    # Ensure modifierGroups list exists and is valid
     if "modifierGroups" not in menu_data or not isinstance(
         menu_data["modifierGroups"], list
     ):
@@ -117,6 +228,16 @@ def validate_and_fix_menu_data(menu_data):
         valid_groups = []
         for i, group in enumerate(menu_data["modifierGroups"]):
             if isinstance(group, dict):
+                # Convert Deliverect modifier group properties to our expected format
+                if "min" in group and "minAllowed" not in group:
+                    group["minAllowed"] = group["min"]
+                if "max" in group and "maxAllowed" not in group:
+                    group["maxAllowed"] = group["max"]
+                    
+                # Handle subProducts array as modifiers list
+                if "subProducts" in group and isinstance(group["subProducts"], list) and not group.get("modifiers"):
+                    group["modifiers"] = group["subProducts"]
+                    
                 valid_groups.append(group)
             else:
                 logger.warning(
@@ -182,11 +303,17 @@ def validate_and_fix_menu_data(menu_data):
         # Fix item ID
         item_id = item.get("id")
         if not item_id:
-            # Check if _id exists but id doesn't (document format conversion)
+            # Check if _id exists but id doesn't (Deliverect format)
             if item.get("_id"):
                 # Use _id as id for consistency
                 item["id"] = item.get("_id")
                 logger.info(f"[MENU-FIX] Converted _id to id for item index {i}")
+                item_id = item["id"]
+                item_fixed = True
+            # Check if plu exists (Deliverect format often uses plu as primary reference)
+            elif item.get("plu"):
+                item["id"] = item.get("plu")
+                logger.info(f"[MENU-FIX] Using plu as id for item index {i}: {item['id']}")
                 item_id = item["id"]
                 item_fixed = True
             else:
@@ -240,13 +367,19 @@ def validate_and_fix_menu_data(menu_data):
         # CRITICAL: For Deliverect integration, PLU must be preserved in reference_handler
         # Fix reference handler if missing
         if not item.get("reference_handler"):
-            # HIGHEST PRIORITY: Use PLU directly if available
+            # HIGHEST PRIORITY: Use PLU directly if available (Deliverect format)
             if item.get("plu"):
                 item["reference_handler"] = item.get("plu")
                 logger.info(
-                    f"[MENU-FIX] CRITICAL: Using PLU as reference_handler for {item_name}: {item.get('plu')}"
+                    f"[MENU-FIX] Using PLU as reference_handler for {item_name}: {item.get('plu')}"
                 )
-            # SECOND PRIORITY: Check if item exists in current menu
+            # SECOND PRIORITY: Use item ID (Deliverect often has this as unique identifier)
+            elif item.get("_id"):
+                item["reference_handler"] = item.get("_id")
+                logger.info(
+                    f"[MENU-FIX] Using _id as reference_handler for {item_name}: {item.get('_id')}"
+                )
+            # THIRD PRIORITY: Check if item exists in the database
             elif item_name_lower in existing_items and existing_items[
                 item_name_lower
             ].get("reference_handler"):
@@ -263,32 +396,12 @@ def validate_and_fix_menu_data(menu_data):
                     logger.info(
                         f"[MENU-FIX] Preserved existing PLU for {item_name}: {item['plu']}"
                     )
-            # Last resort: generate a new reference handler, but log a warning
+            # Last resort: FAIL - we require valid reference handlers
             else:
-                import re
-
-                try:
-                    # Create a reference based on name - ensures consistency
-                    clean_name = re.sub(r"[^\w]", "", item_name)
-                    if clean_name:
-                        item["reference_handler"] = clean_name[
-                            :15
-                        ]  # Use first 15 chars of name
-                    else:
-                        # Use a hash-based ID if name has no alphanumeric chars
-                        import hashlib
-
-                        hash_obj = hashlib.md5(item_name.encode())
-                        item["reference_handler"] = f"PROD-{hash_obj.hexdigest()[:8]}"
-                except:
-                    # Very basic fallback in case the function fails
-                    import time
-
-                    item["reference_handler"] = f"PROD-{int(time.time())}-{i}"
-
-                logger.error(
-                    f"[MENU-FIX] CRITICAL ISSUE: Item {item_name} has no PLU! Using synthetic reference: {item['reference_handler']}. THIS WILL LIKELY CAUSE DELIVERECT ORDER FAILURES!"
-                )
+                # STRICT DATABASE-ONLY MODE: No fallbacks allowed - we need real data
+                error_msg = f"Item {item_name} has no PLU or reference_handler and no match in database"
+                logger.error(f"[MENU-ERROR] {error_msg}")
+                raise ValueError(error_msg)
             item_fixed = True
 
         # Ensure reference_handler is also stored as PLU for Deliverect integration
@@ -329,32 +442,29 @@ def validate_and_fix_menu_data(menu_data):
                 logger.info(
                     f"[MENU-FIX] Preserved existing price for {item_name}: {item['price']}"
                 )
-            # Query database for pricing information
+            # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
             else:
-                try:
-                    # Get menu data from database
-                    menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
-                    
-                    # Try to find matching item in database
-                    db_item = None
-                    for db_item_entry in menu_data_db.get("items", []):
-                        db_item_name = db_item_entry.get("name", "").lower()
-                        if db_item_name == item_name_lower or db_item_name in item_name_lower or item_name_lower in db_item_name:
-                            db_item = db_item_entry
-                            break
-                    
-                    if db_item and isinstance(db_item.get("price"), (int, float)) and db_item.get("price") > 0:
-                        item["price"] = db_item.get("price")
-                        logger.info(
-                            f"[MENU-FIX] Set price for {item_name} using database match: {item['price']}"
-                        )
-                    else:
-                        error_msg = f"Item {item_name} has missing or invalid price and no matching price found in database"
-                        logger.error(f"[MENU-ERROR] {error_msg}")
-                        raise ValueError(error_msg)
-                except Exception as e:
-                    logger.error(f"[MENU-ERROR] Failed to retrieve price for {item_name}: {str(e)}")
-                    raise ValueError(f"Failed to retrieve price for {item_name}: {str(e)}")
+                # Get menu data from database
+                menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                
+                # Try to find matching item in database
+                db_item = None
+                for db_item_entry in menu_data_db.get("items", []):
+                    db_item_name = db_item_entry.get("name", "").lower()
+                    if db_item_name == item_name_lower or db_item_name in item_name_lower or item_name_lower in db_item_name:
+                        db_item = db_item_entry
+                        break
+                
+                if db_item and isinstance(db_item.get("price"), (int, float)) and db_item.get("price") > 0:
+                    item["price"] = db_item.get("price")
+                    logger.info(
+                        f"[MENU-FIX] Set price for {item_name} using database match: {item['price']}"
+                    )
+                else:
+                    # ABSOLUTELY NO FALLBACKS - If the item doesn't exist in the database with a valid price, it MUST fail
+                    error_msg = f"Item {item_name} has missing or invalid price and no matching price found in database"
+                    logger.error(f"[MENU-ERROR] {error_msg}")
+                    raise ValueError(error_msg)
             item_fixed = True
 
         # Ensure description exists (can be empty)
@@ -489,8 +599,34 @@ def validate_and_fix_menu_data(menu_data):
         if "minAllowed" not in group or not isinstance(
             group["minAllowed"], (int, float)
         ):
-            try:
-                # Try to find matching group in database
+            # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
+            # Get menu data from database
+            menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+            db_group = None
+            
+            for db_grp in menu_data_db.get("modifierGroups", []):
+                if db_grp.get("id") == group_id or db_grp.get("name") == group_name:
+                    db_group = db_grp
+                    break
+            
+            if db_group and isinstance(db_group.get("minAllowed"), (int, float)):
+                group["minAllowed"] = db_group.get("minAllowed")
+                logger.info(
+                    f"[MENU-FIX] Set minAllowed for group '{group_name}' using database match: {group['minAllowed']}"
+                )
+            else:
+                # ABSOLUTELY NO FALLBACKS - If the group doesn't exist in the database with valid parameters, it MUST fail
+                error_msg = f"Modifier group '{group_name}' has invalid minAllowed and no matching value found in database"
+                logger.error(f"[MENU-ERROR] {error_msg}")
+                raise ValueError(error_msg)
+            fixed_modifier_group_count += 1
+
+        if "maxAllowed" not in group or not isinstance(
+            group["maxAllowed"], (int, float)
+        ):
+            # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
+            # Try to find matching group in database if not already fetched
+            if 'db_group' not in locals() or db_group is None:
                 menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
                 db_group = None
                 
@@ -498,86 +634,42 @@ def validate_and_fix_menu_data(menu_data):
                     if db_grp.get("id") == group_id or db_grp.get("name") == group_name:
                         db_group = db_grp
                         break
-                
-                if db_group and isinstance(db_group.get("minAllowed"), (int, float)):
-                    group["minAllowed"] = db_group.get("minAllowed")
-                    logger.info(
-                        f"[MENU-FIX] Set minAllowed for group '{group_name}' using database match: {group['minAllowed']}"
-                    )
-                else:
-                    # For minAllowed, it's reasonable to default to 0 as it means optional
-                    logger.warning(
-                        f"[MENU-FIX] Group '{group_name}' has invalid minAllowed, using rational default of 0"
-                    )
-                    group["minAllowed"] = 0
-            except Exception as e:
-                # This is a non-critical field, so we'll provide a sensible default
-                logger.warning(f"[MENU-FIX] Error retrieving minAllowed for group '{group_name}': {e}")
-                group["minAllowed"] = 0
-            fixed_modifier_group_count += 1
-
-        if "maxAllowed" not in group or not isinstance(
-            group["maxAllowed"], (int, float)
-        ):
-            try:
-                # Try to find matching group in database if not already fetched
-                if 'db_group' not in locals() or db_group is None:
-                    menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
-                    db_group = None
-                    
-                    for db_grp in menu_data_db.get("modifierGroups", []):
-                        if db_grp.get("id") == group_id or db_grp.get("name") == group_name:
-                            db_group = db_grp
-                            break
-                
-                if db_group and isinstance(db_group.get("maxAllowed"), (int, float)):
-                    group["maxAllowed"] = db_group.get("maxAllowed")
-                    logger.info(
-                        f"[MENU-FIX] Set maxAllowed for group '{group_name}' using database match: {group['maxAllowed']}"
-                    )
-                else:
-                    # Default to allowing all modifiers (not ideal but prevents order failures)
-                    logger.warning(
-                        f"[MENU-WARNING] Group '{group_name}' missing maxAllowed value, using reasonable default"
-                    )
-                    # Count available modifiers and use that as max
-                    modifiers = group.get("modifiers", [])
-                    if modifiers:
-                        group["maxAllowed"] = len(modifiers)
-                    else:
-                        group["maxAllowed"] = 10  # A reasonable upper bound if we don't know
-            except Exception as e:
-                logger.warning(f"[MENU-FIX] Error retrieving maxAllowed for group '{group_name}': {e}")
-                group["maxAllowed"] = 10  # A reasonable default
+            
+            if db_group and isinstance(db_group.get("maxAllowed"), (int, float)):
+                group["maxAllowed"] = db_group.get("maxAllowed")
+                logger.info(
+                    f"[MENU-FIX] Set maxAllowed for group '{group_name}' using database match: {group['maxAllowed']}"
+                )
+            else:
+                # ABSOLUTELY NO FALLBACKS - If the group doesn't exist in the database with valid parameters, it MUST fail
+                error_msg = f"Modifier group '{group_name}' has invalid maxAllowed and no matching value found in database"
+                logger.error(f"[MENU-ERROR] {error_msg}")
+                raise ValueError(error_msg)
             fixed_modifier_group_count += 1
 
         # Ensure multiMax constraint is valid (maximum quantity of any single modifier)
         if "multiMax" not in group or not isinstance(group["multiMax"], (int, float)):
-            try:
-                # Try to find matching group in database if not already fetched
-                if 'db_group' not in locals() or db_group is None:
-                    menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
-                    db_group = None
-                    
-                    for db_grp in menu_data_db.get("modifierGroups", []):
-                        if db_grp.get("id") == group_id or db_grp.get("name") == group_name:
-                            db_group = db_grp
-                            break
+            # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
+            # Try to find matching group in database if not already fetched
+            if 'db_group' not in locals() or db_group is None:
+                menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                db_group = None
                 
-                if db_group and isinstance(db_group.get("multiMax"), (int, float)):
-                    group["multiMax"] = db_group.get("multiMax")
-                    logger.info(
-                        f"[MENU-FIX] Set multiMax for group '{group_name}' using database match: {group['multiMax']}"
-                    )
-                else:
-                    # Default to allowing 1 (safest option for ordering)
-                    logger.warning(
-                        f"[MENU-WARNING] Group '{group_name}' missing multiMax value, using default of 1"
-                    )
-                    group["multiMax"] = 1
-            except Exception as e:
-                logger.warning(f"[MENU-FIX] Error retrieving multiMax for group '{group_name}': {e}")
-                group["multiMax"] = 1  # A reasonable default
+                for db_grp in menu_data_db.get("modifierGroups", []):
+                    if db_grp.get("id") == group_id or db_grp.get("name") == group_name:
+                        db_group = db_grp
+                        break
+            
+            if db_group and isinstance(db_group.get("multiMax"), (int, float)):
+                group["multiMax"] = db_group.get("multiMax")
+                logger.info(
+                    f"[MENU-FIX] Set multiMax for group '{group_name}' using database match: {group['multiMax']}"
+                )
+            else:
+                # ABSOLUTELY NO FALLBACKS - If the group doesn't exist in the database with valid parameters, it MUST fail
+                error_msg = f"Modifier group '{group_name}' has invalid multiMax and no matching value found in database"
+                logger.error(f"[MENU-ERROR] {error_msg}")
+                raise ValueError(error_msg)
             fixed_modifier_group_count += 1
 
         # Ensure isVariantGroup flag is a boolean
@@ -729,30 +821,28 @@ def validate_and_fix_menu_data(menu_data):
             price_invalid = True
 
         if price_invalid:
-            try:
-                # Try to find matching modifier in database
-                menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
-                db_modifier = None
-                
-                for db_mod in menu_data_db.get("modifiers", []):
-                    db_mod_name = db_mod.get("name", "").lower()
-                    mod_name_lower = mod_name.lower()
-                    if db_mod_name == mod_name_lower or db_mod_name in mod_name_lower or mod_name_lower in db_mod_name:
-                        db_modifier = db_mod
-                        break
-                
-                if db_modifier and isinstance(db_modifier.get("price"), (int, float)):
-                    modifier["price"] = db_modifier.get("price")
-                    logger.info(
-                        f"[MENU-FIX] Set price for modifier {mod_name} using database match: {modifier['price']}"
-                    )
-                else:
-                    error_msg = f"Modifier {mod_name} has invalid price and no matching price found in database"
-                    logger.error(f"[MENU-ERROR] {error_msg}")
-                    raise ValueError(error_msg)
-            except Exception as e:
-                logger.error(f"[MENU-ERROR] Failed to retrieve price for modifier {mod_name}: {str(e)}")
-                raise ValueError(f"Failed to retrieve price for modifier {mod_name}: {str(e)}")
+            # STRICT DATABASE-ONLY VALIDATION - ABSOLUTELY NO FALLBACKS
+            # Get menu data from database
+            menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+            db_modifier = None
+            
+            for db_mod in menu_data_db.get("modifiers", []):
+                db_mod_name = db_mod.get("name", "").lower()
+                mod_name_lower = mod_name.lower()
+                if db_mod_name == mod_name_lower or db_mod_name in mod_name_lower or mod_name_lower in db_mod_name:
+                    db_modifier = db_mod
+                    break
+            
+            if db_modifier and isinstance(db_modifier.get("price"), (int, float)):
+                modifier["price"] = db_modifier.get("price")
+                logger.info(
+                    f"[MENU-FIX] Set price for modifier {mod_name} using database match: {modifier['price']}"
+                )
+            else:
+                # ABSOLUTELY NO FALLBACKS - If the modifier doesn't exist in the database with a valid price, it MUST fail
+                error_msg = f"Modifier {mod_name} has invalid price and no matching price found in database"
+                logger.error(f"[MENU-ERROR] {error_msg}")
+                raise ValueError(error_msg)
             mod_fixed = True
 
         # Ensure availability is properly initialized

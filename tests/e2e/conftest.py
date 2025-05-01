@@ -75,9 +75,8 @@ def api_request(api_ctx):
     
     return ApiRequest()
 
-# Register the database test fixture so it's automatically applied to all e2e tests
-# This ensures that e2e tests use the database instead of JSON files
-pytest.fixture(autouse=True)(setup_test_database)
+# The setup_test_database fixture is already defined with autouse=True in db_test_fixtures.py
+# This automatically applies it to all e2e tests
 
 @pytest.fixture
 def create_test_menu_payload():

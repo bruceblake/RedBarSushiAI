@@ -22,7 +22,7 @@ from app.utils.menu_migration import migrate_menu_to_database
 from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="function", autouse=True)
 def setup_test_database(app):
     """
     Set up the test database with menu data for E2E tests.
