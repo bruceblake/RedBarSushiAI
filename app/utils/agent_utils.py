@@ -39,20 +39,25 @@ def log_openai_request(
         )  # Broad except, but safe for logging
 
 
+# Add a function to log detailed information about OpenAI responses
+def log_openai_response(response: Any, function_name: str = "") -> None:
+    """Log detailed information about an OpenAI API response"""
+    logger.info(f"[OPENAI-RESPONSE] Function: {function_name}")
+
 
 def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     """
     Find a menu item by name using the database-backed menu store.
-    
+
     Args:
         item_name: The name of the menu item to find
-        
+
     Returns:
         The menu item if found, None otherwise
     """
     if not item_name:
         return None
-        
+
     try:
         # Use the database-backed menu store to find the menu item
         logger.info(f"[MENU-LOOKUP] Looking for menu item: '{item_name}'")
@@ -60,6 +65,7 @@ def find_menu_item_by_name(item_name: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"[MENU-LOOKUP] Error finding menu item '{item_name}': {str(e)}")
         return None
+
 
 # Ensure OpenAI API key is set
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
@@ -109,12 +115,13 @@ except ImportError:
     AGENT_API_AVAILABLE = False
     # Using older version of OpenAI API - will use alternative implementation
 
+
 # Don't test API access at module import - defer until needed
 # Create a function to test API access that can be called when appropriate
 def test_openai_api_key():
     """Test if the OpenAI API key works."""
     global OPENAI_API_KEY
-    
+
     if not AGENT_API_AVAILABLE and OPENAI_API_KEY:
         # Try to confirm API key works
         try:
@@ -146,6 +153,7 @@ def test_openai_api_key():
             return False
     return OPENAI_API_KEY is not None
 
+
 # The API key will be tested when first needed, not during import
 
 # Defer import to avoid database access during module import
@@ -162,6 +170,7 @@ class SushiMenuTool:
         """Initialize the tool with menu data."""
         # Import here to avoid application context issues during module import
         from app.utils.menu_utils_db import load_menu_data
+
         self.menu_data = load_menu_data()
         self.current_conversation = []  # To track conversation context
         self.last_refresh_time = time.time()
@@ -184,6 +193,7 @@ class SushiMenuTool:
         # First try to find exact matches
         # Import at function call time to avoid application context issues
         from app.utils.menu_utils_db import find_menu_item_by_name
+
         item = find_menu_item_by_name(query)
         if item:
             return {"found": True, "items": [item], "query": query}
@@ -326,6 +336,7 @@ class SushiMenuTool:
         if time.time() - self.last_refresh_time > 300:  # Refresh every 5 minutes
             # Import at function call time to avoid application context issues
             from app.utils.menu_utils_db import load_menu_data
+
             self.menu_data = load_menu_data(force_refresh=True)
             self.last_refresh_time = time.time()
 
@@ -594,6 +605,7 @@ class SushiMenuTool:
         # If AI matching fails, try exact match as fallback
         # Import at function call time to avoid application context issues
         from app.utils.menu_utils_db import find_menu_item_by_name
+
         item = find_menu_item_by_name(item_name)
         if item:
             return {
@@ -619,6 +631,7 @@ class SushiMenuTool:
         # First try direct lookup
         # Import at function call time to avoid application context issues
         from app.utils.menu_utils_db import find_menu_item_by_name
+
         item = find_menu_item_by_name(item_name)
 
         # If direct lookup fails, try AI matching
@@ -2445,23 +2458,35 @@ else:
             Returns:
                 dict: The modification instructions (additions and removals)
             """
-            logger.info(f"[MODIFY-ORDER] ===== BEGINNING ORDER MODIFICATION PROCESS =====")
-            logger.info(f"[MODIFY-ORDER] Processing modification request: '{modification_text}'")
-            logger.info(f"[MODIFY-ORDER] Current order has {len(current_order.get('items', []))} items")
-            
+            logger.info(
+                f"[MODIFY-ORDER] ===== BEGINNING ORDER MODIFICATION PROCESS ====="
+            )
+            logger.info(
+                f"[MODIFY-ORDER] Processing modification request: '{modification_text}'"
+            )
+            logger.info(
+                f"[MODIFY-ORDER] Current order has {len(current_order.get('items', []))} items"
+            )
+
             # Log detailed information about current order for debugging
             logger.info(f"[MODIFY-ORDER-CURRENT] Order items:")
             for idx, item in enumerate(current_order.get("items", [])):
-                logger.info(f"[MODIFY-ORDER-CURRENT] Item {idx+1}: {item.get('quantity', 1)}x {item.get('name', 'Unknown')} " + 
-                           f"(Price: {item.get('price', 'N/A')}, Ref: {item.get('reference_handler', 'N/A')})")
+                logger.info(
+                    f"[MODIFY-ORDER-CURRENT] Item {idx+1}: {item.get('quantity', 1)}x {item.get('name', 'Unknown')} "
+                    + f"(Price: {item.get('price', 'N/A')}, Ref: {item.get('reference_handler', 'N/A')})"
+                )
                 if item.get("modifier"):
-                    logger.info(f"[MODIFY-ORDER-CURRENT] Item {idx+1} has {len(item.get('modifier', []))} modifiers")
+                    logger.info(
+                        f"[MODIFY-ORDER-CURRENT] Item {idx+1} has {len(item.get('modifier', []))} modifiers"
+                    )
                     for mod_idx, mod in enumerate(item.get("modifier", [])):
-                        logger.info(f"[MODIFY-ORDER-CURRENT]   Modifier {mod_idx+1}: {mod.get('name', 'Unknown modifier')}")
-            
+                        logger.info(
+                            f"[MODIFY-ORDER-CURRENT]   Modifier {mod_idx+1}: {mod.get('name', 'Unknown modifier')}"
+                        )
+
             # Log current time for performance tracking
             start_time = time.time()
-            
+
             try:
                 # For OpenAI API available but no agent API
                 if OPENAI_API_KEY:
@@ -2580,71 +2605,115 @@ Return JSON with:
                 if "modifications" not in modifications:
                     modifications["modifications"] = []
                     logger.debug("[MODIFY-ORDER] Initialized empty modifications list")
-                
+
                 # Log what we parsed from the OpenAI response
-                logger.info(f"[MODIFY-ORDER] Parsed modifications from AI: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}")
-                
+                logger.info(
+                    f"[MODIFY-ORDER] Parsed modifications from AI: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}"
+                )
+
                 # Log each parsed addition
                 for idx, addition in enumerate(modifications.get("additions", [])):
-                    logger.info(f"[MODIFY-ORDER] Addition {idx+1}: {addition.get('quantity', 1)}x {addition.get('name', 'Unknown')}")
-                
+                    logger.info(
+                        f"[MODIFY-ORDER] Addition {idx+1}: {addition.get('quantity', 1)}x {addition.get('name', 'Unknown')}"
+                    )
+
                 # Log each parsed removal
                 for idx, removal in enumerate(modifications.get("removals", [])):
-                    logger.info(f"[MODIFY-ORDER] Removal {idx+1}: {removal.get('quantity', 1)}x {removal.get('name', 'Unknown')}")
+                    logger.info(
+                        f"[MODIFY-ORDER] Removal {idx+1}: {removal.get('quantity', 1)}x {removal.get('name', 'Unknown')}"
+                    )
 
                 # Verify and enhance additions (only if OpenAI API available)
                 for item in modifications.get("additions", []):
                     if "name" in item:
                         # Use menu_db_store to find the menu item
                         try:
-                            logger.info(f"[MODIFY-ORDER] Attempting to find menu item in database: '{item['name']}'")
+                            logger.info(
+                                f"[MODIFY-ORDER] Attempting to find menu item in database: '{item['name']}'"
+                            )
                             start_time = time.time()
                             menu_item = menu_db_store.find_menu_item(item["name"])
                             lookup_time = time.time() - start_time
-                            
+
                             if menu_item:
-                                logger.info(f"[MODIFY-ORDER] Found menu item in {lookup_time:.3f}s: '{item['name']}' -> '{menu_item.get('name')}', price: {menu_item.get('price')}, ref: {menu_item.get('reference_handler', '')}")
-                                
+                                logger.info(
+                                    f"[MODIFY-ORDER] Found menu item in {lookup_time:.3f}s: '{item['name']}' -> '{menu_item.get('name')}', price: {menu_item.get('price')}, ref: {menu_item.get('reference_handler', '')}"
+                                )
+
                                 # Log detailed menu item information for debugging
-                                logger.debug(f"[MODIFY-ORDER-ITEM-DETAILS] Menu item '{menu_item.get('name')}': {json.dumps({k: v for k, v in menu_item.items() if k in ['price', 'reference_handler', 'plu', 'category', 'available', 'description']})}")
-                                
+                                logger.debug(
+                                    f"[MODIFY-ORDER-ITEM-DETAILS] Menu item '{menu_item.get('name')}': {json.dumps({k: v for k, v in menu_item.items() if k in ['price', 'reference_handler', 'plu', 'category', 'available', 'description']})}"
+                                )
+
                                 item["price"] = menu_item.get("price", 0.0)
                                 item["reference_handler"] = menu_item.get(
                                     "reference_handler", ""
                                 )
                                 if "plu" in menu_item:
                                     item["plu"] = menu_item.get("plu")
-                                    logger.info(f"[MODIFY-ORDER] Added PLU to item: {item['plu']}")
-                                    
+                                    logger.info(
+                                        f"[MODIFY-ORDER] Added PLU to item: {item['plu']}"
+                                    )
+
                                 # Log whether the item is available
-                                is_available = menu_item.get("available", True) and not menu_item.get("snoozed", False)
-                                logger.info(f"[MODIFY-ORDER] Menu item availability check - Item: '{menu_item.get('name')}', Available: {is_available}, Snoozed: {menu_item.get('snoozed', False)}")
-                                
+                                is_available = menu_item.get(
+                                    "available", True
+                                ) and not menu_item.get("snoozed", False)
+                                logger.info(
+                                    f"[MODIFY-ORDER] Menu item availability check - Item: '{menu_item.get('name')}', Available: {is_available}, Snoozed: {menu_item.get('snoozed', False)}"
+                                )
+
                                 if "quantity" not in item:
                                     item["quantity"] = 1
-                                    logger.info(f"[MODIFY-ORDER] Set default quantity=1 for '{item['name']}'")
-                                    
+                                    logger.info(
+                                        f"[MODIFY-ORDER] Set default quantity=1 for '{item['name']}'"
+                                    )
+
                                 if "modifier" not in item:
                                     item["modifier"] = []
-                                    logger.info(f"[MODIFY-ORDER] Initialized empty modifiers list for '{item['name']}'")
+                                    logger.info(
+                                        f"[MODIFY-ORDER] Initialized empty modifiers list for '{item['name']}'"
+                                    )
                             else:
-                                logger.warning(f"[MODIFY-ORDER] Menu item not found in database after {lookup_time:.3f}s lookup: '{item['name']}'")
-                                
+                                logger.warning(
+                                    f"[MODIFY-ORDER] Menu item not found in database after {lookup_time:.3f}s lookup: '{item['name']}'"
+                                )
+
                                 # Log attempt to find similar items for debugging
                                 try:
                                     closest_matches = []
-                                    for menu_i in menu_db_store.get_menu_data().get("items", []):
-                                        if not menu_i.get("is_category", False) and menu_i.get("name"):
-                                            if item['name'].lower() in menu_i.get("name").lower() or any(word in menu_i.get("name").lower() for word in item['name'].lower().split() if len(word) > 3):
-                                                closest_matches.append(menu_i.get("name"))
+                                    for menu_i in menu_db_store.get_menu_data().get(
+                                        "items", []
+                                    ):
+                                        if not menu_i.get(
+                                            "is_category", False
+                                        ) and menu_i.get("name"):
+                                            if item["name"].lower() in menu_i.get(
+                                                "name"
+                                            ).lower() or any(
+                                                word in menu_i.get("name").lower()
+                                                for word in item["name"].lower().split()
+                                                if len(word) > 3
+                                            ):
+                                                closest_matches.append(
+                                                    menu_i.get("name")
+                                                )
                                     if closest_matches:
-                                        logger.info(f"[MODIFY-ORDER] Possible similar items to '{item['name']}': {closest_matches[:5]}")
+                                        logger.info(
+                                            f"[MODIFY-ORDER] Possible similar items to '{item['name']}': {closest_matches[:5]}"
+                                        )
                                 except Exception as match_error:
-                                    logger.error(f"[MODIFY-ORDER] Error finding similar items: {match_error}")
-                            
+                                    logger.error(
+                                        f"[MODIFY-ORDER] Error finding similar items: {match_error}"
+                                    )
+
                         except Exception as menu_lookup_error:
-                            logger.error(f"[MODIFY-ORDER] Error looking up menu item '{item['name']}': {menu_lookup_error}")
-                            logger.error(f"[MODIFY-ORDER] Lookup error traceback: {traceback.format_exc()}")
+                            logger.error(
+                                f"[MODIFY-ORDER] Error looking up menu item '{item['name']}': {menu_lookup_error}"
+                            )
+                            logger.error(
+                                f"[MODIFY-ORDER] Lookup error traceback: {traceback.format_exc()}"
+                            )
                             # Set defaults if lookup fails
                             if "quantity" not in item:
                                 item["quantity"] = 1
@@ -2653,40 +2722,63 @@ Return JSON with:
 
                 # Calculate and log processing time
                 processing_time = time.time() - start_time
-                logger.info(f"[MODIFY-ORDER] Processing completed in {processing_time:.3f} seconds")
-                
+                logger.info(
+                    f"[MODIFY-ORDER] Processing completed in {processing_time:.3f} seconds"
+                )
+
                 # Log summary of final modifications for audit trail
-                logger.info(f"[MODIFY-ORDER-RESULT] Final modifications: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}")
-                
+                logger.info(
+                    f"[MODIFY-ORDER-RESULT] Final modifications: additions={len(modifications.get('additions', []))}, removals={len(modifications.get('removals', []))}"
+                )
+
                 # Log detailed results
                 for idx, addition in enumerate(modifications.get("additions", [])):
-                    logger.info(f"[MODIFY-ORDER-RESULT] Final Addition {idx+1}: {addition.get('quantity', 1)}x {addition.get('name', 'Unknown')}" +
-                               f" (price: {addition.get('price', 'N/A')}, ref: {addition.get('reference_handler', 'N/A')})")
+                    logger.info(
+                        f"[MODIFY-ORDER-RESULT] Final Addition {idx+1}: {addition.get('quantity', 1)}x {addition.get('name', 'Unknown')}"
+                        + f" (price: {addition.get('price', 'N/A')}, ref: {addition.get('reference_handler', 'N/A')})"
+                    )
                     if addition.get("modifier"):
                         for mod_idx, mod in enumerate(addition.get("modifier", [])):
-                            logger.info(f"[MODIFY-ORDER-RESULT]   Modifier {mod_idx+1}: {mod.get('name', 'Unknown')}")
-                            
+                            logger.info(
+                                f"[MODIFY-ORDER-RESULT]   Modifier {mod_idx+1}: {mod.get('name', 'Unknown')}"
+                            )
+
                 for idx, removal in enumerate(modifications.get("removals", [])):
-                    logger.info(f"[MODIFY-ORDER-RESULT] Final Removal {idx+1}: {removal.get('quantity', 1)}x {removal.get('name', 'Unknown')}")
-                
-                logger.info(f"[MODIFY-ORDER] ===== ORDER MODIFICATION PROCESS COMPLETE =====")
+                    logger.info(
+                        f"[MODIFY-ORDER-RESULT] Final Removal {idx+1}: {removal.get('quantity', 1)}x {removal.get('name', 'Unknown')}"
+                    )
+
+                logger.info(
+                    f"[MODIFY-ORDER] ===== ORDER MODIFICATION PROCESS COMPLETE ====="
+                )
                 return modifications
 
             except Exception as e:
                 # Log detailed error information
                 logger.error(f"[MODIFY-ERROR] Error in modify_order: {str(e)}")
                 logger.error(f"[MODIFY-TRACEBACK] {traceback.format_exc()}")
-                
+
                 # Log failed processing time
                 processing_time = time.time() - start_time
-                logger.error(f"[MODIFY-ERROR] Processing failed after {processing_time:.3f} seconds")
-                
+                logger.error(
+                    f"[MODIFY-ERROR] Processing failed after {processing_time:.3f} seconds"
+                )
+
                 # Log specific debugging info about the current state
                 logger.error(f"[MODIFY-ERROR] Modification text: '{modification_text}'")
-                logger.error(f"[MODIFY-ERROR] Current order items: {len(current_order.get('items', []))}")
-                
-                logger.info(f"[MODIFY-ORDER] ===== ORDER MODIFICATION PROCESS FAILED =====")
-                return {"additions": [], "removals": [], "modifications": [], "error": str(e)}
+                logger.error(
+                    f"[MODIFY-ERROR] Current order items: {len(current_order.get('items', []))}"
+                )
+
+                logger.info(
+                    f"[MODIFY-ORDER] ===== ORDER MODIFICATION PROCESS FAILED ====="
+                )
+                return {
+                    "additions": [],
+                    "removals": [],
+                    "modifications": [],
+                    "error": str(e),
+                }
 
 
 def analyze_user_input(input_text: str) -> Dict[str, Any]:
@@ -2711,9 +2803,10 @@ def analyze_user_input(input_text: str) -> Dict[str, Any]:
     try:
         if OPENAI_API_KEY:
             # Prepare messages for intent classification
-            
+
             # Import here to avoid circular imports
             from app.utils.menu_utils_db import load_menu_data
+
             menu_data = load_menu_data()
             # Prepare menu categories and some example items
             categories = {}
