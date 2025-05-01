@@ -5,11 +5,22 @@ import pytest
 import json
 from playwright.sync_api import APIRequestContext, Playwright
 
-# Add the project root to the Python path so tests can be imported as proper modules
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# The project root path should already be in sys.path from the root conftest.py
+# Add a check to make sure we can import app modules
+try:
+    import app
+    import tests.e2e
+except ImportError:
+    # If app or tests can't be imported, add the project root to the path
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-# Import the database test fixtures directly from the same directory
-from tests.e2e.db_test_fixtures import setup_test_database, use_database_for_menu
+# Import the database test fixtures
+try:
+    # Try the absolute import first (which works with proper package structure)
+    from tests.e2e.db_test_fixtures import setup_test_database, use_database_for_menu
+except ImportError:
+    # Fall back to relative import if the package structure isn't recognized
+    from db_test_fixtures import setup_test_database, use_database_for_menu
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
 

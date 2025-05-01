@@ -9,8 +9,13 @@ import sys
 import json
 from contextlib import contextmanager
 
-# Add the project root to the Python path so 'app' can be imported
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# The project root path should already be in sys.path from the root conftest.py
+# Add a check to make sure we can import app modules
+try:
+    import app
+except ImportError:
+    # If app can't be imported, add the project root to the path
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Now import the app modules
 from app.utils.menu_migration import migrate_menu_to_database

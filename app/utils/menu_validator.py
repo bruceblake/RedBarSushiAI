@@ -5,7 +5,6 @@ This ensures consistent PLU and price handling throughout the application.
 """
 
 import logging
-from app.utils.helpers import get_common_prices
 
 logger = logging.getLogger(__name__)
 
@@ -135,9 +134,9 @@ def validate_and_fix_menu_data(menu_data):
     # Build map of existing items for reference
     existing_items = {}
 
-    # Load common prices for fallback
-    common_prices = get_common_prices()
-
+    # Import here to avoid circular imports
+    from app.utils.menu_db_store import menu_db_store
+    
     # Process items
     fixed_item_count = 0
     items_missing_names = []
@@ -330,23 +329,32 @@ def validate_and_fix_menu_data(menu_data):
                 logger.info(
                     f"[MENU-FIX] Preserved existing price for {item_name}: {item['price']}"
                 )
-            # Check common prices as a fallback
-            elif any(
-                key == item_name_lower or key in item_name_lower
-                for key in common_prices.keys()
-            ):
-                for key, price_info in common_prices.items():
-                    if key == item_name_lower or key in item_name_lower:
-                        item["price"] = price_info.get("price", 7.5)
-                        logger.info(
-                            f"[MENU-FIX] Set price for {item_name} to common price: {item['price']}"
-                        )
-                        break
+            # Query database for pricing information
             else:
-                logger.warning(
-                    f"[MENU-FIX] Item {item_name} has missing or invalid price, setting default to 7.5"
-                )
-                item["price"] = 7.5  # Default price
+                try:
+                    # Get menu data from database
+                    menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                    
+                    # Try to find matching item in database
+                    db_item = None
+                    for db_item_entry in menu_data_db.get("items", []):
+                        db_item_name = db_item_entry.get("name", "").lower()
+                        if db_item_name == item_name_lower or db_item_name in item_name_lower or item_name_lower in db_item_name:
+                            db_item = db_item_entry
+                            break
+                    
+                    if db_item and isinstance(db_item.get("price"), (int, float)) and db_item.get("price") > 0:
+                        item["price"] = db_item.get("price")
+                        logger.info(
+                            f"[MENU-FIX] Set price for {item_name} using database match: {item['price']}"
+                        )
+                    else:
+                        error_msg = f"Item {item_name} has missing or invalid price and no matching price found in database"
+                        logger.error(f"[MENU-ERROR] {error_msg}")
+                        raise ValueError(error_msg)
+                except Exception as e:
+                    logger.error(f"[MENU-ERROR] Failed to retrieve price for {item_name}: {str(e)}")
+                    raise ValueError(f"Failed to retrieve price for {item_name}: {str(e)}")
             item_fixed = True
 
         # Ensure description exists (can be empty)
@@ -481,18 +489,95 @@ def validate_and_fix_menu_data(menu_data):
         if "minAllowed" not in group or not isinstance(
             group["minAllowed"], (int, float)
         ):
-            group["minAllowed"] = 0
+            try:
+                # Try to find matching group in database
+                menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                db_group = None
+                
+                for db_grp in menu_data_db.get("modifierGroups", []):
+                    if db_grp.get("id") == group_id or db_grp.get("name") == group_name:
+                        db_group = db_grp
+                        break
+                
+                if db_group and isinstance(db_group.get("minAllowed"), (int, float)):
+                    group["minAllowed"] = db_group.get("minAllowed")
+                    logger.info(
+                        f"[MENU-FIX] Set minAllowed for group '{group_name}' using database match: {group['minAllowed']}"
+                    )
+                else:
+                    # For minAllowed, it's reasonable to default to 0 as it means optional
+                    logger.warning(
+                        f"[MENU-FIX] Group '{group_name}' has invalid minAllowed, using rational default of 0"
+                    )
+                    group["minAllowed"] = 0
+            except Exception as e:
+                # This is a non-critical field, so we'll provide a sensible default
+                logger.warning(f"[MENU-FIX] Error retrieving minAllowed for group '{group_name}': {e}")
+                group["minAllowed"] = 0
             fixed_modifier_group_count += 1
 
         if "maxAllowed" not in group or not isinstance(
             group["maxAllowed"], (int, float)
         ):
-            group["maxAllowed"] = 999
+            try:
+                # Try to find matching group in database if not already fetched
+                if 'db_group' not in locals() or db_group is None:
+                    menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                    db_group = None
+                    
+                    for db_grp in menu_data_db.get("modifierGroups", []):
+                        if db_grp.get("id") == group_id or db_grp.get("name") == group_name:
+                            db_group = db_grp
+                            break
+                
+                if db_group and isinstance(db_group.get("maxAllowed"), (int, float)):
+                    group["maxAllowed"] = db_group.get("maxAllowed")
+                    logger.info(
+                        f"[MENU-FIX] Set maxAllowed for group '{group_name}' using database match: {group['maxAllowed']}"
+                    )
+                else:
+                    # Default to allowing all modifiers (not ideal but prevents order failures)
+                    logger.warning(
+                        f"[MENU-WARNING] Group '{group_name}' missing maxAllowed value, using reasonable default"
+                    )
+                    # Count available modifiers and use that as max
+                    modifiers = group.get("modifiers", [])
+                    if modifiers:
+                        group["maxAllowed"] = len(modifiers)
+                    else:
+                        group["maxAllowed"] = 10  # A reasonable upper bound if we don't know
+            except Exception as e:
+                logger.warning(f"[MENU-FIX] Error retrieving maxAllowed for group '{group_name}': {e}")
+                group["maxAllowed"] = 10  # A reasonable default
             fixed_modifier_group_count += 1
 
         # Ensure multiMax constraint is valid (maximum quantity of any single modifier)
         if "multiMax" not in group or not isinstance(group["multiMax"], (int, float)):
-            group["multiMax"] = 1
+            try:
+                # Try to find matching group in database if not already fetched
+                if 'db_group' not in locals() or db_group is None:
+                    menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                    db_group = None
+                    
+                    for db_grp in menu_data_db.get("modifierGroups", []):
+                        if db_grp.get("id") == group_id or db_grp.get("name") == group_name:
+                            db_group = db_grp
+                            break
+                
+                if db_group and isinstance(db_group.get("multiMax"), (int, float)):
+                    group["multiMax"] = db_group.get("multiMax")
+                    logger.info(
+                        f"[MENU-FIX] Set multiMax for group '{group_name}' using database match: {group['multiMax']}"
+                    )
+                else:
+                    # Default to allowing 1 (safest option for ordering)
+                    logger.warning(
+                        f"[MENU-WARNING] Group '{group_name}' missing multiMax value, using default of 1"
+                    )
+                    group["multiMax"] = 1
+            except Exception as e:
+                logger.warning(f"[MENU-FIX] Error retrieving multiMax for group '{group_name}': {e}")
+                group["multiMax"] = 1  # A reasonable default
             fixed_modifier_group_count += 1
 
         # Ensure isVariantGroup flag is a boolean
@@ -644,10 +729,30 @@ def validate_and_fix_menu_data(menu_data):
             price_invalid = True
 
         if price_invalid:
-            logger.warning(
-                f"[MENU-FIX] Modifier {mod_name} has invalid price, setting to 0"
-            )
-            modifier["price"] = 0.0
+            try:
+                # Try to find matching modifier in database
+                menu_data_db = menu_db_store.get_menu_data(force_refresh=True)
+                db_modifier = None
+                
+                for db_mod in menu_data_db.get("modifiers", []):
+                    db_mod_name = db_mod.get("name", "").lower()
+                    mod_name_lower = mod_name.lower()
+                    if db_mod_name == mod_name_lower or db_mod_name in mod_name_lower or mod_name_lower in db_mod_name:
+                        db_modifier = db_mod
+                        break
+                
+                if db_modifier and isinstance(db_modifier.get("price"), (int, float)):
+                    modifier["price"] = db_modifier.get("price")
+                    logger.info(
+                        f"[MENU-FIX] Set price for modifier {mod_name} using database match: {modifier['price']}"
+                    )
+                else:
+                    error_msg = f"Modifier {mod_name} has invalid price and no matching price found in database"
+                    logger.error(f"[MENU-ERROR] {error_msg}")
+                    raise ValueError(error_msg)
+            except Exception as e:
+                logger.error(f"[MENU-ERROR] Failed to retrieve price for modifier {mod_name}: {str(e)}")
+                raise ValueError(f"Failed to retrieve price for modifier {mod_name}: {str(e)}")
             mod_fixed = True
 
         # Ensure availability is properly initialized
@@ -685,13 +790,10 @@ def validate_and_fix_menu_data(menu_data):
             f"[MENU-VALIDATION] {missing_count} items still missing names after fixing attempts. Problem indices: {item_indices}"
         )
 
-        # Instead of raising error, fix the remaining items
-        for i, item in enumerate(items_still_missing_names):
-            index = menu_data.get("items", []).index(item)
-            item["name"] = f"Generated Item {index + 1}"
-            logger.warning(
-                f"[MENU-FIX] Last resort name generation for item at index {index}"
-            )
+        # Instead of silent fixing, raise an error
+        error_msg = f"{len(items_still_missing_names)} items still missing names after fixing attempts"
+        logger.error(f"[MENU-ERROR] {error_msg}")
+        raise ValueError(error_msg)
 
     # Final validation: Check every item for empty string names
     empty_name_items = [
@@ -706,11 +808,10 @@ def validate_and_fix_menu_data(menu_data):
             f"[MENU-VALIDATION] {empty_count} items have empty string names. Problem indices: {item_indices}"
         )
 
-        # Fix empty string names
-        for item in empty_name_items:
-            index = menu_data.get("items", []).index(item)
-            item["name"] = f"Unnamed Item {index + 1}"
-        logger.info(f"[MENU-FIX] Fixed {empty_count} items with empty string names")
+        # Instead of silent fixing, raise an error
+        error_msg = f"{len(empty_name_items)} items have empty string names"
+        logger.error(f"[MENU-ERROR] {error_msg}")
+        raise ValueError(error_msg)
 
     # Mark category items clearly to prevent them from being matched as orderable items
     category_count = 0
