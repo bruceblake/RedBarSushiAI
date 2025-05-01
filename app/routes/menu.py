@@ -1475,7 +1475,7 @@ def debug_menu():
         # Try to get table info
         try:
             table_info = {}
-            for table_name in ["menu_item", "menu_modifier", "menu_modifier_group"]:
+            for table_name in ["menu_items", "menu_modifiers", "menu_modifier_groups"]:
                 # This is PostgreSQL-specific, would need adaptation for other databases
                 result = db.session.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
                 table_info[table_name] = result
