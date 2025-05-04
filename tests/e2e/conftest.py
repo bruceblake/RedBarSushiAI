@@ -41,19 +41,10 @@ def app():
     yield test_app
 
 
-# Import the database test fixtures
-try:
-    # Try the absolute import first (which works with proper package structure)
-    from tests.e2e.db_test_fixtures import setup_test_database, use_database_for_menu
-except ImportError:
-    # Fall back to relative import if the package structure isn't recognized
-    try:
-        from .db_test_fixtures import setup_test_database, use_database_for_menu
-    except ImportError:
-        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from db_test_fixtures import setup_test_database, use_database_for_menu
-
+# Database fixtures are not needed for pure endpoint E2E tests
+# Just set BASE_URL for the tests
 BASE_URL = os.getenv("BASE_URL", "https://redbarsushiai-staging.onrender.com")
+print(f"Using BASE_URL: {BASE_URL}")
 
 
 @pytest.fixture(scope="session")
