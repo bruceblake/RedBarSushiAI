@@ -55,9 +55,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -m playwright install --with-deps
+          # Use helper script to install dependencies with compatible versions
+          chmod +x install_for_e2e.sh
+          ./install_for_e2e.sh
 
       - name: E2E Tests
         env:
