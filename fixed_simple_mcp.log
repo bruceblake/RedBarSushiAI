@@ -9,3 +9,7 @@ Fixed Simple MCP Server started at 2025-05-04 18:42:42.440100
 2025-05-04 18:42:42,454 - INFO - Received: {"method":"tools/list","jsonrpc":"2.0","id":1}
 2025-05-04 18:42:42,454 - INFO - Method: tools/list, ID: 1
 2025-05-04 18:42:42,454 - INFO - Sending response: {"jsonrpc": "2.0", "id": 1, "result": {"tools": [{"name": "run_test", "description": "Run tests on the staging environment", "inputSchema": {"type": "object", "properties": {"test_type": {"type": "string", "description": "Type of test to run (basic, voice, menu, order, all)"}}, "required": ["test_type"]}}, {"name": "echo", "description": "Echo a message back", "inputSchema": {"type": "object", "properties": {"message": {"type": "string", "description": "Message to echo back"}}, "required": ["message"]}}]}}
+2025-05-04 18:50:51,638 - INFO - Received: {"method":"tools/call","params":{"name":"echo","arguments":{"message":"Testing MCP connection"}},"jsonrpc":"2.0","id":2}
+2025-05-04 18:50:51,638 - INFO - Method: tools/call, ID: 2
+2025-05-04 18:50:51,638 - INFO - Tool call: echo with arguments: {'message': 'Testing MCP connection'}
+2025-05-04 18:50:51,638 - INFO - Sending response: {"jsonrpc": "2.0", "id": 2, "result": {"content": [{"type": "text", "text": "Testing MCP connection"}]}}

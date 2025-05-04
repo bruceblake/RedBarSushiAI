@@ -52,11 +52,11 @@ jobs:
         # Upgrade pip
         python -m pip install --upgrade pip
         
-        # Install psycopg2-binary first to avoid build issues
-        pip install --no-build-isolation psycopg2-binary==2.9.9
+        # Install dependencies
+        pip install -r requirements.txt
         
-        # Then install the rest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # Install Playwright browser dependencies
+        python -m playwright install --with-deps
         
     - name: List running services
       run: |
@@ -161,11 +161,11 @@ jobs:
         # Upgrade pip
         python -m pip install --upgrade pip
         
-        # Install psycopg2-binary first to avoid build issues
-        pip install --no-build-isolation psycopg2-binary==2.9.9
+        # Install dependencies
+        pip install -r requirements.txt
         
-        # Then install the rest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # Install Playwright browser dependencies
+        python -m playwright install --with-deps
         
     - name: Run Docker integration tests
       run: |

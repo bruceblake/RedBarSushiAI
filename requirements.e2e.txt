@@ -1,3 +1,7 @@
+# DEPRECATED: This file is kept for reference only.
+# Please use requirements.txt instead.
+# This file will be removed in a future update.
+
 # E2E test dependencies
 pytest==7.4.0
 pytest-asyncio==0.26.0
