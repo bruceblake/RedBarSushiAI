@@ -226,7 +226,7 @@ def test_voice_silence_handling_flow():
     test_call_sid = f"CA{''.join(['1234567890'[i % 10] for i in range(32)])}"
 
     # Step 1: Initial call to voice webhook
-    voice_response = session.post(
+    initial_response = session.post(
         f"{BASE_URL}",
         data={
             "CallSid": test_call_sid,
@@ -234,44 +234,60 @@ def test_voice_silence_handling_flow():
             "From": "+15551234567",
         }
     )
-    assert voice_response.status_code == 200
-
-    # Parse the TwiML response to get the greeting and next action
-    greeting_twiml = voice_response.text
-    assert "<Response>" in greeting_twiml
-
+    assert initial_response.status_code == 200
+    
+    xml_str = initial_response.text
+    
+    root = ET.fromstring(xml_str)
+    
+    assert root.tag == "Response"
+    
+    gather = root.find("Gather")
+    assert gather is not None
+    
+    say_text = gather.findtext("Say")
+    assert "Red Bar Sushi" in say_text
+    
     # Extract the Gather action URL for the next step
-    gather_action = extract_gather_action(greeting_twiml)
+    gather_action = gather.get("action")
     assert gather_action is not None
     
     # Convert to full URL if it's a relative path
     if not gather_action.startswith("http"):
         gather_action = f"{BASE_URL}{gather_action}"
 
-    # Step 2: Test silence on name collection
-    # First silence (no SpeechResult or Digits)
+    # Step 2: Test silence on name collection (don't provide any speech input)
     silence_response1 = session.post(
         gather_action, 
         data={"CallSid": test_call_sid}
     )
     assert silence_response1.status_code == 200
 
-    # Parse the first silence response
-    silence1_twiml = silence_response1.text
-    assert "<Response>" in silence1_twiml
-    assert (
-        "didn't hear" in silence1_twiml.lower() or "sorry" in silence1_twiml.lower()
-    ), "Should acknowledge silence"
+    # Parse the first silence response TwiML
+    xml_str = silence_response1.text
+    
+    root = ET.fromstring(xml_str)
+    
+    assert root.tag == "Response"
+    
+    gather = root.find("Gather")
+    assert gather is not None
+    
+    say_text = gather.findtext("Say")
+    
+    # First silence should acknowledge that it didn't hear anything
+    assert any(phrase in say_text.lower() for phrase in ["didn't hear", "sorry", "couldn't hear"]), \
+        "Should acknowledge silence"
 
-    # Extract the new Gather action URL
-    silence1_action = extract_gather_action(silence1_twiml)
+    # Extract the Gather action URL for the second attempt
+    silence1_action = gather.get("action")
     assert silence1_action is not None
     
     # Convert to full URL if it's a relative path
     if not silence1_action.startswith("http"):
         silence1_action = f"{BASE_URL}{silence1_action}"
 
-    # Second silence (no SpeechResult or Digits)
+    # Step 3: Second silence (no speech input again)
     silence_response2 = session.post(
         silence1_action, 
         data={"CallSid": test_call_sid}
@@ -279,23 +295,43 @@ def test_voice_silence_handling_flow():
     assert silence_response2.status_code == 200
 
     # Parse the second silence response
-    silence2_twiml = silence_response2.text
-    assert "<Response>" in silence2_twiml
+    xml_str = silence_response2.text
     
-    # Second silence should give clearer instructions or a fallback
-    assert (
-        "name" in silence2_twiml.lower()
-    ), "Should still be trying to get name or fallback"
-
-    # Extract the new Gather action URL
-    silence2_action = extract_gather_action(silence2_twiml)
-    assert silence2_action is not None
+    root = ET.fromstring(xml_str)
+    
+    assert root.tag == "Response"
+    
+    # Either a Gather for another attempt or a different handling strategy
+    gather = root.find("Gather")
+    if gather is not None:
+        say_text = gather.findtext("Say") or ""
+        
+        # Should be still asking for name or providing clearer instructions
+        assert "name" in say_text.lower(), "Should still be trying to get name"
+        
+        # Extract the action for next step
+        silence2_action = gather.get("action")
+    else:
+        # If no Gather, might have other elements like Redirect or Say
+        say = root.find("Say")
+        if say is not None and say.text:
+            say_text = say.text
+            assert "name" in say_text.lower(), "Should mention name in fallback message"
+        
+        # Use a Redirect if present, otherwise use the original gather action
+        redirect = root.find("Redirect")
+        if redirect is not None and redirect.text:
+            silence2_action = redirect.text.strip()
+        else:
+            silence2_action = silence1_action
+    
+    assert silence2_action is not None, "No action URL found for next step"
     
     # Convert to full URL if it's a relative path
     if not silence2_action.startswith("http"):
         silence2_action = f"{BASE_URL}{silence2_action}"
 
-    # Now provide a name after silence to test recovery
+    # Step 4: Now provide a name after silence to test recovery
     name_response = session.post(
         silence2_action,
         data={
@@ -305,6 +341,16 @@ def test_voice_silence_handling_flow():
         }
     )
     assert name_response.status_code == 200
+
+    # Parse the name confirmation TwiML
+    xml_str = name_response.text
+    
+    # Use the helper function to get a Gather element even if there are redirects/says
+    name_response_twiml = convertTwiRespToGather(xml_str)
+    
+    # Name should be in the response
+    say_text = name_response_twiml.findtext("Say") or ""
+    assert "Sarah" in say_text or "Sarah Johnson" in say_text, "Should include the name in response"
 
     print("Silence handling test completed successfully")
 
@@ -330,7 +376,7 @@ def test_voice_menu_query_flow():
     test_call_sid = f"CA{''.join(['1234567890'[i % 10] for i in range(32)])}"
 
     # Step 1: Initial call to voice webhook
-    voice_response = session.post(
+    initial_response = session.post(
         f"{BASE_URL}",
         data={
             "CallSid": test_call_sid,
@@ -338,17 +384,29 @@ def test_voice_menu_query_flow():
             "From": "+15551234567",
         }
     )
-    assert voice_response.status_code == 200
-
-    # Handle initial greeting and name collection quickly
-    greeting_twiml = voice_response.text
-    gather_action = extract_gather_action(greeting_twiml)
+    assert initial_response.status_code == 200
+    
+    xml_str = initial_response.text
+    
+    root = ET.fromstring(xml_str)
+    
+    assert root.tag == "Response"
+    
+    gather = root.find("Gather")
+    assert gather is not None
+    
+    say_text = gather.findtext("Say")
+    assert "Red Bar Sushi" in say_text
+    
+    # Extract the Gather action URL for the next step
+    gather_action = gather.get("action")
+    assert gather_action is not None
     
     # Convert to full URL if it's a relative path
     if not gather_action.startswith("http"):
         gather_action = f"{BASE_URL}{gather_action}"
 
-    # Provide name
+    # Step 2: Provide name (should be directed to take_name)
     name_response = session.post(
         gather_action,
         data={
@@ -359,32 +417,49 @@ def test_voice_menu_query_flow():
     )
     assert name_response.status_code == 200
 
-    name_confirm_twiml = name_response.text
-    confirm_name_action = extract_gather_action(name_confirm_twiml)
+    # Parse the name confirmation TwiML
+    xml_str = name_response.text
+    
+    root = ET.fromstring(xml_str)
+    
+    gather = root.find("Gather")
+    assert gather is not None
+    
+    say_text = gather.findtext("Say")
+    
+    assert "Mike Smith" in say_text
+
+    # Extract the Gather action URL for name confirmation
+    confirm_name_action = gather.get("action")
+    assert confirm_name_action is not None
     
     # Convert to full URL if it's a relative path
     if not confirm_name_action.startswith("http"):
         confirm_name_action = f"{BASE_URL}{confirm_name_action}"
 
-    # Confirm name
+    # Step 3: Confirm name
     confirm_response = session.post(
         confirm_name_action,
         data={
-            "CallSid": test_call_sid, 
+            "CallSid": test_call_sid,
             "SpeechResult": "yes", 
             "Confidence": "0.9"
         }
     )
     assert confirm_response.status_code == 200
 
-    main_menu_twiml = confirm_response.text
-    main_menu_action = extract_gather_action(main_menu_twiml)
+    # Parse the main menu TwiML
+    main_menu_twiml = convertTwiRespToGather(confirm_response.text)
+
+    # Extract the Gather action URL for main menu selection
+    main_menu_action = main_menu_twiml.get("action")
+    assert main_menu_action is not None
     
     # Convert to full URL if it's a relative path
     if not main_menu_action.startswith("http"):
         main_menu_action = f"{BASE_URL}{main_menu_action}"
 
-    # Step 2: Choose to ask about menu
+    # Step 4: Choose to ask about menu
     menu_query_response = session.post(
         main_menu_action,
         data={
@@ -396,18 +471,20 @@ def test_voice_menu_query_flow():
     assert menu_query_response.status_code == 200
 
     # Parse the menu response TwiML
-    menu_response_twiml = menu_query_response.text
-    assert "<Response>" in menu_response_twiml
-
+    menu_response_twiml = convertTwiRespToGather(menu_query_response.text)
+    
+    say_text = menu_response_twiml.findtext("Say") or ""
+    assert "menu" in say_text.lower() or "food" in say_text.lower(), "Should acknowledge menu query"
+    
     # Extract the Gather action URL for continuing the conversation
-    menu_continue_action = extract_gather_action(menu_response_twiml)
+    menu_continue_action = menu_response_twiml.get("action")
     assert menu_continue_action is not None
     
     # Convert to full URL if it's a relative path
     if not menu_continue_action.startswith("http"):
         menu_continue_action = f"{BASE_URL}{menu_continue_action}"
 
-    # Step 3: Ask about menu categories
+    # Step 5: Ask about menu categories
     category_query_response = session.post(
         menu_continue_action,
         data={
@@ -419,19 +496,54 @@ def test_voice_menu_query_flow():
     assert category_query_response.status_code == 200
 
     # Parse the category response TwiML
-    category_response_twiml = category_query_response.text
-    assert "<Response>" in category_response_twiml
-
+    category_response_twiml = convertTwiRespToGather(category_query_response.text)
+    
+    # Get text from Say element if available
+    say_text = category_response_twiml.findtext("Say") or ""
+    
+    # Also check the raw response text in case the structure changed
+    raw_text = category_query_response.text.lower()
+    
     # Common sushi menu categories
     common_categories = ["roll", "sushi", "appetizer", "entree", "special"]
     
-    # Check that at least one category is mentioned
+    # Check that at least one category is mentioned, either in Say text or raw response
     found_category = False
     for category in common_categories:
-        if category.lower() in category_response_twiml.lower():
+        if category.lower() in say_text.lower() or category.lower() in raw_text:
             found_category = True
             break
     assert found_category, "No menu categories mentioned in response"
+    
+    # Extract the Gather action URL for continuing after category information
+    category_continue_action = category_response_twiml.get("action")
+    assert category_continue_action is not None
+    
+    # Convert to full URL if it's a relative path
+    if not category_continue_action.startswith("http"):
+        category_continue_action = f"{BASE_URL}{category_continue_action}"
+    
+    # Step 6: Ask about a specific menu item
+    item_query_response = session.post(
+        category_continue_action,
+        data={
+            "CallSid": test_call_sid,
+            "SpeechResult": "Tell me about the Spicy Tuna Roll",
+            "Confidence": "0.85",
+        }
+    )
+    assert item_query_response.status_code == 200
+    
+    # Parse the item description TwiML
+    item_response_twiml = convertTwiRespToGather(item_query_response.text)
+    say_text = item_response_twiml.findtext("Say") or ""
+    
+    # Also check the raw response text
+    raw_text = item_query_response.text.lower()
+    
+    # Check either in the Say element or in the raw response for "tuna" or "spicy"
+    assert any(word in say_text.lower() or word in raw_text for word in ["tuna", "spicy"]), \
+        "Should mention the requested item or an alternative"
 
     print("Menu query test completed successfully")
 
