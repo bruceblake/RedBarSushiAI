@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 
 # Get the base URL from environment
 BASE_URL = os.getenv("BASE_URL", "https://redbarsushiai-staging.onrender.com")
-print(f"Running voice flow tests against: {BASE_URL}")
+print(f"Running endpoint tests against: {BASE_URL}")
 
 @pytest.mark.e2e
 def test_homepage_responds_with_twiml():

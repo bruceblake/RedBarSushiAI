@@ -56,14 +56,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-
-          # Install the requirements without optional dependencies
-          pip install -r requirements.txt || true
-
-          # Install essential testing packages
+          
+          # Install minimal dependencies for endpoint testing
           pip install pytest requests
 
-      - name: E2E Tests
+      - name: E2E Tests (Endpoint Testing)
         env:
           BASE_URL: https://redbarsushiai-staging.onrender.com
           TESTING: true
