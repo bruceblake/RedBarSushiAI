@@ -520,6 +520,7 @@ def create_app(test_config=None):
     # Add database connection cleanup to prevent memory leaks
     @app.teardown_appcontext
     def cleanup_db_resources(exception=None):
-        db.session.close()
+        if hasattr(db, 'session'):
+            db.session.close()
 
     return app
