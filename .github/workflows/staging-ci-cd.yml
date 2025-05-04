@@ -15,16 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Render CLI
-        run: |
-          curl -o render https://render.com/download-cli/latest/render-linux-amd64
-          chmod +x render
-          sudo mv render /usr/local/bin/
-
-      - name: Deploy to Render Staging
+      - name: Deploy to Render Staging using Webhook
         run: |
           echo "Deploying to Render staging environment..."
-          render deploy-hook "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}"
+          curl -X POST "${{ secrets.RENDER_STAGING_DEPLOY_HOOK }}"
           echo "Deployment triggered. It may take a few minutes to complete."
 
       - name: Wait for deployment to complete
