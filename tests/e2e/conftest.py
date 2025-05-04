@@ -3,6 +3,7 @@ import os
 import sys
 import pytest
 import json
+import playwright.sync_api
 from playwright.sync_api import APIRequestContext, Playwright
 
 # The project root path should already be in sys.path from the root conftest.py
@@ -21,25 +22,22 @@ except ImportError:
 @pytest.fixture(scope="function")
 def app():
     """
-    Create and configure a Flask app for testing.
+    Provide a dummy app object for testing against the staging environment.
+    This fixture is modified to not spin up a local app when testing remote server.
     """
-    # Import here to avoid circular imports
-    try:
-        from app import create_app
-    except ImportError:
-        sys.path.insert(
-            0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-        )
-        from app import create_app
-
-    # Create a test configuration dictionary
-    test_config = {
-        "TESTING": True,
-        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-        "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-    }
-    test_app = create_app(test_config=test_config)
-
+    # Just create a dummy object with config property
+    class DummyApp:
+        def __init__(self):
+            self.config = {
+                "TESTING": True,
+                "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+                "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+                "MENU_BACKEND": "database"
+            }
+            
+    # Return the dummy app instead of creating a real Flask app
+    test_app = DummyApp()
+    
     yield test_app
 
 
@@ -49,24 +47,93 @@ try:
     from tests.e2e.db_test_fixtures import setup_test_database, use_database_for_menu
 except ImportError:
     # Fall back to relative import if the package structure isn't recognized
-    from db_test_fixtures import setup_test_database, use_database_for_menu
+    try:
+        from .db_test_fixtures import setup_test_database, use_database_for_menu
+    except ImportError:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from db_test_fixtures import setup_test_database, use_database_for_menu
 
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
+BASE_URL = os.getenv("BASE_URL", "https://redbarsushiai-staging.onrender.com")
 
 
 @pytest.fixture(scope="session")
-def api_ctx(playwright: Playwright) -> APIRequestContext:
+def api_ctx():
     """
-    One HTTP context for the whole test session, using Playwright's
-    built-in 'playwright' fixture to manage the driver lifecycle.
+    One HTTP context for the whole test session. This fixture tries to use
+    Playwright if available, but falls back to a requests-based implementation
+    if playwright is not available.
     """
-    ctx = playwright.request.new_context(
-        base_url=BASE_URL,
-        extra_http_headers={"accept": "application/json"},
-        timeout=10_000,  # 10 s per request
-    )
-    yield ctx
-    ctx.dispose()
+    try:
+        # First try to get the playwright fixture
+        try:
+            import pytest_playwright
+            # If this import succeeds, we'll try to get the playwright fixture
+            playwright_fixture = pytest.importorskip("pytest_playwright.plugin").playwright_fixture
+            playwright = playwright_fixture._fixture_function(request=None)
+            
+            ctx = playwright.request.new_context(
+                base_url=BASE_URL,
+                extra_http_headers={"accept": "application/json"},
+                timeout=10_000,  # 10 s per request
+            )
+            yield ctx
+            ctx.dispose()
+        except (ImportError, ModuleNotFoundError, AttributeError):
+            # If playwright fixture import fails, fall back to requests
+            raise ImportError("Playwright fixture not available")
+            
+    except ImportError:
+        # Fallback to requests-based implementation
+        import requests
+        
+        class RequestsAPIContext:
+            def __init__(self):
+                self.session = requests.Session()
+                self.session.headers.update({"accept": "application/json"})
+                self.base_url = BASE_URL
+                
+            def get(self, url, params=None):
+                full_url = f"{self.base_url}{url}"
+                resp = self.session.get(full_url, params=params)
+                
+                # Create a simple object to mimic playwright response
+                class Response:
+                    def __init__(self, original_response):
+                        self.original_response = original_response
+                        self.status = original_response.status_code
+                        self._json = None
+                        
+                    def json(self):
+                        if self._json is None:
+                            self._json = self.original_response.json()
+                        return self._json
+                        
+                return Response(resp)
+                
+            def post(self, url, **kwargs):
+                full_url = f"{self.base_url}{url}"
+                resp = self.session.post(full_url, **kwargs)
+                
+                # Create a simple object to mimic playwright response
+                class Response:
+                    def __init__(self, original_response):
+                        self.original_response = original_response
+                        self.status = original_response.status_code
+                        self._json = None
+                        
+                    def json(self):
+                        if self._json is None:
+                            self._json = self.original_response.json()
+                        return self._json
+                        
+                return Response(resp)
+                
+            def dispose(self):
+                self.session.close()
+                
+        ctx = RequestsAPIContext()
+        yield ctx
+        ctx.dispose()
 
 
 @pytest.fixture

@@ -1628,7 +1628,6 @@ def realtime_demo():
     return send_from_directory("app/static", "realtime_demo.html")
 
 
-
 @voice_bp.route("/graceful_exit", methods=["POST", "GET"])
 def graceful_exit():
     """

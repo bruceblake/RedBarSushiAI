@@ -141,7 +141,7 @@
 
 ## 📁 Menu Data
 
-Both `menu_data.json` and `redbar_menu_data.json` are present for menu data. Keep both unless you are sure one is obsolete.
+The system uses PostgreSQL as the primary menu data storage and `menu_data.json` as a backup file. The database is automatically initialized with menu data from this file if empty.
 
 ---
 
@@ -151,7 +151,7 @@ Both `menu_data.json` and `redbar_menu_data.json` are present for menu data. Kee
 
 1. **Customer Call**: Customer calls the Red Bar Sushi phone number (Twilio).
 2. **Voice Interaction**: Twilio forwards the call to the Flask backend, which uses OpenAI for speech recognition and intent parsing.
-3. **Menu & Order**: The backend uses `menu_data.json`/`redbar_menu_data.json` to answer menu questions and take orders.
+3. **Menu & Order**: The backend uses the PostgreSQL database (with Redis caching) to answer menu questions and take orders.
 4. **Order Validation**: Orders are validated and processed via Deliverect API.
 5. **Order Status**: Real-time order status is provided via SMS (Twilio) and WebSocket audio updates.
 6. **Multi-location**: System supports multiple restaurant locations.

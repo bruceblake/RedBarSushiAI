@@ -341,7 +341,7 @@ class MenuDBStore:
         try:
             # Import models here to avoid circular imports
             from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
-            from app import db
+            from app.db import db, get_session, get_engine, session_scope
             from flask import current_app, has_app_context
 
             # Check if we're in an application context
@@ -406,7 +406,7 @@ class MenuDBStore:
         try:
             # Import models here to avoid circular imports
             from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
-            from app import db
+            from app.db import db, get_session, get_engine, session_scope
             from flask import current_app, has_app_context
 
             # Check if we're in an application context
@@ -468,8 +468,13 @@ class MenuDBStore:
                     )
 
                     item = MenuItem.from_dict(item_data)
-                    db.session.add(item)
-                    successfully_added_items += 1
+                    session = get_session()
+                    if session:
+                        session.add(item)
+                        successfully_added_items += 1
+                    else:
+                        logger.error(f"[MENU-STORE] No database session available for item {item_data.get('name')}")
+                        raise RuntimeError("No database session available")
                 except Exception as item_error:
                     logger.error(
                         f"[MENU-STORE] Error adding item {item_data.get('name', 'Unknown')}: {item_error}"
@@ -487,7 +492,12 @@ class MenuDBStore:
                     modifier_data["location_id"] = location_id
 
                 modifier = MenuModifier.from_dict(modifier_data)
-                db.session.add(modifier)
+                session = get_session()
+                if session:
+                    session.add(modifier)
+                else:
+                    logger.error(f"[MENU-STORE] No database session available for modifier {modifier_data.get('name')}")
+                    continue
 
             # Store modifier groups
             for group_data in menu_data.get("modifierGroups", []):
@@ -496,36 +506,46 @@ class MenuDBStore:
                     group_data["location_id"] = location_id
 
                 group = MenuModifierGroup.from_dict(group_data)
-                db.session.add(group)
+                session = get_session()
+                if session:
+                    session.add(group)
+                else:
+                    logger.error(f"[MENU-STORE] No database session available for group {group_data.get('name')}")
+                    continue
 
             # Check if tables exist before committing
             try:
                 from sqlalchemy import inspect
+                
+                # Check if engine is available
+                engine = get_engine()
+                if engine:
+                    inspector = inspect(engine)
+                    tables = inspector.get_table_names()
+                    required_tables = [
+                        "menu_items",
+                        "menu_modifiers",
+                        "menu_modifier_groups",
+                    ]
+                    missing_tables = [
+                        table for table in required_tables if table not in tables
+                    ]
 
-                inspector = inspect(db.engine)
-                tables = inspector.get_table_names()
-                required_tables = [
-                    "menu_items",
-                    "menu_modifiers",
-                    "menu_modifier_groups",
-                ]
-                missing_tables = [
-                    table for table in required_tables if table not in tables
-                ]
+                    if missing_tables:
+                        logger.error(
+                            f"[MENU-STORE] Missing required tables: {missing_tables}. Tables found: {tables}"
+                        )
+                        # If tables are missing, we'll try to create them
+                        from app.db_init import create_tables
 
-                if missing_tables:
-                    logger.error(
-                        f"[MENU-STORE] Missing required tables: {missing_tables}. Tables found: {tables}"
-                    )
-                    # If tables are missing, we'll try to create them
-                    from app.db_init import create_tables
-
-                    logger.info("[MENU-STORE] Attempting to create missing tables")
-                    create_tables()
+                        logger.info("[MENU-STORE] Attempting to create missing tables")
+                        create_tables()
+                    else:
+                        logger.info(
+                            f"[MENU-STORE] All required tables exist: {required_tables}"
+                        )
                 else:
-                    logger.info(
-                        f"[MENU-STORE] All required tables exist: {required_tables}"
-                    )
+                    logger.warning("[MENU-STORE] No database engine available, skipping table check")
             except Exception as inspect_error:
                 logger.error(
                     f"[MENU-STORE] Error checking table existence: {inspect_error}"
@@ -534,8 +554,12 @@ class MenuDBStore:
             # Always commit the transaction regardless of who started it
             try:
                 logger.info("[MENU-STORE] Force committing transaction to database")
-                db.session.commit()
-                logger.info("[MENU-STORE] Transaction committed successfully")
+                session = get_session()
+                if session:
+                    session.commit()
+                    logger.info("[MENU-STORE] Transaction committed successfully")
+                else:
+                    logger.error("[MENU-STORE] No database session available for commit")
             except Exception as commit_error:
                 logger.error(
                     f"[MENU-STORE] Error committing transaction: {commit_error}"
@@ -543,8 +567,12 @@ class MenuDBStore:
                 # Only rollback if we started the transaction
                 if not in_transaction:
                     try:
-                        db.session.rollback()
-                        logger.info("[MENU-STORE] Transaction rolled back")
+                        session = get_session()
+                        if session:
+                            session.rollback()
+                            logger.info("[MENU-STORE] Transaction rolled back")
+                        else:
+                            logger.error("[MENU-STORE] No database session available for rollback")
                     except Exception as rollback_error:
                         logger.error(
                             f"[MENU-STORE] Error during rollback: {rollback_error}"
@@ -746,7 +774,7 @@ class MenuDBStore:
         try:
             # Import models here to avoid circular imports
             from app.models.menu import MenuItem
-            from app import db
+            from app.db import db, get_session, get_engine, session_scope
             from flask import current_app, has_app_context
 
             # Check if we're in an application context
