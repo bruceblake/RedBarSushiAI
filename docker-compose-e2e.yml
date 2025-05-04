@@ -1,0 +1,214 @@
+# Docker Compose configuration for E2E testing
+
+# Complete environment for E2E testing
+# This setup mimics the production environment with all required services
+
+services:
+  # Database services
+  postgres-e2e:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_redbarsushi
+    volumes:
+      - postgres-e2e-data:/var/lib/postgresql/data
+      # Optional: Add initialization scripts if needed
+      - ./tests/e2e/fixtures/db:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d test_redbarsushi"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    networks:
+      - redbarsushi-e2e-network
+
+  # Redis for caching and message broker
+  redis-e2e:
+    image: redis:alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-e2e-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+    networks:
+      - redbarsushi-e2e-network
+
+  # Celery worker for async tasks
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A celery_app worker --loglevel=INFO
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-e2e:5432/test_redbarsushi
+      - REDIS_URL=redis://redis-e2e:6379/0
+      - CELERY_BROKER_URL=redis://redis-e2e:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis-e2e:6379/1
+      - TEST_MODE=e2e
+      - FLASK_ENV=testing
+      - TESTING=true
+      - DELIVERECT_API_URL=http://mock-deliverect:5000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-dummy_key_for_testing}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-dummy_sid_for_testing}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-dummy_token_for_testing}
+    depends_on:
+      postgres-e2e:
+        condition: service_healthy
+      redis-e2e:
+        condition: service_healthy
+      mock-deliverect:
+        condition: service_started
+    networks:
+      - redbarsushi-e2e-network
+
+  # Main application server
+  web-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      /bin/bash -c "
+      /usr/local/bin/wait-for-it.sh -t 60 postgres-e2e:5432 --strict &&
+      /usr/local/bin/wait-for-it.sh -t 60 redis-e2e:6379 --strict &&
+      echo 'Starting web application...' &&
+      gunicorn --worker-class=gevent --workers=2 --bind=0.0.0.0:5000 wsgi:app
+      "
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-e2e:5432/test_redbarsushi
+      - REDIS_URL=redis://redis-e2e:6379/0
+      - CELERY_BROKER_URL=redis://redis-e2e:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis-e2e:6379/1
+      - TEST_MODE=e2e
+      - FLASK_ENV=testing
+      - TESTING=true
+      - DELIVERECT_API_URL=http://mock-deliverect:5000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-dummy_key_for_testing}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-dummy_sid_for_testing}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-dummy_token_for_testing}
+      - BASE_URL=http://web-app:5000
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres-e2e:
+        condition: service_healthy
+      redis-e2e:
+        condition: service_healthy
+      mock-deliverect:
+        condition: service_started
+    networks:
+      - redbarsushi-e2e-network
+    volumes:
+      - ./:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Mock Deliverect API service for testing
+  mock-deliverect:
+    build:
+      context: ./tests/e2e/mocks
+      dockerfile: Dockerfile.mock-deliverect
+    ports:
+      - "5001:5000"
+    networks:
+      - redbarsushi-e2e-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Test runner service with Playwright support
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      /bin/bash -c "
+      echo 'Installing E2E test dependencies...' &&
+      pip install --no-cache-dir -r requirements.e2e.txt &&
+      echo 'Installing Playwright and browsers...' &&
+      python -m playwright install --with-deps chromium &&
+      echo 'Waiting for web app to be ready...' &&
+      /usr/local/bin/wait-for-it.sh -t 60 web-app:5000 &&
+      echo 'Setting up Xvfb for headless browser testing...' &&
+      Xvfb :99 -screen 0 1280x720x24 &
+      export DISPLAY=:99.0 &&
+      echo 'Running E2E tests...' &&
+      python -m pytest tests/e2e/ -v --no-header
+      "
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-e2e:5432/test_redbarsushi
+      - REDIS_URL=redis://redis-e2e:6379/0
+      - TEST_MODE=e2e
+      - FLASK_ENV=testing
+      - TESTING=true
+      - BASE_URL=http://web-app:5000
+      - DELIVERECT_API_URL=http://mock-deliverect:5000
+      - SKIP_DB_SETUP=false
+      # Playwright specific environment variables
+      - DISPLAY=:99.0
+      - PLAYWRIGHT_BROWSERS_PATH=/app/.playwright-browsers
+      - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      web-app:
+        condition: service_healthy
+      postgres-e2e:
+        condition: service_healthy
+      redis-e2e:
+        condition: service_healthy
+      mock-deliverect:
+        condition: service_started
+    networks:
+      - redbarsushi-e2e-network
+    volumes:
+      - ./:/app
+      - ./tests/e2e/reports:/app/reports
+      - playwright-browsers:/app/.playwright-browsers
+
+  # Optional: Prometheus for monitoring 
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./tests/e2e/config/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - web-app
+    networks:
+      - redbarsushi-e2e-network
+
+  # Optional: Grafana for visualizing metrics
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - redbarsushi-e2e-network
+    volumes:
+      - ./tests/e2e/config/grafana:/etc/grafana/provisioning
+
+volumes:
+  postgres-e2e-data:
+  redis-e2e-data:
+  playwright-browsers:
+
+networks:
+  redbarsushi-e2e-network:
+    driver: bridge
