@@ -9,6 +9,29 @@ import xml.etree.ElementTree as ET
 
 # Get the base URL from environment
 BASE_URL = os.getenv("BASE_URL", "https://redbarsushiai-staging.onrender.com")
+print(f"Running voice flow tests against: {BASE_URL}")
+
+@pytest.mark.e2e
+def test_homepage_responds_with_twiml():
+    """Test that the homepage responds with valid TwiML."""
+    response = requests.get(f"{BASE_URL}")
+    assert response.status_code == 200
+    
+    # The home endpoint should return TwiML
+    assert "<?xml version=" in response.text
+    assert "<Response>" in response.text or "<response>" in response.text.lower()
+    assert "red bar sushi" in response.text.lower()
+    
+    # Try to parse as XML to confirm it's valid TwiML
+    try:
+        root = ET.fromstring(response.text)
+        # Check for common Twilio verbs
+        gather = root.find(".//Gather") or root.find(".//gather")
+        say = root.find(".//Say") or root.find(".//say")
+        
+        assert gather is not None or say is not None, "No Gather or Say element found in response"
+    except ET.ParseError:
+        assert False, "Response is not valid XML/TwiML"
 
 @pytest.mark.e2e
 def test_complete_voice_order_flow():

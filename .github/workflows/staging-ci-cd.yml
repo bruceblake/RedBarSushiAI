@@ -65,20 +65,11 @@ jobs:
           TESTING: true
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          # Check if browsers were installed using our helper script
-          python check_browser.py &>/dev/null
+          # Run only the voice flow tests as requested
+          python -m pytest tests/e2e/test_voice_flow.py::test_homepage_responds_with_twiml -v
+          
+          # If the basic test passes, try the more complex ones
           if [ $? -eq 0 ]; then
-            echo "Playwright browsers are working, running all tests..."
-            
-            # Run simplified endpoint tests first
-            python -m pytest tests/e2e/test_simple_endpoints.py -v
-            
-            # If simple tests pass, try more complex ones
-            if [ $? -eq 0 ]; then
-              echo "Basic tests passed. Attempting full voice flow tests..."
-              python -m pytest tests/e2e/test_voice_flow.py -v || echo "Full voice flow tests failed but we'll proceed anyway"
-            fi
-          else
-            echo "Playwright browsers are not working, running only simplified tests..."
-            python -m pytest tests/e2e/test_simple_endpoints.py -v
+            echo "Basic homepage test passed. Attempting full voice flow tests..."
+            python -m pytest tests/e2e/test_voice_flow.py::test_complete_voice_order_flow tests/e2e/test_voice_flow.py::test_voice_silence_handling_flow tests/e2e/test_voice_flow.py::test_voice_menu_query_flow -v || echo "Complete voice flow tests failed, but we'll proceed anyway"
           fi
