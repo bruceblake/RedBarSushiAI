@@ -51,36 +51,56 @@ if [ -z "$FLASK_APP" ]; then
 	export FLASK_APP="run.py"
 fi
 
-# Install required packages
-echo "Installing or upgrading required dependencies..."
-pip install --no-cache-dir websockets==13.1
-pip install --no-cache-dir aiohttp==3.11.13
-pip install --no-cache-dir python-socketio==5.8.0 eventlet==0.33.3 gevent==23.9.1 gevent-websocket==0.10.1
-pip install --no-cache-dir --upgrade openai-realtime-client==0.1.0
-
-# Make sure critical packages are installed
-echo "Installing core requirements..."
-if [ -f "requirements-core.txt" ]; then
-    pip install --no-cache-dir -r requirements-core.txt
-    echo "✅ Core requirements installed successfully"
+# Install strict requirements
+echo "Installing all required dependencies with exact versions..."
+if [ -f "requirements.strict.txt" ]; then
+    # Install everything from strict requirements
+    pip install --no-cache-dir -r requirements.strict.txt
+    echo "✅ All dependencies installed successfully from requirements.strict.txt"
 else
-    echo "⚠️ requirements-core.txt not found, installing individual packages..."
-    pip install --no-cache-dir flask-sqlalchemy==3.1.0
+    # Fall back to installing packages directly
+    echo "⚠️ requirements.strict.txt not found, installing individually..."
+    
+    # Core web and WebSocket packages
     pip install --no-cache-dir flask==3.1.0
+    pip install --no-cache-dir flask-sqlalchemy==3.1.1
     pip install --no-cache-dir flask-sock==0.7.0
-    pip install --no-cache-dir psycopg2-binary==2.9.9
+    pip install --no-cache-dir gevent==23.9.1
+    pip install --no-cache-dir gevent-websocket==0.10.1
     pip install --no-cache-dir gunicorn==23.0.0
-    pip install --no-cache-dir sqlalchemy==2.0.40
+    pip install --no-cache-dir websockets==13.1
+    
+    # Database and cache
+    pip install --no-cache-dir psycopg2-binary==2.9.9
+    pip install --no-cache-dir sqlalchemy==2.0.38
     pip install --no-cache-dir redis==5.2.1
+    
+    # API packages
+    pip install --no-cache-dir openai==1.42.0
+    pip install --no-cache-dir twilio==9.4.6
+    pip install --no-cache-dir stripe==11.6.0
+    
+    # HTTP and networking
+    pip install --no-cache-dir aiohttp==3.11.13
+    pip install --no-cache-dir httpx==0.28.1
+    
+    # Async processing
+    pip install --no-cache-dir celery==5.4.0
+    
+    # Audio processing
+    pip install --no-cache-dir ffmpeg-python==0.2.0
+    pip install --no-cache-dir pydub==0.25.1
 fi
 
-# Try to install PyAudio for audio processing (may fail if system dependencies are missing)
-echo "Attempting to install PyAudio..."
+# Try to install PyAudio directly with system dependencies
+echo "Installing PyAudio..."
 pip install --no-cache-dir pyaudio==0.2.14 || {
-    echo "⚠️ PyAudio installation failed. This is expected if portaudio19-dev is not installed."
-    echo "⚠️ Audio functionality will continue to work via Pydub instead of PyAudio."
-    pip install --no-cache-dir pydub==0.25.1
+    echo "⚠️ PyAudio installation failed - continuing anyway as this is not critical"
 }
+
+# Install OpenAI Realtime client
+echo "Installing OpenAI Realtime client..."
+pip install --no-cache-dir --upgrade openai-realtime-client==0.1.0
 
 # Check if installation was successful
 if [ -f "/usr/local/lib/python3.11/site-packages/openai_realtime_client/__init__.py" ]; then
