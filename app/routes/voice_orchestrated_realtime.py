@@ -311,6 +311,70 @@ def init_agents():
     
     return frontline_agent
 
+
+# Add diagnostic debugging function
+def diagnostics_output(session_id, context="general"):
+    """Output comprehensive diagnostics for troubleshooting."""
+    import platform
+    import socket
+    import psutil
+    
+    try:
+        logger.critical(f"========== VOICE MEDIA DIAGNOSTICS [{context}] ==========")
+        logger.critical(f"Session ID: {session_id}")
+        logger.critical(f"Timestamp: {time.time()}")
+        
+        # System info
+        logger.critical(f"Python version: {sys.version}")
+        logger.critical(f"Platform: {platform.platform()}")
+        logger.critical(f"Hostname: {socket.gethostname()}")
+        
+        # Process info
+        process = psutil.Process()
+        logger.critical(f"Process ID: {process.pid}")
+        logger.critical(f"Process CPU: {process.cpu_percent()}%")
+        logger.critical(f"Process memory: {process.memory_info().rss / (1024 * 1024):.1f} MB")
+        
+        # Network info
+        net_connections = process.connections()
+        logger.critical(f"Active network connections: {len(net_connections)}")
+        
+        # Redis connectivity
+        try:
+            from app.utils.conversation_store import redis_client
+            if redis_client and redis_client.ping():
+                logger.critical(f"Redis connectivity: OK")
+            else:
+                logger.critical(f"Redis connectivity: FAILED")
+        except Exception as e:
+            logger.critical(f"Redis connectivity check error: {e}")
+        
+        # Database connectivity
+        try:
+            from app.db import db
+            db_ok = False
+            with db.engine.connect() as conn:
+                result = conn.execute("SELECT 1")
+                db_ok = result.scalar() == 1
+            logger.critical(f"Database connectivity: {'OK' if db_ok else 'FAILED'}")
+        except Exception as e:
+            logger.critical(f"Database connectivity check error: {e}")
+        
+        # Thread info
+        import threading
+        logger.critical(f"Active threads: {threading.active_count()}")
+        
+        # Asyncio task info
+        try:
+            tasks = asyncio.all_tasks()
+            logger.critical(f"Active asyncio tasks: {len(tasks)}")
+        except Exception as e:
+            logger.critical(f"Asyncio task check error: {e}")
+        
+        logger.critical(f"========== END DIAGNOSTICS ==========")
+    except Exception as e:
+        logger.error(f"Error generating diagnostics: {e}")
+
 def register_default_tools(frontline_agent, registry):
     """Register default tools with the registry."""
     
@@ -725,6 +789,73 @@ async def media_stream(ws):
                            'HTTP_USER_AGENT', 'HTTP_UPGRADE', 'HTTP_CONNECTION', 'HTTP_SEC_WEBSOCKET_KEY']:
                     if key in ws.request.environ:
                         logger.critical(f"[WEBSOCKET DEBUG]   - {key}: {ws.request.environ[key]}")
+    except asyncio.TimeoutError as te:
+        session_id = "unknown" if 'session_id' not in locals() else session_id
+        logger.error(f"[MEDIA_STREAM] ❌ CRITICAL: Timeout error in media stream for session {session_id}: {str(te)}")
+        logger.error(f"[MEDIA_STREAM] Timeout stack trace: {traceback.format_exc()}")
+        
+        # Log detailed environment information
+        logger.error(f"[MEDIA_STREAM] Environment information: Python {sys.version}, OS: {sys.platform}")
+        logger.error(f"[MEDIA_STREAM] Available environment vars: {[k for k in os.environ.keys() if not any(secret in k.lower() for secret in ['key', 'token', 'secret', 'password'])]}")
+        
+        # Try to send diagnostic info to client
+        try:
+            await ws.send(json.dumps({
+                "event": "error",
+                "error_type": "timeout",
+                "text": f"System timeout error: {str(te)}",
+                "timestamp": time.time()
+            }))
+        except:
+            logger.error("[MEDIA_STREAM] Could not send timeout error to client")
+            
+        # Try to perform an emergency cleanup
+        try:
+            logger.warning("[MEDIA_STREAM] Attempting emergency cleanup after timeout...")
+            # Try to cancel any pending tasks
+            if 'twilio_task' in locals() and not twilio_task.done():
+                twilio_task.cancel()
+            
+            # Try to log connection summary
+            if 'log_connection_summary' in locals():
+                log_connection_summary("timeout_error")
+        except Exception as cleanup_error:
+            logger.error(f"[MEDIA_STREAM] Error during timeout cleanup: {cleanup_error}")
+            
+    except ConnectionError as ce:
+        session_id = "unknown" if 'session_id' not in locals() else session_id
+        logger.error(f"[MEDIA_STREAM] ❌ CRITICAL: Connection error in media stream for session {session_id}: {str(ce)}")
+        logger.error(f"[MEDIA_STREAM] Connection error trace: {traceback.format_exc()}")
+        
+        # Try to send diagnostic info to client
+        try:
+            await ws.send(json.dumps({
+                "event": "error",
+                "error_type": "connection",
+                "text": f"Connection error: {str(ce)}",
+                "timestamp": time.time()
+            }))
+        except:
+            pass
+            
+    except json.JSONDecodeError as je:
+        session_id = "unknown" if 'session_id' not in locals() else session_id
+        logger.error(f"[MEDIA_STREAM] ❌ JSON decode error in media stream for session {session_id}: {str(je)}")
+        logger.error(f"[MEDIA_STREAM] JSON error data: {je.doc[:100]}...")
+        logger.error(f"[MEDIA_STREAM] JSON error position: {je.pos}")
+        logger.error(f"[MEDIA_STREAM] JSON error trace: {traceback.format_exc()}")
+        
+        # Try to send diagnostic info to client
+        try:
+            await ws.send(json.dumps({
+                "event": "error",
+                "error_type": "json_error",
+                "text": f"JSON parsing error: {str(je)}",
+                "timestamp": time.time()
+            }))
+        except:
+            pass
+            
     except Exception as e:
         logger.critical(f"[WEBSOCKET DEBUG] Error logging WebSocket request details: {e}")
         logger.critical(f"[WEBSOCKET DEBUG] Error trace: {traceback.format_exc()}")
@@ -918,6 +1049,17 @@ async def media_stream(ws):
             # Process Twilio Media Streams messages
             async def process_twilio_messages():
                 try:
+        logger.info(f"[MEDIA_STREAM] Starting Twilio message processor")
+        twilio_start_time = time.time()
+        message_count = 0
+        
+        # Save the time of key events for diagnostic purposes
+        diagnostic_events = {
+            "first_audio_received": None,
+            "first_transcript_received": None,
+            "greeting_sent": None
+        }
+        
                     message_count = 0
                     logger.info("[MEDIA_STREAM] Starting Twilio message processing task")
                     
@@ -1008,7 +1150,25 @@ async def media_stream(ws):
                                                                     f"avg size: {avg_chunk_size:.1f} bytes, "
                                                                     f"rate: {chunks_per_second:.1f} chunks/sec, "
                                                                     f"{bytes_per_second:.1f} bytes/sec")
-                                            except Exception as decode_error:
+                                            
+        # Count this message
+        message_count += 1
+        
+        # Track key diagnostic events
+        if message.get("event") == "media" and diagnostic_events["first_audio_received"] is None:
+            diagnostic_events["first_audio_received"] = time.time() - twilio_start_time
+            logger.info(f"[MEDIA_STREAM] First audio received after {diagnostic_events['first_audio_received']:.3f}s")
+            
+        if message.get("event") == "transcript" and diagnostic_events["first_transcript_received"] is None:
+            diagnostic_events["first_transcript_received"] = time.time() - twilio_start_time
+            logger.info(f"[MEDIA_STREAM] First transcript received after {diagnostic_events['first_transcript_received']:.3f}s")
+        
+        # Periodically log status
+        if message_count % 20 == 0:
+            elapsed = time.time() - twilio_start_time
+            rate = message_count / elapsed if elapsed > 0 else 0
+            logger.info(f"[MEDIA_STREAM] Twilio message stats: {message_count} messages, {elapsed:.1f}s, {rate:.1f} msg/sec")
+        except Exception as decode_error:
                                                 logger.error(f"[MEDIA_STREAM] Error decoding audio: {decode_error}")
                                         else:
                                             logger.warning("[MEDIA_STREAM] Received media event with empty payload")
@@ -1385,7 +1545,9 @@ async def media_stream(ws):
                 logger.error(f"[MEDIA_STREAM] Stream loop error trace: {traceback.format_exc()}")
         
         except Exception as e:
-            logger.error(f"[MEDIA_STREAM] ❌ Error in media stream processing: {str(e)}")
+            logger.error(f"[MEDIA_STREAM] ❌ Error in media stream processing:
+            # Output diagnostic information on error
+            diagnostics_output("error" if "session_id" not in locals() else session_id, "exception") {str(e)}")
             logger.error(f"[MEDIA_STREAM] Processing error trace: {traceback.format_exc()}")
             
             # Try to send error to client
@@ -1399,6 +1561,16 @@ async def media_stream(ws):
                 pass
         
         # Clean up and summarize connection
+        
+        # Cancel keep-alive task if it's running
+        if 'keepalive_task' in locals() and not keepalive_task.done():
+            logger.info("[MEDIA_STREAM] Cancelling keep-alive task")
+            keepalive_task.cancel()
+            try:
+                await keepalive_task
+            except asyncio.CancelledError:
+                pass
+        
         try:
             # Cancel Twilio task if still running
             if not twilio_task.done():
