@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Dict, List, Any, Optional, Union
 from app.utils.agents_sdk import tool
-from openai.types.agent import Tool
+from app.utils.openai_compat import Tool
 
 from app.agents.base import BaseAgent
 from app.utils.menu_matcher_cache import cached_menu_matcher as menu_matcher

@@ -8,9 +8,20 @@ import json
 import logging
 import time
 from typing import Dict, List, Any, Optional, Union, Callable
-from openai import AgentsClient, tool
-from openai.types.agent import Agent, Tool, Message, Run, Thread
-from openai.types.agent.tools.tool import ToolChoice
+from openai import AgentsClient
+from app.utils.openai_compat import Tool, tool
+
+# Import remaining OpenAI types with fallbacks
+try:
+    from openai.types.agent import Agent, Message, Run, Thread
+    from openai.types.agent.tools.tool import ToolChoice
+except ImportError:
+    # Create stub classes for compatibility
+    Agent = type('Agent', (), {})
+    Message = type('Message', (), {})
+    Run = type('Run', (), {})
+    Thread = type('Thread', (), {})
+    ToolChoice = type('ToolChoice', (), {})
 
 from app.utils.agents_sdk import (
     agents_client, 

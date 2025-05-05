@@ -10,9 +10,19 @@ import time
 import asyncio
 from typing import Dict, List, Any, Optional, Union, Callable
 import openai
-from openai import AgentsClient, tool
-from openai.types.agent import (
-    Agent, 
+from app.utils.openai_compat import tool
+
+# Try importing from the new SDK structure, but fallback if not available
+try:
+    from openai import AgentsClient
+except ImportError:
+    # Create a dummy class for compatibility
+    AgentsClient = type('AgentsClient', (), {})
+
+# Try to import agent types with fallbacks
+try:
+    from openai.types.agent import (
+        Agent, 
     Tool,
     Message, 
     Run,

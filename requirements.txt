@@ -41,7 +41,7 @@ kombu==5.4.2
 Levenshtein==0.26.1
 MarkupSafe==3.0.2
 multidict==6.1.0
-openai==1.68.2
+openai>=1.0.0,<2.0.0
 # Commenting out the openai-agents package to skip the pyaudio dependency on build servers
 # openai-agents @ git+https://github.com/openai/openai-agents-python.git@a34f34dc2e7d1e7e6443edae94f01d49b8e66a5f
 packaging==24.2

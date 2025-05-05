@@ -8,8 +8,9 @@ import json
 import logging
 import time
 from typing import Dict, List, Any, Optional, Union
-from openai.types.agent import Tool
-from app.utils.agents_sdk import tool
+
+# Import from our compatibility layer instead of directly from the SDK
+from app.utils.openai_compat import Tool, tool
 
 from app.agents.base import HandoffCapableAgent
 from app.utils.agents_sdk import guardrail
