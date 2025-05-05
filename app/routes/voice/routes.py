@@ -17,13 +17,14 @@ from app.routes.voice.twilio.improved_twiml import generate_optimized_media_stre
 logger = logging.getLogger(__name__)
 
 @realtime_voice_bp.route("/", methods=["GET", "POST"])
+@realtime_voice_bp.route("/voice", methods=["GET", "POST"])
 @realtime_voice_bp.route("/webhook/voice", methods=["GET", "POST"])
 def receive_call():
     """
     Handle an incoming voice call with the Realtime API integration.
     Uses Twilio Media Streams for real-time audio processing.
     
-    This endpoint is accessible at both / and /webhook/voice for compatibility
+    This endpoint is accessible at multiple paths for compatibility
     with different Twilio webhook configurations.
     """
     # Create a log file for this specific call
@@ -117,6 +118,21 @@ def receive_call():
         except:
             pass
 
+
+@realtime_voice_bp.route("/routes-debug", methods=["GET"])
+def debug_routes():
+    """
+    Debug endpoint to show all registered routes.
+    """
+    from flask import current_app
+    routes = []
+    for rule in current_app.url_map.iter_rules():
+        routes.append({
+            "endpoint": rule.endpoint,
+            "methods": list(rule.methods),
+            "path": str(rule)
+        })
+    return {"routes": routes, "count": len(routes)}
 
 @voice_debug_bp.route("/health", methods=["GET"])
 def health_check():

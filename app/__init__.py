@@ -346,7 +346,7 @@ def create_app(test_config=None):
                 is_already_initialized = init_result.get("already_initialized", False)
                 if not is_already_initialized:
                     # Register the blueprint at root level
-                    app.register_blueprint(realtime_voice_bp)
+                    app.register_blueprint(realtime_voice_bp, url_prefix='')
                     app_logger.info("Registered voice blueprint at root level")
                 else:
                     app_logger.info("Voice blueprint already registered, skipping")
