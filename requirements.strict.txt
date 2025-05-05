@@ -93,4 +93,3 @@ gevent==23.9.1
 gevent-websocket==0.10.1
 ffmpeg-python==0.2.0
 PyAudio==0.2.14
-EOL < /dev/null
