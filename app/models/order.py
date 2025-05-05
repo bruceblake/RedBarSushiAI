@@ -1,5 +1,5 @@
 """
-Order model for storing order data.
+Order model for storing order data and contact requests.
 """
 
 from datetime import datetime
@@ -115,3 +115,22 @@ class Order(db.Model, TimestampMixin):
             if not self.status
             else f"Your order status: {self.status}"
         )
+
+
+class ContactRequest(db.Model, TimestampMixin):
+    """
+    Model for storing customer contact requests for callbacks or menu notifications.
+    """
+    __tablename__ = "contact_requests"
+    
+    id = db.Column(db.String(36), primary_key=True)
+    customer_name = db.Column(db.String(255))
+    customer_phone = db.Column(db.String(20))
+    customer_email = db.Column(db.String(255))
+    message = db.Column(db.String(500))
+    request_type = db.Column(db.String(50))  # callback, menu_notification, etc.
+    status = db.Column(db.String(50), default='pending')  # pending, completed, etc.
+    timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+    
+    def __repr__(self):
+        return f"<ContactRequest {self.id}: {self.customer_name}, Type: {self.request_type}, Status: {self.status}>"
