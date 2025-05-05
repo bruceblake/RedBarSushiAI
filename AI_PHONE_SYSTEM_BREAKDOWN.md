@@ -2,18 +2,19 @@
 
 ## System Overview
 
-The RedBarSushi AI Phone System is an advanced voice ordering solution that enables customers to place orders and inquire about menu items over the phone using natural language. The system uses a multi-agent architecture with orchestration to provide specialized handling of different aspects of a restaurant call, such as menu inquiries, order taking, and payment processing.
+The RedBarSushi AI Phone System is an advanced voice ordering solution that enables customers to place orders and inquire about menu items over the phone using natural language. The system uses OpenAI's Realtime API with Twilio Media Streams for low-latency, streaming conversation experience. It employs a multi-agent architecture with orchestration to provide specialized handling of different aspects of a restaurant call, such as menu inquiries, order taking, and payment processing.
 
 ## Core Components
 
 ### 1. Voice Handling Routes
 
-The primary entry point is through Twilio, which routes incoming calls to the Flask web application routes in `app/routes/voice_orchestrated.py`. These routes handle:
-- Initial call reception
-- Speech processing
-- Agent orchestration
-- TwiML response generation
-- Realtime audio streaming via WebSockets
+The system offers three voice handling implementations:
+
+1. **Standard Voice Handler** (`app/routes/voice.py`): Basic implementation with Twilio's Gather
+2. **Orchestrated Voice Handler** (`app/routes/voice_orchestrated.py`): Advanced implementation with multi-agent orchestration using Twilio's Gather
+3. **Realtime Voice Handler** (`app/routes/voice_orchestrated_realtime.py`): Most advanced implementation using OpenAI's Realtime API with Twilio Media Streams
+
+The primary entry point for the Realtime implementation is through Twilio webhooks to the Flask application, which responds with TwiML containing Stream elements that point to a WebSocket endpoint for real-time audio streaming.
 
 ### 2. Agent Architecture
 
@@ -34,93 +35,93 @@ The orchestration system in `app/utils/agent_orchestration.py` coordinates the a
 - **Slot Store**: Persists conversation state and tracking information
 - **FSM Orchestrator**: Manages state transitions via finite state machine
 - **Model Escalator**: Provides automatic escalation to more powerful models when needed
+- **Tool Registry**: Maps tool calls to agent methods for the Realtime implementation
 
 ### 4. Audio Processing
 
-The system has multiple implementations for audio processing in `app/utils/realtime_audio.py`:
+The system has multiple implementations for audio processing:
 
-- **RealTimeAudioProcessor**: Uses OpenAI's Realtime API for streaming audio
-- **BasicAudioProcessor**: Fallback implementation for headless environments
-- **DirectRealtimeAudioProcessor**: Alternative implementation using WebSockets
+- **Realtime Audio SDK** (`app/utils/realtime_audio_sdk.py`): Direct WebSocket integration with OpenAI's Realtime API
+- **Realtime Audio** (`app/utils/realtime_audio.py`): Provides fallback implementations
+- **Direct Realtime** (`app/utils/direct_realtime.py`): Alternative WebSocket implementation
 
 ## Call Flow Breakdown
 
-### 1. Call Initialization
+### 1. Call Initialization (Realtime Implementation)
 
-When a call comes in, the following sequence occurs:
+When a call comes in using the Realtime Voice Handler, the following sequence occurs:
 
 ```
-Twilio → `/voice_orchestrated/` (receive_call) → Initialize agents → Generate initial TwiML response
+Twilio → `/` (receive_call) → Initialize agents → Generate TwiML with Stream elements → WebSocket connection
 ```
 
-**Key Function**: `receive_call()` in `voice_orchestrated.py`
+**Key Function**: `receive_call()` in `voice_orchestrated_realtime.py`
 
 **Implementation Details**:
 - Logs incoming call details (call SID, caller number)
 - Initializes agent system if not already initialized
 - Sets initial session variables
-- Generates TwiML with speech gathering parameters
+- Generates TwiML with Stream elements pointing to the WebSocket endpoint
 - Returns TwiML response to Twilio
+- Twilio establishes WebSocket connection to `/ws/media`
 
-### 2. Voice Processing Flow
+### 2. WebSocket Media Stream Processing
 
-After initialization, the main voice processing occurs in a loop:
+After initialization, the real-time audio processing occurs through WebSockets:
 
 ```
-User speaks → Twilio captures audio → `/voice_orchestrated/process_input` → Agent processes input → TwiML response → Repeat
+Twilio streams audio → `/ws/media` WebSocket → OpenAI Realtime API → Process events → Stream responses → Continuous bidirectional audio
 ```
 
-**Key Function**: `process_input()` in `voice_orchestrated.py`
+**Key Function**: `media_stream()` in `voice_orchestrated_realtime.py`
 
 **Implementation Details**:
-- Retrieves speech input and DTMF input from Twilio
-- Handles silence detection and fallbacks
-- Initializes agents if needed
-- Processes user input through the orchestrated frontline agent
-- Tracks FSM state for authentication flow
-- Returns TwiML response with appropriate gather parameters
-- Redirects for silence handling if needed
+- Establishes WebSocket connection with Twilio
+- Processes incoming media chunks from Twilio
+- Initializes and maintains connection to OpenAI's Realtime API
+- Processes VAD-driven events (speech started, speech finished, silence detected)
+- Handles tool calls for agent interactions
+- Streams TTS audio responses back to Twilio
+- Maintains continuous bidirectional audio stream
 
-### 3. Agent Processing Flow
+### 3. Realtime Agent Processing Flow
 
-When user input is received, the agent processing flow is:
+In the Realtime implementation, agent processing happens through tool calls:
 
 ```
-Frontline Agent → Intent detection → Specialist agent handoff → State tracking → Response generation
+OpenAI Realtime → tool_call event → Tool Registry → Execute tool → Tool response → Continue conversation
 ```
 
-**Key Function**: `process_voice_input()` in `frontline_with_orchestration.py`
+**Key Components**: 
+- `ToolRegistry` class in `voice_orchestrated_realtime.py`
+- `process_media_stream()` in `realtime_audio_sdk.py`
 
 **Implementation Details**:
-- Logs voice call event
-- Sets current call context
-- Stores user input in conversation history
-- Checks if in authentication flow
-- Processes through FSM if in authentication flow
-- Otherwise, processes through regular agent system
-- Handles escalation if needed
-- Stores assistant response in conversation history
-- Returns formatted response
+- OpenAI's Realtime API identifies when a tool is needed
+- Sends tool_call event with tool name and arguments
+- Tool Registry maps tool call to appropriate agent method
+- Tool result is formatted and sent back to OpenAI
+- Conversation continues with the tool result incorporated
 
-### 4. Agent Handoff Flow
+### 4. Agent Handoff with Tool Calls
 
-The system uses a sophisticated handoff mechanism:
+The Realtime implementation uses tools for agent handoffs:
 
 ```
-Frontline Agent → route_to_X tool → Agent Graph transition → Specialist Agent → Response → Transition back
+OpenAI Realtime → lookup_menu_item tool → Menu Agent → Tool response → Continue conversation
+OpenAI Realtime → add_item_to_cart tool → Cart Agent → Tool response → Continue conversation
 ```
 
-**Key Functions**: 
-- `route_to_menu()` and `route_to_order()` in `frontline_with_orchestration.py`
-- `get_next_agent()` in `agent_orchestration.py`
+**Key Components**: 
+- `register_default_tools()` in `voice_orchestrated_realtime.py`
+- Tool definitions for each agent capability
 
 **Implementation Details**:
-- Frontline agent detects specific intent (menu inquiry, order placement)
-- Updates state with intent information
-- Uses Agent Graph to determine appropriate transition
-- Hands off to specialist agent (Menu, Cart)
-- Specialist agent processes request and returns response
-- Control transitions back to Frontline agent
+- Tools are registered for each agent capability
+- OpenAI's Realtime API selects appropriate tool based on context
+- Tool executes with agent-specific logic
+- Tool response is sent back to OpenAI
+- Single WebSocket connection maintains the entire conversation
 
 ### 5. Authentication Flow
 
@@ -142,45 +143,43 @@ Initial → ASK_NAME → CONFIRM_NAME → ASK_PHONE → CONFIRM_PHONE → AUTHEN
 - Transitions to next state based on user responses
 - Updates authentication status when complete
 
-### 6. WebSocket Realtime Flow
+### 6. VAD-Driven Conversation Flow
 
-For web interfaces, the system provides WebSocket-based realtime processing:
+The Realtime implementation uses OpenAI's server-side Voice Activity Detection (VAD):
 
 ```
-Client connects → `/api/ws/orchestrated_conversation` → Stream audio → Real-time processing → Stream responses
+OpenAI VAD → silence_detected event → Context-specific reprompt → Continue conversation
 ```
 
-**Key Function**: `orchestrated_conversation()` in `voice_orchestrated.py`
+**Key Components**: 
+- `configure_vad_for_context()` in `voice_orchestrated_realtime.py`
+- VAD event handling in `media_stream()` handler
 
 **Implementation Details**:
-- Establishes WebSocket connection
-- Initializes audio processor and agents
-- Streams audio chunks for processing
-- Processes audio with OpenAI Realtime API
-- Sends transcript segments to client as they arrive
-- Processes complete transcript with orchestrated agent
-- Streams response and TTS audio back to client
-- Updates state information
+- OpenAI's Realtime API manages silence detection with server-side VAD
+- Different VAD parameters are used based on conversation context
+- When silence is detected, appropriate reprompts are delivered
+- System maintains bidirectional audio throughout silence handling
+- No need for separate silence tracking in session state
 
-### 7. Silence Handling Flow
+### 7. Real-time TTS Response Flow
 
-The system has sophisticated silence handling for improved user experience:
+The Realtime implementation streams Text-to-Speech audio in real-time:
 
 ```
-No speech input → handle_silence() → Progressive fallback → Retry or redirect
+OpenAI Realtime → response.audio.delta → Audio chunk streaming → Twilio Media Stream
 ```
 
-**Key Functions**:
-- `handle_silence()` in `voice_orchestrated.py`
-- `get_adaptive_timeouts()` in `voice_orchestrated.py`
+**Key Components**:
+- Audio handling in `process_media_stream()` in `realtime_audio_sdk.py`
+- Audio format conversion between OpenAI and Twilio formats
 
 **Implementation Details**:
-- Detects silence from empty speech input
-- Tracks silence retry count in session
-- Uses adaptive timeouts based on context and retry count
-- Provides increasingly helpful prompts on retries
-- Redirects to fallback after maximum retries
-- Includes DTMF option after first retry
+- OpenAI's Realtime API generates streaming TTS audio
+- Audio is delivered in chunks via WebSocket events
+- System converts audio format if needed (PCM16 to μ-law)
+- Audio chunks are forwarded to Twilio via Media Stream API
+- Continuous streaming provides natural conversation experience
 
 ### 8. Fallback Flow
 
@@ -267,96 +266,92 @@ Multiple silences → main_menu_fallback() → DTMF options → dtmf_only() → 
 
 **Key Route**: `process_input()` → silence detection → `handle_silence()` → `main_menu_fallback()`
 
-## System Diagram
+## System Diagram (Realtime Implementation)
 
 ```
 ┌─────────────────┐  HTTP   ┌───────────────────────┐
 │ Twilio Voice    ├────────→│ Flask Application     │
-│ (Phone Call)    │←────────┤ (TwiML Responses)     │
-└─────────────────┘         └───────────┬───────────┘
-                                        │
-                                        ▼
-┌─────────────────┐  WS     ┌───────────────────────┐
-│ Web Client      ├────────→│ WebSocket Endpoints   │
-│ (Realtime Audio)│←────────┤ (Streaming Processing)│
-└─────────────────┘         └───────────┬───────────┘
-                                        │
-                                        ▼
-                            ┌───────────────────────┐
-                            │ Agent Orchestration   │
-                            │ ┌─────────────────┐   │
-                            │ │ Agent Graph     │   │
-                            │ └─────────────────┘   │
-                            │ ┌─────────────────┐   │
-                            │ │ Slot Store      │   │
-                            │ └─────────────────┘   │
-                            │ ┌─────────────────┐   │
-                            │ │ FSM Orchestrator│   │
-                            │ └─────────────────┘   │
-                            └───────────┬───────────┘
-                                        │
-                                        ▼
-                            ┌───────────────────────┐
-┌─────────────┐            │ Specialized Agents     │
-│ Redis       │◄──────────►│ ┌─────┐ ┌─────┐ ┌────┐│
-│ (State)     │            │ │Menu │ │Cart │ │... ││
-└─────────────┘            │ └─────┘ └─────┘ └────┘│
-                            └───────────┬───────────┘
-                                        │
-                                        ▼
-                            ┌───────────────────────┐
-                            │ OpenAI APIs           │
-                            │ ┌─────────┐ ┌───────┐ │
-                            │ │Realtime │ │Chat   │ │
-                            │ └─────────┘ └───────┘ │
+│ (Phone Call)    │←────────┤ (TwiML with Stream)   │
+└─────┬───────────┘         └───────────────────────┘
+      │
+      │ WebSocket (Media Streams API)
+      ▼
+┌─────────────────┐         ┌───────────────────────┐
+│ /ws/media       │         │ RealtimeAudioProcessor│
+│ WebSocket Hub   │←───────→│ (Audio Format Conv.)  │
+└─────┬───────────┘         └───────────┬───────────┘
+      │                                  │
+      │                                  │ WebSocket
+      │                                  ▼
+      │                     ┌───────────────────────┐
+      │                     │ OpenAI Realtime API   │
+      │                     │ ┌─────────────────┐   │
+      │                     │ │ ASR + VAD       │   │
+      │                     │ └─────────────────┘   │
+      │                     │ ┌─────────────────┐   │
+      │                     │ │ Tool Execution  │   │
+      │                     │ └─────────────────┘   │
+      │                     │ ┌─────────────────┐   │
+      │                     │ │ TTS Streaming   │   │
+      │                     │ └─────────────────┘   │
+      │                     └───────────┬───────────┘
+      │                                 │
+      │                                 │ tool_call
+      │                                 ▼
+      │                     ┌───────────────────────┐
+      │                     │ Tool Registry         │
+      │                     └───────────┬───────────┘
+      │                                 │
+      │                                 ▼
+┌─────────────┐            ┌───────────────────────┐
+│ Redis       │◄──────────→│ Specialized Agents     │
+│ (State)     │            │ ┌─────┐ ┌─────┐ ┌────┐│
+└─────────────┘            │ │Menu │ │Cart │ │... ││
+                            │ └─────┘ └─────┘ └────┘│
                             └───────────────────────┘
 ```
 
-## Function Reference
+## Function Reference (Realtime Implementation)
 
-### Voice Route Functions
-
-| Function | File | Description |
-|----------|------|-------------|
-| `receive_call()` | voice_orchestrated.py | Entry point for incoming calls |
-| `process_input()` | voice_orchestrated.py | Processes speech input from user |
-| `handle_silence()` | voice_orchestrated.py | Handles empty speech inputs |
-| `main_menu_fallback()` | voice_orchestrated.py | Fallback for repeated silences |
-| `dtmf_only()` | voice_orchestrated.py | Last resort fallback for audio issues |
-| `graceful_exit()` | voice_orchestrated.py | Clean call termination |
-| `orchestrated_conversation()` | voice_orchestrated.py | WebSocket endpoint for realtime processing |
-
-### Agent Functions
+### Realtime Voice Route Functions
 
 | Function | File | Description |
 |----------|------|-------------|
-| `process_voice_input()` | frontline_with_orchestration.py | Main voice input processing |
-| `route_to_menu()` | frontline_with_orchestration.py | Handles menu inquiries |
-| `route_to_order()` | frontline_with_orchestration.py | Handles order placement |
-| `authenticate_customer()` | frontline_with_orchestration.py | Manages customer authentication |
-| `check_confidence()` | frontline_with_orchestration.py | Evaluates response confidence |
-| `escalate_to_staff()` | frontline_with_orchestration.py | Handles human escalation |
-| `get_restaurant_info()` | frontline_with_orchestration.py | Provides restaurant information |
+| `receive_call()` | voice_orchestrated_realtime.py | Entry point for incoming calls with Media Streams |
+| `media_stream()` | voice_orchestrated_realtime.py | WebSocket endpoint for Twilio Media Streams |
+| `health_check()` | voice_orchestrated_realtime.py | Health check endpoint for realtime components |
+| `initialize_agents()` | voice_orchestrated_realtime.py | Initializes agents and tools for realtime use |
+| `register_default_tools()` | voice_orchestrated_realtime.py | Registers agent tools for realtime use |
+| `configure_vad_for_context()` | voice_orchestrated_realtime.py | Configures VAD parameters by context |
 
-### Orchestration Functions
-
-| Function | File | Description |
-|----------|------|-------------|
-| `initialize_orchestrators()` | agent_orchestration.py | Sets up orchestration components |
-| `get_next_agent()` | agent_orchestration.py | Determines agent transitions |
-| `process_user_input()` | agent_orchestration.py | FSM input processing |
-| `get_current_state()` | agent_orchestration.py | Retrieves FSM state |
-| `set_current_state()` | agent_orchestration.py | Updates FSM state |
-| `should_escalate()` | agent_orchestration.py | Evaluates model escalation need |
-
-### Audio Processing Functions
+### Realtime Session Functions
 
 | Function | File | Description |
 |----------|------|-------------|
-| `get_audio_processor()` | realtime_audio.py | Returns appropriate audio processor |
-| `process_audio_stream()` | realtime_audio.py | Processes streaming audio |
-| `process_audio()` | realtime_audio.py | Processes complete audio |
-| `generate_speech()` | realtime_audio.py | Generates TTS audio |
+| `RealtimeSession.create()` | realtime_audio_sdk.py | Creates a new Realtime session |
+| `RealtimeSession.connect()` | realtime_audio_sdk.py | Connects to OpenAI's Realtime API |
+| `RealtimeSession.send_event()` | realtime_audio_sdk.py | Sends events to OpenAI's Realtime API |
+| `RealtimeSession.get_events()` | realtime_audio_sdk.py | Gets events from OpenAI's Realtime API |
+| `RealtimeSession.get_next_event()` | realtime_audio_sdk.py | Gets the next event from the queue |
+| `RealtimeSession.close()` | realtime_audio_sdk.py | Closes the Realtime session |
+
+### Realtime Audio Processing Functions
+
+| Function | File | Description |
+|----------|------|-------------|
+| `process_realtime_session()` | realtime_audio_sdk.py | Processes a real-time session with streaming audio |
+| `process_media_stream()` | realtime_audio_sdk.py | Processes a media stream from Twilio |
+| `send_tool_response()` | realtime_audio_sdk.py | Sends a tool response to the Realtime API |
+| `ulaw_to_pcm()` | realtime_audio_sdk.py | Converts μ-law audio to PCM format |
+| `pcm_to_ulaw()` | realtime_audio_sdk.py | Converts PCM audio to μ-law format |
+
+### Tool Registry Functions
+
+| Function | File | Description |
+|----------|------|-------------|
+| `ToolRegistry.register_tool()` | voice_orchestrated_realtime.py | Registers a tool with the registry |
+| `ToolRegistry.get_tool_definitions()` | voice_orchestrated_realtime.py | Gets tool definitions in OpenAI format |
+| `ToolRegistry.execute_tool()` | voice_orchestrated_realtime.py | Executes a registered tool |
 
 ## Common Scenarios and Debug Points
 

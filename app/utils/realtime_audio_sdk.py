@@ -257,6 +257,7 @@ class RealtimeAudioProcessor:
     def __init__(self):
         """Initialize the processor."""
         self.api_key = OPENAI_API_KEY
+        self.openai_client = True  # Simple flag for health check
     
     async def process_realtime_session(self, session_id, audio_generator, content_type="audio/mulaw"):
         """
@@ -550,7 +551,10 @@ class RealtimeAudioProcessor:
             logger.error(traceback.format_exc())
             return False
 
-# Function to create a processor
+# Create a global instance of the processor
+realtime_processor = RealtimeAudioProcessor()
+
+# Function to create a processor (kept for backward compatibility)
 def get_realtime_processor():
     """Get a RealtimeAudioProcessor instance."""
-    return RealtimeAudioProcessor()
+    return realtime_processor
