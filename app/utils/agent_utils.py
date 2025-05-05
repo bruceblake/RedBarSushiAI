@@ -1,6 +1,10 @@
 """
 Agent utility functions for handling OpenAI Agents integration.
 This module provides the core functionality for our AI agents.
+
+TODO: REMOVE THIS FILE AFTER TESTING THE REFACTORED MODULE STRUCTURE
+This file has been refactored into a modular package structure in app/utils/agent_utils/
+Once testing confirms the new structure works correctly, this file should be removed.
 """
 
 # Defer import to prevent database access during module import
