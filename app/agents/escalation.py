@@ -8,7 +8,7 @@ import json
 import logging
 import time
 from typing import Dict, List, Any, Optional, Union
-from openai import tool
+from app.utils.agents_sdk import tool
 from openai.types.agent import Tool
 from twilio.twiml.voice_response import VoiceResponse, Dial
 

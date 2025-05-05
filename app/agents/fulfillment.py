@@ -10,7 +10,7 @@ import time
 from typing import Dict, List, Any, Optional, Union
 import uuid
 from datetime import datetime, timedelta
-from openai import tool
+from app.utils.agents_sdk import tool
 from openai.types.agent import Tool
 
 from app.agents.base import BaseAgent
