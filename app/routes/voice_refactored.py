@@ -1,7 +1,7 @@
 """
 Entry point for voice integration in RedBarSushiAI.
 
-This module provides backwards compatibility for integrating the refactored
+This module provides compatibility for integrating the refactored
 voice system with the existing application structure.
 """
 
@@ -11,11 +11,11 @@ import importlib
 # Set up logger
 logger = logging.getLogger(__name__)
 
-# Import the refactored voice package
-from app.routes.voice.main import get_original_voice_bp
+# Import the refactored voice package with the same blueprint name
+from app.routes.voice.blueprints import realtime_voice_bp
 
-# Export the blueprint with the original name for compatibility
-realtime_voice_bp = get_original_voice_bp()
+# Import the initialization function
+from app.routes.voice.main import initialize_voice_routes
 
 def init_voice_system(app):
     """
@@ -23,7 +23,9 @@ def init_voice_system(app):
     
     Args:
         app: The Flask application instance
+        
+    Returns:
+        Dictionary with initialization status
     """
-    # Import and initialize the voice routes
-    from app.routes.voice.main import initialize_voice_routes
+    # Initialize the refactored voice routes
     return initialize_voice_routes(app)

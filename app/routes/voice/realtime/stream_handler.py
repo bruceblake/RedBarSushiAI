@@ -237,7 +237,7 @@ async def handle_media_stream(ws, session_id=None):
             from app.agents.factory_with_orchestration import enhanced_agent_factory
             from app.utils.agent_orchestration import FSMState
             from app.utils.conversation_store import redis_client
-            from app.routes.voice.utils import ToolRegistry, register_default_tools
+            from app.routes.voice.utils.tools_registry import ToolRegistry, register_default_tools
             
             # Initialize the Realtime processor
             logger.info(f"[REALTIME:{session_id}] Attempting to initialize OpenAI Realtime processor")
@@ -276,19 +276,27 @@ async def handle_media_stream(ws, session_id=None):
         
             # Initialize orchestrated agents
             try:
-                logger.info(f"[AGENT:{session_id}] Initializing orchestrated agents")
-                # Use the init_agents function to get the frontline agent
-                from app.routes.voice_orchestrated_realtime import init_agents
-                frontline = init_agents()
-                logger.info(f"[AGENT:{session_id}] ✅ Agents initialized successfully")
+                logger.info(f"[AGENT:{session_id}] Getting orchestrated agent components")
+                # Get components from global registry
+                from app.routes.voice import get_global_component
+                frontline = get_global_component('frontline_agent')
+                fsm_orchestrator = get_global_component('fsm_orchestrator')
+                tool_registry = get_global_component('tool_registry')
+                
+                # Verify we have all required components
+                if not frontline or not fsm_orchestrator or not tool_registry:
+                    logger.error(f"[AGENT:{session_id}] Missing required components: "
+                                f"frontline={frontline is not None}, "
+                                f"fsm={fsm_orchestrator is not None}, "
+                                f"tools={tool_registry is not None}")
+                    raise RuntimeError("Missing required agent components")
+                    
+                logger.info(f"[AGENT:{session_id}] ✅ Agent components loaded successfully")
                 
                 # Check Redis connection health
                 if redis_client:
                     redis_health = check_redis_connection(redis_client, session_id)
                     logger.info(f"[AGENT:{session_id}] Redis connection health check: {'✅ Healthy' if redis_health else '❌ Unhealthy'}")
-                
-                # Also initialize fsm_orchestrator from the imported module
-                from app.routes.voice_orchestrated_realtime import fsm_orchestrator, tool_registry
                 
                 # Send connection confirmation to client
                 confirm_msg = {

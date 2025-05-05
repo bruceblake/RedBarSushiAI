@@ -21,6 +21,42 @@ logger = logging.getLogger(__name__)
 # Create a voice_bp for compatibility with app/__init__.py import
 voice_bp = Blueprint('voice', __name__)
 
+# Global components for voice processing
+_global_components = {
+    'frontline_agent': None,
+    'agent_graph': None,
+    'slot_store': None,
+    'fsm_orchestrator': None,
+    'model_escalator': None,
+    'tool_registry': None
+}
+
+def set_global_components(**components):
+    """
+    Set global components for voice processing.
+    
+    Args:
+        **components: Component instances to set globally
+    """
+    for name, component in components.items():
+        if name in _global_components:
+            _global_components[name] = component
+            logger.info(f"Set global component '{name}': {type(component).__name__}")
+        else:
+            logger.warning(f"Unknown component name: '{name}'")
+
+def get_global_component(name):
+    """
+    Get a global component by name.
+    
+    Args:
+        name: Component name
+        
+    Returns:
+        Component instance or None if not found
+    """
+    return _global_components.get(name)
+
 def init_voice_routes(flask_app):
     """
     Initialize voice routes and register blueprints with the Flask app.
@@ -106,4 +142,5 @@ def init_voice_routes(flask_app):
     logger.info("Voice routes initialized successfully")
 
 # Export the blueprints and initialization function
-__all__ = ["voice_bp", "realtime_voice_bp", "voice_debug_bp", "init_voice_routes"]
+__all__ = ["voice_bp", "realtime_voice_bp", "voice_debug_bp", "init_voice_routes",
+           "set_global_components", "get_global_component"]

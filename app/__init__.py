@@ -7,6 +7,7 @@ from twilio.rest import Client
 import logging
 import sys
 import os
+import traceback
 from app.config import *
 from datetime import datetime
 
@@ -310,34 +311,6 @@ def create_app(test_config=None):
     # Get a function-scoped logger to avoid UnboundLocalError
     app_logger = logging.getLogger(__name__)
     
-    # Import voice blueprints with try/except to handle potential circular imports
-    try:
-        from app.routes.voice import voice_bp
-    except ImportError as e:
-        app_logger.error(f"Error importing voice_bp: {e}")
-        voice_bp = Blueprint('voice', __name__)  # Create a dummy blueprint
-
-    try:
-        from app.routes.voice_orchestrated import orchestrated_voice_bp
-    except ImportError as e:
-        app_logger.error(f"Error importing orchestrated_voice_bp: {e}")
-        orchestrated_voice_bp = Blueprint('orchestrated_voice', __name__)  # Create a dummy blueprint
-    
-    # Try importing from the refactored structure first, then fall back to the original
-    try:
-        # Import from refactored code
-        from app.routes.voice_refactored import realtime_voice_bp
-        app_logger.info("Successfully imported realtime_voice_bp from refactored module")
-    except ImportError as e:
-        app_logger.error(f"Error importing refactored realtime_voice_bp: {e}")
-        # Fall back to original import
-        try:
-            from app.routes.voice_orchestrated_realtime import realtime_voice_bp
-            app_logger.info("Falling back to original realtime_voice_bp")
-        except ImportError as e:
-            app_logger.error(f"Error importing original realtime_voice_bp: {e}")
-            realtime_voice_bp = Blueprint('voice_orchestrated_realtime', __name__)  # Create a dummy blueprint
-    
     # Register non-voice routes
     app.register_blueprint(menu_bp)  # Menu routes
     app.register_blueprint(order_bp)  # Order routes
@@ -356,49 +329,35 @@ def create_app(test_config=None):
         # Try to use the refactored version first, fall back to original if needed
         use_refactored = os.environ.get("USE_REFACTORED_VOICE", "true").lower() in ("true", "1", "yes")
         
-        if use_refactored:
+        # Always use the refactored implementation as the only implementation
+        try:
+            from app.routes.voice_refactored import init_voice_system, realtime_voice_bp
+            app_logger.info("Using REFACTORED realtime voice implementation")
+            
+            # Initialize the refactored voice system
             try:
-                from app.routes.voice import init_voice_routes
-                app_logger.info("Using REFACTORED realtime voice implementation")
-                
-                # Try to initialize the refactored voice routes
-                try:
-                    init_voice_routes(app)
-                    app_logger.info("Successfully initialized refactored voice routes")
-                except Exception as route_error:
-                    app_logger.error(f"Error during refactored voice route initialization: {route_error}")
-                    app_logger.info("Continuing with fallbacks despite initialization error")
-                
-                # Register fallbacks regardless - they'll still work even if refactored fails
-                app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')  # Orchestrated as fallback
-                app.register_blueprint(voice_bp, url_prefix='/voice_standard')  # Standard as fallback
-            except ImportError as e:
-                app_logger.error(f"Error importing refactored voice routes: {e}")
-                # Fall back to original implementation
-                app_logger.info("Falling back to ORIGINAL realtime voice implementation")
-                app.register_blueprint(realtime_voice_bp)
-                app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')
-                app.register_blueprint(voice_bp, url_prefix='/voice_standard')
-        else:
-            # Use the original implementation
-            app_logger.info("Using ORIGINAL realtime voice implementation (refactored disabled)")
+                init_result = init_voice_system(app)
+                app_logger.info(f"Successfully initialized refactored voice system: {init_result}")
+            except Exception as route_error:
+                app_logger.error(f"Error during refactored voice system initialization: {route_error}")
+                app_logger.error(f"Initialization error details: {traceback.format_exc()}")
+                raise RuntimeError(f"Failed to initialize voice system: {route_error}")
+            
+            # Register the blueprint at root level
             app.register_blueprint(realtime_voice_bp)
-            app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')
-            app.register_blueprint(voice_bp, url_prefix='/voice_standard')
+            app_logger.info("Registered refactored voice blueprint at root level")
+            
+        except Exception as e:
+            app_logger.error(f"Fatal error initializing voice system: {e}")
+            app_logger.error(f"Error details: {traceback.format_exc()}")
+            # This is a critical error - we no longer have fallbacks
+            raise RuntimeError(f"Failed to initialize voice system: {e}")
             
         app_logger.info("Voice handler set to REALTIME (OpenAI Realtime API with WebSockets)")
-    elif VOICE_HANDLER == "orchestrated":
-        # Use the advanced orchestrated implementation as primary handler
-        app.register_blueprint(orchestrated_voice_bp)
-        app.register_blueprint(realtime_voice_bp, url_prefix='/voice_realtime')  # Realtime as alternative
-        app.register_blueprint(voice_bp, url_prefix='/voice_standard')  # Standard as fallback
-        app_logger.info("Voice handler set to ORCHESTRATED (multi-agent with handoffs, FSM, etc.)")
     else:
-        # Use the standard implementation as primary handler
-        app.register_blueprint(voice_bp)
-        app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')  # Orchestrated as alternative
-        app.register_blueprint(realtime_voice_bp, url_prefix='/voice_realtime')  # Realtime as alternative
-        app_logger.info("Voice handler set to STANDARD (original implementation)")
+        # No other handlers are supported now
+        app_logger.error(f"Unsupported VOICE_HANDLER value: {VOICE_HANDLER}, only 'realtime' is supported")
+        raise ValueError(f"Unsupported VOICE_HANDLER value: {VOICE_HANDLER}, only 'realtime' is supported")
 
     # Configure optimized logging
     # Clear any existing handlers to avoid duplicates
