@@ -1149,23 +1149,23 @@ async def media_stream(ws):
                                                         if metrics["audio_chunks_received"] % 500 == 0:
                                                             log_audio_processing_stats(audio_stats, session_id)
                                             
-                                            # Count this message
-                                            message_count += 1
-                                            
-                                            # Track key diagnostic events
-                                            if message.get("event") == "media" and diagnostic_events["first_audio_received"] is None:
-                                                diagnostic_events["first_audio_received"] = time.time() - twilio_start_time
-                                                logger.info(f"[MEDIA_STREAM] First audio received after {diagnostic_events['first_audio_received']:.3f}s")
+                                                # Count this message
+                                                message_count += 1
                                                 
-                                            if message.get("event") == "transcript" and diagnostic_events["first_transcript_received"] is None:
-                                                diagnostic_events["first_transcript_received"] = time.time() - twilio_start_time
-                                                logger.info(f"[MEDIA_STREAM] First transcript received after {diagnostic_events['first_transcript_received']:.3f}s")
-                                            
-                                            # Periodically log status
-                                            if message_count % 20 == 0:
-                                                elapsed = time.time() - twilio_start_time
-                                                rate = message_count / elapsed if elapsed > 0 else 0
-                                                logger.info(f"[MEDIA_STREAM] Twilio message stats: {message_count} messages, {elapsed:.1f}s, {rate:.1f} msg/sec")
+                                                # Track key diagnostic events
+                                                if message.get("event") == "media" and diagnostic_events["first_audio_received"] is None:
+                                                    diagnostic_events["first_audio_received"] = time.time() - twilio_start_time
+                                                    logger.info(f"[MEDIA_STREAM] First audio received after {diagnostic_events['first_audio_received']:.3f}s")
+                                                    
+                                                if message.get("event") == "transcript" and diagnostic_events["first_transcript_received"] is None:
+                                                    diagnostic_events["first_transcript_received"] = time.time() - twilio_start_time
+                                                    logger.info(f"[MEDIA_STREAM] First transcript received after {diagnostic_events['first_transcript_received']:.3f}s")
+                                                
+                                                # Periodically log status
+                                                if message_count % 20 == 0:
+                                                    elapsed = time.time() - twilio_start_time
+                                                    rate = message_count / elapsed if elapsed > 0 else 0
+                                                    logger.info(f"[MEDIA_STREAM] Twilio message stats: {message_count} messages, {elapsed:.1f}s, {rate:.1f} msg/sec")
         except Exception as decode_error:
                                                 logger.error(f"[MEDIA_STREAM] Error decoding audio: {decode_error}")
                                         else:
