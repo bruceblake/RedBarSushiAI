@@ -307,32 +307,35 @@ def create_app(test_config=None):
     from app.config import VOICE_HANDLER
     from flask import Blueprint
     
+    # Get a function-scoped logger to avoid UnboundLocalError
+    app_logger = logging.getLogger(__name__)
+    
     # Import voice blueprints with try/except to handle potential circular imports
     try:
         from app.routes.voice import voice_bp
     except ImportError as e:
-        logger.error(f"Error importing voice_bp: {e}")
+        app_logger.error(f"Error importing voice_bp: {e}")
         voice_bp = Blueprint('voice', __name__)  # Create a dummy blueprint
 
     try:
         from app.routes.voice_orchestrated import orchestrated_voice_bp
     except ImportError as e:
-        logger.error(f"Error importing orchestrated_voice_bp: {e}")
+        app_logger.error(f"Error importing orchestrated_voice_bp: {e}")
         orchestrated_voice_bp = Blueprint('orchestrated_voice', __name__)  # Create a dummy blueprint
     
     # Try importing from the refactored structure first, then fall back to the original
     try:
         # Import from refactored code
         from app.routes.voice_refactored import realtime_voice_bp
-        logger.info("Successfully imported realtime_voice_bp from refactored module")
+        app_logger.info("Successfully imported realtime_voice_bp from refactored module")
     except ImportError as e:
-        logger.error(f"Error importing refactored realtime_voice_bp: {e}")
+        app_logger.error(f"Error importing refactored realtime_voice_bp: {e}")
         # Fall back to original import
         try:
             from app.routes.voice_orchestrated_realtime import realtime_voice_bp
-            logger.info("Falling back to original realtime_voice_bp")
+            app_logger.info("Falling back to original realtime_voice_bp")
         except ImportError as e:
-            logger.error(f"Error importing original realtime_voice_bp: {e}")
+            app_logger.error(f"Error importing original realtime_voice_bp: {e}")
             realtime_voice_bp = Blueprint('voice_orchestrated_realtime', __name__)  # Create a dummy blueprint
     
     # Register non-voice routes
