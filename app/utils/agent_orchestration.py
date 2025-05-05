@@ -1118,9 +1118,15 @@ DEFAULT_AUTH_TEMPLATES = {
 }
 
 # Initialize the orchestrators with default configs
-def initialize_orchestrators():
+def initialize_orchestrators(agent_graph=None, slot_store=None, fsm_orchestrator=None, model_escalator=None):
     """
     Initialize the agent orchestration components.
+    
+    Args:
+        agent_graph: Optional existing AgentGraph instance to configure
+        slot_store: Optional existing SlotStore instance to configure
+        fsm_orchestrator: Optional existing FSMOrchestrator instance to configure
+        model_escalator: Optional existing ModelEscalator instance to configure
     
     Returns:
         Tuple of (AgentGraph, SlotStore, FSMOrchestrator, ModelEscalator)
@@ -1128,43 +1134,77 @@ def initialize_orchestrators():
     try:
         # Try to connect to Redis
         from redis import Redis
-        redis_url = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL")
+        
+        # Check for Render environment first
+        is_render = os.environ.get("RENDER", "").lower() == "true" or os.environ.get("RENDER_SERVICE_ID")
+        
+        if is_render:
+            # Use Render-specific Redis host
+            redis_host = "red-ceqpb6rf1sgc739ut8e0"
+            redis_port = 6379
+            redis_db = 0
+            redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+            logger.info(f"Using Render-specific Redis URL: {redis_url}")
+            
+            # Update environment variables for other components to use
+            os.environ["REDIS_URL"] = redis_url
+            os.environ["CELERY_BROKER_URL"] = f"redis://{redis_host}:{redis_port}/1"
+            os.environ["CELERY_RESULT_BACKEND"] = f"redis://{redis_host}:{redis_port}/1"
+        else:
+            # Use standard Redis URL from environment variables
+            redis_url = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL")
+        
         if redis_url:
+            # Make sure URL has proper format
+            if not redis_url.startswith("redis://"):
+                redis_url = f"redis://{redis_url}"
+                
+            logger.info(f"Connecting to Redis at: {redis_url}")
             redis_client = Redis.from_url(redis_url, socket_timeout=2.0)
             # Test the connection
             redis_client.ping()
+            logger.info("✅ Successfully connected to Redis")
         else:
+            logger.warning("No Redis URL found, using in-memory storage")
             redis_client = None
     except Exception as e:
         logger.warning(f"Failed to connect to Redis: {str(e)}")
+        logger.info("Using in-memory fallback for orchestration data")
         redis_client = None
     
-    # Create the components
-    slot_store = SlotStore(redis_client)
+    # Use provided slot_store or create a new one
+    if slot_store is None:
+        slot_store = SlotStore(redis_client)
     
-    # Create and populate the agent graph
-    graph = AgentGraph()
-    for node in DEFAULT_AGENT_GRAPH["nodes"]:
-        graph.add_node(**node)
+    # Use provided agent_graph or create a new one
+    if agent_graph is None:
+        agent_graph = AgentGraph()
+        # Populate with default nodes
+        for node in DEFAULT_AGENT_GRAPH["nodes"]:
+            agent_graph.add_node(**node)
+        
+        # Add default transitions
+        for transition in DEFAULT_AGENT_GRAPH["transitions"]:
+            agent_graph.add_transition(
+                transition["from_agent"],
+                transition["to_agent"],
+                transition.get("condition"),
+                transition.get("description")
+            )
     
-    for transition in DEFAULT_AGENT_GRAPH["transitions"]:
-        graph.add_transition(
-            transition["from_agent"],
-            transition["to_agent"],
-            transition.get("condition"),
-            transition.get("description")
-        )
+    # Use provided fsm_orchestrator or create a new one
+    if fsm_orchestrator is None:
+        # Create the FSM orchestrator with templates
+        # Write templates to a temp file
+        import tempfile
+        with tempfile.NamedTemporaryFile('w', suffix='.yaml', delete=False) as f:
+            yaml.dump(DEFAULT_AUTH_TEMPLATES, f)
+            template_path = f.name
+        
+        fsm_orchestrator = FSMOrchestrator(slot_store, template_path)
     
-    # Create the FSM orchestrator with templates
-    # Write templates to a temp file
-    import tempfile
-    with tempfile.NamedTemporaryFile('w', suffix='.yaml', delete=False) as f:
-        yaml.dump(DEFAULT_AUTH_TEMPLATES, f)
-        template_path = f.name
+    # Use provided model_escalator or create a new one
+    if model_escalator is None:
+        model_escalator = ModelEscalator()
     
-    fsm = FSMOrchestrator(slot_store, template_path)
-    
-    # Create the model escalator
-    escalator = ModelEscalator()
-    
-    return graph, slot_store, fsm, escalator
+    return agent_graph, slot_store, fsm_orchestrator, model_escalator

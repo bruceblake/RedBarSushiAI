@@ -106,6 +106,30 @@ else
     export OPENAI_REALTIME_AVAILABLE=1
 fi
 
+# Enhanced X11 handling for Render Environment
+if [ "$RENDER" = "true" ] || [ -n "$RENDER_SERVICE_ID" ]; then
+    echo "Applying enhanced X11 configuration for Render environment..."
+    
+    # Always use headless mode on Render since X11 isn't reliable
+    export PYNPUT_HEADLESS=1
+    export NO_X11=1
+    export HEADLESS=1
+    export OPENAI_REALTIME_NO_DISPLAY=1
+    export X11_SETUP_SUCCESS=false
+    export USE_DIRECT_WEBSOCKET=true
+    
+    # Still mark realtime as available for the fallback implementation
+    export OPENAI_REALTIME_AVAILABLE=1
+    
+    # Remove DISPLAY to prevent X11 connection attempts
+    if [ -n "$DISPLAY" ]; then
+        echo "Unsetting DISPLAY variable to prevent X11 connection attempts"
+        unset DISPLAY
+    fi
+    
+    echo "💻 Configured Render environment for headless mode with direct WebSocket implementation"
+fi
+
 export PYTHONPATH=/app:$PYTHONPATH
 
 # Set environment variables for audio processing
@@ -205,6 +229,22 @@ if [ -n "$RENDER_SERVICE_ID" ]; then
             echo "Added redis:// prefix to Redis URL: ${REDIS_URL}"
         fi
     fi
+    
+    # Enhanced Redis fix for Render
+    if [ "$RENDER" = "true" ] || [ -n "$RENDER_SERVICE_ID" ]; then
+        echo "Applying enhanced Redis fix for Render environment..."
+        
+        # Use a fixed Redis hostname for Render
+        REDIS_HOST="red-ceqpb6rf1sgc739ut8e0"
+        REDIS_PORT="6379"
+        
+        # Override Redis URLs with Render-specific configuration
+        export REDIS_URL="redis://${REDIS_HOST}:${REDIS_PORT}/0"
+        export CELERY_BROKER_URL="redis://${REDIS_HOST}:${REDIS_PORT}/1"
+        export CELERY_RESULT_BACKEND="redis://${REDIS_HOST}:${REDIS_PORT}/1"
+        
+        echo "Using Render-specific Redis URL: ${REDIS_URL}"
+    fi
 fi
 
 # Debug information
@@ -270,6 +310,15 @@ else
     echo "DEBUG: DB_HOST set: [$(if [ -n "$DB_HOST" ]; then echo "YES"; else echo "NO"; fi)]"
     echo "DEBUG: DB_PORT set: [$(if [ -n "$DB_PORT" ]; then echo "YES"; else echo "NO"; fi)]"
     echo "DEBUG: DB_NAME set: [$(if [ -n "$DB_NAME" ]; then echo "YES"; else echo "NO"; fi)]"
+fi
+
+# Fix logger initialization issues
+if [ -f "/app/fix_logger.py" ]; then
+    echo "Fixing logger initialization issues..."
+    python /app/fix_logger.py
+elif [ -f "fix_logger.py" ]; then
+    echo "Fixing logger initialization issues..."
+    python fix_logger.py
 fi
 
 # Initialize database if needed
