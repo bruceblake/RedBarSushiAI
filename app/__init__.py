@@ -352,19 +352,33 @@ def create_app(test_config=None):
     app_logger.info(f"Configuring voice handler: {VOICE_HANDLER}")
     
     if VOICE_HANDLER == "realtime":
-        # Use the Realtime API implementation as primary handler
-        app.register_blueprint(realtime_voice_bp)
-        app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')  # Orchestrated as fallback
-        app.register_blueprint(voice_bp, url_prefix='/voice_standard')  # Standard as fallback
-        app_logger.info("Voice handler set to REALTIME (OpenAI Realtime API with WebSockets)")
+        # Use the Realtime API implementation
+        # Try to use the refactored version first, fall back to original if needed
+        use_refactored = os.environ.get("USE_REFACTORED_VOICE", "true").lower() in ("true", "1", "yes")
         
-        # Initialize refactored voice routes
-        try:
-            from app.routes.voice import init_voice_routes
-            app_logger.info("Initializing refactored voice routes")
-            init_voice_routes(app)
-        except ImportError as e:
-            app_logger.error(f"Error initializing refactored voice routes: {e}")
+        if use_refactored:
+            try:
+                from app.routes.voice import init_voice_routes
+                app_logger.info("Using REFACTORED realtime voice implementation")
+                init_voice_routes(app)
+                # Only register these as fallbacks since the refactored version is primary
+                app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')  # Orchestrated as fallback
+                app.register_blueprint(voice_bp, url_prefix='/voice_standard')  # Standard as fallback
+            except ImportError as e:
+                app_logger.error(f"Error initializing refactored voice routes: {e}")
+                # Fall back to original implementation
+                app_logger.info("Falling back to ORIGINAL realtime voice implementation")
+                app.register_blueprint(realtime_voice_bp)
+                app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')
+                app.register_blueprint(voice_bp, url_prefix='/voice_standard')
+        else:
+            # Use the original implementation
+            app_logger.info("Using ORIGINAL realtime voice implementation (refactored disabled)")
+            app.register_blueprint(realtime_voice_bp)
+            app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')
+            app.register_blueprint(voice_bp, url_prefix='/voice_standard')
+            
+        app_logger.info("Voice handler set to REALTIME (OpenAI Realtime API with WebSockets)")
     elif VOICE_HANDLER == "orchestrated":
         # Use the advanced orchestrated implementation as primary handler
         app.register_blueprint(orchestrated_voice_bp)
