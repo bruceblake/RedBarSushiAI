@@ -58,6 +58,22 @@ pip install --no-cache-dir aiohttp==3.11.13
 pip install --no-cache-dir python-socketio==5.8.0 eventlet==0.33.3 gevent==23.9.1 gevent-websocket==0.10.1
 pip install --no-cache-dir --upgrade openai-realtime-client==0.1.0
 
+# Make sure critical packages are installed
+echo "Installing core requirements..."
+if [ -f "requirements-core.txt" ]; then
+    pip install --no-cache-dir -r requirements-core.txt
+    echo "✅ Core requirements installed successfully"
+else
+    echo "⚠️ requirements-core.txt not found, installing individual packages..."
+    pip install --no-cache-dir flask-sqlalchemy==3.1.0
+    pip install --no-cache-dir flask==3.1.0
+    pip install --no-cache-dir flask-sock==0.7.0
+    pip install --no-cache-dir psycopg2-binary==2.9.9
+    pip install --no-cache-dir gunicorn==23.0.0
+    pip install --no-cache-dir sqlalchemy==2.0.40
+    pip install --no-cache-dir redis==5.2.1
+fi
+
 # Try to install PyAudio for audio processing (may fail if system dependencies are missing)
 echo "Attempting to install PyAudio..."
 pip install --no-cache-dir pyaudio==0.2.14 || {

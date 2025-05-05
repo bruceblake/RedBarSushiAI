@@ -1,6 +1,7 @@
 # Core WebSocket requirements for Twilio Media Streams integration
 # Only used if full requirements installation is failing
 flask==3.1.0
+flask-sqlalchemy==3.1.0
 flask-sock==0.7.0
 gevent==23.9.1
 gevent-websocket==0.10.1
