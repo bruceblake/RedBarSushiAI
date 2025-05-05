@@ -64,10 +64,56 @@ class ToolChoice:
     pass
 
 # Create an AgentsClient class
+class AgentsNamespace:
+    """Implementation of agents namespace for AgentsClient."""
+    def create(self, **kwargs):
+        logger.info(f"Creating agent: {kwargs.get('name')}")
+        # Return a minimal agent object with id
+        return type('Agent', (), {'id': 'stub-agent-id'})
+        
+    def retrieve(self, agent_id):
+        logger.info(f"Retrieving agent: {agent_id}")
+        return type('Agent', (), {'id': agent_id})
+
+class ThreadsNamespace:
+    """Implementation of threads namespace for AgentsClient."""
+    def create(self):
+        thread_id = f"thread-{time.time()}"
+        logger.info(f"Creating thread: {thread_id}")
+        return type('Thread', (), {'id': thread_id})
+        
+    def retrieve(self, thread_id):
+        logger.info(f"Retrieving thread: {thread_id}")
+        return type('Thread', (), {'id': thread_id})
+
+class MessagesNamespace:
+    """Implementation of messages namespace for AgentsClient."""
+    def create(self, **kwargs):
+        message_id = f"msg-{time.time()}"
+        logger.info(f"Creating message in thread {kwargs.get('thread_id')}")
+        return type('Message', (), {'id': message_id, 'role': kwargs.get('role', 'user')})
+        
+    def list(self, **kwargs):
+        return []
+
+class RunsNamespace:
+    """Implementation of runs namespace for AgentsClient."""
+    def create(self, **kwargs):
+        run_id = f"run-{time.time()}"
+        logger.info(f"Creating run in thread {kwargs.get('thread_id')}")
+        return type('Run', (), {'id': run_id})
+        
+    def wait(self, **kwargs):
+        return type('Run', (), {'id': kwargs.get('run_id')})
+
 class AgentsClient:
     """Compatibility AgentsClient class."""
     def __init__(self, *args, **kwargs):
-        pass
+        self.agents = AgentsNamespace()
+        self.threads = ThreadsNamespace()
+        self.messages = MessagesNamespace()
+        self.runs = RunsNamespace()
+        
     Message = type('Message', (), {})
     Run = type('Run', (), {})
     Thread = type('Thread', (), {})
