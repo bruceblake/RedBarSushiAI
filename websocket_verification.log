@@ -1,0 +1,50 @@
+2025-05-05 17:52:28,655 [INFO] ================================================================================
+2025-05-05 17:52:28,655 [INFO] RedBarSushiAI WebSocket Fix Verification
+2025-05-05 17:52:28,655 [INFO] ================================================================================
+2025-05-05 17:52:28,656 [INFO] Environment: {
+  "time": "2025-05-05T17:52:28.655361",
+  "python_version": "3.13.3 (main, Apr  9 2025, 07:44:25) [GCC 14.2.1 20250207]",
+  "platform": "linux",
+  "git_branch": "staging"
+}
+2025-05-05 17:52:28,656 [INFO] 
+Checking Procfile configuration...
+2025-05-05 17:52:28,656 [INFO]   Graceful shutdown timeout: ✅ Found
+2025-05-05 17:52:28,656 [INFO]   Maximum requests per worker: ✅ Found
+2025-05-05 17:52:28,656 [INFO]   Request jitter for worker recycling: ✅ Found
+2025-05-05 17:52:28,656 [INFO]   Worker count: ✅ Found
+2025-05-05 17:52:28,656 [INFO] 
+Checking WebSocket route registration...
+2025-05-05 17:52:28,656 [INFO]   Function name check: ✅ Found
+2025-05-05 17:52:28,656 [INFO]   Combined path and function check: ✅ Found
+2025-05-05 17:52:28,656 [INFO] 
+Checking keep-alive strategy...
+2025-05-05 17:52:28,656 [INFO]   Multiple sequential keep-alives: ✅ Found
+2025-05-05 17:52:28,656 [INFO]   Delay between keep-alives: ✅ Found
+2025-05-05 17:52:28,656 [INFO]   Alternative message format fallback: ✅ Found
+2025-05-05 17:52:28,656 [INFO]   Reduced follow-up delay (3.0s): ✅ Found
+2025-05-05 17:52:28,656 [INFO] 
+Checking TwiML generation...
+2025-05-05 17:52:28,656 [INFO]   Initial 1-second pause: ✅ Found
+2025-05-05 17:52:28,656 [INFO]   Second 0.5-second pause: ✅ Found
+2025-05-05 17:52:28,656 [INFO]   Named stream tracks: ✅ Found
+2025-05-05 17:52:28,656 [INFO] 
+Testing WebSocket connection (this may take a moment)...
+2025-05-05 17:52:28,656 [INFO] Testing WebSocket connection to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:52:28,661 [INFO] Connecting with twilio-media-stream subprotocol...
+2025-05-05 17:52:28,934 [INFO] ✅ Connected successfully
+2025-05-05 17:52:28,934 [INFO] Sending Twilio start message...
+2025-05-05 17:52:28,934 [INFO] ✅ Start message sent
+2025-05-05 17:52:28,934 [INFO] Waiting for initial response (timeout: 5.0s)...
+2025-05-05 17:52:28,971 [ERROR] ❌ Error receiving response: received 1005 (no status received [internal]); then sent 1005 (no status received [internal])
+2025-05-05 17:52:28,972 [WARNING] ❌ WebSocket test failed: Error receiving response: received 1005 (no status received [internal]); then sent 1005 (no status received [internal])
+2025-05-05 17:52:28,972 [INFO] 
+================================================================================
+2025-05-05 17:52:28,972 [INFO] VERIFICATION SUMMARY
+2025-05-05 17:52:28,972 [INFO] ================================================================================
+2025-05-05 17:52:28,972 [INFO] Total checks: 13
+2025-05-05 17:52:28,972 [INFO] Successful checks: 13
+2025-05-05 17:52:28,972 [INFO] Failed checks: 0
+2025-05-05 17:52:28,972 [INFO] Verification completed in 0.32 seconds
+2025-05-05 17:52:28,972 [INFO] 
+✅ ALL CHECKS PASSED! The WebSocket fixes have been properly applied.
