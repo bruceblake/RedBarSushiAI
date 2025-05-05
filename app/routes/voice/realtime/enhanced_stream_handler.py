@@ -71,14 +71,16 @@ async def send_keep_alive(ws, session_id, keep_alive_count=0):
 async def maintain_connection(ws, session_id):
     """Maintain the WebSocket connection with periodic keep-alive messages."""
     keep_alive_count = 0
-    # Start with very frequent keep-alives and then gradually increase interval
+    # Start with extremely frequent keep-alives and then gradually increase interval
+    # More aggressive strategy to prevent connection drops
     keep_alive_intervals = [
-        0.5, 0.5, 0.5, 1.0, 1.0,  # First 5 keep-alives very frequent (0.5-1s)
+        0.2, 0.2, 0.2, 0.2, 0.2,  # First 5 keep-alives extremely frequent (200ms)
+        0.5, 0.5, 0.5, 0.5, 0.5,  # Next 5 keep-alives very frequent (500ms)
+        1.0, 1.0, 1.0,            # Next 3 keep-alives at 1s intervals
         2.0, 2.0, 2.0,            # Next 3 keep-alives at 2s intervals
-        3.0, 3.0, 3.0,            # Next 3 at 3s
-        5.0                       # Then settle at 5s intervals
+        3.0, 3.0                  # Next 2 at 3s intervals
     ]
-    default_interval = 5.0  # Default interval after the initial sequence
+    default_interval = 3.0  # Shorter default interval (3s instead of 5s)
     
     try:
         logger.info(f"[WS:{session_id}] Starting connection maintenance task")
@@ -148,12 +150,13 @@ async def greeting_sequence(ws, session_id):
             status_msg = {
                 "event": "status",
                 "message": f"Waiting for Twilio start message ({retry_count+1}/{max_retries})",
-                "timestamp": time.time()
+                "timestamp": time.time(),
+                "session_id": session_id
             }
             await ws.send(json.dumps(status_msg))
             
             # Wait a bit and check again
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)  # Slightly shorter wait
             retry_count += 1
             
             # Update call_sid and stream_sid from active_connections
@@ -167,6 +170,37 @@ async def greeting_sequence(ws, session_id):
         else:
             logger.warning(f"[WS:{session_id}] Failed to get Twilio SIDs after {max_retries} tries")
             active_connections[session_id]["connection_state"] = "partially_identified"
+            
+            # Even if we don't have SIDs, we'll continue with default values to maintain connection
+            if not call_sid:
+                call_sid = "unknown_" + session_id
+            if not stream_sid:
+                stream_sid = "unknown_" + session_id
+        
+        # Send a series of rapid connection confirmation messages to keep connection alive
+        connection_messages = [
+            "Processing audio setup...",
+            "Configuring bidirectional stream...",
+            "Initializing voice recognition...",
+            "Preparing response system...",
+            "Connection validated!"
+        ]
+        
+        for i, msg_text in enumerate(connection_messages):
+            try:
+                conn_msg = {
+                    "event": "info",
+                    "message": msg_text,
+                    "timestamp": time.time(),
+                    "session_id": session_id,
+                    "sequence": i + 1,
+                    "total": len(connection_messages)
+                }
+                await ws.send(json.dumps(conn_msg))
+                await asyncio.sleep(0.1)  # Very short delay
+                logger.info(f"[WS:{session_id}] Sent connection message {i+1}/{len(connection_messages)}")
+            except Exception as e:
+                logger.error(f"[WS:{session_id}] Failed to send connection message {i+1}: {e}")
         
         # We're now ready to send bidirectional media
         # For Twilio Media Streams, we would send actual audio data like this:
@@ -197,20 +231,38 @@ async def greeting_sequence(ws, session_id):
         await ws.send(json.dumps(ready_msg))
         logger.info(f"[WS:{session_id}] Sent bidirectional ready message")
         
-        # Send a mark to indicate we've completed setup
-        # In a real implementation, this would be used to mark positions in the audio
-        mark_msg = {
-            "event": "mark",
-            "streamSid": stream_sid,
-            "mark": {
-                "name": "greeting_ready"
-            }
-        }
+        # Send multiple marks to improve connection stability
+        # In a real implementation, these would be used to mark positions in the audio
+        mark_messages = [
+            {"name": "greeting_start", "position": "start"},
+            {"name": "greeting_ready", "position": "middle"},
+            {"name": "conversation_ready", "position": "end"}
+        ]
+        
         # Only send if we have the stream_sid
         if stream_sid and stream_sid != "unknown":
-            await ws.send(json.dumps(mark_msg))
-            logger.info(f"[WS:{session_id}] Sent mark 'greeting_ready'")
+            for i, mark_data in enumerate(mark_messages):
+                mark_msg = {
+                    "event": "mark",
+                    "streamSid": stream_sid,
+                    "mark": mark_data
+                }
+                await ws.send(json.dumps(mark_msg))
+                await asyncio.sleep(0.1)
+                logger.info(f"[WS:{session_id}] Sent mark '{mark_data['name']}'")
         
+        # Send an additional burst of keep-alives to maintain connection
+        for i in range(3):
+            keep_alive = {
+                "event": "keepalive",
+                "timestamp": time.time(),
+                "count": i + 1,
+                "session_id": session_id
+            }
+            await ws.send(json.dumps(keep_alive))
+            await asyncio.sleep(0.1)
+            logger.info(f"[WS:{session_id}] Sent post-greeting keepalive {i+1}/3")
+            
         # Update connection state
         active_connections[session_id]["connection_state"] = "greeting_complete"
         logger.info(f"[WS:{session_id}] Completed greeting sequence")
@@ -222,6 +274,21 @@ async def greeting_sequence(ws, session_id):
         # Try to update connection state even if there was an error
         if session_id in active_connections:
             active_connections[session_id]["connection_state"] = "greeting_error"
+            
+        # Try to recover by sending emergency keepalives
+        try:
+            for i in range(5):
+                recovery_msg = {
+                    "event": "recovery",
+                    "message": f"Connection recovery attempt {i+1}/5",
+                    "timestamp": time.time(),
+                    "session_id": session_id
+                }
+                await ws.send(json.dumps(recovery_msg))
+                await asyncio.sleep(0.1)
+                logger.info(f"[WS:{session_id}] Sent emergency recovery message {i+1}/5")
+        except Exception as recovery_error:
+            logger.error(f"[WS:{session_id}] Recovery failed: {recovery_error}")
 
 async def process_twilio_message(ws, session_id, message):
     """Process a message from Twilio Media Streams."""
@@ -271,20 +338,30 @@ async def process_twilio_message(ws, session_id, message):
             await ws.send(json.dumps(welcome))
             logger.info(f"[WS:{session_id}] Sent welcome message")
             
-            # Send immediate connection maintenance messages
-            for i in range(3):
-                maintenance_msg = {
-                    "event": "status",
-                    "message": f"Connection established ({i+1}/3)",
-                    "timestamp": time.time(),
-                    "session_id": session_id
-                }
-                await ws.send(json.dumps(maintenance_msg))
-                await asyncio.sleep(0.1)
-                logger.info(f"[WS:{session_id}] Sent immediate maintenance message {i+1}/3")
+            # More aggressive connection stabilization with burst of messages
+            # This helps maintain the connection during the critical initial phase
+            stabilization_messages = [
+                {"event": "status", "message": "Initial connection established", "timestamp": time.time()},
+                {"event": "status", "message": "Preparing bidirectional stream", "timestamp": time.time()},
+                {"event": "status", "message": "Setting up audio processing", "timestamp": time.time()},
+                {"event": "status", "message": "Starting conversation", "timestamp": time.time()},
+                {"event": "status", "message": "Ready for interaction", "timestamp": time.time()}
+            ]
+            
+            # Send all stabilization messages with minimal delay
+            for i, msg in enumerate(stabilization_messages):
+                msg["session_id"] = session_id
+                msg["sequence"] = i + 1
+                msg["total"] = len(stabilization_messages)
+                try:
+                    await ws.send(json.dumps(msg))
+                    await asyncio.sleep(0.05)  # Even shorter delay between messages
+                    logger.info(f"[WS:{session_id}] Sent stabilization message {i+1}/{len(stabilization_messages)}")
+                except Exception as e:
+                    logger.error(f"[WS:{session_id}] Failed to send stabilization message: {e}")
             
             # Update connection state
-            active_connections[session_id]["connection_state"] = "maintenance_sent"
+            active_connections[session_id]["connection_state"] = "stabilization_complete"
             
             # Start greeting sequence as a separate task
             greeting_task = asyncio.create_task(greeting_sequence(ws, session_id))

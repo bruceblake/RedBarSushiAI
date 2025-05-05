@@ -35,6 +35,8 @@ _global_components = {
 
 # Flag to track WebSocket route registration status
 _websocket_routes_registered = False
+_voice_routes_initialized = False
+_debug_websocket_registered = False
 
 def set_global_components(**components):
     """
@@ -72,6 +74,17 @@ def init_voice_system(flask_app):
     Returns:
         dict: Information about the initialized voice system
     """
+    # Prevent multiple initializations
+    global _voice_routes_initialized
+    if _voice_routes_initialized:
+        logger.info("Voice system already initialized, skipping")
+        return {
+            "status": "success",
+            "components": ["frontline_agent", "fsm_orchestrator", "tool_registry"],
+            "routes_initialized": True,
+            "already_initialized": True
+        }
+    
     logger.info("Initializing voice system with OpenAI Realtime API")
     
     # Initialize voice components
@@ -100,6 +113,9 @@ def init_voice_system(flask_app):
         
         # Initialize routes with the Flask app
         init_voice_routes(flask_app)
+        
+        # Set initialization flag
+        _voice_routes_initialized = True
         
         return {
             "status": "success",
@@ -153,6 +169,9 @@ def init_voice_routes(flask_app):
     if hasattr(flask_app, 'config'):  # Simple check for Flask app-like object
         try:
             from app import sock
+            
+            # Import enhanced logging and handler early to avoid scope issues
+            from app.routes.voice.utils.websocket_logging import websocket_handler
             from app.routes.voice.realtime.enhanced_stream_handler import handle_enhanced_media_stream
             
             # Only register WebSocket routes if we haven't already
@@ -174,16 +193,10 @@ def init_voice_routes(flask_app):
             logger.info(f"Existing WebSocket routes: {existing_routes}")
             logger.info(f"Existing WebSocket functions: {existing_funcs}")
             
-            # Import enhanced logging - moved outside the conditional to avoid reference errors
-            from app.routes.voice.utils.websocket_logging import websocket_handler
+            # Use global flags to check if routes were already registered
+            global _websocket_routes_registered, _debug_websocket_registered
             
-            # Use global flag to check if routes were already registered
-            global _websocket_routes_registered
-            
-            # Check for any of the following conditions:
-            # 1. Routes already registered in this run (our flag)
-            # 2. Route path already exists in sock._rules
-            # 3. Function name already exists in sock._rules
+            # Media stream WebSocket route
             if _websocket_routes_registered or "/ws/voice/media" in existing_routes or "media_stream_ws" in existing_funcs:
                 logger.info("WebSocket routes already registered, skipping registration")
             else:
@@ -213,9 +226,10 @@ def init_voice_routes(flask_app):
                 # Set the global flag to prevent duplicate registration
                 _websocket_routes_registered = True
             
-            # Also provide a debug WebSocket endpoint
-            # websocket_handler is already imported above
-            if "/ws/voice/debug" not in existing_routes and "debug_websocket" not in existing_funcs:
+            # Debug WebSocket route - separate flag for this route
+            if _debug_websocket_registered or "/ws/voice/debug" in existing_routes or "debug_websocket" in existing_funcs:
+                logger.info("Debug WebSocket route already registered, skipping registration")
+            else:
                 @sock.route("/ws/voice/debug")
                 @websocket_handler
                 async def debug_websocket(ws):
@@ -302,6 +316,10 @@ def init_voice_routes(flask_app):
                     
                     logger.info("[DEBUG WEBSOCKET] WebSocket connection closed")
                 logger.info("Registered /ws/voice/debug WebSocket route with enhanced logging")
+                
+                # Set the global flag to prevent duplicate registration
+                _debug_websocket_registered = True
+                
         except Exception as socket_error:
             logger.error(f"Failed to register WebSocket routes: {socket_error}")
     

@@ -341,14 +341,19 @@ def create_app(test_config=None):
             try:
                 init_result = init_voice_system(app)
                 app_logger.info(f"Successfully initialized voice system: {init_result}")
+                
+                # Only register the blueprint if it wasn't already registered
+                is_already_initialized = init_result.get("already_initialized", False)
+                if not is_already_initialized:
+                    # Register the blueprint at root level
+                    app.register_blueprint(realtime_voice_bp)
+                    app_logger.info("Registered voice blueprint at root level")
+                else:
+                    app_logger.info("Voice blueprint already registered, skipping")
             except Exception as route_error:
                 app_logger.error(f"Error during voice system initialization: {route_error}")
                 app_logger.error(f"Initialization error details: {traceback.format_exc()}")
                 raise RuntimeError(f"Failed to initialize voice system: {route_error}")
-            
-            # Register the blueprint at root level
-            app.register_blueprint(realtime_voice_bp)
-            app_logger.info("Registered voice blueprint at root level")
             
         except Exception as e:
             app_logger.error(f"Fatal error initializing voice system: {e}")
