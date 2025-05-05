@@ -305,17 +305,32 @@ async def handle_silence_event(ws, session_id, frontline, fsm_orchestrator, even
                 
                 # Send a keep-alive message for other states
                 try:
-                    keep_alive = {
-                        "type": "silence_keep_alive", 
-                        "message": f"Keeping connection alive during silence in {current_state} state",
-                        "timestamp": silence_timestamp,
-                        "session_id": session_id,
-                        "state": str(current_state)
-                    }
-                    await ws.send(json.dumps(keep_alive))
-                    metrics["events_sent"] += 1
+                    # Send multiple keep-alive messages to ensure connection stays open
+                    for i in range(3):
+                        keep_alive = {
+                            "type": "silence_keep_alive", 
+                            "message": f"Keeping connection alive during silence in {current_state} state ({i+1}/3)",
+                            "timestamp": silence_timestamp + (i * 0.2),
+                            "session_id": session_id,
+                            "state": str(current_state)
+                        }
+                        await ws.send(json.dumps(keep_alive))
+                        metrics["events_sent"] += 1
+                        logger.critical(f"[SILENCE:{session_id}] Sent silence keep-alive #{i+1} in {current_state} state")
+                        await asyncio.sleep(0.2)  # Small delay between keep-alives
                 except Exception as ka_error:
-                    logger.error(f"[SILENCE:{session_id}] Error sending silence keep-alive: {ka_error}")
+                    logger.critical(f"[SILENCE:{session_id}] Error sending silence keep-alive: {ka_error}")
+                    # Try alternative format
+                    try:
+                        alt_keep_alive = {
+                            "event": "ping",
+                            "timestamp": time.time(),
+                            "session_id": session_id
+                        }
+                        await ws.send(json.dumps(alt_keep_alive))
+                        logger.critical(f"[SILENCE:{session_id}] Sent alternative keep-alive in {current_state} state")
+                    except Exception as alt_error:
+                        logger.critical(f"[SILENCE:{session_id}] Alternative also failed: {alt_error}")
         
         return greeting_sent, greeting_timestamp
     

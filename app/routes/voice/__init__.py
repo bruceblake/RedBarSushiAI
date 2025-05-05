@@ -144,7 +144,9 @@ def init_voice_routes(flask_app):
             
             # Only register WebSocket routes if we haven't already
             existing_routes = getattr(sock, '_rules', {})
-            if "/ws/voice/media" not in existing_routes:
+            existing_funcs = [f.__name__ for f in sock._rules.values()] if hasattr(sock, '_rules') else []
+            
+            if "/ws/voice/media" not in existing_routes and "media_stream_ws" not in existing_funcs:
                 # Import enhanced logging
                 from app.routes.voice.utils.websocket_logging import websocket_handler, log_connection_event
                 
@@ -205,7 +207,7 @@ def init_voice_routes(flask_app):
                 logger.info("Registered /ws/voice/media WebSocket route with enhanced logging")
             
             # Also provide a debug WebSocket endpoint
-            if "/ws/voice/debug" not in existing_routes:
+            if "/ws/voice/debug" not in existing_routes and "debug_websocket" not in existing_funcs:
                 @sock.route("/ws/voice/debug")
                 @websocket_handler
                 async def debug_websocket(ws):
