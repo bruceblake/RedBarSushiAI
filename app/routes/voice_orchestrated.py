@@ -60,10 +60,14 @@ slot_store = None
 fsm_orchestrator = None
 model_escalator = None
 
-@orchestrated_voice_bp.before_app_first_request
+@orchestrated_voice_bp.before_app_request
 def initialize_agents():
     """Initialize the orchestrated agents when the app starts."""
     global frontline_agent, agent_graph, slot_store, fsm_orchestrator, model_escalator
+    
+    # Only initialize once
+    if frontline_agent is not None:
+        return
     
     try:
         # Create all agents through the enhanced factory
