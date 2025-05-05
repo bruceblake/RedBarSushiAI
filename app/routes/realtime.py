@@ -16,7 +16,6 @@ from typing import Dict, List, Any, Optional, AsyncGenerator, Tuple, Union
 from app import sock
 from app.utils.realtime_audio_sdk import realtime_processor
 from app.utils.conversation_store_sdk import agents_conversation_store
-from app.utils.voice_controller import voice_controller
 
 logger = logging.getLogger(__name__)
 
