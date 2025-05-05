@@ -1,3 +1,7 @@
+# TODO: REMOVE THIS FILE AFTER TESTING THE REFACTORED MODULE STRUCTURE
+# This file has been refactored into a modular package structure in app/routes/order/
+# Once testing confirms the new structure works correctly, this file should be removed.
+
 import requests
 import json
 import uuid

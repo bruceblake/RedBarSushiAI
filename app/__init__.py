@@ -293,6 +293,7 @@ def create_app(test_config=None):
     from app.routes.escalation import escalation_bp
     from app.routes.monitoring import monitoring_bp
     from app.routes.menu import menu_bp
+    # Import order_bp from refactored module structure
     from app.routes.order import order_bp
     from app.routes.location import location_bp
     from app.routes.order_ai import order_ai_bp
