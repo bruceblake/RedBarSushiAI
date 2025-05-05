@@ -294,6 +294,10 @@ def create_app(test_config=None):
     from app.routes.order import order_bp
     from app.routes.location import location_bp
     from app.routes.order_ai import order_ai_bp
+    from app.routes.voice_sdk import voice_sdk_bp
+    from app.routes.realtime import realtime_bp
+    from app.routes.escalation import escalation_bp
+    from app.routes.monitoring import monitoring_bp
 
     # Register blueprints with explicit URL prefixes for clarity
     # Register blueprints with original structure for backwards compatibility
@@ -306,11 +310,19 @@ def create_app(test_config=None):
     app.register_blueprint(order_bp)  # Keep at root level for order webhooks
     app.register_blueprint(location_bp)  # Keep at root level for consistency
     app.register_blueprint(order_ai_bp)  # AI-powered interactive order resolution
+    app.register_blueprint(voice_sdk_bp, url_prefix='/voice_sdk')  # New Agents SDK voice routes
+    app.register_blueprint(realtime_bp, url_prefix='/realtime')  # Realtime audio processing
+    app.register_blueprint(escalation_bp)  # Staff handoff and escalation routes
+    app.register_blueprint(monitoring_bp, url_prefix='/monitoring')  # Monitoring and health check routes
 
     # Configure optimized logging
     # Clear any existing handlers to avoid duplicates
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
+        
+    # Initialize monitoring
+    from app.utils.monitoring import init_monitoring
+    init_monitoring(app)
 
     # Configure logging based on environment
     if os.environ.get("RENDER", False) or os.environ.get("DOCKER", False):
