@@ -10,6 +10,9 @@ import os
 from app.config import *
 from datetime import datetime
 
+# Set up module-level logger
+logger = logging.getLogger(__name__)
+
 # Check if we're in testing mode
 is_testing = os.environ.get("TESTING") == "True" or os.environ.get("TESTING") == "true"
 
