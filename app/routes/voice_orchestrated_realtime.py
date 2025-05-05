@@ -661,6 +661,16 @@ async def media_stream(ws):
                 # Log agent model if available
                 if hasattr(frontline, 'model'):
                     logger.info(f"[MEDIA_STREAM] Agent model: {frontline.model}")
+                
+                # Send connection confirmation to client
+                logger.info("[MEDIA_STREAM] Sending connection confirmation to client")
+                await ws.send(json.dumps({
+                    "type": "connected",
+                    "session_id": session_id,
+                    "timestamp": time.time(),
+                    "message": "Connected to Red Bar Sushi AI system"
+                }))
+                metrics["events_sent"] += 1
             except Exception as e:
                 logger.error(f"[MEDIA_STREAM] ❌ Failed to initialize agents: {str(e)}")
                 logger.error(f"[MEDIA_STREAM] Agent initialization error trace: {traceback.format_exc()}")
@@ -675,16 +685,6 @@ async def media_stream(ws):
                 }))
                 log_connection_summary("agent_initialization_failed")
                 return
-        
-        # Send connection confirmation to client
-        logger.info("[MEDIA_STREAM] Sending connection confirmation to client")
-        await ws.send(json.dumps({
-            "type": "connected",
-            "session_id": session_id,
-            "timestamp": time.time(),
-            "message": "Connected to Red Bar Sushi AI system"
-        }))
-        metrics["events_sent"] += 1
         
         # Store messages from Twilio
         twilio_messages = []
