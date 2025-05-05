@@ -16,13 +16,14 @@ import asyncio
 import base64
 from datetime import datetime
 
-# Try to import psutil, but handle gracefully if it's not available
+# psutil is optional and only used for additional diagnostics
+# It's not required for the core WebSocket functionality
 try:
     import psutil
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-    logging.warning("psutil module is not available. Some diagnostic features will be limited.")
+    logging.info("psutil module is not available. Some optional diagnostic features will be limited.")
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 def check_x11_environment():
     """
     Check if X11 environment is properly configured and provide diagnostic information.
+    Not required for server environments like Render.
     
     Returns:
         dict: X11 environment status with diagnostic information
@@ -37,66 +39,49 @@ def check_x11_environment():
     x11_status = {
         "is_configured": False,
         "display": None,
-        "errors": [],
-        "headless_mode": False,
-        "recommendations": []
+        "headless_mode": True,  # Default to headless mode on servers
+        "server_environment": True
     }
     
     try:
-        # Check if DISPLAY is set
-        display = os.environ.get("DISPLAY")
-        x11_status["display"] = display
+        # Check if we're explicitly configured for headless mode
+        is_headless = os.environ.get("OPENAI_REALTIME_NO_DISPLAY") == "1" or os.environ.get("HEADLESS") == "1"
+        is_render = os.environ.get("RENDER") == "true"
         
-        if not display:
-            x11_status["errors"].append("DISPLAY environment variable is not set")
-            x11_status["recommendations"].append("Set DISPLAY environment variable (e.g., export DISPLAY=:0)")
-            
-            # Check if we're in headless mode
-            if os.environ.get("OPENAI_REALTIME_NO_DISPLAY") == "1" or os.environ.get("HEADLESS") == "1":
-                x11_status["headless_mode"] = True
-                logger.info("System is configured for headless mode operation")
-            else:
-                x11_status["recommendations"].append("Set OPENAI_REALTIME_NO_DISPLAY=1 to enable headless mode")
-                
+        # Automatically run in headless mode on Render
+        if is_render:
+            x11_status["headless_mode"] = True
+            x11_status["render_environment"] = True
+            # Force headless environment variables
+            os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"
+            os.environ["HEADLESS"] = "1"
+            logger.info("Running on Render - headless mode automatically enabled")
+        elif is_headless:
+            logger.info("Headless mode explicitly configured")
+            x11_status["headless_mode"] = True
         else:
-            # Check if X11 connection works
-            try:
-                # Try importing a library that requires X11
-                import tkinter
-                x11_status["is_configured"] = True
-            except ImportError:
-                # tkinter isn't installed, so we can't test
-                x11_status["errors"].append("Cannot check X11 connection: tkinter not installed")
-                x11_status["recommendations"].append("Install tkinter or run in headless mode")
-            except Exception as e:
-                x11_status["errors"].append(f"X11 connection error: {str(e)}")
-                x11_status["recommendations"].append("Check if X server is running or use headless mode")
-                
-        # Check if Xvfb is running (requires psutil)
-        if PSUTIL_AVAILABLE:
-            try:
-                xvfb_processes = [p for p in psutil.process_iter(['name']) if p.info['name'] == 'Xvfb']
-                if xvfb_processes:
-                    x11_status["xvfb_running"] = True
-                    x11_status["xvfb_count"] = len(xvfb_processes)
-                else:
-                    x11_status["xvfb_running"] = False
-                    if not x11_status["headless_mode"] and not x11_status["is_configured"]:
-                        x11_status["recommendations"].append("Start Xvfb server (Xvfb :1 -screen 0 1024x768x24 &)")
-            except:
-                x11_status["xvfb_check_failed"] = True
-        else:
-            x11_status["xvfb_check"] = "unavailable (psutil not installed)"
+            # Check if DISPLAY is set for non-server environments
+            display = os.environ.get("DISPLAY")
+            x11_status["display"] = display
+            x11_status["headless_mode"] = not display
             
-        # Log the status
-        logger.critical(f"X11 Environment Check: {json.dumps(x11_status, indent=2)}")
+            if not display:
+                logger.info("No display detected, enabling headless mode")
+                os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"
+                os.environ["HEADLESS"] = "1"
+        
+        # Log the status (only detailed info in debug mode)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"X11 Environment Check: {json.dumps(x11_status, indent=2)}")
+        else:
+            logger.info(f"Headless mode: {x11_status['headless_mode']}")
         
         return x11_status
         
     except Exception as e:
         logger.error(f"Error checking X11 environment: {e}")
         logger.error(traceback.format_exc())
-        x11_status["errors"].append(f"Internal error in X11 check: {str(e)}")
+        x11_status["errors"] = [f"Internal error in X11 check: {str(e)}"]
         return x11_status
 
 def log_websocket_handshake(request, phase="pre-upgrade"):
@@ -245,77 +230,65 @@ async def send_heartbeat(ws, session_id="unknown", interval=15.0):
 
 def log_system_status(session_id="unknown", context="general"):
     """
-    Log detailed system status information.
+    Log basic system status information.
     
     Args:
         session_id: The session ID for correlation
         context: Additional context for the status check
     """
     try:
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] ========== System Status ({context}) ==========")
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Timestamp: {datetime.now().isoformat()}")
+        # Start with a less noisy log level for routine status checks
+        log_level = logging.INFO
+        logger.log(log_level, f"[SYSTEM_STATUS:{session_id}] System Status ({context}) - {datetime.now().isoformat()}")
         
-        if not PSUTIL_AVAILABLE:
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Limited system status available (psutil not installed)")
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Install psutil for detailed system diagnostics")
-            
-            # Log basic information that doesn't require psutil
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process ID: {os.getpid()}")
-        else:
-            # Process info
+        # Basic process info available without psutil
+        logger.log(log_level, f"[SYSTEM_STATUS:{session_id}] Process ID: {os.getpid()}")
+        logger.log(log_level, f"[SYSTEM_STATUS:{session_id}] Start time: {datetime.fromtimestamp(time.time()).isoformat()}")
+        
+        # Enhanced diagnostics with psutil if available
+        if PSUTIL_AVAILABLE and logger.isEnabledFor(logging.DEBUG):
             process = psutil.Process()
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process ID: {process.pid}")
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process name: {process.name()}")
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process uptime: {time.time() - process.create_time():.1f}s")
+            logger.debug(f"[SYSTEM_STATUS:{session_id}] Process name: {process.name()}")
+            logger.debug(f"[SYSTEM_STATUS:{session_id}] Process uptime: {time.time() - process.create_time():.1f}s")
             
             # CPU info
-            cpu_percent = process.cpu_percent(interval=1.0)
-            system_cpu_percent = psutil.cpu_percent(interval=0.5)
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process CPU: {cpu_percent:.1f}%")
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] System CPU: {system_cpu_percent:.1f}%")
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] CPU count: {psutil.cpu_count(logical=True)}")
+            cpu_percent = process.cpu_percent(interval=0.1)
+            system_cpu_percent = psutil.cpu_percent(interval=0.1)
+            logger.debug(f"[SYSTEM_STATUS:{session_id}] Process CPU: {cpu_percent:.1f}%")
+            logger.debug(f"[SYSTEM_STATUS:{session_id}] System CPU: {system_cpu_percent:.1f}%")
+            logger.debug(f"[SYSTEM_STATUS:{session_id}] CPU count: {psutil.cpu_count(logical=True)}")
             
-            # Memory info
+            # Memory info (only if debug is enabled)
             memory_info = process.memory_info()
             system_memory = psutil.virtual_memory()
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process memory: {memory_info.rss / (1024*1024):.1f} MB (RSS)")
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] System memory: {system_memory.used / (1024*1024*1024):.1f} GB used of {system_memory.total / (1024*1024*1024):.1f} GB")
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Memory percent: {system_memory.percent:.1f}%")
-            
-            # Disk info
-            disk = psutil.disk_usage('/')
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Disk usage: {disk.used / (1024*1024*1024):.1f} GB used of {disk.total / (1024*1024*1024):.1f} GB ({disk.percent:.1f}%)")
-            
-            # Network info
-            net_connections = process.connections()
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Network connections: {len(net_connections)}")
-            
-            # Thread info
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Thread count: {process.num_threads()}")
+            logger.debug(f"[SYSTEM_STATUS:{session_id}] Process memory: {memory_info.rss / (1024*1024):.1f} MB (RSS)")
+            logger.debug(f"[SYSTEM_STATUS:{session_id}] System memory: {system_memory.percent:.1f}%")
         
         # Asyncio task info
         try:
             tasks = asyncio.all_tasks()
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Asyncio tasks: {len(tasks)}")
+            task_count = len(tasks)
+            logger.log(log_level, f"[SYSTEM_STATUS:{session_id}] Asyncio tasks: {task_count}")
             
-            # Log task names for debugging
-            task_names = [task.get_name() for task in tasks]
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Task names: {task_names}")
+            # Only log detailed task info if debug is enabled
+            if logger.isEnabledFor(logging.DEBUG):
+                task_names = [task.get_name() for task in tasks]
+                logger.debug(f"[SYSTEM_STATUS:{session_id}] Task names: {task_names}")
         except RuntimeError as e:
-            logger.critical(f"[SYSTEM_STATUS:{session_id}] Asyncio tasks: Error - {e}")
+            logger.log(log_level, f"[SYSTEM_STATUS:{session_id}] Asyncio tasks: Error - {e}")
         
-        # Python environment
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Python version: {sys.version}")
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Platform: {sys.platform}")
+        # Python environment (basic info)
+        logger.log(log_level, f"[SYSTEM_STATUS:{session_id}] Python version: {sys.version.split()[0]}")
         
-        # Log environment variables (excluding sensitive ones)
-        env_keys = [k for k in os.environ.keys() if not any(secret in k.lower() for secret in ['key', 'token', 'secret', 'password'])]
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Environment variables: {sorted(env_keys)}")
+        # Running on Render?
+        if os.environ.get("RENDER") == "true":
+            logger.log(log_level, f"[SYSTEM_STATUS:{session_id}] Environment: Render")
+            logger.log(log_level, f"[SYSTEM_STATUS:{session_id}] Service ID: {os.environ.get('RENDER_SERVICE_ID', 'unknown')}")
         
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] ========== End System Status ==========")
     except Exception as e:
         logger.error(f"Error logging system status: {e}")
-        logger.error(traceback.format_exc())
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(traceback.format_exc())
 
 def log_audio_processing_stats(audio_stats, session_id="unknown"):
     """

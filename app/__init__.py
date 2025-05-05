@@ -72,35 +72,16 @@ if is_testing:
     # Mock the celery_app module
     sys.modules["celery_app"] = MockCeleryApp()
 
-# Initialize X11 environment variables depending on whether virtual X server is available
-# Check if we have a virtual X server by looking for the X11_SETUP_SUCCESS environment variable
-if os.environ.get("X11_SETUP_SUCCESS") == "true":
-    # X11 mode - use virtual X server
+# Configure headless mode for server environments
+# X11 is not needed for WebSocket-based Realtime integration
+# The voice system works fully headless without any GUI components
 
-    # Use the working display provided by the startup script
-    # This might be different from :99 in some environments
-    if "DISPLAY" in os.environ and os.environ["DISPLAY"]:
-        logging.info(f"Using provided X display: {os.environ['DISPLAY']}")
-    else:
-        # Try several displays in order until one works
-        # Don't default to :99 as it might be in use
-        for display in [":1", ":99", ":0"]:
-            try:
-                logging.info(f"Testing display {display}...")
-                os.environ["DISPLAY"] = display
-                break
-            except Exception as e:
-                logging.warning(f"Display {display} failed: {e}")
+# Force headless mode for production environments (e.g., Render)
+is_render = os.environ.get("RENDER") == "true"
+force_headless = is_render or os.environ.get("FORCE_HEADLESS") == "true"
 
-    # Set X11 environment variables
-    os.environ["PYNPUT_HEADLESS"] = "0"
-    os.environ["NO_X11"] = "0"
-    os.environ["HEADLESS"] = "0"
-    os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "0"
-
-    logging.info(f"X11 mode active with display: {os.environ.get('DISPLAY')}")
-else:
-    # Headless mode - no X11 server
+if force_headless or os.environ.get("X11_SETUP_SUCCESS") != "true":
+    # Headless mode (recommended for production)
     os.environ["PYNPUT_HEADLESS"] = "1"
     os.environ["NO_X11"] = "1"
     os.environ["HEADLESS"] = "1"
@@ -110,7 +91,22 @@ else:
     if "DISPLAY" in os.environ:
         del os.environ["DISPLAY"]
 
-    logging.info("Headless mode active (no X11)")
+    logging.info("Headless mode active (no X11 needed)")
+else:
+    # X11 mode - only for development with GUI components
+    # This branch should not be used in production
+    logging.warning("X11 mode active - not recommended for production")
+    
+    # Use the working display provided by the startup script
+    if "DISPLAY" in os.environ and os.environ["DISPLAY"]:
+        logging.info(f"Using provided X display: {os.environ['DISPLAY']}")
+    else:
+        # Default to no display
+        logging.warning("No display set, using headless mode instead")
+        os.environ["PYNPUT_HEADLESS"] = "1"
+        os.environ["NO_X11"] = "1"
+        os.environ["HEADLESS"] = "1"
+        os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"
 
 # Logging setup
 logging.basicConfig(

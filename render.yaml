@@ -10,12 +10,14 @@ services:
     name: redbarsushi-web
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
+    startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 'run:app'
     envVars:
       - key: PROCESS
         value: web
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: FORCE_HEADLESS
+        value: "true"
       - key: DB_MAX_RETRIES
         value: "5"
       - key: DB_INITIAL_RETRY_DELAY
@@ -83,12 +85,14 @@ services:
     branch: staging
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
+    startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 'run:app'
     envVars:
       - key: PROCESS
         value: web
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: FORCE_HEADLESS
+        value: "true"
       - key: FLASK_ENV
         value: staging
       - key: IS_STAGING

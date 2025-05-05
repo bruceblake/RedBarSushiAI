@@ -290,6 +290,25 @@ To deploy:
 2. After review and testing, PR to main
 3. GitHub Actions will handle the deployment
 
+### Render WebSocket Configuration
+
+For the WebSocket-based real-time voice system, Render requires a specific configuration:
+
+```bash
+# In Procfile (used by Render)
+web: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 'run:app'
+```
+
+#### Required packages:
+- flask-sock - WebSocket support for Flask
+- gevent-websocket - WebSocket worker for Gunicorn
+- gunicorn - WSGI server
+
+No X11 server or psutil package is required for the WebSocket-based Realtime integration on Render.
+
+#### Key Environment Variables:
+- `FORCE_HEADLESS=true` - Ensures the app runs in headless mode
+
 ## Location Management
 
 To work with locations:
