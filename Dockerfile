@@ -28,31 +28,26 @@ FROM base AS dependencies
 WORKDIR /install
 
 # Copy requirements files
-COPY requirements.txt requirements.prod.txt requirements.docker.txt ./
+COPY requirements.txt requirements.prod.txt requirements.docker.txt requirements_minimal.txt ./
 
 # Install base Python packages with retries and timeouts
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    # Try docker requirements first, then production, then default
-    if [ -f "requirements.docker.txt" ]; then \
-        pip install --no-cache-dir -r requirements.docker.txt || \
-        pip install --no-cache-dir -r requirements.txt; \
-    elif [ -f "requirements.prod.txt" ]; then \
-        pip install --no-cache-dir -r requirements.prod.txt || \
-        pip install --no-cache-dir -r requirements.txt; \
-    else \
-        pip install --no-cache-dir -r requirements.txt; \
-    fi && \
-    # Ensure OpenAI is properly installed
-    pip install --no-cache-dir openai>=1.68.2
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel 
 
-# Install WebSocket-specific packages for Render
-RUN pip install --no-cache-dir psycopg2-binary==2.9.9 \
-                             gunicorn==23.0.0 \
-                             gevent==23.9.1 \
-                             flask-sock==0.7.0 \
-                             gevent-websocket==0.10.1 \
-                             websockets==13.1 \
-                             ffmpeg-python==0.2.0
+# Install the minimal requirements needed for WebSocket-based Realtime integration
+# This ensures we have the core dependencies properly resolved
+RUN pip install --no-cache-dir -r requirements_minimal.txt
+
+# For completeness, try to install the full requirements, but we already have the core deps
+# We use --no-deps to avoid conflicts with our minimal requirements
+RUN if [ -f "requirements.docker.txt" ]; then \
+        pip install --no-cache-dir --no-deps -r requirements.docker.txt || true; \
+    elif [ -f "requirements.prod.txt" ]; then \
+        pip install --no-cache-dir --no-deps -r requirements.prod.txt || true; \
+    else \
+        pip install --no-cache-dir --no-deps -r requirements.txt || true; \
+    fi
+
+# Dependencies are already installed in previous step
 
 # Stage 3: Final runtime image
 FROM base AS final

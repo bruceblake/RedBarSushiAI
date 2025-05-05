@@ -1,0 +1,14 @@
+# Minimal requirements for WebSocket-based Realtime integration on Render
+flask==3.1.0
+flask-sock==0.7.0
+gevent==23.9.1
+gevent-websocket==0.10.1
+gunicorn==23.0.0
+openai>=1.0.0,<2.0.0
+websockets==13.1
+psycopg2-binary==2.9.9
+redis==5.2.1
+celery==5.4.0
+ffmpeg-python==0.2.0
+twilio==9.4.6
+anyio>=3.6.2,<4.0.0
