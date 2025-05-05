@@ -315,6 +315,26 @@ def get_order_status(channel_order_id, location_id=None):
         return False, {"error": f"Unexpected error: {str(e)}"}, None
 
 
+def generate_order_id():
+    """
+    Generate a unique order ID for Deliverect.
+    
+    Returns:
+        tuple: (channel_order_id, display_id)
+            - channel_order_id: Unique order ID for Deliverect (must be unique within 48 hours)
+            - display_id: Shorter version for human readability
+    """
+    # Create a unique channel order ID (must be unique within 48 hours)
+    # Format: RBS-TIMESTAMP-RANDOM
+    timestamp = int(datetime.now().timestamp())
+    channel_order_id = f"RBS-{timestamp}-{uuid.uuid4().hex[:8].upper()}"
+    
+    # Create a display ID (shorter version for human readability)
+    display_id = f"RBS-{timestamp}"
+    
+    return channel_order_id, display_id
+
+
 def process_order_status_update(webhook_data, location_id=None):
     """
     Process an order status update webhook from Deliverect.

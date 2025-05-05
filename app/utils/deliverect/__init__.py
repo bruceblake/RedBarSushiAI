@@ -23,6 +23,7 @@ from app.utils.deliverect.orders import (
     send_order_to_deliverect,
     get_order_status,
     process_order_status_update,
+    generate_order_id,
 )
 
 # Location management
@@ -41,6 +42,7 @@ __all__ = [
     "send_order_to_deliverect",
     "get_order_status",
     "process_order_status_update",
+    "generate_order_id",
     "register_new_location",
     "update_location_status",
     "get_location_webhook_urls",
