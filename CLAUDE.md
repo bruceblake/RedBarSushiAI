@@ -4,14 +4,19 @@ This document provides essential context for the RedBarSushiAI project, explaini
 
 ## Project Overview
 
+FILES MUST NOT BE LONGER THAN 500 LINES LONG
+NEVER IMPLEMENT FALLBACKS UNLESS SPECIFICALLY ASKED
+WHEN IT COMES TO SPECIFIC API RELATED TASKS REFER TO MCP CONTEXT OR THIS DOCUMENT DO NOT MAKE UP ANYTHING
+WE HAVE 2 ENVIRONMENTS, A STAGING ENVIRONMENT FOR TESTING AND A PRODUCTION ENVIRONMENT. ALL ENVIRONMENTS ARE DEPLOYED USING RENDER AND HAVE THEIR OWN ENVIRONMENT VARIABLES SET, THIS IS ON A LOCAL SYSTEM
+
 RedBarSushiAI is an AI-powered voice ordering system for Red Bar Sushi that enables customers to place orders and get menu information over the phone. The system integrates with:
 
-- **Twilio**: For phone/voice communication
-- **OpenAI**: For natural language processing and voice recognition (using Assistants API)
+- **Twilio**: For phone/voice communication with programmable voice and media streams
+- **OpenAI**: For real-time audio processing, natural language understanding, and orchestrated multi-agent interactions
 - **Deliverect**: For order management and POS integration
-- **PostgreSQL**: For data persistence
-- **Redis**: For caching, session management, and as Celery broker
-- **Celery**: For asynchronous task processing
+- **PostgreSQL**: For data persistence of menu items, orders, and variants
+- **Redis**: For caching, conversation state management, and as Celery broker
+- **Celery**: For asynchronous task processing including order confirmation and polling
 
 ## Core Architecture
 
@@ -20,6 +25,7 @@ RedBarSushiAI is an AI-powered voice ordering system for Red Bar Sushi that enab
 The system uses PostgreSQL for data persistence with these key models that mirror the Deliverect data structure:
 
 1. **Menu Models** (`app/models/menu.py`):
+
    - `MenuCategory`: `id`, `deliverect_category_id`, `name`, `description`
    - `MenuItem`: `id`, `category_id`, `name`, `description`, `price`, `plu` (critical link to POS), `deliverect_item_id`, `is_available`, `is_combo`, `is_variant`, `image_url`, `snoozed_until`
    - `MenuModifier`: `id`, `modifier_group_id`, `name`, `price_change`, `plu` (critical), `deliverect_modifier_id`, `is_available`, `snoozed_until`
@@ -29,6 +35,7 @@ The system uses PostgreSQL for data persistence with these key models that mirro
    - `MenuNameVariant`: `variant_phrase` (lowercase), `canonical_name`, `target_plu` - Essential for mapping natural language to specific PLUs
 
 2. **Order Models** (`app/models/order.py`):
+
    - `Order`: `id`, `deliverect_channel_order_id` (critical link to Deliverect), `customer_phone`, `order_type`, `status`, `total_price`, `placed_at`, `estimated_time`, `delivery_address`
    - `OrderItem`: Links `orders` to `menu_items` via `menu_item_plu`, stores quantity
    - `OrderItemModifier`: Links `order_items` to `modifiers` via `modifier_plu`
@@ -37,84 +44,171 @@ The system uses PostgreSQL for data persistence with these key models that mirro
    - `Location`: Stores location settings, Deliverect connection details, and business hours
    - Each location has its own `channelLinkId` for Deliverect integration
 
-### Voice Handling
+### Voice Architecture
 
-Voice interactions are managed through Twilio's programmable voice API:
+Voice interactions are managed through an orchestrated multi-agent architecture with real-time audio processing:
 
-1. **Call Flow** (`app/routes/voice.py`):
-   - Takes customer name
-   - Offers menu/order options
-   - Handles silence with progressive fallbacks
-   - Processes menu inquiries and orders
+```
+┌───────────────────────────┐
+│ OpenAI Realtime Session   │
+│  • ASR & partial transcripts   │
+│  • VAD-driven events           │
+│  • Tool_call & tool_response   │
+│  • TTS audio chunks            │
+└─┬───────────────────────────┬─┘
+  │ tool_call(name, args)     │ audio(TTS)
+  ▼                            ▼
+┌──────────┐             ┌─────────────┐
+│ Frontline│─handoff─▶   │ Fulfillment │
+│ Voice    │  or tool    │ Agent       │
+│ Agent     ◀─tool───    └─────────────┘
+└─┬────────┘
+  │ tool calls
+  ▼
+┌────────────┐  ┌─────────┐  ┌───────────┐
+│ Menu Agent │  │ Cart    │  │ Guardrail │
+│            │  │ Agent   │  │ Agent     │
+└────────────┘  └─────────┘  └───────────┘
+```
 
-2. **Silence Handling**:
-   - Progressive timeouts based on context
-   - Fallback to DTMF (touch-tone) input
-   - Session-based retry counters
+1. **Orchestrated Voice Implementation** (`app/routes/voice_orchestrated.py`):
+
+   - Real-time audio processing via WebSockets
+   - Multi-agent architecture with specialized roles
+   - Finite State Machine (FSM) for conversation flow
+   - Manages agent handoffs and escalations
+   - Handles audio streaming and VAD events
+
+2. **Agent Roles**:
+
+   - **Frontline Agent**: Manages overall call flow and delegates to specialists
+   - **Menu Agent**: Handles menu inquiries and availability
+   - **Cart Agent**: Manages order items and modifications
+   - **Fulfillment Agent**: Processes order completion and payment
+   - **Guardrail Agent**: Enforces constraints and business rules
+   - **Escalation Agent**: Manages handoff to human staff when needed
+
+3. **Silence & VAD Handling**:
+   - Phase-specific timeouts based on conversation context
+   - Voice Activity Detection with adaptive timeouts
+   - Progressive fallbacks with configurable retry limits
+   - State-aware reprompting strategies
 
 ### Menu Management
 
-The menu system was migrated from file-based to database storage:
+The menu system uses a database-backed architecture with multi-level caching:
 
 1. **Database Storage** (`app/utils/menu_db_store.py`):
-   - PostgreSQL primary storage
-   - Redis caching layer
-   - Memory fallback if Redis unavailable
+
+   - PostgreSQL as the persistent source of truth
+   - Redis caching layer for improved performance
+   - In-memory fallback if Redis becomes unavailable
+   - Menu validation and data integrity checks
 
 2. **Menu Matching** (`app/utils/menu_matcher_db.py`):
-   - Multiple matching strategies:
-     - Exact match (fastest)
-     - Fuzzy matching (Levenshtein distance)
-     - AI-powered matching (most accurate)
+   - Progressive matching strategy with fallbacks:
+     - Exact match (fastest, first attempt)
+     - Fuzzy matching with Levenshtein distance (second attempt)
+     - AI-powered semantic matching (most accurate, final attempt)
+   - Variant mapping to handle different ways customers refer to items
+   - Context-aware matching based on previous items
 
 ### Order Processing
 
-Orders are processed through several components:
+Orders are processed through a multi-stage pipeline with specialized agents:
 
-1. **Interactive Resolution** (`app/routes/order_ai.py`):
-   - AI-powered order clarification
-   - Step-by-step resolution of ambiguous orders
-   - Session-based conversation tracking
+1. **Cart Management** (`app/agents/cart.py`):
 
-2. **Order Validation**:
-   - Checking item availability
-   - Validating modifier constraints
-   - Price calculation
+   - Parses natural language order descriptions
+   - Resolves ambiguities through interactive clarification
+   - Manages cart state in Redis
+   - Handles item modifications and quantities
+
+2. **Order Validation** (`app/agents/guardrail.py`):
+
+   - Enforces business rules and constraints
+   - Validates modifier selection limits
+   - Verifies item availability and snooze status
+   - Calculates accurate pricing
+
+3. **Order Fulfillment** (`app/agents/fulfillment.py`):
+   - Prepares the Deliverect payload
+   - Submits orders to the POS system
+   - Records orders in the database
+   - Triggers SMS notifications via Celery
 
 ## Key Workflows
 
 ### Voice Call Workflow
 
-1. **Initial Greeting**: System answers call and asks for customer name
-2. **Main Menu**: Customer chooses to order, ask about menu, or speak to staff
-3. **Menu Inquiries**: System answers menu questions using AI
-4. **Order Taking**: System takes order items, modifiers, and quantities
-5. **Order Confirmation**: System summarizes order and confirms details
-6. **Order Processing**: Order sent to Deliverect for restaurant fulfillment
-7. **Order Status**: Customer receives updates on order progress
+1. **Setup Phase**:
 
-### Order Processing Workflow
+   - Twilio initiates the call and invokes the WebSocket endpoint
+   - System initializes the orchestrated voice agent
+   - Media stream established for real-time audio processing
 
-1. **Conversation to Order**:
-   - Customer speaks their order via Twilio
-   - OpenAI Assistant processes the text and uses tools
-   - `lookup_menu_item` tool converts natural language to specific PLUs
-   - `add_item_to_cart` adds items with modifiers to the Redis cart
+2. **Greeting Phase** (FSM: GREETING state):
 
-2. **Order Submission**:
-   - OpenAI Assistant confirms the order with customer
-   - `place_order` tool is called with customer details
-   - System generates unique `channelOrderId`
-   - System formats order payload using PLUs for Deliverect
-   - System makes POST request to Deliverect API
-   - Order record is created in PostgreSQL
-   - Celery task is queued to send confirmation SMS
+   - Frontline agent introduces the restaurant and asks for customer name
+   - Voice Activity Detection monitors for silence
+   - System stores customer name and transitions to main menu
 
-3. **Order Status Tracking**:
-   - System periodically polls Deliverect API for order status
-   - When status changes, system updates order record in PostgreSQL
-   - System queues Celery task to send SMS update
-   - Twilio delivers SMS notification to customer
+3. **Menu Phase** (FSM: MAIN_MENU state):
+
+   - Customer is presented with options (ordering, menu inquiries, staff)
+   - Menu agent handles inquiries about available items
+   - Contextual responses based on previous questions
+
+4. **Order Phase** (FSM: ORDERING state):
+
+   - Cart agent processes natural language order descriptions
+   - Interactive disambiguation for ambiguous items
+   - System builds cart with precise PLUs for Deliverect
+
+5. **Validation Phase** (FSM: VALIDATION state):
+
+   - Guardrail agent validates order against business rules
+   - System verifies item availability and modification constraints
+   - Price calculation with modifier adjustments
+
+6. **Confirmation Phase** (FSM: CONFIRMATION state):
+
+   - System summarizes order details and total price
+   - Customer confirms or makes adjustments
+   - Delivery/pickup options presented
+
+7. **Fulfillment Phase** (FSM: FULFILLMENT state):
+   - Fulfillment agent prepares the order payload
+   - Order submitted to Deliverect with proper formatting
+   - Order recorded in database and confirmation sent
+   - System transitions to COMPLETION or FOLLOW_UP state
+
+### Real-time Audio Processing Workflow
+
+1. **Audio Streaming**:
+
+   - Raw audio data streams via WebSocket in 20ms packets
+   - Audio converted from μ-law (8kHz) to PCM16 (16kHz)
+   - Voice Activity Detection processes silence events
+
+2. **Speech Processing**:
+
+   - OpenAI Realtime API processes streaming audio
+   - Partial transcripts displayed during speech
+   - Complete utterances forwarded to agents
+
+3. **Agent Orchestration**:
+
+   - Frontline agent handles initial understanding
+   - Agent handoffs based on intent and FSM state
+   - Specialized agents process different aspects of the interaction
+   - Tool calls used for specific operations
+   - Main agent maintains conversation context
+
+4. **Response Generation**:
+   - Text responses generated by appropriate agent
+   - Text-to-Speech converts responses to audio
+   - Audio streamed back to customer in real-time
 
 ### Menu Management Workflow
 
@@ -122,12 +216,10 @@ Orders are processed through several components:
    - Menu data is imported from JSON file (`menu_data.json`)
    - System loads detailed menu structure during initialization
    - Manual updates to menu data are processed through admin interface
-   
 2. **Menu Data Processing**:
    - System parses categories, items, modifiers, and modifier groups
    - Each entity is identified by PLU and stored in PostgreSQL
    - System builds `menu_name_variants` table mapping natural language to PLUs
-   
 3. **Menu Data Access**:
    - Menu data is cached in Redis for quick access
    - If Redis fails, system falls back to PostgreSQL
@@ -138,6 +230,7 @@ Orders are processed through several components:
 The system was migrated from file-based to database storage:
 
 1. **Migration Process** (`database_menu_integration.py`):
+
    - Initialize database tables
    - Transfer data from JSON to database
    - Verify migration success
@@ -153,6 +246,7 @@ The system was migrated from file-based to database storage:
 The system includes real-time processing features:
 
 1. **Real-time Audio** (`app/utils/realtime_audio.py`):
+
    - WebSocket-based audio streaming
    - Real-time speech-to-text processing
    - Real-time text-to-speech responses
@@ -167,6 +261,7 @@ The system includes real-time processing features:
 The system maintains conversation context using Redis:
 
 1. **Conversation Store** (`app/utils/conversation_store.py`):
+
    - Redis-backed conversation history
    - Memory fallback if Redis unavailable
    - Automatic session expiration
@@ -181,10 +276,12 @@ The system maintains conversation context using Redis:
 The project uses a comprehensive testing strategy:
 
 1. **Unit Tests** (`tests/unit/`):
+
    - Test individual components in isolation
    - Fast execution with mocked dependencies
 
 2. **Integration Tests** (`tests/integration/`):
+
    - Test interactions between components
    - Database integration testing
 
@@ -198,6 +295,7 @@ The project uses a comprehensive testing strategy:
 The application is deployed on Render with these features:
 
 1. **Environment Configuration**:
+
    - Production vs. Staging environments
    - Automatic database initialization
    - Redis connection handling
@@ -207,14 +305,54 @@ The application is deployed on Render with these features:
    - Deploys to staging from `staging` branch
    - Deploys to production from `main` branch
 
-## Development Guidelines
+## Development Architecture
 
 ### Code Organization
 
-- **Models**: Database models in `app/models/`
-- **Routes**: API endpoints in `app/routes/`
-- **Utils**: Helper functions in `app/utils/`
-- **Tests**: Comprehensive tests in `tests/`
+```
+app/
+├── agents/                 # Agent components
+│   ├── base.py             # Base agent implementation
+│   ├── cart.py             # Cart management agent
+│   ├── escalation.py       # Human handoff agent
+│   ├── factory.py          # Basic agent factory
+│   ├── factory_with_orchestration.py  # Enhanced orchestration factory
+│   ├── frontline.py        # Primary conversational agent
+│   ├── frontline_with_orchestration.py  # Orchestrated frontline agent
+│   ├── fulfillment.py      # Order fulfillment agent
+│   ├── guardrail.py        # Validation and constraint agent
+│   └── menu.py             # Menu information agent
+├── models/                 # Database models
+│   ├── base.py             # Base model class
+│   ├── location.py         # Location settings and details
+│   ├── menu.py             # Menu items, modifiers, categories
+│   └── order.py            # Order and item tracking
+├── routes/                 # API endpoints
+│   ├── location.py         # Location management
+│   ├── menu.py             # Menu endpoints
+│   ├── order.py            # Order processing
+│   ├── order_ai.py         # AI-powered order resolution
+│   ├── realtime.py         # Real-time audio endpoints
+│   ├── voice.py            # Basic voice handler
+│   └── voice_orchestrated.py  # Orchestrated voice implementation
+└── utils/                  # Shared utilities
+    ├── agent_orchestration.py  # Orchestration components
+    ├── conversation_store.py   # Session state management
+    ├── deliverect/         # Deliverect API interaction
+    ├── menu_matcher_db.py  # Menu lookup and matching
+    ├── realtime_audio.py   # Audio processing
+    └── voice_controller.py # Voice handling coordination
+```
+
+### Agent Architecture
+
+The system uses a modular agent architecture with specialized components:
+
+- **Base Agent**: Core functionality shared by all agents
+- **Frontline Agent**: Main entry point and dispatcher
+- **Specialized Agents**: Domain-specific handlers
+- **Factory Pattern**: Configurable agent creation
+- **Orchestration Layer**: Coordination between agents
 
 ### Style Conventions
 
@@ -230,6 +368,7 @@ The application is deployed on Render with these features:
 - **Lint Code**: `ruff check app tests`
 - **Run Dev Server**: `FLASK_DEBUG=1 FLASK_APP=run.py flask run`
 - **Run Celery**: `celery -A celery_app worker --loglevel=INFO`
+- **Test Voice Flow**: `VOICE_HANDLER=orchestrated pytest tests/e2e/test_orchestrated_voice_flow.py`
 
 ## API Integrations
 
@@ -240,18 +379,21 @@ The system integrates with Deliverect to manage menu data and process orders:
 1. **Base URL**: `https://api.staging.deliverect.com`
 
 2. **Key Identifiers**:
+
    - `channelName`: Scope identifier for API access
    - `channelLinkId`: Unique store instance identifier
    - `channelOrderId`: Application-generated unique order ID
    - `plu`: Product/modifier unique identifier (critical for order processing)
 
 3. **Endpoints - Deliverect Integration**:
-   - **Create Order**: `POST /{channelName}/order/{channelLinkId}` 
+
+   - **Create Order**: `POST /{channelName}/order/{channelLinkId}`
      - Places a new order with structured payload containing items identified by PLU
      - Order status is determined through manual polling rather than webhooks
      - Success response (201) only indicates the request was valid, not POS acceptance
 
 4. **Menu Data Structure**:
+
    - Menu data is received as a hierarchical JSON structure with these key components:
      - **Categories**: Groups of menu items (e.g., "Steak & Burgers", "Sides")
        - Contains `_id`, `name`, `posCategoryId`, and array of `subProducts` (item IDs)
@@ -274,6 +416,7 @@ The system integrates with Deliverect to manage menu data and process orders:
      - Essential for translating customer speech to specific order items
 
 5. **Order Structure**:
+
    - Order payload to Deliverect must follow specific format:
      - `channelOrderId`: Unique ID generated by our system (cannot be reused within 48 hours)
      - `orderType`: Integer indicating pickup (1), delivery (2), eat-in (3), or curbside (4)
@@ -297,19 +440,18 @@ The system integrates with Deliverect to manage menu data and process orders:
      - `bagFee`: Bag fee in cents (mandatory in some regions)
 
 6. **Order Types and Status**:
+
    - Order Types:
      - `1`: Pick up
      - `2`: Delivery
      - `3`: Eat-in
      - `4`: Curbside
-   
    - Order Status Codes:
      - `20`: Accepted (order confirmed by restaurant)
      - `70`: Ready for Pickup
      - `80`: Delivered
      - `100`: Cancellation Request
      - `110`: Canceled (successfully canceled)
-     
    - Payment Types:
      - `0`: Credit card online
      - `1`: Cash
@@ -321,12 +463,14 @@ The system integrates with Deliverect to manage menu data and process orders:
 The system uses OpenAI's Assistants API for conversation management:
 
 1. **Key Components**:
+
    - **Assistant**: Configured AI personality with specific capabilities
    - **Thread**: Represents a single conversation
    - **Message**: User input or AI response
    - **Run**: Execution of the Assistant on a Thread
 
 2. **Tool Integration**:
+
    - When the Assistant needs external data or actions, it requests specific tools with parameters
    - Backend executes these tools as local Python functions
    - Results are submitted back to the Assistant
@@ -343,6 +487,7 @@ The system uses OpenAI's Assistants API for conversation management:
 The system uses Twilio for voice communication:
 
 1. **Voice Handling**:
+
    - Receives calls via webhooks to `/webhook/voice`
    - Generates TwiML with `<Say>`, `<Gather>`, and other commands
    - Uses callbacks with transcription results
@@ -392,15 +537,19 @@ LOG_LEVEL=INFO
 The application can be started with the following commands:
 
 1. **Start the Flask server**:
+
    ```
    python run.py
    ```
+
    or in debug mode:
+
    ```
    FLASK_DEBUG=1 FLASK_APP=run.py flask run
    ```
 
 2. **Start the Celery worker**:
+
    ```
    celery -A celery_app worker --loglevel=INFO
    ```
@@ -431,51 +580,53 @@ POST /{channelName}/order/{channelLinkId}
 ```
 
 **Request Body Example**:
+
 ```json
 {
-    "channelOrderId": "RBS-12345-ABCDE",
-    "channelOrderDisplayId": "RBS-12345",
-    "orderType": 1,
-    "pickupTime": "2025-05-03T12:30:00Z",
-    "courier": "restaurant",
-    "customer": {
-        "name": "John Doe",
-        "phoneNumber": "+15551234567",
-        "email": "john.doe@example.com"
-    },
-    "orderIsAlreadyPaid": true,
-    "payment": {
-        "amount": 2550,
-        "type": 0
-    },
-    "note": "No soy sauce please",
-    "items": [
+  "channelOrderId": "RBS-12345-ABCDE",
+  "channelOrderDisplayId": "RBS-12345",
+  "orderType": 1,
+  "pickupTime": "2025-05-03T12:30:00Z",
+  "courier": "restaurant",
+  "customer": {
+    "name": "John Doe",
+    "phoneNumber": "+15551234567",
+    "email": "john.doe@example.com"
+  },
+  "orderIsAlreadyPaid": true,
+  "payment": {
+    "amount": 2550,
+    "type": 0
+  },
+  "note": "No soy sauce please",
+  "items": [
+    {
+      "plu": "CALI-ROLL",
+      "name": "California Roll",
+      "price": 1200,
+      "quantity": 1,
+      "subItems": [
         {
-            "plu": "CALI-ROLL",
-            "name": "California Roll",
-            "price": 1200,
-            "quantity": 1,
-            "subItems": [
-                {
-                    "plu": "EXTRA-AVO",
-                    "name": "Extra Avocado",
-                    "price": 150,
-                    "quantity": 1
-                }
-            ]
-        },
-        {
-            "plu": "SPICY-TUNA",
-            "name": "Spicy Tuna Roll",
-            "price": 1200,
-            "quantity": 1
+          "plu": "EXTRA-AVO",
+          "name": "Extra Avocado",
+          "price": 150,
+          "quantity": 1
         }
-    ],
-    "decimalDigits": 2
+      ]
+    },
+    {
+      "plu": "SPICY-TUNA",
+      "name": "Spicy Tuna Roll",
+      "price": 1200,
+      "quantity": 1
+    }
+  ],
+  "decimalDigits": 2
 }
 ```
 
 **Response**:
+
 - `201 Created`: Order received by Deliverect (valid format)
 - `400 Bad Request`: Invalid request format or data
 - `401 Unauthorized`: Invalid authentication
@@ -491,17 +642,19 @@ GET /{channelName}/order/{channelLinkId}/{channelOrderId}
 ```
 
 **Response Example**:
+
 ```json
 {
-    "orderId": "61e9c9f98e5e2b001c82eabc",
-    "status": 20,
-    "channelOrderId": "RBS-12345-ABCDE",
-    "location": "61e9c9f98e5e2b001c82eabd",
-    "channelLink": "61e9c9f98e5e2b001c82eabe"
+  "orderId": "61e9c9f98e5e2b001c82eabc",
+  "status": 20,
+  "channelOrderId": "RBS-12345-ABCDE",
+  "location": "61e9c9f98e5e2b001c82eabd",
+  "channelLink": "61e9c9f98e5e2b001c82eabe"
 }
 ```
 
 **Status Codes**:
+
 - `10`: Received (initial state)
 - `20`: Accepted (confirmed by restaurant)
 - `30`: In Preparation
@@ -512,83 +665,143 @@ GET /{channelName}/order/{channelLinkId}/{channelOrderId}
 - `100`: Cancellation Request
 - `110`: Canceled
 
-### OpenAI Assistants API Integration
+### Agent Orchestration Architecture
 
-#### Creating a Thread
+The system uses a sophisticated agent orchestration architecture for managing complex interactions:
 
-```python
-thread = client.beta.threads.create()
-```
-
-#### Adding a Message to a Thread
+#### Agent Factory
 
 ```python
-message = client.beta.threads.messages.create(
-    thread_id=thread.id,
-    role="user",
-    content="I want to order a California roll with extra avocado"
-)
+# Enhanced factory pattern with orchestration support
+from app.agents.factory_with_orchestration import enhanced_agent_factory
+
+# Create agents with proper initialization
+frontline_agent = enhanced_agent_factory.create_agents()
 ```
 
-#### Running the Assistant
+#### Agent Graph
 
 ```python
-run = client.beta.threads.runs.create(
-    thread_id=thread.id,
-    assistant_id=assistant_id
-)
+# Create the agent relationship graph
+agent_graph = AgentGraph()
+
+# Register specialized agents
+agent_graph.register_agent("menu", menu_agent)
+agent_graph.register_agent("cart", cart_agent)
+agent_graph.register_agent("fulfillment", fulfillment_agent)
+
+# Define relationships and handoff patterns
+agent_graph.add_edge("frontline", "menu", "menu_inquiry")
+agent_graph.add_edge("frontline", "cart", "order_intent")
+agent_graph.add_edge("cart", "fulfillment", "order_complete")
 ```
 
-#### Handling Tool Calls
+#### FSM Orchestrator
 
 ```python
-# Check if the run requires action
-if run.status == "requires_action":
-    for tool_call in run.required_action.submit_tool_outputs.tool_calls:
-        if tool_call.function.name == "lookup_menu_item":
-            args = json.loads(tool_call.function.arguments)
-            result = lookup_menu_item(args["item_name"])
-            
-            # Submit the tool output back to the Assistant
-            client.beta.threads.runs.submit_tool_outputs(
-                thread_id=thread.id,
-                run_id=run.id,
-                tool_outputs=[
-                    {
-                        "tool_call_id": tool_call.id,
-                        "output": json.dumps(result)
-                    }
-                ]
-            )
+# Define the conversation state machine
+fsm_orchestrator = FSMOrchestrator()
+
+# Configure state transitions
+fsm_orchestrator.add_transition(FSMState.GREETING, FSMState.MAIN_MENU, "name_provided")
+fsm_orchestrator.add_transition(FSMState.MAIN_MENU, FSMState.ORDERING, "order_intent")
+fsm_orchestrator.add_transition(FSMState.ORDERING, FSMState.CONFIRMATION, "order_complete")
+
+# Get current conversation state
+current_state = fsm_orchestrator.get_current_state(session_id)
 ```
 
-### Twilio API Integration
+#### Agent Handoffs
 
-#### Receiving Calls
+```python
+# Handle agent handoff from frontline to specialist
+def handle_order_intent(session_id, user_input):
+    # Frontline agent detects order intent
+    cart_agent = agent_graph.get_agent("cart")
 
-Twilio sends incoming call notifications to the `/webhook/voice` endpoint, which responds with TwiML:
+    # Execute handoff with context
+    cart_response = cart_agent.process_input(
+        session_id,
+        user_input,
+        context={"from_agent": "frontline"}
+    )
+
+    # Update FSM state
+    fsm_orchestrator.transition(
+        session_id,
+        FSMState.ORDERING,
+        reason="order_initiated"
+    )
+
+    return cart_response
+```
+
+### Twilio Integration
+
+#### Media Streams API
+
+The system uses Twilio's Media Streams API for real-time audio processing:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <Response>
+    <Start>
+        <Stream url="wss://example.com/ws/media" track="inbound_track" />
+    </Start>
     <Say voice="Polly.Amy-Neural">Welcome to Red Bar Sushi! How can I help you today?</Say>
-    <Gather input="speech" action="/webhook/voice/input" method="POST" speechTimeout="auto" enhanced="true">
-        <Say voice="Polly.Amy-Neural">You can ask about our menu or place an order.</Say>
-    </Gather>
+    <Connect>
+        <Stream url="wss://example.com/ws/media" track="outbound_track" />
+    </Connect>
 </Response>
 ```
 
-#### Sending SMS Notifications
+#### WebSocket Audio Streaming
 
 ```python
-def send_sms_notification(to_number, message):
+@sock.route("/api/ws/orchestrated_conversation")
+async def orchestrated_conversation(ws):
+    """WebSocket endpoint for real-time conversation with orchestrated agents."""
+    # Initialize the audio processor and agents
+    audio_processor = get_audio_processor()
+    frontline_agent = enhanced_agent_factory.create_agents()
+
+    # Process streaming audio in real-time
+    async for audio_chunk in receive_audio_stream():
+        # Process with OpenAI Realtime API
+        transcript = await audio_processor.process_audio_chunk(audio_chunk)
+
+        # Forward to appropriate agent based on state
+        response = frontline_agent.process_voice_input(session_id, transcript)
+
+        # Generate TTS response and stream back
+        audio_response = await text_to_speech(response)
+        await ws.send(audio_response)
+```
+
+#### SMS Notifications
+
+```python
+@celery_app.task
+def send_order_confirmation(order_id, customer_phone):
+    """Send order confirmation via SMS."""
+    # Get order details
+    order = Order.query.get(order_id)
+
+    # Format confirmation message
+    message = (
+        f"Thank you for ordering from Red Bar Sushi! "
+        f"Your order #{order.id} has been received. "
+        f"Estimated time: {order.estimated_time.strftime('%I:%M %p')}. "
+        f"Total: ${order.total_price/100:.2f}"
+    )
+
+    # Send through Twilio
     client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-    message = client.messages.create(
+    client.messages.create(
         body=message,
         from_=settings.TWILIO_PHONE_NUMBER,
-        to=to_number
+        to=customer_phone
     )
-    return message.sid
 ```
 
 ## Database Schema Details
@@ -596,6 +809,7 @@ def send_sms_notification(to_number, message):
 ### Menu Tables
 
 #### menu_categories
+
 ```sql
 CREATE TABLE menu_categories (
     id SERIAL PRIMARY KEY,
@@ -608,6 +822,7 @@ CREATE TABLE menu_categories (
 ```
 
 #### menu_items
+
 ```sql
 CREATE TABLE menu_items (
     id SERIAL PRIMARY KEY,
@@ -628,6 +843,7 @@ CREATE TABLE menu_items (
 ```
 
 #### menu_modifier_groups
+
 ```sql
 CREATE TABLE menu_modifier_groups (
     id SERIAL PRIMARY KEY,
@@ -644,6 +860,7 @@ CREATE TABLE menu_modifier_groups (
 ```
 
 #### menu_modifiers
+
 ```sql
 CREATE TABLE menu_modifiers (
     id SERIAL PRIMARY KEY,
@@ -660,6 +877,7 @@ CREATE TABLE menu_modifiers (
 ```
 
 #### item_modifier_groups
+
 ```sql
 CREATE TABLE item_modifier_groups (
     id SERIAL PRIMARY KEY,
@@ -670,6 +888,7 @@ CREATE TABLE item_modifier_groups (
 ```
 
 #### menu_name_variants
+
 ```sql
 CREATE TABLE menu_name_variants (
     id SERIAL PRIMARY KEY,
@@ -684,6 +903,7 @@ CREATE INDEX menu_name_variants_phrase_idx ON menu_name_variants (variant_phrase
 ### Order Tables
 
 #### orders
+
 ```sql
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
@@ -702,6 +922,7 @@ CREATE TABLE orders (
 ```
 
 #### order_items
+
 ```sql
 CREATE TABLE order_items (
     id SERIAL PRIMARY KEY,
@@ -716,6 +937,7 @@ CREATE TABLE order_items (
 ```
 
 #### order_item_modifiers
+
 ```sql
 CREATE TABLE order_item_modifiers (
     id SERIAL PRIMARY KEY,
@@ -728,39 +950,71 @@ CREATE TABLE order_item_modifiers (
 );
 ```
 
-## Redis Data Structures
+## State Management Architecture
 
-### Conversation Store
+### Finite State Machine (FSM)
 
-Conversations are stored in Redis using a hash with the Twilio `CallSid` as the key:
+The conversation flow is managed by a finite state machine to ensure consistent interactions:
+
+```python
+# FSM States
+class FSMState(Enum):
+    GREETING = "greeting"              # Initial state, getting customer name
+    MAIN_MENU = "main_menu"            # Presenting main options (order, menu, etc.)
+    MENU_INQUIRY = "menu_inquiry"      # Answering menu questions
+    ORDERING = "ordering"              # Taking order details
+    ITEM_CLARIFICATION = "item_clarification"  # Resolving ambiguous items
+    VALIDATION = "validation"          # Validating order against constraints
+    CONFIRMATION = "confirmation"      # Confirming complete order
+    PAYMENT = "payment"                # Handling payment details
+    FULFILLMENT = "fulfillment"        # Processing order with Deliverect
+    FOLLOW_UP = "follow_up"            # Post-order interaction
+    STAFF_HANDOFF = "staff_handoff"    # Escalation to human staff
+    COMPLETION = "completion"          # Ending the conversation
+```
+
+### Slot Store
+
+Structured data collected during the conversation is managed in a slot store:
+
+```python
+# Register slots for data collection
+slot_store.register_slot("customer_name", required=True)
+slot_store.register_slot("phone_number", required=True, validation=validate_phone)
+slot_store.register_slot("delivery_address", required=False)
+slot_store.register_slot("payment_method", required=True, options=["cash", "card"])
+
+# Store and retrieve slot values
+slot_store.set_slot(session_id, "customer_name", "John")
+customer_name = slot_store.get_slot(session_id, "customer_name")
+
+# Check if all required slots are filled
+is_complete = slot_store.all_required_slots_filled(session_id)
+```
+
+### Redis Data Structures
+
+#### Conversation Context Store
 
 ```
-HSET conversation:{CallSid} 
-    state "greeting" 
-    customer_name "John" 
-    last_utterance "I want to order sushi" 
+HSET conversation:{session_id}
+    fsm_state "ordering"
+    customer_name "John"
+    last_utterance "I want to order sushi"
     silence_count 0
-    cart_json "{...}"
+    agent_history "[{\"agent\":\"frontline\",\"time\":1714521140}]"
     last_activity_timestamp 1714521145
 ```
 
-A TTL of 2 hours is set to automatically expire conversations:
+#### Cart Store
 
 ```
-EXPIRE conversation:{CallSid} 7200
-```
-
-### Cart Structure
-
-Cart data stored in Redis:
-
-```
-HSET cart:{CallSid} 
+HSET cart:{session_id}
     json "{
         'items': [
             {
                 'plu': 'CALI-ROLL',
-                'name': 'California Roll', 
+                'name': 'California Roll',
                 'price': 1200,
                 'quantity': 1,
                 'modifiers': [
@@ -774,24 +1028,47 @@ HSET cart:{CallSid}
             }
         ],
         'total_price': 1350,
-        'order_type': 1
+        'order_type': 1,
+        'modified_at': 1714521145
     }"
 ```
 
-### Menu Cache
-
-Menu cache with 1-day expiration:
+#### Menu Cache
 
 ```
-HSET menu:items:{plu} name "California Roll" price 1200 description "..."
-EXPIRE menu:items:{plu} 86400
+# Fast item lookup by PLU
+HSET menu:item:{plu} name "California Roll" price 1200 description "Crab, avocado, cucumber"
+
+# Variant matching for natural language lookups
+HSET menu:variants name:california_roll "CALI-ROLL"
+HSET menu:variants name:cali_roll "CALI-ROLL"
+HSET menu:variants name:crab_avocado_roll "CALI-ROLL"
+
+# Menu structure for fast navigation
+HSET menu:categories category:sushi_rolls items "[\"CALI-ROLL\",\"SPICY-TUNA\"]"
+
+# Set cache TTL
+EXPIRE menu:* 86400  # 24 hour cache
 ```
 
-## Error Handling Strategies
+## Resilience Patterns
 
-### Database Connection Issues
+### Service Degradation Strategy
 
-The system implements database retry logic with exponential backoff:
+The system implements a graceful degradation strategy for service failures:
+
+```python
+class DegradationLevel(Enum):
+    NONE = 0          # All systems operational
+    MINOR = 1         # Some non-critical services degraded
+    MODERATE = 2      # Critical services partially degraded
+    SEVERE = 3        # Critical services severely degraded
+    CATASTROPHIC = 4  # Complete system failure
+```
+
+### Database Connection Resilience
+
+Database operations use retry logic with exponential backoff:
 
 ```python
 @retry(
@@ -805,21 +1082,49 @@ def get_menu_items_with_retry():
         return session.query(MenuItem).all()
 ```
 
-### Twilio Call Failures
+### Redis Fallback Chain
 
-If a call encounters errors, the system will:
+The system implements a multi-level cache fallback strategy:
 
-1. Log the error with call metadata
-2. Attempt to gracefully disconnect with an apology message
-3. Send an SMS notification if the error occurs after customer details are collected
+```python
+def get_menu_item(plu):
+    # Try Redis first (fastest)
+    try:
+        redis_result = redis_client.hgetall(f"menu:item:{plu}")
+        if redis_result:
+            return redis_result
+    except RedisError:
+        logger.warning(f"Redis unavailable, falling back to database for {plu}")
 
-### Speech Recognition Fallbacks
+    # Fall back to database if Redis fails
+    try:
+        db_result = MenuItem.query.filter_by(plu=plu).first()
+        if db_result:
+            return db_result.to_dict()
+    except SQLAlchemyError:
+        logger.error(f"Database unavailable, falling back to memory cache for {plu}")
 
-The system implements progressive fallbacks for speech recognition:
+    # Fall back to memory cache as last resort
+    return memory_cache.get(f"menu:item:{plu}")
+```
 
-1. First attempt: Standard speech recognition
-2. Second attempt: Enhanced speech recognition with longer timeout
-3. Third attempt: Fallback to DTMF touch-tone input
+### Voice Processing Fallbacks
+
+Real-time audio processing implements progressive fallbacks:
+
+1. **Real-time Streaming**: Primary approach using OpenAI Realtime API
+2. **Chunk-based Processing**: Fallback for partial streaming failures
+3. **Complete Utterance Processing**: Fallback for streaming failures
+4. **Text-only Mode**: Ultimate fallback if audio processing fails
+
+### Agent Handling
+
+The orchestration system includes error handling at multiple levels:
+
+1. **Agent-level Recovery**: Each agent has error handling for its domain
+2. **Orchestrator Recovery**: FSM can reset to safe states on agent failures
+3. **Conversation Repair**: System can reconstruct context after failures
+4. **Automatic Escalation**: Serious errors trigger escalation to human staff
 
 ## Celery Tasks
 
@@ -832,18 +1137,18 @@ def send_order_confirmation(order_id, customer_phone):
     try:
         # Get order details from database
         order = get_order_by_id(order_id)
-        
+
         # Format message
         message = f"Thank you for ordering from Red Bar Sushi! Your order #{order.id} "
         message += f"has been received and will be ready around {order.estimated_time.strftime('%I:%M %p')}. "
         message += f"Total: ${order.total_price/100:.2f}"
-        
+
         # Send SMS via Twilio
         send_sms_notification(customer_phone, message)
-        
+
         # Update order record to indicate confirmation sent
         update_order_confirmation_sent(order_id)
-        
+
     except Exception as e:
         logger.error(f"Failed to send order confirmation: {str(e)}")
         # Retry up to 3 times with exponential backoff
@@ -857,30 +1162,30 @@ def poll_order_status(order_id, channel_order_id):
     try:
         # Check current status in our database
         current_status = get_order_status(order_id)
-        
+
         # Skip polling if order is in a terminal state
         terminal_states = [80, 90, 110]  # Delivered, Rejected, Canceled
         if current_status in terminal_states:
             return
-        
+
         # Poll Deliverect for status
         deliverect_status = get_deliverect_order_status(channel_order_id)
-        
+
         # If status changed, update in our database
         if deliverect_status != current_status:
             update_order_status(order_id, deliverect_status)
-            
+
             # If status warrants customer notification, send SMS
             if deliverect_status in [20, 70, 80, 110]:  # Accepted, Ready, Delivered, Canceled
                 send_status_update_notification.delay(order_id)
-                
+
         # Schedule next polling based on current status
         # Poll more frequently for active orders, less for orders near completion
         if deliverect_status < 40:  # Before preparation is completed
             poll_order_status.apply_async(args=[order_id, channel_order_id], countdown=60)  # Check again in 1 minute
         else:
             poll_order_status.apply_async(args=[order_id, channel_order_id], countdown=180)  # Check again in 3 minutes
-            
+
     except Exception as e:
         logger.error(f"Failed to poll order status: {str(e)}")
         self.retry(exc=e, countdown=30, max_retries=5)
@@ -896,12 +1201,12 @@ The system uses a three-tier approach for menu matching:
 def find_exact_match(item_name):
     """Find exact match in menu_name_variants table"""
     normalized_name = item_name.lower().strip()
-    
+
     # Query database for exact match
     variant = MenuNameVariant.query.filter_by(variant_phrase=normalized_name).first()
     if variant:
         return MenuItem.query.filter_by(plu=variant.target_plu).first()
-    
+
     return None
 ```
 
@@ -911,25 +1216,25 @@ def find_exact_match(item_name):
 def find_fuzzy_match(item_name, threshold=80):
     """Find fuzzy match using Levenshtein distance"""
     normalized_name = item_name.lower().strip()
-    
+
     # Get all menu name variants
     variants = MenuNameVariant.query.all()
-    
+
     # Calculate similarity scores
     matches = []
     for variant in variants:
         ratio = fuzz.ratio(normalized_name, variant.variant_phrase)
         if ratio >= threshold:
             matches.append((variant, ratio))
-    
+
     # Sort by similarity score
     matches.sort(key=lambda x: x[1], reverse=True)
-    
+
     # Return best match if any
     if matches:
         best_match = matches[0][0]
         return MenuItem.query.filter_by(plu=best_match.target_plu).first()
-    
+
     return None
 ```
 
@@ -941,18 +1246,18 @@ def find_ai_match(item_name, context=None):
     # Create prompt for OpenAI
     prompt = f"The customer ordered: '{item_name}'\n\n"
     prompt += "Based on our menu items below, what is the most likely menu item they want?\n\n"
-    
+
     # Add menu items for context
     menu_items = MenuItem.query.all()
     for item in menu_items:
         prompt += f"- {item.name}: {item.description}\n"
-    
+
     # Add customer context if available
     if context:
         prompt += f"\nAdditional context: {context}\n"
-    
+
     prompt += "\nReturn only the exact name of the menu item from the list above."
-    
+
     # Query OpenAI
     response = openai.Completion.create(
         engine="text-davinci-003",
@@ -960,10 +1265,10 @@ def find_ai_match(item_name, context=None):
         max_tokens=50,
         temperature=0.3
     )
-    
+
     # Extract item name from response
     ai_item_name = response.choices[0].text.strip()
-    
+
     # Find item in database
     return MenuItem.query.filter(
         func.lower(MenuItem.name) == func.lower(ai_item_name)
@@ -980,7 +1285,8 @@ The project includes a Model Context Protocol (MCP) integration that enables:
 
 ### MCP Components
 
-1. **Simple Fixed MCP Server (`fixed_simple_mcp.py`)**: 
+1. **Simple Fixed MCP Server (`fixed_simple_mcp.py`)**:
+
    - Implements JSON-RPC 2.0 protocol with the correct protocol version (2024-11-05)
    - Provides tools for Claude to interact with the project:
      - `run_test`: Run end-to-end tests against the staging environment
@@ -988,12 +1294,14 @@ The project includes a Model Context Protocol (MCP) integration that enables:
    - Most reliable MCP server implementation
 
 2. **Test Runner Script (`test_staging_e2e.sh`)**:
+
    - Runs different types of tests against the staging environment
    - Supports test types: basic, voice, menu, order, all
    - Sets proper environment variables for testing
    - Provides colored output for test results
 
 3. **Run Script (`run_fixed_simple_mcp.sh`)**:
+
    - Registers and starts the MCP server
    - Kills any competing server instances
    - Sets execute permissions
@@ -1014,6 +1322,7 @@ The MCP server adheres to specific protocol requirements to work with Claude Cod
 4. **Response Format**: Tools return results with a "content" array containing "type" and "text" fields
 
 Example initialize response:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -1032,6 +1341,7 @@ Example initialize response:
 ```
 
 Example tools/list response:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -1072,15 +1382,18 @@ Example tools/list response:
 ```
 
 Example tool result response format (critical for proper Claude Code integration):
+
 ```json
 {
   "jsonrpc": "2.0",
   "id": 3,
   "result": {
-    "content": [{
-      "type": "text",
-      "text": "This is the tool's output text"
-    }]
+    "content": [
+      {
+        "type": "text",
+        "text": "This is the tool's output text"
+      }
+    ]
   }
 }
 ```
@@ -1096,12 +1409,14 @@ The easiest way to set up the MCP server is to use the provided script:
 ```
 
 This script will:
+
 - Kill any existing MCP server instances
 - Set all necessary execute permissions
 - Register the MCP server with Claude as "staging-test"
 - Start the MCP server in the background
 
 You can verify the MCP server is running with:
+
 ```bash
 claude /mcp
 ```
@@ -1113,15 +1428,19 @@ You should see `staging-test: connected` in the output.
 Once the MCP server is running, you can test it with:
 
 1. **Basic Echo Test**:
+
    ```
    /mcp echo message="Hello from MCP"
    ```
+
    This should return the exact message back to you.
 
 2. **Run Basic Tests**:
+
    ```
    /mcp run_test test_type="basic"
    ```
+
    This will run basic connectivity tests against the staging environment.
 
 3. **Run Specific Test Types**:
@@ -1136,21 +1455,25 @@ Once the MCP server is running, you can test it with:
 
 Common issues and solutions:
 
-1. **Protocol Version Error**: 
+1. **Protocol Version Error**:
+
    - Error: `Server's protocol version is not supported`
    - Solution: Check that `fixed_simple_mcp.py` includes `"protocolVersion": "2024-11-05"`
 
 2. **Schema Validation Error**:
+
    - Error: `Failed to fetch tools: invalid_type, expected "object", received "undefined", path ["tools", 0, "inputSchema"]`
    - Solution: Ensure tools use `inputSchema` instead of `schema`
 
 3. **Tool Result Format Error**:
+
    - Error: Claude Code displays "Error handling tool result" or similar
    - Solution: Ensure tool results include a "content" array with "type" and "text" fields
 
 4. **Connection Failed**:
+
    - Error: MCP server shows as `failed` in the `/mcp` output
-   - Solution: 
+   - Solution:
      - Check that the MCP server is running with `ps aux | grep fixed_simple_mcp`
      - Check the log file at `fixed_simple_mcp.log`
      - Restart the server with `./run_fixed_simple_mcp.sh`
@@ -1163,21 +1486,25 @@ Common issues and solutions:
 
 The MCP server implementation follows these key principles:
 
-1. **JSON-RPC 2.0 Protocol**: 
+1. **JSON-RPC 2.0 Protocol**:
+
    - All requests and responses follow the JSON-RPC 2.0 specification
    - Each request has a unique ID that is included in the response
    - Errors are properly formatted with code and message
 
 2. **Tool Response Format**:
+
    - All tool responses include a "content" array with text data
    - This format is required for Claude Code to properly display results
 
 3. **Error Handling**:
+
    - Comprehensive error handling with appropriate error codes
    - All errors are logged to the log file for debugging
    - User-friendly error messages are returned when possible
 
 4. **Logging**:
+
    - All requests, responses, and errors are logged to `fixed_simple_mcp.log`
    - Log includes timestamps for easier debugging
    - Log is cleared on server restart
