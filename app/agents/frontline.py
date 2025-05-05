@@ -8,7 +8,7 @@ import json
 import logging
 import time
 from typing import Dict, List, Any, Optional, Union
-from openai.types.agent import Tool
+from app.utils.agents_sdk import Tool
 from app.utils.agents_sdk import tool
 
 from app.agents.base import HandoffCapableAgent

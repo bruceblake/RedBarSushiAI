@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional, Union
 import uuid
 from datetime import datetime, timedelta
 from app.utils.agents_sdk import tool
-from openai.types.agent import Tool
+from app.utils.agents_sdk import Tool
 
 from app.agents.base import BaseAgent
 from app.utils.conversation_store_sdk import agents_conversation_store
