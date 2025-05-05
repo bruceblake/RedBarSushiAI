@@ -9,7 +9,9 @@ services:
   - type: web
     name: redbarsushi-web
     runtime: python
-    buildCommand: chmod +x ./install_dependencies.sh && ./install_dependencies.sh
+    buildCommand: |
+      apt-get update && apt-get install -y portaudio19-dev libportaudio2 libportaudiocpp0 python3-dev ffmpeg
+      chmod +x ./install_dependencies.sh && ./install_dependencies.sh
     startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 --bind 0.0.0.0:$PORT --timeout 120 'run:app'
     envVars:
       - key: PROCESS
@@ -84,7 +86,9 @@ services:
     name: redbarsushi-staging
     branch: staging
     runtime: python
-    buildCommand: chmod +x ./install_dependencies.sh && ./install_dependencies.sh
+    buildCommand: |
+      apt-get update && apt-get install -y portaudio19-dev libportaudio2 libportaudiocpp0 python3-dev ffmpeg
+      chmod +x ./install_dependencies.sh && ./install_dependencies.sh
     startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 --bind 0.0.0.0:$PORT --timeout 120 'run:app'
     envVars:
       - key: PROCESS

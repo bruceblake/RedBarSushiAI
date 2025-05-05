@@ -13,6 +13,14 @@ from datetime import datetime
 from app.utils.monitoring import get_metrics_snapshot
 from app.utils.agent_monitoring import api_monitoring
 
+# Import WebSocket statistics if available
+try:
+    from app.routes.voice.utils.websocket_logging import websocket_stats
+    WEBSOCKET_STATS_AVAILABLE = True
+except ImportError:
+    WEBSOCKET_STATS_AVAILABLE = False
+    logging.warning("WebSocket statistics tracking not available")
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -213,6 +221,22 @@ def health():
             "message": f"Error fetching metrics: {str(e)}"
         }
     
+    # Add WebSocket stats if available
+    if WEBSOCKET_STATS_AVAILABLE:
+        try:
+            ws_stats = websocket_stats.get_stats()
+            health_info["components"]["websocket"] = {
+                "status": "ok",
+                "message": f"WebSocket system available with {ws_stats.get('active_connections', 0)} active connections",
+                "active_connections": ws_stats.get("active_connections", 0),
+                "total_connections": ws_stats.get("total_connections", 0)
+            }
+        except Exception as e:
+            health_info["components"]["websocket"] = {
+                "status": "error",
+                "message": f"Error: {str(e)}"
+            }
+    
     return jsonify(health_info)
 
 @monitoring_bp.route("/agents/health", methods=["GET"])
@@ -297,4 +321,36 @@ def debug_threads():
         return jsonify({
             "status": "error",
             "message": f"Error getting thread information: {str(e)}"
+        }), 500
+        
+@monitoring_bp.route("/websocket/stats", methods=["GET"])
+@api_monitoring(endpoint="websocket_stats")
+def websocket_stats_endpoint():
+    """
+    Get WebSocket connection statistics.
+    
+    Returns:
+        JSON response with WebSocket statistics
+    """
+    if not WEBSOCKET_STATS_AVAILABLE:
+        return jsonify({
+            "status": "error",
+            "message": "WebSocket statistics tracking not available",
+            "timestamp": datetime.now().isoformat()
+        }), 404
+    
+    try:
+        # Get the current WebSocket stats
+        stats = websocket_stats.get_stats()
+        
+        # Add timestamp
+        stats["timestamp"] = datetime.now().isoformat()
+        stats["status"] = "ok"
+        
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Error getting WebSocket statistics: {str(e)}",
+            "timestamp": datetime.now().isoformat()
         }), 500

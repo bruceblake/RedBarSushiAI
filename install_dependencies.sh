@@ -5,6 +5,31 @@ set -e
 echo "Installing dependencies for RedBarSushiAI..."
 echo "====================================================="
 
+# Check if we have sudo access - useful for Render environment
+SUDO_CMD=""
+if command -v sudo &> /dev/null && sudo -n true 2>/dev/null; then
+    SUDO_CMD="sudo"
+    echo "Using sudo for system package installation"
+fi
+
+# Try to install system dependencies if possible
+if [ -n "$SUDO_CMD" ] || [ "$(id -u)" -eq 0 ]; then
+    echo "Installing system dependencies for audio support..."
+    
+    if [ -n "$SUDO_CMD" ]; then
+        $SUDO_CMD apt-get update
+        $SUDO_CMD apt-get install -y portaudio19-dev libportaudio2 libportaudiocpp0 python3-dev ffmpeg
+    else
+        apt-get update
+        apt-get install -y portaudio19-dev libportaudio2 libportaudiocpp0 python3-dev ffmpeg
+    fi
+    
+    echo "✅ System dependencies installed"
+else
+    echo "⚠️ Cannot install system dependencies. You may need to manually install: portaudio19-dev"
+    echo "⚠️ Audio-related functionality may not work properly"
+fi
+
 # Make sure pip is up to date
 echo "Upgrading pip, setuptools, and wheel..."
 pip install --no-cache-dir --upgrade pip setuptools wheel

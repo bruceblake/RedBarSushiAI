@@ -108,10 +108,17 @@ else:
         os.environ["HEADLESS"] = "1"
         os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"
 
-# Logging setup
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-)
+# Enhanced logging setup
+try:
+    from app.utils.enhanced_logging import initialize_logging
+    log_dir = initialize_logging()
+    logging.info(f"Enhanced logging system initialized, logs directory: {log_dir}")
+except ImportError:
+    # Fall back to basic logging if enhanced logging isn't available
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+    )
+    logging.warning("Enhanced logging system not available, using basic logging instead")
 
 # Initialize SQLAlchemy
 db = SQLAlchemy()

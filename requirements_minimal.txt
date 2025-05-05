@@ -18,6 +18,10 @@ redis==5.2.1
 
 # Audio processing
 ffmpeg-python==0.2.0
+pydub==0.25.1  # Audio processing without PyAudio dependency
+# PyAudio is commented out as it requires portaudio system dependencies
+# Uncomment if portaudio19-dev is installed on the system
+# pyaudio==0.2.14
 
 # Async task processing
 celery==5.4.0

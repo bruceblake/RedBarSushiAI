@@ -16,12 +16,19 @@ import uuid
 
 from app.utils.enhanced_diagnostics import (
     log_websocket_handshake,
-    log_websocket_message,
-    send_heartbeat,
     log_system_status,
     log_audio_processing_stats,
     log_realtime_session_details,
     check_redis_connection
+)
+
+# Import our new enhanced WebSocket logging utilities
+from app.routes.voice.utils.websocket_logging import (
+    log_connection_event,
+    log_websocket_message_flow,
+    track_timing,
+    websocket_stats,
+    send_heartbeat
 )
 
 from app.routes.voice.realtime.audio_generator import create_audio_generator
@@ -35,6 +42,7 @@ from app.routes.voice.handlers import (
 # Set up logger
 logger = logging.getLogger(__name__)
 
+@track_timing("WebSocket media stream handling")
 async def handle_media_stream(ws, session_id=None):
     """
     WebSocket handler for Twilio Media Streams API integration with OpenAI Realtime.
@@ -43,6 +51,8 @@ async def handle_media_stream(ws, session_id=None):
         ws: The WebSocket connection object
         session_id: Optional session ID (if None, a new one will be generated)
     """
+    # Register this connection with the stats tracker
+    websocket_stats.connection_opened(session_id)
     # Track key variables
     realtime_processor = None
     keepalive_task = None
@@ -715,6 +725,27 @@ async def handle_media_stream(ws, session_id=None):
             pass
             
     finally:
+        # Update the WebSocket stats
+        try:
+            # Calculate the connection duration
+            duration = time.time() - metrics.get("connection_start_time", time.time())
+            # Record the connection stats
+            websocket_stats.connection_closed(
+                duration=duration,
+                msgs_received=metrics.get("audio_chunks_received", 0) + metrics.get("events_processed", 0),
+                msgs_sent=metrics.get("events_sent", 0),
+                session_id=session_id
+            )
+            
+            # Log detailed connection stats
+            logger.info(f"[WEBSOCKET:{session_id}] Connection stats: "
+                      f"duration={duration:.2f}s, "
+                      f"messages_received={metrics.get('audio_chunks_received', 0)}, "
+                      f"events_processed={metrics.get('events_processed', 0)}, "
+                      f"events_sent={metrics.get('events_sent', 0)}")
+        except Exception as stats_error:
+            logger.error(f"[WEBSOCKET:{session_id}] Error recording stats: {stats_error}")
+            
         # Clean up session-specific logging
         try:
             if 'session_file_handler' in locals():

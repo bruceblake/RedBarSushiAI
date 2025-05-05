@@ -19,6 +19,11 @@ RUN apt-get update && \
         libpq-dev \
         curl \
         ffmpeg \
+        # Audio dependencies
+        portaudio19-dev \
+        libportaudio2 \
+        libportaudiocpp0 \
+        python3-dev \
         # Minimal dependencies for headless mode
         && rm -rf /var/lib/apt/lists/*
 

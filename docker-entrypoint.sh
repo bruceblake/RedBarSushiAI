@@ -58,6 +58,14 @@ pip install --no-cache-dir aiohttp==3.11.13
 pip install --no-cache-dir python-socketio==5.8.0 eventlet==0.33.3 gevent==23.9.1 gevent-websocket==0.10.1
 pip install --no-cache-dir --upgrade openai-realtime-client==0.1.0
 
+# Try to install PyAudio for audio processing (may fail if system dependencies are missing)
+echo "Attempting to install PyAudio..."
+pip install --no-cache-dir pyaudio==0.2.14 || {
+    echo "⚠️ PyAudio installation failed. This is expected if portaudio19-dev is not installed."
+    echo "⚠️ Audio functionality will continue to work via Pydub instead of PyAudio."
+    pip install --no-cache-dir pydub==0.25.1
+}
+
 # Check if installation was successful
 if [ -f "/usr/local/lib/python3.11/site-packages/openai_realtime_client/__init__.py" ]; then
 	echo "✅ OpenAI Realtime client installed successfully!"

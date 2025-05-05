@@ -94,48 +94,67 @@ def init_voice_routes(flask_app):
             # Only register WebSocket routes if we haven't already
             existing_routes = getattr(sock, '_rules', {})
             if "/ws/voice/media" not in existing_routes:
+                # Import enhanced logging
+                from app.routes.voice.utils.websocket_logging import websocket_handler, log_connection_event
+                
                 @sock.route("/ws/voice/media")
+                @websocket_handler
                 async def media_stream_ws(ws):
                     """WebSocket endpoint for Twilio Media Streams API."""
                     await handle_media_stream(ws)
-                logger.info("Registered /ws/voice/media WebSocket route")
+                logger.info("Registered /ws/voice/media WebSocket route with enhanced logging")
             
             # Also provide a debug WebSocket endpoint
             if "/ws/voice/debug" not in existing_routes:
                 @sock.route("/ws/voice/debug")
+                @websocket_handler
                 async def debug_websocket(ws):
                     """Simple WebSocket endpoint to verify WebSocket connectivity."""
-                    logger.critical("[DEBUG WEBSOCKET] WebSocket connection established to /ws/voice/debug")
+                    logger.info("[DEBUG WEBSOCKET] WebSocket connection established to /ws/voice/debug")
                     
                     try:
                         # Send a simple message to the client
                         await ws.send(json.dumps({
+                            "type": "connected",
                             "message": "WebSocket connection established successfully",
                             "time": time.time()
                         }))
                         
-                        # Echo any messages back to the client
+                        # Echo any messages back to the client with additional diagnostics
                         while True:
                             try:
                                 message = await asyncio.wait_for(ws.receive(), timeout=30.0)
-                                logger.critical(f"[DEBUG WEBSOCKET] Received message: {message}")
+                                logger.info(f"[DEBUG WEBSOCKET] Received message")
                                 
-                                # Echo the message back
-                                await ws.send(json.dumps({
-                                    "echo": message,
-                                    "time": time.time()
-                                }))
+                                # Echo the message back with diagnostics
+                                response = {
+                                    "type": "echo",
+                                    "original": message,
+                                    "time": time.time(),
+                                    "diagnostics": {
+                                        "connection_id": getattr(ws, '_log_id', 'unknown'),
+                                        "session_time": time.time() - getattr(ws, '_start_time', time.time())
+                                    }
+                                }
+                                await ws.send(json.dumps(response))
                             except asyncio.TimeoutError:
-                                # Send a ping to keep the connection alive
-                                await ws.send(json.dumps({"ping": time.time()}))
+                                # Send a ping to keep the connection alive with diagnostics
+                                await ws.send(json.dumps({
+                                    "type": "ping",
+                                    "time": time.time(),
+                                    "diagnostics": {
+                                        "connection_id": getattr(ws, '_log_id', 'unknown'),
+                                        "session_time": time.time() - getattr(ws, '_start_time', time.time())
+                                    }
+                                }))
                             except Exception as e:
-                                logger.critical(f"[DEBUG WEBSOCKET] Error: {str(e)}")
+                                logger.error(f"[DEBUG WEBSOCKET] Error during echo: {str(e)}")
                                 break
                     except Exception as e:
-                        logger.critical(f"[DEBUG WEBSOCKET] Error: {str(e)}")
+                        logger.error(f"[DEBUG WEBSOCKET] Error during session: {str(e)}")
                     
-                    logger.critical("[DEBUG WEBSOCKET] WebSocket connection closed")
-                logger.info("Registered /ws/voice/debug WebSocket route")
+                    logger.info("[DEBUG WEBSOCKET] WebSocket connection closed")
+                logger.info("Registered /ws/voice/debug WebSocket route with enhanced logging")
         except Exception as socket_error:
             logger.error(f"Failed to register WebSocket routes: {socket_error}")
     
