@@ -162,16 +162,37 @@ async def handle_silence_event(ws, session_id, frontline, fsm_orchestrator, even
                     await ws.send(json.dumps(greeting_message))
                     metrics["events_sent"] += 1
                     
-                    # Also send a keep-alive message right after greeting
-                    keep_alive = {
-                        "type": "connection_keep_alive", 
-                        "message": "Keeping connection alive after greeting",
-                        "timestamp": silence_timestamp,
-                        "session_id": session_id
-                    }
-                    await asyncio.sleep(0.5)  # Small delay
-                    await ws.send(json.dumps(keep_alive))
-                    metrics["events_sent"] += 1
+                    # Send multiple keep-alive messages after greeting to maintain connection
+                    # This is critical for preventing disconnection after greeting
+                    logger.critical(f"[SILENCE:{session_id}] Sending multiple keep-alive messages after greeting")
+                    for i in range(5):  # Send 5 keep-alive messages with short intervals
+                        keep_alive = {
+                            "type": "connection_keep_alive", 
+                            "message": f"Keeping connection alive after greeting ({i+1}/5)",
+                            "timestamp": silence_timestamp + i*0.2,
+                            "session_id": session_id
+                        }
+                        try:
+                            await asyncio.sleep(0.2)  # Small delay between messages
+                            await ws.send(json.dumps(keep_alive))
+                            metrics["events_sent"] += 1
+                            logger.critical(f"[SILENCE:{session_id}] ✅ Sent keep-alive #{i+1} after greeting")
+                        except Exception as ka_error:
+                            logger.critical(f"[SILENCE:{session_id}] ❌ Error sending keep-alive #{i+1}: {ka_error}")
+                            # Try an alternative format
+                            try:
+                                alt_keep_alive = {
+                                    "event": "ping", 
+                                    "message": f"Keep-alive ping #{i+1}",
+                                    "timestamp": time.time()
+                                }
+                                await ws.send(json.dumps(alt_keep_alive))
+                                logger.critical(f"[SILENCE:{session_id}] ✅ Sent alternative keep-alive #{i+1}")
+                            except Exception as alt_error:
+                                logger.critical(f"[SILENCE:{session_id}] ❌ Alternative also failed: {alt_error}")
+                    
+                    # Log completion of keep-alive sequence
+                    logger.critical(f"[SILENCE:{session_id}] ✅ Completed keep-alive sequence after greeting")
                     
                     # Update variables
                     greeting_sent = True
@@ -316,7 +337,7 @@ async def handle_silence_event(ws, session_id, frontline, fsm_orchestrator, even
         # Return unchanged values
         return greeting_sent, greeting_timestamp
 
-async def send_followup_prompt(ws, session_id, frontline, timestamp, metrics, delay=5.0):
+async def send_followup_prompt(ws, session_id, frontline, timestamp, metrics, delay=3.0):
     """
     Send a follow-up prompt after the greeting to maintain engagement.
     
@@ -326,13 +347,26 @@ async def send_followup_prompt(ws, session_id, frontline, timestamp, metrics, de
         frontline: Frontline agent instance
         timestamp: Timestamp of the original silence event
         metrics: Metrics tracking dictionary
-        delay: Delay in seconds before sending the follow-up
+        delay: Delay in seconds before sending the follow-up (default reduced to 3.0)
     """
     try:
+        # First send a keep-alive message
+        initial_keep_alive = {
+            "type": "followup_keep_alive",
+            "message": "Pre-followup keep-alive",
+            "timestamp": time.time(),
+            "session_id": session_id
+        }
+        try:
+            await ws.send(json.dumps(initial_keep_alive))
+            logger.critical(f"[SILENCE:{session_id}] ✅ Sent pre-followup keep-alive message")
+        except Exception as pre_error:
+            logger.critical(f"[SILENCE:{session_id}] ❌ Error sending pre-followup keep-alive: {pre_error}")
+        
         # Wait for the specified delay
         await asyncio.sleep(delay)
         
-        logger.info(f"[SILENCE:{session_id}] Sending follow-up prompt after greeting")
+        logger.critical(f"[SILENCE:{session_id}] Sending follow-up prompt after waiting {delay}s")
         
         # Default follow-up prompt
         followup = "I'm here to help with our menu or take your order. What can I do for you today?"
@@ -341,8 +375,23 @@ async def send_followup_prompt(ws, session_id, frontline, timestamp, metrics, de
         try:
             if hasattr(frontline, 'generate_followup'):
                 followup = frontline.generate_followup(session_id)
+                logger.critical(f"[SILENCE:{session_id}] Generated custom followup: '{followup}'")
+            else:
+                logger.critical(f"[SILENCE:{session_id}] Using default followup: '{followup}'")
         except Exception as followup_error:
-            logger.warning(f"[SILENCE:{session_id}] Error generating follow-up, using default: {followup_error}")
+            logger.critical(f"[SILENCE:{session_id}] Error generating follow-up, using default: {followup_error}")
+        
+        # Send immediate keep-alive before sending the actual prompt
+        pre_prompt_ka = {
+            "type": "pre_prompt_keep_alive",
+            "timestamp": time.time(),
+            "session_id": session_id
+        }
+        try:
+            await ws.send(json.dumps(pre_prompt_ka))
+            logger.critical(f"[SILENCE:{session_id}] ✅ Sent pre-prompt keep-alive")
+        except Exception as e:
+            logger.critical(f"[SILENCE:{session_id}] ❌ Error sending pre-prompt keep-alive: {e}")
         
         # Send the follow-up prompt
         followup_message = {
@@ -355,7 +404,22 @@ async def send_followup_prompt(ws, session_id, frontline, timestamp, metrics, de
         await ws.send(json.dumps(followup_message))
         metrics["events_sent"] += 1
         
-        logger.info(f"[SILENCE:{session_id}] Sent follow-up prompt: '{followup}'")
+        logger.critical(f"[SILENCE:{session_id}] ✅ Sent follow-up prompt: '{followup}'")
+        
+        # Schedule additional keep-alive messages after the prompt
+        for i in range(3):
+            try:
+                await asyncio.sleep(0.5)
+                post_prompt_ka = {
+                    "type": "post_prompt_keep_alive",
+                    "index": i + 1,
+                    "timestamp": time.time(),
+                    "session_id": session_id
+                }
+                await ws.send(json.dumps(post_prompt_ka))
+                logger.critical(f"[SILENCE:{session_id}] ✅ Sent post-prompt keep-alive #{i+1}")
+            except Exception as e:
+                logger.critical(f"[SILENCE:{session_id}] ❌ Error sending post-prompt keep-alive #{i+1}: {e}")
     except Exception as e:
         logger.error(f"[SILENCE:{session_id}] Error sending follow-up prompt: {e}")
         logger.error(traceback.format_exc())

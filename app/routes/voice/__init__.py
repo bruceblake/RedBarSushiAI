@@ -6,6 +6,7 @@ and OpenAI's Realtime API for interactive voice ordering.
 """
 
 import os
+import sys
 import logging
 import json
 import time
@@ -151,6 +152,55 @@ def init_voice_routes(flask_app):
                 @websocket_handler
                 async def media_stream_ws(ws):
                     """WebSocket endpoint for Twilio Media Streams API."""
+                    # Log critical connection information
+                    logger.critical(f"[MEDIA_STREAM] WebSocket connection established to /ws/voice/media")
+                    logger.critical(f"[MEDIA_STREAM] Connection ID: {getattr(ws, '_log_id', 'unknown')}")
+                    
+                    # Get request info if available
+                    if hasattr(ws, 'request') and hasattr(ws.request, 'headers'):
+                        headers = ws.request.headers
+                        logger.critical(f"[MEDIA_STREAM] Headers: {headers}")
+                        # Check if this is a Twilio connection
+                        user_agent = headers.get('User-Agent', '')
+                        is_twilio = 'twilio' in user_agent.lower()
+                        logger.critical(f"[MEDIA_STREAM] User-Agent: {user_agent}")
+                        logger.critical(f"[MEDIA_STREAM] Is Twilio: {is_twilio}")
+                    
+                    # Set a session attribute for tracking in logs
+                    session_id = getattr(ws, '_log_id', str(time.time()))
+                    
+                    try:
+                        # Send a welcome message to establish the connection
+                        welcome_msg = json.dumps({
+                            "type": "connected", 
+                            "message": "WebSocket connection established",
+                            "timestamp": time.time(),
+                            "session_id": session_id
+                        })
+                        await ws.send(welcome_msg)
+                        logger.critical(f"[MEDIA_STREAM] Sent welcome message")
+                        
+                        # Add a brief delay
+                        await asyncio.sleep(0.2)
+                        
+                        # Send a test heartbeat message
+                        heartbeat_msg = json.dumps({
+                            "type": "heartbeat", 
+                            "message": "Initial heartbeat to maintain connection",
+                            "timestamp": time.time(),
+                            "session_id": session_id
+                        })
+                        await ws.send(heartbeat_msg)
+                        logger.critical(f"[MEDIA_STREAM] Sent initial heartbeat")
+                        
+                        # Wait a moment before starting the media stream handler
+                        # This ensures the connection is fully established
+                        await asyncio.sleep(0.2)
+                    except Exception as e:
+                        logger.critical(f"[MEDIA_STREAM] Error sending initial messages: {e}")
+                        logger.critical(traceback.format_exc())
+                    
+                    # Now proceed with regular handling
                     await handle_media_stream(ws)
                 logger.info("Registered /ws/voice/media WebSocket route with enhanced logging")
             
@@ -160,26 +210,46 @@ def init_voice_routes(flask_app):
                 @websocket_handler
                 async def debug_websocket(ws):
                     """Simple WebSocket endpoint to verify WebSocket connectivity."""
-                    logger.info("[DEBUG WEBSOCKET] WebSocket connection established to /ws/voice/debug")
+                    logger.critical("[DEBUG WEBSOCKET] WebSocket connection established to /ws/voice/debug")
+                    
+                    # Store the start time for diagnostics
+                    setattr(ws, '_start_time', time.time())
+                    
+                    # Log detailed information about the WebSocket connection
+                    logger.critical(f"[DEBUG WEBSOCKET] WebSocket info: {ws}")
+                    if hasattr(ws, 'request'):
+                        logger.critical(f"[DEBUG WEBSOCKET] Request headers: {ws.request.headers}")
+                    logger.critical(f"[DEBUG WEBSOCKET] Environment variables: {os.environ.get('FLASK_ENV')}")
                     
                     try:
                         # Send a simple message to the client
-                        await ws.send(json.dumps({
+                        logger.critical("[DEBUG WEBSOCKET] Sending initial connection message")
+                        connection_message = {
                             "type": "connected",
                             "message": "WebSocket connection established successfully",
-                            "time": time.time()
-                        }))
+                            "time": time.time(),
+                            "server_info": {
+                                "python_version": sys.version,
+                                "flask_env": os.environ.get('FLASK_ENV', 'unknown'),
+                                "server_time": time.time()
+                            }
+                        }
+                        
+                        # Always use strings for WebSocket to avoid potential encoding issues
+                        await ws.send(json.dumps(connection_message))
+                        logger.critical("[DEBUG WEBSOCKET] Initial message sent successfully")
                         
                         # Echo any messages back to the client with additional diagnostics
                         while True:
                             try:
-                                message = await asyncio.wait_for(ws.receive(), timeout=30.0)
-                                logger.info(f"[DEBUG WEBSOCKET] Received message")
+                                logger.critical("[DEBUG WEBSOCKET] Waiting for client message")
+                                message = await asyncio.wait_for(ws.receive(), timeout=5.0)
+                                logger.critical(f"[DEBUG WEBSOCKET] Received message: {message[:100]}...")
                                 
                                 # Echo the message back with diagnostics
                                 response = {
                                     "type": "echo",
-                                    "original": message,
+                                    "original": message if len(str(message)) < 100 else message[:100] + "...(truncated)",
                                     "time": time.time(),
                                     "diagnostics": {
                                         "connection_id": getattr(ws, '_log_id', 'unknown'),
@@ -187,23 +257,40 @@ def init_voice_routes(flask_app):
                                     }
                                 }
                                 await ws.send(json.dumps(response))
+                                logger.critical("[DEBUG WEBSOCKET] Echo response sent")
                             except asyncio.TimeoutError:
                                 # Send a ping to keep the connection alive with diagnostics
-                                await ws.send(json.dumps({
+                                logger.critical("[DEBUG WEBSOCKET] Timeout waiting for message, sending ping")
+                                ping_message = {
                                     "type": "ping",
                                     "time": time.time(),
+                                    "message": "Keep-alive ping",
                                     "diagnostics": {
                                         "connection_id": getattr(ws, '_log_id', 'unknown'),
                                         "session_time": time.time() - getattr(ws, '_start_time', time.time())
                                     }
-                                }))
+                                }
+                                try:
+                                    await ws.send(json.dumps(ping_message))
+                                    logger.critical("[DEBUG WEBSOCKET] Ping sent successfully")
+                                except Exception as ping_error:
+                                    logger.critical(f"[DEBUG WEBSOCKET] Error sending ping: {ping_error}")
+                                    # Try with a simple string message as fallback
+                                    try:
+                                        await ws.send("ping")
+                                        logger.critical("[DEBUG WEBSOCKET] Simple ping sent successfully")
+                                    except Exception as simple_ping_error:
+                                        logger.critical(f"[DEBUG WEBSOCKET] Error sending simple ping: {simple_ping_error}")
+                                        raise
                             except Exception as e:
-                                logger.error(f"[DEBUG WEBSOCKET] Error during echo: {str(e)}")
+                                logger.critical(f"[DEBUG WEBSOCKET] Error during echo: {str(e)}")
+                                logger.critical(traceback.format_exc())
                                 break
                     except Exception as e:
-                        logger.error(f"[DEBUG WEBSOCKET] Error during session: {str(e)}")
+                        logger.critical(f"[DEBUG WEBSOCKET] Error during session: {str(e)}")
+                        logger.critical(traceback.format_exc())
                     
-                    logger.info("[DEBUG WEBSOCKET] WebSocket connection closed")
+                    logger.critical("[DEBUG WEBSOCKET] WebSocket connection closed")
                 logger.info("Registered /ws/voice/debug WebSocket route with enhanced logging")
         except Exception as socket_error:
             logger.error(f"Failed to register WebSocket routes: {socket_error}")

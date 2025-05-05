@@ -1,0 +1,85 @@
+2025-05-05 17:28:08,505 [INFO] Starting WebSocket Connection Monitor
+2025-05-05 17:28:08,505 [INFO] Target URL: wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:28:08,505 [INFO] Heartbeat interval: 5.0s
+2025-05-05 17:28:08,509 [INFO] Connecting to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:28:08,750 [INFO] ✓ CONNECTED to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:28:08,750 [INFO] ✓ SENT HEARTBEAT #1
+2025-05-05 17:28:08,780 [INFO] ☒ Connection closed normally
+2025-05-05 17:28:08,781 [INFO] WebSocket Connection Monitor exited
+2025-05-05 17:28:46,073 [INFO] Starting WebSocket Connection Monitor
+2025-05-05 17:28:46,073 [INFO] Target URL: wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:28:46,073 [INFO] Heartbeat interval: 5.0s
+2025-05-05 17:28:46,078 [INFO] Connecting to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:28:46,079 [CRITICAL] Attempting connection with debug tracing enabled...
+2025-05-05 17:28:46,079 [CRITICAL] Trying with subprotocols: ['twilio-media-stream', 'json', 'text']
+2025-05-05 17:28:46,079 [CRITICAL] Adding custom headers: {'User-Agent': 'Twilio Media Streams/1.0', 'X-Twilio-CallSid': 'CA012345678910111213141516171819202122232425262728293031', 'Origin': 'https://api.twilio.com'}
+2025-05-05 17:28:46,092 [ERROR] ☒ Failed to connect: BaseEventLoop.create_connection() got an unexpected keyword argument 'extra_headers'
+2025-05-05 17:28:46,093 [ERROR] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/debug_tools/websocket_monitor.py", line 208, in monitor_connection
+    async with websockets.connect(
+               ~~~~~~~~~~~~~~~~~~^
+        url,
+        ^^^^
+    ...<2 lines>...
+        extra_headers=headers
+        ^^^^^^^^^^^^^^^^^^^^^
+    ) as websocket:
+    ^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/websocket_debug_env/lib/python3.13/site-packages/websockets/asyncio/client.py", line 587, in __aenter__
+    return await self
+           ^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/websocket_debug_env/lib/python3.13/site-packages/websockets/asyncio/client.py", line 541, in __await_impl__
+    self.connection = await self.create_connection()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/websocket_debug_env/lib/python3.13/site-packages/websockets/asyncio/client.py", line 467, in create_connection
+    _, connection = await loop.create_connection(factory, **kwargs)
+                          ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: BaseEventLoop.create_connection() got an unexpected keyword argument 'extra_headers'
+
+2025-05-05 17:28:46,093 [INFO] WebSocket Connection Monitor exited
+2025-05-05 17:28:59,448 [INFO] Starting WebSocket Connection Monitor
+2025-05-05 17:28:59,449 [INFO] Target URL: wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:28:59,449 [INFO] Heartbeat interval: 5.0s
+2025-05-05 17:28:59,457 [INFO] Connecting to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:28:59,457 [CRITICAL] Attempting connection with debug tracing enabled...
+2025-05-05 17:28:59,457 [CRITICAL] Trying with subprotocols: ['twilio-media-stream', 'json', 'text']
+2025-05-05 17:28:59,683 [CRITICAL] ✓ CONNECTED to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:28:59,722 [ERROR] ☒ Failed to connect: 'ClientConnection' object has no attribute 'open'
+2025-05-05 17:28:59,722 [ERROR] Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/debug_tools/websocket_monitor.py", line 213, in monitor_connection
+    logger.critical(f"Connection attributes: subprotocol={websocket.subprotocol}, open={websocket.open}")
+                                                                                        ^^^^^^^^^^^^^^
+AttributeError: 'ClientConnection' object has no attribute 'open'
+
+2025-05-05 17:28:59,723 [INFO] WebSocket Connection Monitor exited
+2025-05-05 17:29:08,133 [INFO] Starting WebSocket Connection Monitor
+2025-05-05 17:29:08,133 [INFO] Target URL: wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:29:08,133 [INFO] Heartbeat interval: 5.0s
+2025-05-05 17:29:08,138 [INFO] Connecting to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:29:08,138 [CRITICAL] Attempting connection with debug tracing enabled...
+2025-05-05 17:29:08,138 [CRITICAL] Trying with subprotocols: ['twilio-media-stream', 'json', 'text']
+2025-05-05 17:29:08,421 [CRITICAL] ✓ CONNECTED to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:29:08,421 [CRITICAL] Connection attributes: subprotocol=None
+2025-05-05 17:29:08,472 [ERROR] ✗ HEARTBEAT ERROR: received 1005 (no status received [internal]); then sent 1005 (no status received [internal])
+2025-05-05 17:29:08,472 [ERROR] ✗ ALT PING ERROR: received 1005 (no status received [internal]); then sent 1005 (no status received [internal])
+2025-05-05 17:29:08,472 [INFO] ☒ Connection closed normally
+2025-05-05 17:29:08,473 [INFO] WebSocket Connection Monitor exited
+2025-05-05 17:29:35,357 [INFO] Starting WebSocket Connection Monitor
+2025-05-05 17:29:35,357 [INFO] Target URL: wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:29:35,357 [INFO] Heartbeat interval: 5.0s
+2025-05-05 17:29:35,362 [INFO] Connecting to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:29:35,362 [CRITICAL] Attempting connection with debug tracing enabled...
+2025-05-05 17:29:35,362 [CRITICAL] Trying with subprotocols: ['twilio-media-stream', 'json', 'text']
+2025-05-05 17:29:35,626 [CRITICAL] ✓ CONNECTED to wss://redbarsushiai-staging.onrender.com/ws/voice/media
+2025-05-05 17:29:35,626 [CRITICAL] Connection attributes: subprotocol=None
+2025-05-05 17:29:35,626 [CRITICAL] Waiting for initial server messages (if any)...
+2025-05-05 17:29:35,673 [CRITICAL] Error receiving initial message: received 1005 (no status received [internal]); then sent 1005 (no status received [internal])
+2025-05-05 17:29:35,673 [CRITICAL] Testing different message formats...
+2025-05-05 17:29:35,673 [CRITICAL] Sending plain text message...
+2025-05-05 17:29:35,673 [CRITICAL] ✗ Failed to send plain text: received 1005 (no status received [internal]); then sent 1005 (no status received [internal])
+2025-05-05 17:29:35,673 [CRITICAL] Sending Twilio-like JSON message...
+2025-05-05 17:29:35,673 [CRITICAL] ✗ Failed to send Twilio JSON: received 1005 (no status received [internal]); then sent 1005 (no status received [internal])
+2025-05-05 17:29:35,673 [ERROR] ✗ HEARTBEAT ERROR: received 1005 (no status received [internal]); then sent 1005 (no status received [internal])
+2025-05-05 17:29:35,673 [ERROR] ✗ ALT PING ERROR: received 1005 (no status received [internal]); then sent 1005 (no status received [internal])
+2025-05-05 17:29:35,673 [INFO] ☒ Connection closed normally
+2025-05-05 17:29:35,674 [INFO] WebSocket Connection Monitor exited

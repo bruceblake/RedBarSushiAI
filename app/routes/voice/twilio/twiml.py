@@ -43,16 +43,24 @@ def generate_media_streams_twiml(call_sid, hostname, environment_name="PRODUCTIO
         logger.info(f"[TWIML:{call_sid}] Initial greeting: '{greeting_message}'")
         response.say(greeting_message)
         
-        # Start Media Stream with the WebSocket endpoint
-        logger.info(f"[TWIML:{call_sid}] Adding Media Stream start with URL: {ws_url}, track: inbound_track")
+        # Add a 1-second pause to ensure TTS completes and connection is ready
+        response.pause(length=1)
+        
+        # Start Media Stream with the WebSocket endpoint using a separate endpoint for inbound
+        ws_url_inbound = f"wss://{hostname}/ws/voice/media"
+        logger.info(f"[TWIML:{call_sid}] Adding Media Stream start with URL: {ws_url_inbound}, track: inbound_track")
         start = Start()
-        start.stream(url=ws_url, track="inbound_track")
+        start.stream(url=ws_url_inbound, track="inbound_track", name="inbound_stream")
         response.append(start)
         
-        # Connect bidirectional audio stream
-        logger.info(f"[TWIML:{call_sid}] Adding Media Stream connect with URL: {ws_url}, track: both_tracks")
+        # Add another small pause to ensure the first connection is established
+        response.pause(length=0.5)
+        
+        # Connect bidirectional audio stream with parameters to improve stability
+        ws_url_both = f"wss://{hostname}/ws/voice/media"
+        logger.info(f"[TWIML:{call_sid}] Adding Media Stream connect with URL: {ws_url_both}, track: both_tracks")
         connect = Connect()
-        connect.stream(url=ws_url, track="both_tracks")
+        connect.stream(url=ws_url_both, track="both_tracks", name="both_tracks_stream")
         response.append(connect)
         
         # Return the TwiML as a string
