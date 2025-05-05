@@ -467,9 +467,24 @@ def receive_call():
         # Create WebSocket URL for Media Streams
         # Use the request host to determine the WebSocket URL
         host = request.host
-        protocol = "wss" if "https" in request.base_url else "ws"
+        
+        # Always use wss:// in production or staging environment 
+        # or when the request itself is using https
+        # More robust environment detection, including checking host for staging/prod indicators
+        is_prod_or_staging = (os.environ.get("FLASK_ENV") in ["production", "staging"] or 
+                             os.environ.get("IS_STAGING") or 
+                             "staging" in host or "production" in host or
+                             ".onrender.com" in host or  # Render is always production/staging
+                             os.environ.get("RENDER") or
+                             os.environ.get("RENDER_SERVICE_ID"))
+        
+        # Consider any request to a .onrender.com domain as HTTPS
+        is_https_request = request.is_secure or "https" in request.base_url or ".onrender.com" in host
+        
+        # Use secure WebSockets (wss://) when in production/staging or HTTPS request
+        protocol = "wss" if (is_prod_or_staging or is_https_request) else "ws"
         ws_url = f"{protocol}://{host}/ws/media"
-        logger.info(f"WebSocket URL for Media Streams: {ws_url}")
+        logger.info(f"WebSocket URL for Media Streams: {ws_url} (Environment: {os.environ.get('FLASK_ENV', 'unknown')}, is_prod_or_staging: {is_prod_or_staging}, is_https_request: {is_https_request})")
         
         # Initialize TwiML response with Media Streams
         response = VoiceResponse()
