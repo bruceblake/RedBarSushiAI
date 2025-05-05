@@ -18,6 +18,9 @@ from app.routes.voice.blueprints import realtime_voice_bp, voice_debug_bp
 # Create logger
 logger = logging.getLogger(__name__)
 
+# Create a voice_bp for compatibility with app/__init__.py import
+voice_bp = Blueprint('voice', __name__)
+
 def init_voice_routes(app):
     """
     Initialize voice routes and register blueprints with the Flask app.
@@ -81,4 +84,4 @@ def init_voice_routes(app):
     logger.info("Voice routes initialized successfully")
 
 # Export the blueprints and initialization function
-__all__ = ["realtime_voice_bp", "voice_debug_bp", "init_voice_routes"]
+__all__ = ["voice_bp", "realtime_voice_bp", "voice_debug_bp", "init_voice_routes"]
