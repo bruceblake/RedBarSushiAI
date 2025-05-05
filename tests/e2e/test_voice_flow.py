@@ -132,6 +132,38 @@ def test_homepage_responds_with_twiml():
         assert False, "Response is not valid XML/TwiML"
     
     logger.info("test_homepage_responds_with_twiml test completed successfully")
+    
+@pytest.mark.e2e
+def test_orchestrated_voice_endpoint():
+    """Test that the orchestrated voice endpoint responds with valid TwiML."""
+    logger.info("Starting test_orchestrated_voice_endpoint test")
+    
+    response = requests.get(f"{BASE_URL}/voice_orchestrated/")
+    log_twiml_response(response.text, "Orchestrated Voice Endpoint Check")
+    
+    assert response.status_code == 200
+    logger.debug(f"Response status code: {response.status_code}")
+    
+    # The orchestrated voice endpoint should return TwiML
+    assert "<?xml version=" in response.text
+    assert "<Response>" in response.text
+    assert "red bar sushi" in response.text.lower()
+    logger.debug("Found expected TwiML elements")
+    
+    # Try to parse as XML to confirm it's valid TwiML
+    try:
+        root = ET.fromstring(response.text)
+        # Check for common Twilio verbs
+        gather = root.find(".//Gather") or root.find(".//gather")
+        say = root.find(".//Say") or root.find(".//say")
+        
+        assert gather is not None or say is not None, "No Gather or Say element found in response"
+        logger.debug(f"Found gather: {gather is not None}, say: {say is not None}")
+    except ET.ParseError:
+        logger.error("Response is not valid XML/TwiML")
+        assert False, "Response is not valid XML/TwiML"
+    
+    logger.info("test_orchestrated_voice_endpoint test completed successfully")
 
 @pytest.mark.e2e
 def test_complete_voice_order_flow():
@@ -632,6 +664,43 @@ def test_voice_silence_handling_flow():
     logger.info("Silence handling test completed successfully")
     logger.info("=" * 40)
 
+
+@pytest.mark.e2e
+def test_orchestrated_realtime_endpoint():
+    """Test that the orchestrated voice endpoint's WebSocket for real-time audio processing."""
+    logger.info("Starting test_orchestrated_realtime_endpoint test")
+    
+    # Check the WebSocket health endpoint first
+    response = requests.get(f"{BASE_URL}/voice_orchestrated/health")
+    assert response.status_code == 200
+    logger.debug(f"Health endpoint response status code: {response.status_code}")
+    
+    # Verify it returns JSON with the expected fields
+    try:
+        health_data = response.json()
+        assert "status" in health_data
+        assert "service" in health_data
+        assert health_data["service"] == "voice_orchestrated"
+        logger.debug(f"Health endpoint response: {health_data}")
+    except Exception as e:
+        logger.error(f"Failed to parse health endpoint response: {e}")
+        assert False, f"Health endpoint did not return valid JSON: {response.text}"
+    
+    # Now check the demo page
+    demo_response = requests.get(f"{BASE_URL}/voice_orchestrated/demo")
+    assert demo_response.status_code == 200
+    logger.debug(f"Demo page response status code: {demo_response.status_code}")
+    
+    # Verify it returns HTML
+    assert "<!DOCTYPE html>" in demo_response.text or "<html" in demo_response.text.lower()
+    assert "websocket" in demo_response.text.lower()
+    assert "orchestrated" in demo_response.text.lower()
+    logger.debug("Demo page contains WebSocket references for real-time audio")
+    
+    # The WebSocket endpoint itself cannot be tested with a simple HTTP request
+    # but we've confirmed the supporting endpoints are working
+    
+    logger.info("test_orchestrated_realtime_endpoint test completed successfully")
 
 @pytest.mark.e2e
 def test_voice_menu_query_flow():
