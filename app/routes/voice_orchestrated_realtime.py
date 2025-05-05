@@ -153,12 +153,36 @@ def initialize_agents():
     """Initialize the orchestrated agents when the app starts."""
     global frontline_agent, agent_graph, slot_store, fsm_orchestrator, model_escalator, tool_registry
     
+    # Log all registered routes at startup to help diagnose routing issues
+    try:
+        from flask import current_app
+        
+        # Log WebSocket routes
+        if hasattr(current_app, 'websocket'):
+            logger.critical("======== REGISTERED WEBSOCKET ROUTES ========")
+            all_ws_routes = list(current_app.websocket.url_map.iter_rules())
+            logger.critical(f"Total WebSocket routes: {len(all_ws_routes)}")
+            for rule in all_ws_routes:
+                logger.critical(f"WebSocket route: {rule.rule} - Endpoint: {rule.endpoint}")
+            logger.critical("=========================================")
+            
+        # Log Flask routes
+        logger.critical("======== REGISTERED FLASK ROUTES ========")
+        all_routes = list(current_app.url_map.iter_rules())
+        logger.critical(f"Total Flask routes: {len(all_routes)}")
+        for rule in all_routes:
+            logger.critical(f"Route: {rule.rule} - Methods: {rule.methods} - Endpoint: {rule.endpoint}")
+        logger.critical("=========================================")
+        
+    except Exception as e:
+        logger.critical(f"Error logging routes: {str(e)}")
+    
     # Only initialize once
     if frontline_agent is not None:
-        logger.debug("[REALTIME_INIT] Agents already initialized, skipping initialization")
+        logger.critical("[REALTIME_INIT] Agents already initialized, skipping initialization")
         return
     
-    logger.info("[REALTIME_INIT] Starting orchestrated agent initialization")
+    logger.critical("[REALTIME_INIT] Starting orchestrated agent initialization")
     
     try:
         # Create all agents through the enhanced factory
@@ -379,6 +403,35 @@ def register_default_tools(frontline_agent, registry):
         }
     )
 
+@realtime_voice_bp.route("/debug", methods=["GET"])
+def debug_websocket_config():
+    """Debug endpoint to show WebSocket configuration."""
+    import subprocess
+    import json
+    
+    try:
+        # Run the debug_websocket.py script
+        result = subprocess.run(
+            ["/home/proxyie/MySoftware/RedBarSushiAI/debug_websocket.py"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        # Return the output
+        output = {
+            "status": "success" if result.returncode == 0 else "error",
+            "output": result.stdout,
+            "error": result.stderr if result.stderr else None
+        }
+        
+        return jsonify(output)
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        })
+
 @realtime_voice_bp.route("/", methods=["GET", "POST"])
 def receive_call():
     """
@@ -465,12 +518,32 @@ def receive_call():
         logger.info(f"Environment identified as: {env_name}")
         
         # Create WebSocket URL for Media Streams
-        # Use the request host to determine the WebSocket URL
-        host = request.host
+        # Direct Twilio to the exact same hostname that it reached us on
+        # This avoids potential DNS resolution issues
+        host = request.headers.get('Host') or request.host
+        logger.critical(f"[WEBSOCKET URL] Request host: {host}")
+        logger.critical(f"[WEBSOCKET URL] Request headers host: {request.headers.get('Host', 'not-found')}")
         
-        # Always use wss:// in production or staging environment 
-        # or when the request itself is using https
-        # More robust environment detection, including checking host for staging/prod indicators
+        # Log all request and host information
+        logger.critical(f"[WEBSOCKET URL] Request is_secure: {request.is_secure}")
+        logger.critical(f"[WEBSOCKET URL] Request.url: {request.url}")
+        logger.critical(f"[WEBSOCKET URL] Request.base_url: {request.base_url}")
+        logger.critical(f"[WEBSOCKET URL] Request.host_url: {request.host_url}")
+        logger.critical(f"[WEBSOCKET URL] Request.remote_addr: {request.remote_addr}")
+        logger.critical(f"[WEBSOCKET URL] X-Forwarded-Host: {request.headers.get('X-Forwarded-Host', 'not-found')}")
+        logger.critical(f"[WEBSOCKET URL] X-Forwarded-Proto: {request.headers.get('X-Forwarded-Proto', 'not-found')}")
+        logger.critical(f"[WEBSOCKET URL] CF-Connecting-IP: {request.headers.get('CF-Connecting-IP', 'not-found')}")
+        logger.critical(f"[WEBSOCKET URL] True-Client-IP: {request.headers.get('True-Client-IP', 'not-found')}")
+        logger.critical(f"[WEBSOCKET URL] X-Forwarded-For: {request.headers.get('X-Forwarded-For', 'not-found')}")
+        
+        # For Render, we need to use the public-facing hostname
+        render_external_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+        if render_external_hostname:
+            logger.critical(f"[WEBSOCKET URL] Found RENDER_EXTERNAL_HOSTNAME: {render_external_hostname}")
+            host = render_external_hostname
+            
+        # Always use wss:// in production or staging environment
+        # More robust environment detection, including checking host for staging/prod indicators 
         is_prod_or_staging = (os.environ.get("FLASK_ENV") in ["production", "staging"] or 
                              os.environ.get("IS_STAGING") or 
                              "staging" in host or "production" in host or
@@ -481,9 +554,33 @@ def receive_call():
         # Consider any request to a .onrender.com domain as HTTPS
         is_https_request = request.is_secure or "https" in request.base_url or ".onrender.com" in host
         
-        # Use secure WebSockets (wss://) when in production/staging or HTTPS request
-        protocol = "wss" if (is_prod_or_staging or is_https_request) else "ws"
-        ws_url = f"{protocol}://{host}/ws/voice/media"  # Updated to match the new WebSocket route
+        # Log environment detection variables
+        logger.critical(f"[WEBSOCKET URL] FLASK_ENV: {os.environ.get('FLASK_ENV', 'not-set')}")
+        logger.critical(f"[WEBSOCKET URL] IS_STAGING: {os.environ.get('IS_STAGING', 'not-set')}")
+        logger.critical(f"[WEBSOCKET URL] 'staging' in host: {'staging' in host}")
+        logger.critical(f"[WEBSOCKET URL] 'production' in host: {'production' in host}")
+        logger.critical(f"[WEBSOCKET URL] '.onrender.com' in host: {'.onrender.com' in host}")
+        logger.critical(f"[WEBSOCKET URL] RENDER env var: {os.environ.get('RENDER', 'not-set')}")
+        logger.critical(f"[WEBSOCKET URL] RENDER_SERVICE_ID env var: {os.environ.get('RENDER_SERVICE_ID', 'not-set')}")
+        logger.critical(f"[WEBSOCKET URL] is_prod_or_staging result: {is_prod_or_staging}")
+        logger.critical(f"[WEBSOCKET URL] is_https_request result: {is_https_request}")
+        
+        # ALWAYS use wss:// for Twilio Media Streams when in Render or any production environment
+        # Twilio requires secure WebSockets
+        protocol = "wss"  # Force wss:// for Twilio Media Streams
+        
+        # Try both WebSocket routes - the debug route is more likely to work if there's an issue
+        # with the more complex media route
+        ws_media_url = f"{protocol}://{host}/ws/voice/media"
+        ws_debug_url = f"{protocol}://{host}/ws/voice/debug"
+        
+        # Use the debug URL for testing if we see issues
+        ws_url = ws_media_url
+        
+        # Log more details about the WebSocket URL
+        logger.critical(f"[WEBSOCKET URL] Final WebSocket URL: {ws_url}")
+        logger.critical(f"[WEBSOCKET URL] Protocol used: {protocol}")
+        logger.critical(f"[WEBSOCKET URL] Debug URL available at: {ws_debug_url}")
         logger.info(f"WebSocket URL for Media Streams: {ws_url} (Environment: {os.environ.get('FLASK_ENV', 'unknown')}, is_prod_or_staging: {is_prod_or_staging}, is_https_request: {is_https_request})")
         
         # Initialize TwiML response with Media Streams
@@ -494,16 +591,58 @@ def receive_call():
         # This happens before the Stream is connected
         greeting_message = f"Welcome to {env_name} Red Bar Sushi AI ordering system."
         logger.info(f"Initial greeting: '{greeting_message}'")
+        logger.critical(f"[TWIML] Initial greeting: '{greeting_message}'")
         response.say(greeting_message)
+        
+        # Log detailed information to help diagnose WebSocket issues
+        logger.critical("============== DETAILED DEBUG INFO ==============")
+        logger.critical(f"[WEBSOCKET_DEBUG] Call SID: {call_sid}")
+        logger.critical(f"[WEBSOCKET_DEBUG] WebSocket URL: {ws_url}")
+        logger.critical(f"[WEBSOCKET_DEBUG] Environment: {env_name}")
+        logger.critical(f"[WEBSOCKET_DEBUG] Flask app name: {__name__}")
+        
+        # Log available Flask routes
+        try:
+            from flask import current_app
+            logger.critical("[WEBSOCKET_DEBUG] Listing all WebSocket routes:")
+            if hasattr(current_app, 'websocket'):
+                for rule in current_app.websocket.url_map.iter_rules():
+                    logger.critical(f"[WEBSOCKET_DEBUG] WebSocket route: {rule.rule} → {rule.endpoint}")
+            
+            # Log info about the WebSocket handler
+            ws_handlers = [rule for rule in current_app.websocket.url_map.iter_rules() if rule.rule == '/ws/voice/media']
+            if ws_handlers:
+                logger.critical(f"[WEBSOCKET_DEBUG] Found WebSocket handler for /ws/voice/media: {ws_handlers[0].endpoint}")
+            else:
+                logger.critical("[WEBSOCKET_DEBUG] *** No WebSocket handler found for /ws/voice/media ***")
+        except Exception as route_error:
+            logger.critical(f"[WEBSOCKET_DEBUG] Error listing routes: {str(route_error)}")
+        
+        # Debug Twilio WebSocket client settings
+        logger.critical("[WEBSOCKET_DEBUG] Twilio WebSocket client settings:")
+        logger.critical(f"[WEBSOCKET_DEBUG] User-Agent: {request.headers.get('User-Agent', 'Not found')}")
+        logger.critical(f"[WEBSOCKET_DEBUG] Origin: {request.headers.get('Origin', 'Not found')}")
+        logger.critical(f"[WEBSOCKET_DEBUG] X-Twilio-Signature: {request.headers.get('X-Twilio-Signature', 'Not found')}")
+        
+        # Log server information
+        import platform
+        import socket
+        logger.critical(f"[WEBSOCKET_DEBUG] Server Python version: {platform.python_version()}")
+        logger.critical(f"[WEBSOCKET_DEBUG] Server OS: {platform.platform()}")
+        logger.critical(f"[WEBSOCKET_DEBUG] Server hostname: {socket.gethostname()}")
+        logger.critical(f"[WEBSOCKET_DEBUG] Server IP address: {socket.gethostbyname(socket.gethostname())}")
+        logger.critical("===================================================")
         
         # Start Media Stream with the WebSocket endpoint
         logger.info(f"Adding Media Stream start with URL: {ws_url}, track: inbound_track")
+        logger.critical(f"[TWIML] Adding Media Stream start with URL: {ws_url}, track: inbound_track")
         start = Start()
         start.stream(url=ws_url, track="inbound_track")
         response.append(start)
         
         # Connect bidirectional audio stream
         logger.info(f"Adding Media Stream connect with URL: {ws_url}, track: both_tracks")
+        logger.critical(f"[TWIML] Adding Media Stream connect with URL: {ws_url}, track: both_tracks")
         connect = Connect()
         connect.stream(url=ws_url, track="both_tracks")
         response.append(connect)
@@ -547,12 +686,86 @@ def receive_call():
         except:
             pass
 
-@sock.route("/ws/voice/media")  # Changed route to avoid conflict with /ws/media in realtime.py
+@sock.route("/ws/voice/media", websocket=True)  # Explicitly set websocket=True
 async def media_stream(ws):
     """
     WebSocket endpoint for Twilio Media Streams API integration with OpenAI Realtime.
     Handles real-time audio from Twilio phone calls with OpenAI's Realtime API.
     """
+    # Log detailed connection info to make diagnosing WebSocket issues easier
+    connection_time = time.time()
+    connection_id = str(uuid.uuid4())
+    print(f"⚡⚡⚡ [WEBSOCKET CONNECTION] New connection at {connection_time}, ID: {connection_id} ⚡⚡⚡")
+    logger.critical(f"⚡⚡⚡ [WEBSOCKET CONNECTION] New WebSocket connection to /ws/voice/media at {connection_time}, ID: {connection_id} ⚡⚡⚡")
+    logger.critical(f"[WEBSOCKET DEBUG] WebSocket object type: {type(ws).__name__}")
+    logger.critical(f"[WEBSOCKET DEBUG] WebSocket object methods: {[method for method in dir(ws) if not method.startswith('_') and callable(getattr(ws, method))]}")
+    
+    # Try to log as much information as possible about the WebSocket connection
+    try:
+        # Log request information
+        if hasattr(ws, 'request'):
+            logger.critical(f"[WEBSOCKET DEBUG] WebSocket has request attribute")
+            logger.critical(f"[WEBSOCKET DEBUG] WebSocket request type: {type(ws.request).__name__}")
+            
+            if hasattr(ws.request, 'headers'):
+                logger.critical(f"[WEBSOCKET DEBUG] WebSocket request headers:")
+                for name, value in ws.request.headers.items():
+                    logger.critical(f"[WEBSOCKET DEBUG]   - {name}: {value}")
+            
+            if hasattr(ws.request, 'path'):
+                logger.critical(f"[WEBSOCKET DEBUG] WebSocket request path: {ws.request.path}")
+            
+            if hasattr(ws.request, 'query_string'):
+                logger.critical(f"[WEBSOCKET DEBUG] WebSocket query string: {ws.request.query_string}")
+            
+            if hasattr(ws.request, 'environ'):
+                logger.critical(f"[WEBSOCKET DEBUG] WebSocket environ keys: {sorted(ws.request.environ.keys())}")
+                # Log important WSGI environ variables
+                for key in ['REQUEST_METHOD', 'SERVER_NAME', 'SERVER_PORT', 'HTTP_HOST', 
+                           'HTTP_USER_AGENT', 'HTTP_UPGRADE', 'HTTP_CONNECTION', 'HTTP_SEC_WEBSOCKET_KEY']:
+                    if key in ws.request.environ:
+                        logger.critical(f"[WEBSOCKET DEBUG]   - {key}: {ws.request.environ[key]}")
+    except Exception as e:
+        logger.critical(f"[WEBSOCKET DEBUG] Error logging WebSocket request details: {e}")
+        logger.critical(f"[WEBSOCKET DEBUG] Error trace: {traceback.format_exc()}")
+    
+    # Try to send and receive messages to diagnose the connection
+    try:
+        # Send a test message
+        logger.critical("[WEBSOCKET DEBUG] Attempting to send test message...")
+        try:
+            test_msg = json.dumps({"type": "connection_test", "time": time.time(), "id": connection_id})
+            await ws.send(test_msg)
+            logger.critical("[WEBSOCKET DEBUG] Successfully sent test message")
+        except Exception as send_error:
+            logger.critical(f"[WEBSOCKET DEBUG] Error sending test message: {send_error}")
+            logger.critical(f"[WEBSOCKET DEBUG] Send error trace: {traceback.format_exc()}")
+        
+        # Try to receive a message
+        logger.critical("[WEBSOCKET DEBUG] Attempting to receive initial message...")
+        try:
+            initial_msg = await asyncio.wait_for(ws.receive(), timeout=1.0)
+            logger.critical(f"[WEBSOCKET DEBUG] ✅ Received initial message: {initial_msg}")
+            
+            # Try to parse the message
+            if isinstance(initial_msg, str):
+                try:
+                    data = json.loads(initial_msg)
+                    logger.critical(f"[WEBSOCKET DEBUG] Parsed JSON message: {data}")
+                    if "event" in data:
+                        logger.critical(f"[WEBSOCKET DEBUG] Twilio event type: {data['event']}")
+                except json.JSONDecodeError:
+                    logger.critical(f"[WEBSOCKET DEBUG] Received non-JSON message: {initial_msg[:200]}")
+            else:
+                logger.critical(f"[WEBSOCKET DEBUG] Received binary message, length: {len(initial_msg)} bytes")
+        except asyncio.TimeoutError:
+            logger.critical("[WEBSOCKET DEBUG] ⚠️ No initial message received within timeout")
+        except Exception as recv_error:
+            logger.critical(f"[WEBSOCKET DEBUG] ❌ Error receiving initial message: {recv_error}")
+            logger.critical(f"[WEBSOCKET DEBUG] Receive error trace: {traceback.format_exc()}")
+    except Exception as conn_error:
+        logger.critical(f"[WEBSOCKET DEBUG] ❌ Connection error: {conn_error}")
+        logger.critical(f"[WEBSOCKET DEBUG] Connection error trace: {traceback.format_exc()}")
     try:
         # Create a file handler for this specific session to ensure logs are preserved
         session_id = str(uuid.uuid4())
@@ -1232,6 +1445,41 @@ async def media_stream(ws):
                 logger.removeHandler(ws_file_handler)
         except:
             pass
+
+@sock.route("/ws/voice/debug", websocket=True)
+async def debug_websocket(ws):
+    """Simple WebSocket endpoint to verify WebSocket connectivity."""
+    print("[DEBUG WEBSOCKET] Connection established")
+    logger.critical("[DEBUG WEBSOCKET] WebSocket connection established to /ws/voice/debug")
+    
+    try:
+        # Send a simple message to the client
+        await ws.send(json.dumps({
+            "message": "WebSocket connection established successfully",
+            "time": time.time()
+        }))
+        
+        # Echo any messages back to the client
+        while True:
+            try:
+                message = await asyncio.wait_for(ws.receive(), timeout=30.0)
+                logger.critical(f"[DEBUG WEBSOCKET] Received message: {message}")
+                
+                # Echo the message back
+                await ws.send(json.dumps({
+                    "echo": message,
+                    "time": time.time()
+                }))
+            except asyncio.TimeoutError:
+                # Send a ping to keep the connection alive
+                await ws.send(json.dumps({"ping": time.time()}))
+            except Exception as e:
+                logger.critical(f"[DEBUG WEBSOCKET] Error: {str(e)}")
+                break
+    except Exception as e:
+        logger.critical(f"[DEBUG WEBSOCKET] Error: {str(e)}")
+    
+    logger.critical("[DEBUG WEBSOCKET] WebSocket connection closed")
 
 @realtime_voice_bp.route("/health", methods=["GET"])
 def health_check():
