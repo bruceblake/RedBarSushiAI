@@ -686,7 +686,7 @@ def receive_call():
         except:
             pass
 
-@sock.route("/ws/voice/media", websocket=True)  # Explicitly set websocket=True
+@sock.route("/ws/voice/media")  # Removing websocket=True parameter as it may not be supported in the deployed version
 async def media_stream(ws):
     """
     WebSocket endpoint for Twilio Media Streams API integration with OpenAI Realtime.
@@ -1446,7 +1446,7 @@ async def media_stream(ws):
         except:
             pass
 
-@sock.route("/ws/voice/debug", websocket=True)
+@sock.route("/ws/voice/debug")
 async def debug_websocket(ws):
     """Simple WebSocket endpoint to verify WebSocket connectivity."""
     print("[DEBUG WEBSOCKET] Connection established")
