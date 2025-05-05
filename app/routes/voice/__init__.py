@@ -33,6 +33,9 @@ _global_components = {
     'tool_registry': None
 }
 
+# Flag to track WebSocket route registration status
+_websocket_routes_registered = False
+
 def set_global_components(**components):
     """
     Set global components for voice processing.
@@ -136,6 +139,16 @@ def init_voice_routes(flask_app):
     # Log routes registered
     logger.info("Initialized voice routes with debug blueprint")
     
+    # Set a flag to indicate routes initialization is in progress
+    # This prevents circular initialization
+    global _voice_routes_initialized
+    if getattr(init_voice_routes, '_in_progress', False):
+        logger.warning("Voice routes initialization already in progress, skipping WebSocket registration")
+        return
+        
+    # Mark initialization as in progress to prevent circular calls
+    setattr(init_voice_routes, '_in_progress', True)
+    
     # Register WebSocket routes - only if we have a valid Flask app
     if hasattr(flask_app, 'config'):  # Simple check for Flask app-like object
         try:
@@ -143,10 +156,34 @@ def init_voice_routes(flask_app):
             from app.routes.voice.realtime.enhanced_stream_handler import handle_enhanced_media_stream
             
             # Only register WebSocket routes if we haven't already
-            existing_routes = getattr(sock, '_rules', {})
-            existing_funcs = [f.__name__ for f in sock._rules.values()] if hasattr(sock, '_rules') else []
+            # Improve route registration check to properly handle Flask-Sock
+            # Log the current sock._rules structure to help with debugging
+            logger.info(f"WebSocket routes before registration: {getattr(sock, '_rules', {})}")
             
-            if "/ws/voice/media" not in existing_routes and "media_stream_ws" not in existing_funcs:
+            # Map existing route paths
+            existing_routes = list(getattr(sock, '_rules', {}).keys())
+            # More robust way to get function names
+            existing_funcs = []
+            for route_func in getattr(sock, '_rules', {}).values():
+                if hasattr(route_func, '__name__'):
+                    existing_funcs.append(route_func.__name__)
+                elif hasattr(route_func, 'func_name'):
+                    existing_funcs.append(route_func.func_name)
+                    
+            # Log what we found
+            logger.info(f"Existing WebSocket routes: {existing_routes}")
+            logger.info(f"Existing WebSocket functions: {existing_funcs}")
+            
+            # Use global flag to check if routes were already registered
+            global _websocket_routes_registered
+            
+            # Check for any of the following conditions:
+            # 1. Routes already registered in this run (our flag)
+            # 2. Route path already exists in sock._rules
+            # 3. Function name already exists in sock._rules
+            if _websocket_routes_registered or "/ws/voice/media" in existing_routes or "media_stream_ws" in existing_funcs:
+                logger.info("WebSocket routes already registered, skipping registration")
+            else:
                 # Import enhanced logging
                 from app.routes.voice.utils.websocket_logging import websocket_handler
                 
@@ -172,6 +209,9 @@ def init_voice_routes(flask_app):
                     await handle_enhanced_media_stream(ws)
                 
                 logger.info("Registered /ws/voice/media WebSocket route with improved connection handling")
+                
+                # Set the global flag to prevent duplicate registration
+                _websocket_routes_registered = True
             
             # Also provide a debug WebSocket endpoint
             if "/ws/voice/debug" not in existing_routes and "debug_websocket" not in existing_funcs:
@@ -263,6 +303,9 @@ def init_voice_routes(flask_app):
                 logger.info("Registered /ws/voice/debug WebSocket route with enhanced logging")
         except Exception as socket_error:
             logger.error(f"Failed to register WebSocket routes: {socket_error}")
+    
+    # Reset the initialization flag
+    setattr(init_voice_routes, '_in_progress', False)
     
     logger.info("Voice routes initialized successfully")
 
