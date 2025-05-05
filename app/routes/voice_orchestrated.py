@@ -67,28 +67,55 @@ def initialize_agents():
     
     # Only initialize once
     if frontline_agent is not None:
+        logger.debug("[VOICE_INIT] Agents already initialized, skipping initialization")
         return
+    
+    logger.info("[VOICE_INIT] Starting orchestrated agent initialization")
     
     try:
         # Create all agents through the enhanced factory
+        logger.info("[VOICE_INIT] Creating agents through enhanced factory")
         frontline_agent = enhanced_agent_factory.create_agents()
+        logger.debug(f"[VOICE_INIT] Frontline agent type: {type(frontline_agent).__name__}")
         
         # Initialize the orchestration components
+        logger.info("[VOICE_INIT] Creating orchestration components")
         agent_graph = AgentGraph()
+        logger.debug(f"[VOICE_INIT] Created agent graph: {id(agent_graph)}")
+        
         slot_store = SlotStore()
+        logger.debug(f"[VOICE_INIT] Created slot store: {id(slot_store)}")
+        
         fsm_orchestrator = FSMOrchestrator()
+        logger.debug(f"[VOICE_INIT] Created FSM orchestrator: {id(fsm_orchestrator)}")
+        
         model_escalator = ModelEscalator()
+        logger.debug(f"[VOICE_INIT] Created model escalator: {id(model_escalator)}")
         
         # Initialize the orchestrators with our components
-        initialize_orchestrators(agent_graph, slot_store, fsm_orchestrator, model_escalator)
+        logger.info("[VOICE_INIT] Initializing orchestrators with components")
+        result = initialize_orchestrators(agent_graph, slot_store, fsm_orchestrator, model_escalator)
+        logger.debug(f"[VOICE_INIT] Orchestrator initialization result: {result}")
         
         if frontline_agent:
-            logger.info("Successfully initialized orchestrated agents")
+            logger.info("[VOICE_INIT] Successfully initialized orchestrated agents")
+            # Log agent capabilities
+            if hasattr(frontline_agent, 'get_capabilities'):
+                capabilities = frontline_agent.get_capabilities()
+                logger.debug(f"[VOICE_INIT] Frontline agent capabilities: {capabilities}")
+            # Log if model info is available
+            if hasattr(frontline_agent, 'model'):
+                logger.debug(f"[VOICE_INIT] Frontline agent model: {frontline_agent.model}")
         else:
-            logger.error("Failed to initialize orchestrated agents")
+            logger.error("[VOICE_INIT] Failed to initialize orchestrated agents - frontline_agent is None")
     except Exception as e:
-        logger.error(f"Error initializing orchestrated agents: {str(e)}")
-        logger.error(traceback.format_exc())
+        logger.error(f"[VOICE_INIT] Error initializing orchestrated agents: {str(e)}")
+        logger.error(f"[VOICE_INIT] Traceback: {traceback.format_exc()}")
+        # Log environment information for debugging
+        logger.debug(f"[VOICE_INIT] OPENAI_API_KEY set: {'Yes' if os.environ.get('OPENAI_API_KEY') else 'No'}")
+        logger.debug(f"[VOICE_INIT] REDIS_URL: {os.environ.get('REDIS_URL', 'Not set')}")
+        logger.debug(f"[VOICE_INIT] Python path: {os.environ.get('PYTHONPATH', 'Not set')}")
+        logger.debug(f"[VOICE_INIT] Current directory: {os.getcwd()}")
 
 def setup_gather_params(
     context, retry_count=0, include_dtmf=False, action=None, msg=None
@@ -256,22 +283,62 @@ def init_agents():
     
     # Check if already initialized
     if frontline_agent is not None:
+        logger.debug("[VOICE_AGENT] Using existing frontline agent instance")
         return frontline_agent
     
-    logger.info("Initializing orchestrated agents")
+    logger.info("[VOICE_AGENT] Initializing orchestrated agents on-demand")
     
     # Create the orchestration components if not yet created
     if agent_graph is None:
-        agent_graph, slot_store, fsm_orchestrator, model_escalator = initialize_orchestrators()
+        logger.info("[VOICE_AGENT] Creating orchestration components from scratch")
+        try:
+            agent_graph, slot_store, fsm_orchestrator, model_escalator = initialize_orchestrators()
+            logger.debug(f"[VOICE_AGENT] Created agent_graph: {id(agent_graph)}, slot_store: {id(slot_store)}")
+            logger.debug(f"[VOICE_AGENT] Created fsm_orchestrator: {id(fsm_orchestrator)}, model_escalator: {id(model_escalator)}")
+        except Exception as e:
+            logger.error(f"[VOICE_AGENT] Failed to initialize orchestrators: {str(e)}")
+            logger.error(f"[VOICE_AGENT] Orchestrator error traceback: {traceback.format_exc()}")
+            raise RuntimeError(f"Failed to initialize orchestrators: {str(e)}")
+    else:
+        logger.debug("[VOICE_AGENT] Using existing orchestration components")
+    
+    # Log environment status
+    logger.debug(f"[VOICE_AGENT] REDIS_URL: {os.environ.get('REDIS_URL', 'Not set')}")
+    logger.debug(f"[VOICE_AGENT] OPENAI_API_KEY length: {len(os.environ.get('OPENAI_API_KEY', ''))}")
+    logger.debug(f"[VOICE_AGENT] Render environment: {'Yes' if os.environ.get('RENDER') or os.environ.get('RENDER_SERVICE_ID') else 'No'}")
     
     # Create the agents with orchestration
-    frontline_agent = enhanced_agent_factory.create_agents()
+    logger.info("[VOICE_AGENT] Creating frontline agent with enhanced factory")
+    try:
+        frontline_agent = enhanced_agent_factory.create_agents()
+        logger.debug(f"[VOICE_AGENT] Created frontline agent type: {type(frontline_agent).__name__}")
+    except Exception as e:
+        logger.error(f"[VOICE_AGENT] Failed to create frontline agent: {str(e)}")
+        logger.error(f"[VOICE_AGENT] Agent creation error traceback: {traceback.format_exc()}")
+        raise RuntimeError(f"Failed to create frontline agent: {str(e)}")
     
     if frontline_agent is None:
-        logger.error("Failed to create frontline agent")
-        raise RuntimeError("Failed to initialize orchestrated agents")
+        logger.error("[VOICE_AGENT] Failed to create frontline agent - returned None")
+        raise RuntimeError("Failed to initialize orchestrated agents - factory returned None")
     
-    logger.info("Orchestrated agents initialized successfully")
+    # Log configuration
+    logger.info("[VOICE_AGENT] Orchestrated agents initialized successfully")
+    if hasattr(frontline_agent, 'config'):
+        logger.debug(f"[VOICE_AGENT] Agent config: {frontline_agent.config}")
+        
+    # Check what specialized agents are available
+    if hasattr(frontline_agent, 'agents'):
+        logger.debug(f"[VOICE_AGENT] Specialized agents: {list(frontline_agent.agents.keys())}")
+    
+    # Verify Redis connections by attempting to set a test value
+    try:
+        if slot_store and hasattr(slot_store, 'redis_client') and slot_store.redis_client:
+            slot_store.redis_client.set('test_key', 'test_value', ex=60)
+            result = slot_store.redis_client.get('test_key')
+            logger.debug(f"[VOICE_AGENT] Redis test result: {result == b'test_value'}")
+    except Exception as e:
+        logger.warning(f"[VOICE_AGENT] Redis test failed: {str(e)}")
+    
     return frontline_agent
 
 
@@ -350,6 +417,11 @@ def process_input():
     digits = request.form.get("Digits", "")
     call_sid = request.values.get("CallSid", session.get("call_sid", ""))
     
+    logger.info(f"[VOICE_PROC] Processing input for call {call_sid}")
+    logger.debug(f"[VOICE_PROC] Speech input: '{speech_input}'")
+    logger.debug(f"[VOICE_PROC] DTMF input: '{digits}'")
+    logger.debug(f"[VOICE_PROC] Request form data: {dict(request.form)}")
+    
     # Initialize response
     response = VoiceResponse()
     
@@ -357,10 +429,14 @@ def process_input():
     if not speech_input and not digits:
         # Track how many silence retries we've done
         silence_retry_count = session.get("orchestrated_silence_count", 0)
-        session["orchestrated_silence_count"] = silence_retry_count + 1
+        new_count = silence_retry_count + 1
+        session["orchestrated_silence_count"] = new_count
+        
+        logger.info(f"[VOICE_PROC] Silence detected for call {call_sid}, retry count: {new_count}")
         
         # Handle silence with appropriate contexts
         if silence_retry_count >= 2:
+            logger.info(f"[VOICE_PROC] Multiple silences detected, using fallback handler for call {call_sid}")
             return handle_silence(
                 response, 
                 "orchestrated_silence_count", 
@@ -369,6 +445,7 @@ def process_input():
                 MAX_SILENCE_RETRIES
             )
         else:
+            logger.info(f"[VOICE_PROC] Using standard silence handler for call {call_sid}")
             return handle_silence(
                 response, 
                 "orchestrated_silence_count", 
@@ -378,13 +455,17 @@ def process_input():
             )
     
     # Reset silence counter when we get speech
+    logger.debug(f"[VOICE_PROC] Resetting silence counter for call {call_sid}")
     session["orchestrated_silence_count"] = 0
     
     # Get the agent
     try:
+        logger.info(f"[VOICE_PROC] Initializing agents for call {call_sid}")
         frontline = init_agents()
+        logger.debug(f"[VOICE_PROC] Agent initialized: {type(frontline).__name__}")
     except Exception as e:
-        logger.error(f"Failed to initialize agents for processing: {str(e)}")
+        logger.error(f"[VOICE_PROC] Failed to initialize agents for call {call_sid}: {str(e)}")
+        logger.error(f"[VOICE_PROC] Initialization error traceback: {traceback.format_exc()}")
         response.say("We're experiencing technical difficulties. Please try again later.")
         return Response(str(response), mimetype="text/xml")
     
@@ -393,57 +474,95 @@ def process_input():
     if digits and not speech_input:
         user_input = f"DTMF: {digits}"
     
+    logger.info(f"[VOICE_PROC] Processing user input for call {call_sid}: '{user_input}'")
+    
     try:
+        # Log which agent is being used
+        logger.debug(f"[VOICE_PROC] Using frontline agent: {id(frontline)}")
+        
+        # Log session information
+        logger.debug(f"[VOICE_PROC] Session data for call {call_sid}: {dict(session)}")
+        
         # Pass the call_sid and user input to the agent for processing
+        start_time = time.time()
         agent_response = frontline.process_voice_input(call_sid, user_input)
+        processing_time = time.time() - start_time
+        
+        logger.info(f"[VOICE_PROC] Agent processing time: {processing_time:.2f} seconds")
+        logger.debug(f"[VOICE_PROC] Agent response for call {call_sid}: '{agent_response}'")
         
         # Check if this is a handoff or authentication
         auth_in_progress = False
         
         # Check the current FSM state
         current_state = fsm_orchestrator.get_current_state(call_sid)
+        logger.info(f"[VOICE_PROC] Current FSM state for call {call_sid}: {current_state}")
         
         # If in authentication flow, we need to check for completion
         if current_state not in [FSMState.INITIAL, FSMState.AUTHENTICATED]:
-            logger.info(f"Call {call_sid} is in authentication state: {current_state.value}")
+            logger.info(f"[VOICE_PROC] Call {call_sid} is in authentication state: {current_state.value}")
             auth_in_progress = True
         
         # If authenticated, check if we need to proceed to order
         if current_state == FSMState.AUTHENTICATED:
-            logger.info(f"Authentication completed for call {call_sid}")
+            logger.info(f"[VOICE_PROC] Authentication completed for call {call_sid}")
             # Check if the next step was ordering
             order_intent = slot_store.get_slot(call_sid, "last_intent")
+            logger.debug(f"[VOICE_PROC] Last intent for call {call_sid}: {order_intent}")
             if order_intent == "place_order":
                 auth_in_progress = False  # We've completed auth, proceed with normal flow
+                logger.info(f"[VOICE_PROC] Proceeding with order flow for call {call_sid}")
         
         # Speak the response from the agent
+        logger.debug(f"[VOICE_PROC] Adding agent response to TwiML: '{agent_response}'")
         response.say(agent_response)
         
         # If we're in authentication flow or we're done, we need specific handling
         if auth_in_progress:
             # Continue with authentication - stay in the FSM flow
+            logger.info(f"[VOICE_PROC] Authentication in progress for call {call_sid}, continuing FSM flow")
             action = "/voice_orchestrated/process_input"
         else:
             # Normal flow - prepare for next input
+            logger.info(f"[VOICE_PROC] Standard flow for call {call_sid}")
             action = "/voice_orchestrated/process_input"
         
         # Set up gather for the next input
+        context_type = "confirm" if auth_in_progress else "menu"
+        logger.debug(f"[VOICE_PROC] Setting up gather with context: {context_type}")
         gather_params = setup_gather_params(
-            context="menu" if not auth_in_progress else "confirm",
+            context=context_type,
             action=action
         )
         
         # Add a gather for the next input
+        logger.debug(f"[VOICE_PROC] Adding gather with params: {gather_params}")
         response.gather(**gather_params)
         
         # Add a redirect for silence handling
+        logger.debug(f"[VOICE_PROC] Adding redirect to {action} for call {call_sid}")
         response.redirect(action)
         
+        logger.debug(f"[VOICE_PROC] Final TwiML for call {call_sid}: {str(response)}")
+        
     except Exception as e:
-        logger.error(f"Error processing input with orchestrated agent: {str(e)}")
-        logger.error(traceback.format_exc())
+        logger.error(f"[VOICE_PROC] Error processing input for call {call_sid}: {str(e)}")
+        logger.error(f"[VOICE_PROC] Error traceback: {traceback.format_exc()}")
+        
+        # Log debugging information
+        logger.debug(f"[VOICE_PROC] Error context - speech_input: '{speech_input}'")
+        logger.debug(f"[VOICE_PROC] Error context - digits: '{digits}'")
+        logger.debug(f"[VOICE_PROC] Error context - call_sid: {call_sid}")
+        logger.debug(f"[VOICE_PROC] Error context - session data: {dict(session)}")
+        
+        # Check agent and component states
+        logger.debug(f"[VOICE_PROC] frontline_agent exists: {frontline_agent is not None}")
+        logger.debug(f"[VOICE_PROC] agent_graph exists: {agent_graph is not None}")
+        logger.debug(f"[VOICE_PROC] slot_store exists: {slot_store is not None}")
+        logger.debug(f"[VOICE_PROC] fsm_orchestrator exists: {fsm_orchestrator is not None}")
         
         # Handle errors gracefully
+        logger.info(f"[VOICE_PROC] Providing error recovery response for call {call_sid}")
         response.say("I'm sorry, we encountered an error processing your request. Please try again.")
         
         # Add a gather for the next input
@@ -451,10 +570,14 @@ def process_input():
             context="menu",
             action="/voice_orchestrated/process_input"
         )
+        logger.debug(f"[VOICE_PROC] Error recovery gather params: {gather_params}")
         response.gather(**gather_params)
         
         # Add a redirect for silence
+        logger.debug(f"[VOICE_PROC] Adding error recovery redirect for call {call_sid}")
         response.redirect("/voice_orchestrated/process_input")
+        
+        logger.debug(f"[VOICE_PROC] Error recovery TwiML: {str(response)}")
     
     return Response(str(response), mimetype="text/xml")
 
