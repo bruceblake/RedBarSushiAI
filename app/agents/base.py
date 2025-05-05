@@ -69,13 +69,9 @@ class AgentsClient:
     Thread = type('Thread', (), {})
     ToolChoice = type('ToolChoice', (), {})
 
-from app.utils.agents_sdk import (
-    agents_client, 
-    create_or_get_thread, 
-    guardrail,
-    get_thread_id,
-    set_thread_id
-)
+# Avoid circular import
+# Will access these items through the module at runtime
+agents_sdk = None
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +89,10 @@ class BaseAgent:
         tools: Optional[List[Dict[str, Any]]] = None,
         agent_id: Optional[str] = None
     ):
+        # Import here to avoid circular import
+        global agents_sdk
+        if agents_sdk is None:
+            import app.utils.agents_sdk as agents_sdk
         """
         Initialize a base agent.
         
@@ -121,10 +121,10 @@ class BaseAgent:
         # For policy enforcement
         self.policy_agent = None
         
-        if agents_client:
+        if agents_sdk and agents_sdk.agents_client:
             try:
                 if agent_id:
-                    self.agent = agents_client.agents.retrieve(agent_id)
+                    self.agent = agents_sdk.agents_client.agents.retrieve(agent_id)
                     logger.info(f"Retrieved agent {name} with ID {agent_id}")
                 else:
                     # Register a new agent
@@ -139,7 +139,7 @@ class BaseAgent:
         Returns:
             The agent object if successful, None otherwise
         """
-        if not agents_client:
+        if not agents_sdk or not agents_sdk.agents_client:
             logger.error("Agents client not available")
             return None
         
@@ -148,7 +148,7 @@ class BaseAgent:
         
         try:
             # Create the agent
-            self.agent = agents_client.agents.create(
+            self.agent = agents_sdk.agents_client.agents.create(
                 name=self.name,
                 description=self.description,
                 model=self.model,
@@ -172,12 +172,12 @@ class BaseAgent:
         Returns:
             The thread object if successful, None otherwise
         """
-        if not agents_client:
+        if not agents_sdk or not agents_sdk.agents_client:
             logger.error("Agents client not available")
             return None
         
         try:
-            return agents_client.threads.create()
+            return agents_sdk.agents_client.threads.create()
         except Exception as e:
             logger.error(f"Error creating thread: {str(e)}")
             return None
@@ -199,12 +199,12 @@ class BaseAgent:
         Returns:
             The message object if successful, None otherwise
         """
-        if not agents_client:
+        if not agents_sdk or not agents_sdk.agents_client:
             logger.error("Agents client not available")
             return None
         
         try:
-            return agents_client.messages.create(
+            return agents_sdk.agents_client.messages.create(
                 thread_id=thread_id,
                 role=role,
                 content=content
@@ -228,12 +228,12 @@ class BaseAgent:
         Returns:
             The run object if successful, None otherwise
         """
-        if not agents_client or not self.agent_id:
+        if not agents_sdk or not agents_sdk.agents_client or not self.agent_id:
             logger.error("Agents client or agent ID not available")
             return None
         
         try:
-            return agents_client.runs.create(
+            return agents_sdk.agents_client.runs.create(
                 thread_id=thread_id,
                 agent_id=self.agent_id,
                 tool_choice=tool_choice
@@ -253,12 +253,12 @@ class BaseAgent:
         Returns:
             The run object if successful, None otherwise
         """
-        if not agents_client:
+        if not agents_sdk or not agents_sdk.agents_client:
             logger.error("Agents client not available")
             return None
         
         try:
-            return agents_client.runs.wait(
+            return agents_sdk.agents_client.runs.wait(
                 thread_id=thread_id,
                 run_id=run_id
             )
@@ -277,19 +277,19 @@ class BaseAgent:
         Returns:
             The response text if successful, None otherwise
         """
-        if not agents_client:
+        if not agents_sdk or not agents_sdk.agents_client:
             logger.error("Agents client not available")
             return None
         
         try:
             # Get messages from the thread
             if after_message_id:
-                messages = agents_client.messages.list(
+                messages = agents_sdk.agents_client.messages.list(
                     thread_id=thread_id,
                     after=after_message_id
                 )
             else:
-                messages = agents_client.messages.list(thread_id=thread_id)
+                messages = agents_sdk.agents_client.messages.list(thread_id=thread_id)
             
             # Get the latest assistant message
             message_list = list(messages)
@@ -319,7 +319,7 @@ class BaseAgent:
             The agent's response if successful, None otherwise
         """
         # Get or create a thread for this call
-        thread = create_or_get_thread(call_sid)
+        thread = agents_sdk.create_or_get_thread(call_sid)
         if not thread:
             logger.error(f"Failed to get or create thread for call {call_sid}")
             return None
