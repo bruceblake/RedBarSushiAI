@@ -8,16 +8,62 @@ import json
 import logging
 import time
 from typing import Dict, List, Any, Optional, Union, Callable
-from openai import AgentsClient
-from app.utils.openai_compat import Tool, tool
+import openai
 
-# Import remaining OpenAI types with fallbacks
-try:
-    from openai.types.agent import Agent, Message, Run, Thread
-    from openai.types.agent.tools.tool import ToolChoice
-except ImportError:
-    # Create stub classes for compatibility
-    Agent = type('Agent', (), {})
+# Define tool directly since we can't import it
+from functools import wraps
+def tool(*args, **kwargs):
+    """Simple tool decorator for OpenAI tools."""
+    if callable(args) and len(args) == 1:
+        # @tool directly on a function
+        func = args[0]
+        @wraps(func)
+        def wrapped(*args, **kwargs):
+            return func(*args, **kwargs)
+        return wrapped
+    else:
+        # @tool(name="...") form
+        def decorator(func):
+            @wraps(func)
+            def wrapped(*args, **kwargs):
+                return func(*args, **kwargs)
+            return wrapped
+        return decorator
+
+# Define basic class for Tool
+class Tool:
+    """Compatibility Tool class."""
+    def __init__(self, function=None, parameters=None, description=None):
+        self.function = function
+        self.parameters = parameters
+        self.description = description
+
+# Define other needed classes
+class Agent:
+    """Compatibility Agent class."""
+    pass
+    
+class Message:
+    """Compatibility Message class."""
+    pass
+    
+class Run:
+    """Compatibility Run class."""
+    pass
+    
+class Thread:
+    """Compatibility Thread class."""
+    pass
+    
+class ToolChoice:
+    """Compatibility ToolChoice class."""
+    pass
+
+# Create an AgentsClient class
+class AgentsClient:
+    """Compatibility AgentsClient class."""
+    def __init__(self, *args, **kwargs):
+        pass
     Message = type('Message', (), {})
     Run = type('Run', (), {})
     Thread = type('Thread', (), {})

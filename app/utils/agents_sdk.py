@@ -10,26 +10,20 @@ import time
 import asyncio
 from typing import Dict, List, Any, Optional, Union, Callable
 import openai
-from app.utils.openai_compat import tool
 
-# Try importing from the new SDK structure, but fallback if not available
-try:
-    from openai import AgentsClient
-except ImportError:
-    # Create a dummy class for compatibility
-    AgentsClient = type('AgentsClient', (), {})
+# Import from our base module for consistency
+from app.agents.base import Tool, tool, AgentsClient, Agent, Message, Run, Thread, ToolChoice
 
-# Try to import agent types with fallbacks
-try:
-    from openai.types.agent import (
-        Agent, 
-    Tool,
-    Message, 
-    Run,
-    GuardrailSettings,
-    ToolOutput
-)
-from openai.types.agent.thread import Thread
+# Define additional types needed
+class GuardrailSettings:
+    """Compatibility GuardrailSettings class."""
+    pass
+
+class ToolOutput:
+    """Compatibility ToolOutput class."""
+    pass
+
+# Import other required modules
 from redis import Redis
 from flask import current_app, g
 

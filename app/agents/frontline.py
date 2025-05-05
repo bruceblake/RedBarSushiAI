@@ -9,10 +9,8 @@ import logging
 import time
 from typing import Dict, List, Any, Optional, Union
 
-# Import from our compatibility layer instead of directly from the SDK
-from app.utils.openai_compat import Tool, tool
-
-from app.agents.base import HandoffCapableAgent
+# Import from our base module
+from app.agents.base import Tool, tool, HandoffCapableAgent
 from app.utils.agents_sdk import guardrail
 from app.utils.conversation_store import conversation_store
 from app.utils.agent_monitoring import (

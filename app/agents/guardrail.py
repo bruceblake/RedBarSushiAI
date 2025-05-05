@@ -8,8 +8,7 @@ import json
 import logging
 import time
 from typing import Dict, List, Any, Optional, Union, Callable
-from app.utils.agents_sdk import tool
-from app.utils.openai_compat import Tool
+from app.agents.base import tool, Tool
 
 from app.agents.base import BaseAgent
 from app.utils.agents_sdk import guardrail
