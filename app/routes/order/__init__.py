@@ -23,5 +23,8 @@ from app.routes.order.checkout import *
 from app.routes.order.status import *
 from app.routes.order.contact import *
 
-# Export the blueprint
-__all__ = ['order_bp']
+# Explicitly import and export channel_status from status module
+from app.routes.order.status import channel_status
+
+# Export the blueprint and important variables
+__all__ = ['order_bp', 'channel_status']

@@ -31,6 +31,10 @@ except ImportError:
 # Configure logger
 logger = logging.getLogger(__name__)
 
+# Global variable to track the channel status
+# 0: registered, 1: active, 2: inactive
+channel_status = 1
+
 @order_bp.route("/check_order_status", methods=["POST"])
 def check_order_status():
     """
@@ -280,5 +284,11 @@ def send_status_notification(order):
     except Exception as e:
         logger.error(f"Failed to send status notification: {e}")
 
-# Export all functions
-__all__ = ['check_order_status', 'update_order_status', 'get_status_text', 'send_status_notification']
+# Export all functions and variables
+__all__ = [
+    'channel_status',
+    'check_order_status', 
+    'update_order_status', 
+    'get_status_text', 
+    'send_status_notification'
+]

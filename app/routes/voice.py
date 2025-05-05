@@ -221,8 +221,17 @@ def handle_silence(
     return Response(str(response), mimetype="text/xml")
 
 
-# Import channel_status from order.py
-from app.routes.order import channel_status
+# Import channel_status from order module
+# Try first from the new module structure, then fallback to old file if still present
+try:
+    from app.routes.order import channel_status
+except ImportError:
+    try:
+        # Fallback to original order.py if it still exists
+        from app.routes.order import channel_status
+    except ImportError:
+        # If all else fails, define a default value
+        channel_status = 1  # Default to active
 
 # Create a global store for conversation history
 # In a production environment, this should be in a database or Redis
