@@ -4,130 +4,31 @@ set -e
 # Set environment variables to indicate we're in Docker
 export DOCKER=true
 
-# Always use a virtual X server (Xvfb) for OpenAI Realtime client
-export USE_XVFB=true
+# Always use headless mode for Render compatibility
+export FORCE_HEADLESS=true
+export PYNPUT_HEADLESS=1
+export NO_X11=1
+export HEADLESS=1
+export OPENAI_REALTIME_NO_DISPLAY=1
+export REALTIME_ENABLED=true
 
-echo "===== Setting up virtual X display for OpenAI Realtime client ====="
-
-# Make sure X11 packages are installed
-if ! command -v Xvfb &>/dev/null; then
-	echo "Installing Xvfb and X11 dependencies..."
-	apt-get update -y && apt-get install -y xvfb x11-utils xorg libxrender1 libxtst6 libxi6 dbus-x11
-	if [ $? -ne 0 ]; then
-		echo "⚠️ Failed to install X11 dependencies. Will try with existing packages."
-	fi
+# Remove DISPLAY to prevent X11 connection attempts
+if [ -n "$DISPLAY" ]; then
+    echo "Unsetting DISPLAY variable to prevent X11 connection attempts"
+    unset DISPLAY
 fi
 
-# Try various methods to start Xvfb and ensure it's running properly
-echo "Starting virtual X server..."
+echo "💻 Running in headless mode with WebSocket implementation for Render compatibility"
 
-# Kill any existing Xvfb processes to avoid conflicts
-pkill Xvfb 2>/dev/null || true
-
-# Try multiple displays in a better order - prefer lower numbers first
-# as Render often has :99 already in use
-for display_num in 1 2 3 4 5 99 0; do
-	echo "Trying display :${display_num}..."
-
-	# Check if display is already in use before attempting to start Xvfb
-	if [ -e "/tmp/.X${display_num}-lock" ]; then
-		echo "Display :${display_num} is already in use (lock file exists)"
-		continue
-	fi
-
-	# Start Xvfb on this display
-	Xvfb :${display_num} -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
-	XVFB_PID=$!
-	export DISPLAY=:${display_num}
-	sleep 3 # Give it time to start
-
-	# Install xdpyinfo if not present
-	if ! command -v xdpyinfo &>/dev/null; then
-		apt-get update -y && apt-get install -y x11-utils
-	fi
-
-	# Test with xdpyinfo
-	if xdpyinfo >/dev/null 2>&1; then
-		echo "✅ Successfully started Xvfb on display :${display_num}"
-		export X11_SETUP_SUCCESS=true
-		break
-	else
-		echo "❌ Failed to connect to display :${display_num}"
-		kill $XVFB_PID 2>/dev/null || true
-		unset XVFB_PID
-	fi
-done
-
-# Register a trap to kill Xvfb on exit
-trap 'if [ -n "$XVFB_PID" ]; then echo "Cleaning up Xvfb process..."; kill $XVFB_PID 2>/dev/null || true; fi' EXIT INT TERM
-
-# Set appropriate environment variables based on whether Xvfb was successfully started
-if [ -n "$XVFB_PID" ] && [ "$X11_SETUP_SUCCESS" = "true" ]; then
-	# X11 mode with virtual display
-	echo "✅ Virtual X display is working"
-	export PYNPUT_HEADLESS=0
-	export NO_X11=0
-	export HEADLESS=0
-	export OPENAI_REALTIME_NO_DISPLAY=0
-
-	# Export this so other processes can detect if X11 was successfully set up
-	export X11_SETUP_SUCCESS=true
-
-	# Create .Xauthority file if it doesn't exist (sometimes needed)
-	touch ~/.Xauthority 2>/dev/null || true
-
-	# Run a final test with xlogo if available
-	if command -v xlogo &>/dev/null; then
-		echo "Running additional X server test with xlogo..."
-		xlogo -display $DISPLAY 2>/dev/null &
-		XLOGO_PID=$!
-		sleep 1
-		kill $XLOGO_PID 2>/dev/null || true
-	fi
-
-	echo "🖥️ Using OpenAI Realtime client with virtual X display: $DISPLAY"
-	export OPENAI_REALTIME_AVAILABLE=1
-else
-	# Headless mode - using direct WebSocket implementation
-	echo "❌ Could not set up working X display. Using headless mode instead."
-	export PYNPUT_HEADLESS=1
-	export NO_X11=1
-	export HEADLESS=1
-	export OPENAI_REALTIME_NO_DISPLAY=1
-
-	# Remove DISPLAY to prevent X11 connection attempts
-	if [ -n "$DISPLAY" ]; then
-		echo "Unsetting DISPLAY variable to prevent X11 connection attempts"
-		unset DISPLAY
-	fi
-
-	echo "💻 Running in headless mode (using dual-backend WebSocket implementation)"
-	# Still mark realtime as available since we're using our custom implementation
-	export OPENAI_REALTIME_AVAILABLE=1
-fi
-
-# Enhanced X11 handling for Render Environment
+# Enhanced environment handling for Render
 if [ "$RENDER" = "true" ] || [ -n "$RENDER_SERVICE_ID" ]; then
-	echo "Applying enhanced X11 configuration for Render environment..."
-
-	# Always use headless mode on Render since X11 isn't reliable
-	export PYNPUT_HEADLESS=1
-	export NO_X11=1
-	export HEADLESS=1
-	export OPENAI_REALTIME_NO_DISPLAY=1
-	export X11_SETUP_SUCCESS=false
-	export USE_DIRECT_WEBSOCKET=true
-
-	# Still mark realtime as available for the fallback implementation
-	export OPENAI_REALTIME_AVAILABLE=1
-
-	# Remove DISPLAY to prevent X11 connection attempts
-	if [ -n "$DISPLAY" ]; then
-		echo "Unsetting DISPLAY variable to prevent X11 connection attempts"
-		unset DISPLAY
-	fi
-
-	echo "💻 Configured Render environment for headless mode with direct WebSocket implementation"
+    echo "Configuring for Render environment..."
+    
+    # Ensure environment is properly set for WebSockets
+    export USE_DIRECT_WEBSOCKET=true
+    export OPENAI_REALTIME_AVAILABLE=1
+    
+    echo "✅ Configured for Render environment with WebSocket implementation"
 fi
 
 export PYTHONPATH=/app:$PYTHONPATH
@@ -459,17 +360,15 @@ EOF
 				--worker-connections=500 --timeout=120 "run:app"
 		fi
 	else
-		# Standard startup if DISPLAY isn't set
+		# Use gevent-websocket worker for WebSocket support
 		if [ -f "wsgi.py" ]; then
-			echo "DEBUG: Using wsgi.py entry point with memory optimizations"
-			exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
-				--log-level=debug --max-requests=500 --max-requests-jitter=50 \
-				--worker-connections=500 --timeout=120 "wsgi"
+			echo "DEBUG: Using wsgi.py entry point with WebSocket support"
+			exec gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 \
+				--bind="0.0.0.0:$PORT" --log-level=info --timeout=120 "wsgi"
 		else
-			echo "DEBUG: Using run:app entry point with memory optimizations"
-			exec gunicorn --worker-class=gevent --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
-				--log-level=debug --max-requests=500 --max-requests-jitter=50 \
-				--worker-connections=500 --timeout=120 "run:app"
+			echo "DEBUG: Using run:app entry point with WebSocket support"
+			exec gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 \
+				--bind="0.0.0.0:$PORT" --log-level=info --timeout=120 "run:app"
 		fi
 	fi
 fi

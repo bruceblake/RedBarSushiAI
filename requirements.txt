@@ -94,6 +94,9 @@ yarl==1.18.3
 # Optional diagnostics - not required for core WebSocket functionality
 # psutil==5.9.7
 # Core dependencies for WebSocket-based Realtime integration
+flask==3.1.0  # Web framework
 flask-sock==0.7.0  # WebSocket support for Flask
-gevent-websocket==0.10.1  # For Gunicorn WebSocket worker
-gunicorn==23.0.0  # WSGI server
+gevent==23.9.1  # Coroutine-based network library
+gevent-websocket==0.10.1  # WebSocket worker for Gunicorn
+gunicorn==23.0.0  # Production WSGI server
+ffmpeg-python==0.2.0  # Audio transcoding

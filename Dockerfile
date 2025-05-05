@@ -7,9 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8080 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # X11/Display will be configured by docker-entrypoint.sh
-    # based on USE_XVFB environment variable
-    OPENAI_REALTIME_AVAILABLE=1
+    FORCE_HEADLESS=true \
+    REALTIME_ENABLED=true
 
 # Install system dependencies and build tools
 RUN apt-get update && \
@@ -19,29 +18,9 @@ RUN apt-get update && \
         g++ \
         libpq-dev \
         curl \
-        portaudio19-dev \
-        python3-pyaudio \
         ffmpeg \
-        xvfb \
-        x11-utils \
-        dbus-x11 \
-        # Playwright dependencies
-        libnss3 \
-        libnspr4 \
-        libatk1.0-0 \
-        libatk-bridge2.0-0 \
-        libcups2 \
-        libdrm2 \
-        libxkbcommon0 \
-        libxcomposite1 \
-        libxdamage1 \
-        libxfixes3 \
-        libxrandr2 \
-        libgbm1 \
-        libasound2 \
-        libpango-1.0-0 \
-        libcairo2 \
-    && rm -rf /var/lib/apt/lists/*
+        # Minimal dependencies for headless mode
+        && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Install dependencies
 FROM base AS dependencies
@@ -55,11 +34,7 @@ COPY requirements.txt requirements.prod.txt requirements.docker.txt ./
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     # Try docker requirements first, then production, then default
     if [ -f "requirements.docker.txt" ]; then \
-        # Try to install with --no-deps first to avoid conflicts
         pip install --no-cache-dir -r requirements.docker.txt || \
-        # If that fails, try with dependency resolution
-        pip install --no-cache-dir --use-deprecated=legacy-resolver -r requirements.docker.txt || \
-        # If that still fails, fallback to regular install
         pip install --no-cache-dir -r requirements.txt; \
     elif [ -f "requirements.prod.txt" ]; then \
         pip install --no-cache-dir -r requirements.prod.txt || \
@@ -67,19 +42,17 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     else \
         pip install --no-cache-dir -r requirements.txt; \
     fi && \
-    # Ensure OpenAI and OpenAI Agents are properly installed (handling potential Git dependency)
-    pip install --no-cache-dir openai>=1.68.2 && \
-    pip install --no-cache-dir git+https://github.com/openai/openai-agents-python.git
+    # Ensure OpenAI is properly installed
+    pip install --no-cache-dir openai>=1.68.2
 
-# Install specific packages explicitly with version pinning
+# Install WebSocket-specific packages for Render
 RUN pip install --no-cache-dir psycopg2-binary==2.9.9 \
-                             gunicorn==21.2.0 \
+                             gunicorn==23.0.0 \
                              gevent==23.9.1 \
                              flask-sock==0.7.0 \
                              gevent-websocket==0.10.1 \
-                             simple-websocket==1.1.0 \
                              websockets==13.1 \
-                             openai-realtime-client==0.1.0
+                             ffmpeg-python==0.2.0
 
 # Stage 3: Final runtime image
 FROM base AS final
@@ -114,8 +87,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 8080
 
-# Use our updated entrypoint script
+# Use our entrypoint script
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
-# Default command - using single worker with memory optimizations for stability
-CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "--timeout", "120", "--worker-class", "gevent", "--worker-connections", "500", "--max-requests", "500", "--max-requests-jitter", "50", "--log-level", "debug"]
+# Use gevent-websocket worker for WebSocket support
+CMD ["gunicorn", "-k", "geventwebsocket.gunicorn.workers.GeventWebSocketWorker", "-w", "2", "--bind", "0.0.0.0:8080", "--timeout", "120", "--log-level", "info"]

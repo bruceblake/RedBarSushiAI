@@ -10,7 +10,7 @@ services:
     name: redbarsushi-web
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 'run:app'
+    startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 --bind 0.0.0.0:$PORT --timeout 120 'run:app'
     envVars:
       - key: PROCESS
         value: web
@@ -85,7 +85,7 @@ services:
     branch: staging
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 'run:app'
+    startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 --bind 0.0.0.0:$PORT --timeout 120 'run:app'
     envVars:
       - key: PROCESS
         value: web
