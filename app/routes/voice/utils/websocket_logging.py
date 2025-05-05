@@ -358,19 +358,30 @@ class WebSocketStats:
 # Create a global stats tracker
 websocket_stats = WebSocketStats()
 
-async def send_heartbeat(ws, session_id, interval=10.0):
+async def send_heartbeat(ws, session_id, interval=5.0):
     """
     Send periodic heartbeat messages to keep the WebSocket connection alive.
     
     Args:
         ws: WebSocket connection
         session_id: Session identifier
-        interval: Time between heartbeats in seconds
+        interval: Time between heartbeats in seconds (default reduced to 5.0)
     """
     logger.info(f"Starting heartbeat task for session {session_id} with {interval}s interval")
     heartbeat_count = 0
     
     try:
+        # Send an immediate heartbeat to establish the connection
+        heartbeat_message = {
+            "type": "heartbeat",
+            "count": heartbeat_count,
+            "session_id": session_id,
+            "timestamp": time.time(),
+            "message": "Initial connection heartbeat"
+        }
+        await ws.send(json.dumps(heartbeat_message))
+        logger.info(f"Sent initial heartbeat to session {session_id}")
+        
         while True:
             # Wait for the specified interval
             await asyncio.sleep(interval)
@@ -384,18 +395,35 @@ async def send_heartbeat(ws, session_id, interval=10.0):
                     "type": "heartbeat",
                     "count": heartbeat_count,
                     "session_id": session_id,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
+                    "message": "Connection is alive"
                 }
                 await ws.send(json.dumps(heartbeat_message))
                 
                 # Log the heartbeat (but not too frequently to avoid log flooding)
                 if heartbeat_count % 5 == 0:
                     logger.debug(f"Sent heartbeat #{heartbeat_count} to session {session_id}")
+                else:
+                    logger.debug(f"Heartbeat #{heartbeat_count} sent")
             except Exception as e:
                 logger.error(f"Error sending heartbeat to session {session_id}: {e}")
-                # If we can't send a heartbeat, the connection might be dead - exit the loop
-                logger.warning(f"Connection to session {session_id} might be dead, stopping heartbeat task")
-                break
+                logger.error(traceback.format_exc())
+                
+                # Make second attempt to send heartbeat with different message format
+                try:
+                    retry_message = {
+                        "event": "ping", 
+                        "session_id": session_id,
+                        "timestamp": time.time()
+                    }
+                    await ws.send(json.dumps(retry_message))
+                    logger.debug(f"Retry heartbeat (format: ping) succeeded for session {session_id}")
+                    continue  # Continue the loop if retry succeeded
+                except Exception as retry_e:
+                    logger.error(f"Retry heartbeat also failed: {retry_e}")
+                    # If we can't send a heartbeat after retry, the connection might be dead - exit the loop
+                    logger.warning(f"Connection to session {session_id} might be dead, stopping heartbeat task")
+                    break
     except asyncio.CancelledError:
         logger.info(f"Heartbeat task for session {session_id} cancelled after {heartbeat_count} heartbeats")
     except Exception as e:

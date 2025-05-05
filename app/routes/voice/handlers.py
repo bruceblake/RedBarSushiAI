@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import time
+import traceback
 from datetime import datetime
 
 from app.utils.enhanced_logging import log_voice_state_transition, log_agent_interaction
@@ -116,14 +117,18 @@ async def handle_silence_event(ws, session_id, frontline, fsm_orchestrator, even
     try:
         # Update metrics
         metrics["silence_events"] += 1
+        silence_count = metrics["silence_events"]
         
         # Log the silence event
-        logger.warning(f"[SILENCE:{session_id}] Silence detected (event #{metrics['silence_events']})")
+        logger.warning(f"[SILENCE:{session_id}] Silence detected (event #{silence_count})")
+        
+        # Track silence timestamp
+        silence_timestamp = time.time()
         
         # If this is the first silence event, record its timing
         if not event_timing.get("first_silence"):
-            event_timing["first_silence"] = time.time()
-            elapsed = time.time() - event_timing.get("stream_start", time.time())
+            event_timing["first_silence"] = silence_timestamp
+            elapsed = silence_timestamp - event_timing.get("stream_start", silence_timestamp)
             logger.info(f"[SILENCE:{session_id}] First silence detected after {elapsed:.2f}s")
         
         # If greeting hasn't been sent yet and we're in the GREETING state, send it
@@ -137,30 +142,64 @@ async def handle_silence_event(ws, session_id, frontline, fsm_orchestrator, even
                     # Use the frontline agent to generate a greeting
                     logger.info(f"[SILENCE:{session_id}] Sending initial greeting")
                     
-                    greeting = frontline.generate_greeting(session_id)
+                    # Get a greeting - if generate_greeting isn't available, use a default
+                    try:
+                        greeting = frontline.generate_greeting(session_id)
+                    except AttributeError:
+                        logger.warning(f"[AGENT:{session_id}] generate_greeting method not found, using default greeting")
+                        greeting = "Welcome to Red Bar Sushi! How can I help you today?"
+                    
                     logger.info(f"[AGENT:{session_id}] Generated greeting: '{greeting}'")
                     
                     # Send the greeting
-                    await ws.send(json.dumps({
+                    greeting_message = {
                         "event": "agent_response",
                         "text": greeting,
-                        "timestamp": time.time(),
-                        "is_greeting": True
-                    }))
+                        "timestamp": silence_timestamp,
+                        "is_greeting": True,
+                        "silence_count": silence_count
+                    }
+                    await ws.send(json.dumps(greeting_message))
+                    metrics["events_sent"] += 1
+                    
+                    # Also send a keep-alive message right after greeting
+                    keep_alive = {
+                        "type": "connection_keep_alive", 
+                        "message": "Keeping connection alive after greeting",
+                        "timestamp": silence_timestamp,
+                        "session_id": session_id
+                    }
+                    await asyncio.sleep(0.5)  # Small delay
+                    await ws.send(json.dumps(keep_alive))
                     metrics["events_sent"] += 1
                     
                     # Update variables
                     greeting_sent = True
-                    greeting_timestamp = time.time()
+                    greeting_timestamp = silence_timestamp
                     event_timing["greeting_sent"] = greeting_timestamp
                     
                     # Update FSM state
-                    fsm_orchestrator.transition(session_id, FSMState.MAIN_MENU, "greeting_sent")
-                    log_voice_state_transition(FSMState.GREETING, FSMState.MAIN_MENU, session_id, "greeting_sent")
+                    try:
+                        fsm_orchestrator.transition(session_id, FSMState.MAIN_MENU, "greeting_sent")
+                        log_voice_state_transition(FSMState.GREETING, FSMState.MAIN_MENU, session_id, "greeting_sent")
+                    except AttributeError:
+                        # Handle case where transition method doesn't exist
+                        try:
+                            fsm_orchestrator.set_current_state(session_id, FSMState.MAIN_MENU)
+                            log_voice_state_transition(FSMState.GREETING, FSMState.MAIN_MENU, session_id, "greeting_sent")
+                        except Exception as fsm_error:
+                            logger.error(f"[SILENCE:{session_id}] Error setting FSM state: {fsm_error}")
                     
                     logger.info(f"[SILENCE:{session_id}] Initial greeting sent, transitioned to MAIN_MENU state")
+                    
+                    # Schedule a follow-up prompt after a short delay to maintain engagement
+                    asyncio.create_task(
+                        send_followup_prompt(ws, session_id, frontline, silence_timestamp, metrics)
+                    )
+                    
                 except Exception as greeting_error:
                     logger.error(f"[SILENCE:{session_id}] Error sending greeting: {greeting_error}")
+                    logger.error(traceback.format_exc())
             else:
                 logger.info(f"[SILENCE:{session_id}] Not sending greeting because state is {current_state}, not GREETING")
         
@@ -168,9 +207,24 @@ async def handle_silence_event(ws, session_id, frontline, fsm_orchestrator, even
         elif greeting_sent:
             # Record first post-greeting silence
             if not event_timing.get("post_greeting_silence"):
-                event_timing["post_greeting_silence"] = time.time()
-                time_after_greeting = time.time() - greeting_timestamp
+                event_timing["post_greeting_silence"] = silence_timestamp
+                time_after_greeting = silence_timestamp - greeting_timestamp
                 logger.warning(f"[SILENCE:{session_id}] First silence after greeting detected {time_after_greeting:.2f}s after greeting")
+                
+                # Send an immediate connection keep-alive after first post-greeting silence
+                try:
+                    keep_alive = {
+                        "type": "post_greeting_keep_alive", 
+                        "message": "Maintaining connection after first post-greeting silence",
+                        "timestamp": silence_timestamp,
+                        "session_id": session_id,
+                        "silence_count": silence_count
+                    }
+                    await ws.send(json.dumps(keep_alive))
+                    metrics["events_sent"] += 1
+                    logger.info(f"[SILENCE:{session_id}] Sent post-greeting keep-alive message")
+                except Exception as ka_error:
+                    logger.error(f"[SILENCE:{session_id}] Error sending post-greeting keep-alive: {ka_error}")
             
             # Get current FSM state
             current_state = fsm_orchestrator.get_state(session_id)
@@ -181,28 +235,73 @@ async def handle_silence_event(ws, session_id, frontline, fsm_orchestrator, even
                 logger.info(f"[SILENCE:{session_id}] Silence in MAIN_MENU state, prompting user")
                 
                 try:
-                    # Generate prompt based on current state
-                    prompt = frontline.generate_prompt(session_id, current_state)
+                    # Generate prompt based on current state - handle when generate_prompt isn't available
+                    try:
+                        prompt = frontline.generate_prompt(session_id, current_state)
+                    except AttributeError:
+                        logger.warning(f"[AGENT:{session_id}] generate_prompt method not found, using default prompt")
+                        prompt = "Is there anything specific you'd like to know about our menu, or would you like to place an order?"
                     
-                    await ws.send(json.dumps({
+                    # Add random component to prompt to prevent duplicates
+                    prompt_variations = [
+                        "Is there anything I can help you with today?",
+                        "Would you like to hear about our special rolls?",
+                        "Can I tell you about our menu or help you place an order?"
+                    ]
+                    if silence_count > 1 and silence_count % 2 == 0:
+                        import random
+                        variation = random.choice(prompt_variations)
+                        prompt = f"{variation}"
+                    
+                    prompt_message = {
                         "event": "agent_response",
                         "text": prompt,
-                        "timestamp": time.time(),
-                        "is_prompt": True
-                    }))
+                        "timestamp": silence_timestamp,
+                        "is_prompt": True,
+                        "silence_count": silence_count
+                    }
+                    await ws.send(json.dumps(prompt_message))
                     metrics["events_sent"] += 1
                     
                     logger.info(f"[SILENCE:{session_id}] Sent prompt in MAIN_MENU state: '{prompt}'")
+                    
+                    # Also send a separate keep-alive message
+                    await asyncio.sleep(0.5)  # Small delay
+                    keep_alive = {
+                        "type": "menu_prompt_keep_alive", 
+                        "message": "Keeping connection alive after menu prompt",
+                        "timestamp": time.time(),
+                        "session_id": session_id
+                    }
+                    await ws.send(json.dumps(keep_alive))
+                    metrics["events_sent"] += 1
+                    
                 except Exception as prompt_error:
                     logger.error(f"[SILENCE:{session_id}] Error sending prompt: {prompt_error}")
+                    logger.error(traceback.format_exc())
             else:
-                logger.info(f"[SILENCE:{session_id}] Silence in {current_state} state, no specific handling")
-                # In other states, we might have different silence handling logic
+                logger.info(f"[SILENCE:{session_id}] Silence in {current_state} state, sending keep-alive message")
+                
+                # Send a keep-alive message for other states
+                try:
+                    keep_alive = {
+                        "type": "silence_keep_alive", 
+                        "message": f"Keeping connection alive during silence in {current_state} state",
+                        "timestamp": silence_timestamp,
+                        "session_id": session_id,
+                        "state": str(current_state)
+                    }
+                    await ws.send(json.dumps(keep_alive))
+                    metrics["events_sent"] += 1
+                except Exception as ka_error:
+                    logger.error(f"[SILENCE:{session_id}] Error sending silence keep-alive: {ka_error}")
         
         return greeting_sent, greeting_timestamp
     
     except Exception as e:
         logger.error(f"[SILENCE:{session_id}] Error handling silence event: {e}")
+        logger.error(traceback.format_exc())
+        
         # Try to send error to client
         try:
             await ws.send(json.dumps({
@@ -216,6 +315,50 @@ async def handle_silence_event(ws, session_id, frontline, fsm_orchestrator, even
         
         # Return unchanged values
         return greeting_sent, greeting_timestamp
+
+async def send_followup_prompt(ws, session_id, frontline, timestamp, metrics, delay=5.0):
+    """
+    Send a follow-up prompt after the greeting to maintain engagement.
+    
+    Args:
+        ws: WebSocket connection
+        session_id: Session identifier
+        frontline: Frontline agent instance
+        timestamp: Timestamp of the original silence event
+        metrics: Metrics tracking dictionary
+        delay: Delay in seconds before sending the follow-up
+    """
+    try:
+        # Wait for the specified delay
+        await asyncio.sleep(delay)
+        
+        logger.info(f"[SILENCE:{session_id}] Sending follow-up prompt after greeting")
+        
+        # Default follow-up prompt
+        followup = "I'm here to help with our menu or take your order. What can I do for you today?"
+        
+        # Try to get a custom follow-up if available
+        try:
+            if hasattr(frontline, 'generate_followup'):
+                followup = frontline.generate_followup(session_id)
+        except Exception as followup_error:
+            logger.warning(f"[SILENCE:{session_id}] Error generating follow-up, using default: {followup_error}")
+        
+        # Send the follow-up prompt
+        followup_message = {
+            "event": "agent_response",
+            "text": followup,
+            "timestamp": time.time(),
+            "is_followup": True,
+            "after_greeting": True
+        }
+        await ws.send(json.dumps(followup_message))
+        metrics["events_sent"] += 1
+        
+        logger.info(f"[SILENCE:{session_id}] Sent follow-up prompt: '{followup}'")
+    except Exception as e:
+        logger.error(f"[SILENCE:{session_id}] Error sending follow-up prompt: {e}")
+        logger.error(traceback.format_exc())
 
 async def handle_tool_call_event(ws, session_id, tool_registry, event, metrics):
     """

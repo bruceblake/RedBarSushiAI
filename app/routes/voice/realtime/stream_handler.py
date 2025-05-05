@@ -111,11 +111,23 @@ async def handle_media_stream(ws, session_id=None):
     # Start the keep-alive task to prevent connection timeouts
     try:
         logger.info(f"[WEBSOCKET:{session_id}] Starting keep-alive task")
+        # Use a shorter interval of 5 seconds to prevent timeouts
         keepalive_task = asyncio.create_task(
-            send_heartbeat(ws, session_id, interval=10.0),  # Send heartbeat every 10 seconds
+            send_heartbeat(ws, session_id, interval=5.0),  # Send heartbeat every 5 seconds
             name=f"heartbeat-{session_id}"
         )
-        logger.info(f"[WEBSOCKET:{session_id}] Keep-alive task started with 10-second interval")
+        logger.info(f"[WEBSOCKET:{session_id}] Keep-alive task started with 5-second interval")
+        
+        # Add task to a global set to prevent it from being garbage collected
+        if not hasattr(asyncio, '_keepalive_tasks'):
+            asyncio._keepalive_tasks = set()
+        asyncio._keepalive_tasks.add(keepalive_task)
+        
+        # Set up a callback to remove the task when it's done
+        def cleanup_task(task):
+            asyncio._keepalive_tasks.discard(task)
+            
+        keepalive_task.add_done_callback(cleanup_task)
     except Exception as task_error:
         logger.error(f"[WEBSOCKET:{session_id}] Error starting keep-alive task: {task_error}")
         logger.error(traceback.format_exc())

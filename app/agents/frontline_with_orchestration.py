@@ -742,7 +742,201 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
         # Initialize agent tracking if not already set
         if call_sid not in self.current_agent:
             self.current_agent[call_sid] = "Frontline"
+            
+    def generate_greeting(self, call_sid: str) -> str:
+        """
+        Generate a greeting for a new call.
+        
+        Args:
+            call_sid: The call SID
+            
+        Returns:
+            The greeting text
+        """
+        greeting_options = [
+            "Welcome to Red Bar Sushi! How can I help you today?",
+            "Hello! Thank you for calling Red Bar Sushi. How may I assist you?",
+            "Thanks for calling Red Bar Sushi! What can I do for you today?",
+            "Welcome to Red Bar Sushi, home of the finest sushi in town. How can I help you?"
+        ]
+        
+        # Set the current call for context
+        self.set_current_call(call_sid)
+        
+        try:
+            # Try to use the LLM to generate a greeting
+            greeting_prompt = "Generate a friendly, brief greeting for a customer calling Red Bar Sushi restaurant. Keep it under 15 words."
+            response = self.process_message(call_sid, greeting_prompt, internal=True)
+            
+            # If response is valid, use it
+            if response and len(response) < 150:
+                return response
+        except Exception as e:
+            logger.error(f"Error generating greeting with LLM: {e}")
+        
+        # Fallback to predefined options
+        import random
+        return random.choice(greeting_options)
     
+    def generate_prompt(self, call_sid: str, current_state) -> str:
+        """
+        Generate a prompt based on the current state.
+        
+        Args:
+            call_sid: The call SID
+            current_state: The current FSM state
+            
+        Returns:
+            The prompt text
+        """
+        # Set the current call for context
+        self.set_current_call(call_sid)
+        
+        # Default prompts for different states
+        default_prompts = {
+            FSMState.MAIN_MENU: "Would you like to hear about our menu, place an order, or get our hours?",
+            FSMState.MENU_INQUIRY: "Is there anything specific on our menu you'd like to know about?",
+            FSMState.ORDERING: "What would you like to order today?",
+            FSMState.CONFIRMATION: "Does that complete your order?",
+            FSMState.PAYMENT: "How would you like to pay for your order?",
+            FSMState.FOLLOW_UP: "Is there anything else I can help you with?",
+            FSMState.COMPLETION: "Thank you for your order! Is there anything else you need?"
+        }
+        
+        # Convert state to string if it's an enum
+        state_key = current_state
+        if hasattr(current_state, 'value'):
+            state_key = current_state.value
+            
+        # Try to use the LLM for a contextual prompt
+        try:
+            # Get the conversation context
+            context = {}
+            if hasattr(self.slot_store, 'get_all_slots'):
+                context = self.slot_store.get_all_slots(call_sid)
+            
+            # Generate a prompt based on state and context
+            prompt_request = f"Generate a prompt for a customer calling Red Bar Sushi. Current state: {state_key}."
+            
+            if context:
+                prompt_request += f" Context: {str(context)}"
+                
+            prompt_request += " Keep it short and conversational, under 15 words."
+            
+            response = self.process_message(call_sid, prompt_request, internal=True)
+            
+            # If response is valid, use it
+            if response and len(response) < 150:
+                return response
+        except Exception as e:
+            logger.error(f"Error generating prompt with LLM: {e}")
+        
+        # Fallback to default prompts
+        if state_key in default_prompts:
+            return default_prompts[state_key]
+        else:
+            return "Is there anything I can help you with today?"
+    
+    def generate_followup(self, call_sid: str) -> str:
+        """
+        Generate a follow-up prompt after greeting.
+        
+        Args:
+            call_sid: The call SID
+            
+        Returns:
+            The follow-up text
+        """
+        followup_options = [
+            "I'm here to help with our menu or take your order. What can I do for you today?",
+            "Can I tell you about our specials or help you place an order?",
+            "Are you looking to place an order or do you have questions about our menu?",
+            "Would you like to hear about our popular sushi rolls or place an order?"
+        ]
+        
+        # Set the current call for context
+        self.set_current_call(call_sid)
+        
+        # Try to use the LLM for a contextual followup
+        try:
+            # Generate a followup prompt
+            followup_request = "Generate a follow-up question after greeting a customer at Red Bar Sushi. Make it helpful and specific about menu or ordering. Keep it under 15 words."
+            
+            response = self.process_message(call_sid, followup_request, internal=True)
+            
+            # If response is valid, use it
+            if response and len(response) < 150:
+                return response
+        except Exception as e:
+            logger.error(f"Error generating follow-up with LLM: {e}")
+        
+        # Fallback to default options
+        import random
+        return random.choice(followup_options)
+    
+    def process_message(self, call_sid: str, user_input: str, model_override: str = None, internal: bool = False) -> str:
+        """
+        Process a message from a user.
+        
+        Args:
+            call_sid: The call SID
+            user_input: The user's input text
+            model_override: Optional model to use for this request
+            internal: Whether this is an internal call (for greeting/prompt generation)
+            
+        Returns:
+            The agent's response
+        """
+        try:
+            # Set the current call for context
+            self.set_current_call(call_sid)
+            
+            # If not an internal call, store in conversation store
+            if not internal:
+                conversation_store.add_message(call_sid, "user", user_input)
+            
+            # Process with the base agent class
+            model = model_override or self.model
+            
+            # For internal requests, use a more efficient model and shorter context
+            if internal:
+                # Stripped down system message for internal processing
+                system_message = f"{self.name} helping generate responses for Red Bar Sushi."
+                
+                # Use the LLM directly with minimal context
+                from app.utils.agent_utils import get_openai_client
+                client = get_openai_client()
+                
+                completion = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_input}
+                    ],
+                    temperature=0.7,
+                    max_tokens=50
+                )
+                
+                response = completion.choices[0].message.content.strip()
+            else:
+                # Use the full agent processing pipeline
+                response = super().process_message(call_sid, user_input, model_override=model)
+            
+            # If not an internal call, store response in conversation store
+            if not internal and response:
+                conversation_store.add_message(call_sid, "assistant", response)
+                
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error in process_message: {str(e)}")
+            if internal:
+                # For internal requests, return empty so we fall back to defaults
+                return ""
+            else:
+                # For user-facing requests, return an error message
+                return "I'm sorry, I'm having trouble processing your request."
+
     @trace_call(call_sid="dynamic")
     def process_voice_input(self, call_sid: str, user_input: str) -> str:
         """
