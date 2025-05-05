@@ -562,120 +562,119 @@ async def media_stream(ws):
                 os.makedirs(log_dir)
             except:
                 pass  # If we can't create the dir, we'll fallback to default logging
-    
-    # Set up session-specific logging
-    try:
-        # Create a session-specific file handler
-        session_log_file = os.path.join(log_dir, f'media_stream_{session_id}.log')
-        session_file_handler = logging.FileHandler(session_log_file)
-        session_file_handler.setLevel(logging.DEBUG)
-        session_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-        session_file_handler.setFormatter(session_formatter)
-        logger.addHandler(session_file_handler)
         
-        # Also log to a common WebSocket log file
-        ws_log_file = os.path.join(log_dir, 'websocket_connections.log')
-        ws_file_handler = logging.FileHandler(ws_log_file)
-        ws_file_handler.setLevel(logging.INFO)
-        ws_file_handler.setFormatter(session_formatter)
-        logger.addHandler(ws_file_handler)
-        
-        logger.info(f"███████████████████████████████████████████████████████████████")
-        logger.info(f"████ NEW WEBSOCKET CONNECTION - SESSION ID: {session_id} ████")
-        logger.info(f"███████████████████████████████████████████████████████████████")
-    except Exception as log_error:
-        logger.error(f"Failed to set up session-specific logging: {log_error}")
-    
-    # Print environment info to help with debugging
-    try:
-        logger.info("==== ENVIRONMENT INFORMATION ====")
-        logger.info(f"Worker PID: {os.getpid()}")
-        logger.info(f"Current directory: {os.getcwd()}")
-        logger.info(f"Python version: {sys.version}")
-        logger.info(f"Environment vars: REDIS_URL exists: {'Yes' if os.environ.get('REDIS_URL') else 'No'}")
-        logger.info(f"Environment vars: OPENAI_API_KEY exists: {'Yes' if os.environ.get('OPENAI_API_KEY') else 'No'}")
-        logger.info(f"Environment vars: TWILIO_ACCOUNT_SID exists: {'Yes' if os.environ.get('TWILIO_ACCOUNT_SID') else 'No'}")
-        logger.info(f"Environment vars: FLASK_ENV: {os.environ.get('FLASK_ENV', 'not set')}")
-        logger.info(f"Environment vars: IS_STAGING: {os.environ.get('IS_STAGING', 'not set')}")
-        logger.info(f"Environment vars: RENDER: {os.environ.get('RENDER', 'not set')}")
-        logger.info("==== END ENVIRONMENT INFORMATION ====")
-    except Exception as env_error:
-        logger.error(f"Error logging environment info: {env_error}")
-    
-    # Track detailed metrics and events
-    ws_events = []
-    
-    # Connection stats 
-    metrics = {
-        "connection_start_time": time.time(),
-        "audio_chunks_received": 0,
-        "events_processed": 0,
-        "events_sent": 0,
-        "silence_events": 0,
-        "tool_calls": 0,
-        "transcripts_processed": 0,
-        "last_activity_time": time.time(),
-    }
-    
-    # Function to log the connection summary when it ends
-    def log_connection_summary(reason="normal_close"):
-        end_time = time.time()
-        duration = end_time - metrics["connection_start_time"]
-        logger.info("==== WEBSOCKET CONNECTION SUMMARY ====")
-        logger.info(f"Session ID: {session_id}")
-        logger.info(f"Connection duration: {duration:.2f} seconds")
-        logger.info(f"Audio chunks received: {metrics['audio_chunks_received']}")
-        logger.info(f"Events processed: {metrics['events_processed']}")
-        logger.info(f"Events sent: {metrics['events_sent']}")
-        logger.info(f"Silence events: {metrics['silence_events']}")
-        logger.info(f"Tool calls: {metrics['tool_calls']}")
-        logger.info(f"Transcripts processed: {metrics['transcripts_processed']}")
-        logger.info(f"Close reason: {reason}")
-        logger.info("==== END WEBSOCKET CONNECTION SUMMARY ====")
-        logger.info(f"███████████████████████████████████████████████████████████████")
-        logger.info(f"████ WEBSOCKET CONNECTION CLOSED - SESSION ID: {session_id} ████")
-        logger.info(f"███████████████████████████████████████████████████████████████")
-
-    try:
-        logger.info(f"[MEDIA_STREAM] New media stream connection: {session_id}")
-        
-        # Initialize the Realtime processor
-        realtime_processor = get_realtime_processor()
-        logger.info(f"[MEDIA_STREAM] Initialized realtime processor: {id(realtime_processor)}")
-        
-        # Initialize orchestrated agents
         try:
-            logger.info("[MEDIA_STREAM] Initializing orchestrated agents...")
-            frontline = init_agents()
-            logger.info(f"[MEDIA_STREAM] ✅ Agents initialized successfully for session: {session_id}")
-            logger.info(f"[MEDIA_STREAM] Agent type: {type(frontline).__name__}")
+            # Create a session-specific file handler
+            session_log_file = os.path.join(log_dir, f'media_stream_{session_id}.log')
+            session_file_handler = logging.FileHandler(session_log_file)
+            session_file_handler.setLevel(logging.DEBUG)
+            session_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+            session_file_handler.setFormatter(session_formatter)
+            logger.addHandler(session_file_handler)
             
-            # Log agent capabilities for debugging
-            if hasattr(frontline, 'get_capabilities'):
-                capabilities = frontline.get_capabilities()
-                logger.info(f"[MEDIA_STREAM] Agent capabilities: {capabilities}")
-                
-            # Log agent configuration if available
-            if hasattr(frontline, 'config'):
-                logger.info(f"[MEDIA_STREAM] Agent config: {frontline.config}")
-                
-            # Log agent model if available
-            if hasattr(frontline, 'model'):
-                logger.info(f"[MEDIA_STREAM] Agent model: {frontline.model}")
-        except Exception as e:
-            logger.error(f"[MEDIA_STREAM] ❌ Failed to initialize agents: {str(e)}")
-            logger.error(f"[MEDIA_STREAM] Agent initialization error trace: {traceback.format_exc()}")
+            # Also log to a common WebSocket log file
+            ws_log_file = os.path.join(log_dir, 'websocket_connections.log')
+            ws_file_handler = logging.FileHandler(ws_log_file)
+            ws_file_handler.setLevel(logging.INFO)
+            ws_file_handler.setFormatter(session_formatter)
+            logger.addHandler(ws_file_handler)
             
-            # Send detailed error info to client
-            await ws.send(json.dumps({
-                "type": "error",
-                "error": f"Failed to initialize agents: {str(e)}",
-                "timestamp": time.time(),
-                "details": traceback.format_exc(),
-                "session_id": session_id
-            }))
-            log_connection_summary("agent_initialization_failed")
-            return
+            logger.info(f"███████████████████████████████████████████████████████████████")
+            logger.info(f"████ NEW WEBSOCKET CONNECTION - SESSION ID: {session_id} ████")
+            logger.info(f"███████████████████████████████████████████████████████████████")
+        except Exception as log_error:
+            logger.error(f"Failed to set up session-specific logging: {log_error}")
+    
+        # Print environment info to help with debugging
+        try:
+            logger.info("==== ENVIRONMENT INFORMATION ====")
+            logger.info(f"Worker PID: {os.getpid()}")
+            logger.info(f"Current directory: {os.getcwd()}")
+            logger.info(f"Python version: {sys.version}")
+            logger.info(f"Environment vars: REDIS_URL exists: {'Yes' if os.environ.get('REDIS_URL') else 'No'}")
+            logger.info(f"Environment vars: OPENAI_API_KEY exists: {'Yes' if os.environ.get('OPENAI_API_KEY') else 'No'}")
+            logger.info(f"Environment vars: TWILIO_ACCOUNT_SID exists: {'Yes' if os.environ.get('TWILIO_ACCOUNT_SID') else 'No'}")
+            logger.info(f"Environment vars: FLASK_ENV: {os.environ.get('FLASK_ENV', 'not set')}")
+            logger.info(f"Environment vars: IS_STAGING: {os.environ.get('IS_STAGING', 'not set')}")
+            logger.info(f"Environment vars: RENDER: {os.environ.get('RENDER', 'not set')}")
+            logger.info("==== END ENVIRONMENT INFORMATION ====")
+        except Exception as env_error:
+            logger.error(f"Error logging environment info: {env_error}")
+    
+        # Track detailed metrics and events
+        ws_events = []
+        
+        # Connection stats 
+        metrics = {
+            "connection_start_time": time.time(),
+            "audio_chunks_received": 0,
+            "events_processed": 0,
+            "events_sent": 0,
+            "silence_events": 0,
+            "tool_calls": 0,
+            "transcripts_processed": 0,
+            "last_activity_time": time.time(),
+        }
+        
+        # Function to log the connection summary when it ends
+        def log_connection_summary(reason="normal_close"):
+            end_time = time.time()
+            duration = end_time - metrics["connection_start_time"]
+            logger.info("==== WEBSOCKET CONNECTION SUMMARY ====")
+            logger.info(f"Session ID: {session_id}")
+            logger.info(f"Connection duration: {duration:.2f} seconds")
+            logger.info(f"Audio chunks received: {metrics['audio_chunks_received']}")
+            logger.info(f"Events processed: {metrics['events_processed']}")
+            logger.info(f"Events sent: {metrics['events_sent']}")
+            logger.info(f"Silence events: {metrics['silence_events']}")
+            logger.info(f"Tool calls: {metrics['tool_calls']}")
+            logger.info(f"Transcripts processed: {metrics['transcripts_processed']}")
+            logger.info(f"Close reason: {reason}")
+            logger.info("==== END WEBSOCKET CONNECTION SUMMARY ====")
+            logger.info(f"███████████████████████████████████████████████████████████████")
+            logger.info(f"████ WEBSOCKET CONNECTION CLOSED - SESSION ID: {session_id} ████")
+            logger.info(f"███████████████████████████████████████████████████████████████")
+
+        try:
+            logger.info(f"[MEDIA_STREAM] New media stream connection: {session_id}")
+            
+            # Initialize the Realtime processor
+            realtime_processor = get_realtime_processor()
+            logger.info(f"[MEDIA_STREAM] Initialized realtime processor: {id(realtime_processor)}")
+        
+            # Initialize orchestrated agents
+            try:
+                logger.info("[MEDIA_STREAM] Initializing orchestrated agents...")
+                frontline = init_agents()
+                logger.info(f"[MEDIA_STREAM] ✅ Agents initialized successfully for session: {session_id}")
+                logger.info(f"[MEDIA_STREAM] Agent type: {type(frontline).__name__}")
+                
+                # Log agent capabilities for debugging
+                if hasattr(frontline, 'get_capabilities'):
+                    capabilities = frontline.get_capabilities()
+                    logger.info(f"[MEDIA_STREAM] Agent capabilities: {capabilities}")
+                    
+                # Log agent configuration if available
+                if hasattr(frontline, 'config'):
+                    logger.info(f"[MEDIA_STREAM] Agent config: {frontline.config}")
+                    
+                # Log agent model if available
+                if hasattr(frontline, 'model'):
+                    logger.info(f"[MEDIA_STREAM] Agent model: {frontline.model}")
+            except Exception as e:
+                logger.error(f"[MEDIA_STREAM] ❌ Failed to initialize agents: {str(e)}")
+                logger.error(f"[MEDIA_STREAM] Agent initialization error trace: {traceback.format_exc()}")
+                
+                # Send detailed error info to client
+                await ws.send(json.dumps({
+                    "type": "error",
+                    "error": f"Failed to initialize agents: {str(e)}",
+                    "timestamp": time.time(),
+                    "details": traceback.format_exc(),
+                    "session_id": session_id
+                }))
+                log_connection_summary("agent_initialization_failed")
+                return
         
         # Send connection confirmation to client
         logger.info("[MEDIA_STREAM] Sending connection confirmation to client")
