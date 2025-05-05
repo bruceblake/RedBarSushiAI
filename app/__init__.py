@@ -196,8 +196,9 @@ def create_app(test_config=None):
 
     # Configure SQLAlchemy engine options based on database type
     engine_options = {
-        "pool_recycle": 280,
-        "pool_pre_ping": True,
+        "pool_recycle": 1800,  # 30 minutes to match Render's proxy timeout
+        "pool_pre_ping": True,  # Check connection before using it
+        "pool_reset_on_return": True,  # Reset connections when returned to pool
     }
 
     # Only add options compatible with the specific database type
@@ -205,12 +206,34 @@ def create_app(test_config=None):
         if "sqlite" in SQLALCHEMY_DATABASE_URI:
             # SQLite doesn't support pool_timeout or connect_timeout
             pass
-        else:
-            # For MySQL, PostgreSQL and other full DB engines
+        elif (
+            "postgresql" in SQLALCHEMY_DATABASE_URI
+            or "postgres" in SQLALCHEMY_DATABASE_URI
+        ):
+            # PostgreSQL-specific optimizations for Render
             engine_options.update(
                 {
-                    "pool_timeout": 20,
-                    "connect_args": {"connect_timeout": 10},
+                    "pool_timeout": 30,  # Increased timeout for connection acquisition
+                    "connect_args": {
+                        "connect_timeout": 15,  # Increased connection timeout
+                        "keepalives": 1,  # Enable TCP keepalives
+                        "keepalives_idle": 60,  # Send keepalive after 60 seconds of inactivity
+                        "keepalives_interval": 10,  # 10 seconds between keepalives
+                        "keepalives_count": 3,  # Number of keepalives before dropping connection
+                        # Additional PostgreSQL-specific settings for better reliability
+                        "application_name": "RedBarSushiAI",  # Identify app in pg_stat_activity
+                        "options": "-c statement_timeout=60000",  # 60s statement timeout
+                    },
+                }
+            )
+        else:
+            # For MySQL and other full DB engines
+            engine_options.update(
+                {
+                    "pool_timeout": 30,  # Increased timeout for connection acquisition
+                    "connect_args": {
+                        "connect_timeout": 15,  # Increased connection timeout
+                    },
                 }
             )
 
@@ -232,7 +255,35 @@ def create_app(test_config=None):
         logger.info("Skipping database initialization in API schema validation mode")
 
     if not skip_db_init:
+        # Initialize SQLAlchemy with our app
         db.init_app(app)
+
+        # Initialize the database for menu storage if configured
+        if app.config.get("INITIALIZE_MENU_DATABASE", True):
+            with app.app_context():
+                try:
+                    # Import here to avoid circular imports
+                    from app.db_init import init_database, fresh_session
+
+                    # Ensure we have a fresh session for initialization
+                    fresh_session()
+
+                    # Initialize database with retry logic
+                    init_database()
+                except Exception as e:
+                    app.logger.error(
+                        f"Failed to initialize menu database: {e}", exc_info=True
+                    )
+                    # Continue anyway to ensure app starts
+                    app.logger.warning(
+                        "App will continue starting up despite database initialization error"
+                    )
+
+                    # Try to clean up the session to prevent future errors
+                    try:
+                        db.session.remove()
+                    except:
+                        pass
 
     # Initialize WebSockets
     sock.init_app(app)
@@ -243,6 +294,10 @@ def create_app(test_config=None):
     from app.routes.order import order_bp
     from app.routes.location import location_bp
     from app.routes.order_ai import order_ai_bp
+    from app.routes.voice_sdk import voice_sdk_bp
+    from app.routes.realtime import realtime_bp
+    from app.routes.escalation import escalation_bp
+    from app.routes.monitoring import monitoring_bp
 
     # Register blueprints with explicit URL prefixes for clarity
     # Register blueprints with original structure for backwards compatibility
@@ -255,11 +310,19 @@ def create_app(test_config=None):
     app.register_blueprint(order_bp)  # Keep at root level for order webhooks
     app.register_blueprint(location_bp)  # Keep at root level for consistency
     app.register_blueprint(order_ai_bp)  # AI-powered interactive order resolution
+    app.register_blueprint(voice_sdk_bp, url_prefix='/voice_sdk')  # New Agents SDK voice routes
+    app.register_blueprint(realtime_bp, url_prefix='/realtime')  # Realtime audio processing
+    app.register_blueprint(escalation_bp)  # Staff handoff and escalation routes
+    app.register_blueprint(monitoring_bp, url_prefix='/monitoring')  # Monitoring and health check routes
 
     # Configure optimized logging
     # Clear any existing handlers to avoid duplicates
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
+        
+    # Initialize monitoring
+    from app.utils.monitoring import init_monitoring
+    init_monitoring(app)
 
     # Configure logging based on environment
     if os.environ.get("RENDER", False) or os.environ.get("DOCKER", False):
@@ -321,44 +384,27 @@ def create_app(test_config=None):
 
     @app.route("/menu-check")
     def menu_check():
-        """Diagnostic endpoint to check menu status"""
-        from app.utils.menu_utils import load_menu_data, MENU_FILE_PATH
-        import os
+        """Diagnostic endpoint to check menu status from database"""
+        from app.utils.menu_utils_db import load_menu_data
+        from app.utils.menu_db_store import menu_db_store
 
         result = {
-            "menu_file_path": MENU_FILE_PATH,
-            "exists": os.path.exists(MENU_FILE_PATH),
-            "locations_checked": [],
+            "database": True,
+            "storage_method": "database",
+            "database_connection": True,
             "items_count": 0,
         }
 
-        # Check common locations
-        for path in [
-            MENU_FILE_PATH,
-            os.path.join(os.getcwd(), "menu_data.json"),
-            "/app/menu_data.json",
-            "/var/task/menu_data.json",
-        ]:
-            exists = os.path.exists(path)
-            size = os.path.getsize(path) if exists else 0
-            result["locations_checked"].append(
-                {
-                    "path": path,
-                    "exists": exists,
-                    "size": size,
-                    "permissions": oct(os.stat(path).st_mode) if exists else "N/A",
-                }
-            )
-
-        # Actually load the menu
+        # Load the menu from database
         try:
             menu = load_menu_data(force_refresh=True)
             result["load_success"] = True
             result["items_count"] = len(menu.get("items", []))
+            result["modifiers_count"] = len(menu.get("modifiers", []))
+            result["groups_count"] = len(menu.get("modifierGroups", []))
             result["items_sample"] = [
                 item.get("name") for item in menu.get("items", [])[:5]
             ]
-            result["variants_count"] = len(menu.get("name_variants", {}))
         except Exception as e:
             result["load_success"] = False
             result["error"] = str(e)
@@ -425,13 +471,31 @@ def create_app(test_config=None):
 
         # Check database connection
         try:
-            # Simple database ping
+            # Simple database ping with proper session handling
             with app.app_context():
-                db.session.execute("SELECT 1").scalar()
-            health_info["checks"]["database"] = "ok"
+                # Import from db_init to use our fresh session logic
+                from app.db_init import fresh_session, verify_connection
+
+                # Ensure we have a fresh session
+                fresh_session()
+
+                # Use our verify_connection function that handles session lifecycle
+                if verify_connection():
+                    health_info["checks"]["database"] = "ok"
+                else:
+                    health_info["checks"][
+                        "database"
+                    ] = "error: Connection verification failed"
+                    health_info["status"] = "degraded"
         except Exception as e:
             health_info["checks"]["database"] = f"error: {str(e)}"
             health_info["status"] = "degraded"
+
+            # Clean up the session to prevent future errors
+            try:
+                db.session.remove()
+            except:
+                pass
 
         # Check Redis if we're using it
         redis_url = os.environ.get("CELERY_BROKER_URL")
@@ -450,7 +514,7 @@ def create_app(test_config=None):
 
         # Check menu data
         try:
-            from app.utils.menu_utils import load_menu_data
+            from app.utils.menu_utils_db import load_menu_data
 
             menu = load_menu_data()
             items_count = len(menu.get("items", []))
@@ -468,6 +532,7 @@ def create_app(test_config=None):
     # Add database connection cleanup to prevent memory leaks
     @app.teardown_appcontext
     def cleanup_db_resources(exception=None):
-        db.session.close()
+        if hasattr(db, 'session'):
+            db.session.close()
 
     return app

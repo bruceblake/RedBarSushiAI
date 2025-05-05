@@ -30,3 +30,5 @@ Thumbs.db
 # Python files
 config.py
 redbar_menu_data.json
+
+**/.claude/settings.local.json

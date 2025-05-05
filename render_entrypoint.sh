@@ -67,13 +67,44 @@ fi
 setup_database_connection() {
 	# Use Render's database URL if available (most reliable approach)
 	if [ -n "$RENDER_DATABASE_URL" ]; then
-		log "Using RENDER_DATABASE_URL for database connection"
+		log "Using RENDER_DATABASE_URL for database connection (EXTERNAL URL)"
 		export SQLALCHEMY_DATABASE_URI="$RENDER_DATABASE_URL"
 		return 0
 	elif [ -n "$INTERNAL_DATABASE_URL" ]; then
-		log "Using INTERNAL_DATABASE_URL for database connection"
-		export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
-		return 0
+		# Don't use internal URL - it won't work outside the private network
+		log "WARNING: INTERNAL_DATABASE_URL found but using EXTERNAL URL instead"
+		if [ -n "$DATABASE_URL" ]; then
+			# Use the manually set external URL
+			log "Using DATABASE_URL (external) instead of internal URL"
+			export SQLALCHEMY_DATABASE_URI="$DATABASE_URL"
+			return 0
+		else
+			# If INTERNAL_DATABASE_URL is set but no DATABASE_URL, 
+			# construct external URL by appending domain to internal host
+			internal_url="$INTERNAL_DATABASE_URL"
+			# Extract parts from the internal URL
+			if [[ "$internal_url" == postgresql://* ]]; then
+				user_part="${internal_url#postgresql://}"
+				user_part="${user_part%%@*}"
+				host_part="${internal_url#*@}"
+				host="${host_part%%:*}"
+				rest="${host_part#*:}"
+				
+				# Transform internal host to external host
+				if [[ "$host" != *".render.com" ]]; then
+					external_host="${host}.virginia-postgres.render.com"
+					external_url="postgresql://${user_part}@${external_host}:${rest}"
+					log "Transformed internal URL to external URL: ${external_url}"
+					export SQLALCHEMY_DATABASE_URI="$external_url"
+					return 0
+				fi
+			fi
+			
+			# If we can't transform, warn but still use the internal URL
+			log "WARNING: Could not transform internal URL to external URL"
+			export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
+			return 0
+		fi
 	else
 		log "WARNING: No Render database URL found, trying to construct from components"
 		# Construct from components if needed
@@ -95,6 +126,13 @@ if ! setup_database_connection; then
 	exit 1
 fi
 
+# Enable menu database storage by default
+export MENU_BACKEND="database"
+export INITIALIZE_MENU_DATABASE="true" 
+export MIGRATE_MENU_DATA="true"
+export DB_RETRY_ATTEMPTS="5"
+export DB_RETRY_DELAY="3"
+
 # Test the database connection with retry logic
 test_database_connection() {
 	local max_retries=5
@@ -104,29 +142,81 @@ test_database_connection() {
 	while [ $retry_count -lt $max_retries ]; do
 		log "Testing database connection (attempt $(($retry_count + 1))/$max_retries)..."
 
-		# Simple connection test using Python
+		# Enhanced connection test using Python with proper session handling and cleanup
 		python -c "
 import os
 import sys
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
-try:
+def test_connection_with_session():
+    \"\"\"Test connection with proper session handling\"\"\"
     db_uri = os.environ.get('SQLALCHEMY_DATABASE_URI')
     if not db_uri:
         print('ERROR: SQLALCHEMY_DATABASE_URI not set', file=sys.stderr)
-        sys.exit(1)
+        return False
     
-    print('Creating database engine...', file=sys.stderr)
-    engine = create_engine(db_uri)
-    print('Connecting to database...', file=sys.stderr)
-    connection = engine.connect()
-    print('Connected!', file=sys.stderr)
-    connection.close()
-    print('Database connection test successful!', file=sys.stderr)
+    print('Creating database engine with connection pooling...', file=sys.stderr)
+    
+    # Create engine with proper connection pooling settings
+    engine = create_engine(
+        db_uri,
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=30,
+        pool_reset_on_return=True,
+        connect_args={
+            'connect_timeout': 15,
+            'keepalives': 1,
+            'keepalives_idle': 60,
+            'keepalives_interval': 10,
+            'keepalives_count': 3,
+            'application_name': 'RedBarSushiAI-ConnectionTest'
+        }
+    )
+    
+    # Create session factory
+    Session = scoped_session(sessionmaker(bind=engine))
+    
+    try:
+        # Create a session
+        session = Session()
+        
+        print('Connecting to database...', file=sys.stderr)
+        
+        # Execute a simple query to test the connection
+        result = session.execute(text('SELECT 1')).scalar()
+        
+        if result == 1:
+            print('Database query successful!', file=sys.stderr)
+            session.close()
+            return True
+        else:
+            print('Unexpected query result', file=sys.stderr)
+            session.close()
+            return False
+            
+    except Exception as e:
+        print(f'Error during database connection test: {str(e)}', file=sys.stderr)
+        try:
+            # Clean up session on error
+            session.close()
+        except:
+            pass
+        return False
+    finally:
+        # Remove the session from the registry
+        Session.remove()
+        
+# Run the test and exit with appropriate code
+if test_connection_with_session():
+    print('Database connection verification successful!', file=sys.stderr)
     sys.exit(0)
-except Exception as e:
-    print(f'Error connecting to database: {str(e)}', file=sys.stderr)
+else:
+    print('Database connection verification failed!', file=sys.stderr)
     sys.exit(1)
 "
 

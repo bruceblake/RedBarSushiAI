@@ -13,7 +13,9 @@ from flask import Blueprint, request, session, Response, jsonify, url_for, redir
 from twilio.twiml.voice_response import VoiceResponse
 from app.config import DELIVERECT_API_URL, BASE_URL
 from app.utils.deliverect import build_deliverect_order, get_deliverect_headers
-from app.utils.menu_utils import find_menu_item_by_name
+
+# Import from menu_utils_db instead of menu_utils to use database-backed implementations
+from app.utils.menu_utils_db import find_menu_item_by_name, load_menu_data
 from app.utils.order_utils import (
     build_order_description,
     calculate_bill_amount,
@@ -22,13 +24,13 @@ from app.utils.order_utils import (
     user_said_no,
     validate_modifiers,
 )
-from app.utils.menu_utils import load_menu_data
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.agent_utils import OrderParsingAgent
 from twilio.twiml.messaging_response import MessagingResponse
 from sqlalchemy import text
 from app.models import Order
 from app import db
+
 
 # Helper function to get recent log entries
 def get_last_log_lines(num_lines=20):
@@ -38,36 +40,48 @@ def get_last_log_lines(num_lines=20):
     try:
         # First try reading from a standard log location
         log_paths = [
-            '/app/progress.log',  # Docker container location
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'progress.log'),  # Project root
-            '/var/log/app.log',   # Common Linux log location
-            'app.log'             # Local directory
+            "/app/progress.log",  # Docker container location
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                "progress.log",
+            ),  # Project root
+            "/var/log/app.log",  # Common Linux log location
+            "app.log",  # Local directory
         ]
-        
+
         # Try each possible log path
         for log_path in log_paths:
             if os.path.exists(log_path):
-                with open(log_path, 'r') as f:
+                with open(log_path, "r") as f:
                     # Read all lines and get the last N
                     all_lines = f.readlines()
-                    lines = all_lines[-num_lines:] if len(all_lines) >= num_lines else all_lines
+                    lines = (
+                        all_lines[-num_lines:]
+                        if len(all_lines) >= num_lines
+                        else all_lines
+                    )
                 break
-        
+
         # If no log file found, try getting the log from the logging module's handlers
         if not lines:
             root_logger = logging.getLogger()
             for handler in root_logger.handlers:
-                if hasattr(handler, 'baseFilename'):
-                    with open(handler.baseFilename, 'r') as f:
+                if hasattr(handler, "baseFilename"):
+                    with open(handler.baseFilename, "r") as f:
                         all_lines = f.readlines()
-                        lines = all_lines[-num_lines:] if len(all_lines) >= num_lines else all_lines
+                        lines = (
+                            all_lines[-num_lines:]
+                            if len(all_lines) >= num_lines
+                            else all_lines
+                        )
                     break
     except Exception as e:
         # If we can't read the log file, return an empty list
         logging.warning(f"Could not read log file: {e}")
         return []
-    
+
     return lines
+
 
 # Try to import from the original module first
 from app.utils.agent_utils import analyze_user_input, get_order_modifications
@@ -97,18 +111,19 @@ channel_status = 1  # 0: registered, 1: active, 2: inactive
 BUSY_MODE_ACTIVE = False
 recent_actions = defaultdict(lambda: {"timestamp": 0, "lock": threading.Lock()})
 
+
 # Function to check for menu items that need modifier suggestions
 def custom_suggest_modifiers(item_name):
     """
     Utility function to ensure we always get meaningful modifier prompts.
-    
+
     This function takes an item name, uses OrderParsingAgent to get modifier
     suggestions, but ensures it always returns a prompt even if no specific
     modifiers are found.
-    
+
     Args:
         item_name (str): The name of the menu item
-        
+
     Returns:
         dict: A dictionary containing:
             - prompt (str): A natural language prompt suggesting modifiers
@@ -116,44 +131,45 @@ def custom_suggest_modifiers(item_name):
             - found (bool): Whether the item was found in the menu
     """
     logger.info(f"Getting custom modifier suggestions for {item_name}")
-    
+
     # Initialize the agent
     agent = OrderParsingAgent()
-    
+
     # Get structured suggestions from the agent
     modifier_data = agent.menu_tool.suggest_modifiers(item_name)
-    
+
     # Try to generate a natural language prompt
     try:
         modifier_prompt = agent.menu_tool.generate_modifier_prompt(item_name)
     except Exception as e:
         logger.error(f"Error generating modifier prompt: {e}")
         modifier_prompt = None
-    
 
     return {
-        "prompt": modifier_prompt or f"Would you like any modifications for your {item_name}? Say what you'd like or press 1 to skip.",
+        "prompt": modifier_prompt
+        or f"Would you like any modifications for your {item_name}? Say what you'd like or press 1 to skip.",
         "suggestions": modifier_data.get("suggestions", []),
-        "found": modifier_data.get("found", False)
+        "found": modifier_data.get("found", False),
     }
+
 
 def check_for_missing_modifiers(order_items):
     """
     Check if any order items don't have modifiers but should.
-    
+
     Uses the enhanced validate_modifier_constraints function to identify items
     that are missing required modifiers or would benefit from modifier suggestions.
     Also handles meal deals and their components, and provides detailed constraint
     information for user prompting.
-    
+
     This function is more intelligent about modifiers:
     1. For combo items, it always suggests components
     2. For items with existing modifiers of the right types, it avoids re-suggesting
     3. For items with required modifiers, it verifies if those requirements are met
-    
+
     Args:
         order_items: List of order items to check
-        
+
     Returns:
         tuple: (items_needing_modifiers, constraint_details)
             - items_needing_modifiers: List of items that need modifiers
@@ -161,21 +177,22 @@ def check_for_missing_modifiers(order_items):
     """
     from app.utils.menu_utils import validate_modifier_constraints
     import logging
+
     logger = logging.getLogger(__name__)
-    
+
     # Initialize agent for checking item details
     agent = OrderParsingAgent()
     items_needing_modifiers = []
-    
+
     # Get detailed constraints for all items
     # The updated validate_modifier_constraints will return ALL items with modifier groups
     is_valid, error_message, constraint_details = validate_modifier_constraints(
         order_items, return_detailed_constraints=True
     )
-    
+
     logger.info(f"Checking {len(order_items)} items for missing modifiers")
     logger.info(f"Found {len(constraint_details)} items with modifier constraints")
-    
+
     # More intelligently add items with constraints to the list
     for item_name, details in constraint_details.items():
         # Find the matching item in the order_items list
@@ -184,11 +201,13 @@ def check_for_missing_modifiers(order_items):
                 # Check if this item is a combo/meal deal
                 is_combo = details.get("is_combo", False)
                 mod_groups = details.get("modifier_groups", [])
-                
+
                 # Check if this item already has appropriate modifiers
                 existing_modifiers = item.get("modifier", [])
-                existing_mod_types = {mod.get("name", "").lower() for mod in existing_modifiers}
-                
+                existing_mod_types = {
+                    mod.get("name", "").lower() for mod in existing_modifiers
+                }
+
                 # For combo items, always suggest components if none selected
                 if is_combo:
                     # See if there are component modifiers already added
@@ -198,42 +217,53 @@ def check_for_missing_modifiers(order_items):
                         if "component" in mod.get("reference_handler", "").lower():
                             has_components = True
                             break
-                    
+
                     # If no components found, add to items needing modifiers
                     if not has_components:
                         if item not in items_needing_modifiers:
                             items_needing_modifiers.append(item)
-                            logger.info(f"Added combo item {item_name} to items needing modifiers (needs components)")
-                
+                            logger.info(
+                                f"Added combo item {item_name} to items needing modifiers (needs components)"
+                            )
+
                 # For items with modifier groups, check if required ones are missing
                 elif mod_groups:
                     needs_modifiers = False
-                    
+
                     # Check if any required group is missing modifiers
                     for group in mod_groups:
                         min_required = group.get("min_required", 0)
                         if min_required > 0:
                             # This group requires modifiers, check if we have any from this group
-                            group_mods = {mod.lower() for mod in group.get("modifiers", [])}
-                            found_mods = any(mod_name in group_mods for mod_name in existing_mod_types)
-                            
+                            group_mods = {
+                                mod.lower() for mod in group.get("modifiers", [])
+                            }
+                            found_mods = any(
+                                mod_name in group_mods
+                                for mod_name in existing_mod_types
+                            )
+
                             if not found_mods:
                                 needs_modifiers = True
                                 break
-                    
+
                     # Add item if it needs modifiers
                     if needs_modifiers:
                         if item not in items_needing_modifiers:
                             items_needing_modifiers.append(item)
-                            logger.info(f"Added {item_name} to items needing modifiers (missing required modifiers)")
+                            logger.info(
+                                f"Added {item_name} to items needing modifiers (missing required modifiers)"
+                            )
                     # If not required but has mod groups, only suggest if no modifiers yet
                     elif not existing_modifiers:
                         if item not in items_needing_modifiers:
                             items_needing_modifiers.append(item)
-                            logger.info(f"Added {item_name} to items needing optional modifiers")
-                
+                            logger.info(
+                                f"Added {item_name} to items needing optional modifiers"
+                            )
+
                 break
-    
+
     # Log what we've found
     logger.info(f"Added {len(items_needing_modifiers)} items that need modifiers")
     for item in items_needing_modifiers:
@@ -245,22 +275,26 @@ def check_for_missing_modifiers(order_items):
             if is_combo:
                 components = constraint_details[item_name].get("components", [])
                 component_names = [comp.get("name") for comp in components]
-                logger.info(f"Item {item_name} is a combo/meal deal with components: {', '.join(component_names)}")
+                logger.info(
+                    f"Item {item_name} is a combo/meal deal with components: {', '.join(component_names)}"
+                )
             if mod_groups:
                 group_names = [group.get("name") for group in mod_groups]
-                logger.info(f"Item {item_name} has modifier groups: {', '.join(group_names)}")
-    
+                logger.info(
+                    f"Item {item_name} has modifier groups: {', '.join(group_names)}"
+                )
+
     # If no items with constraints were found, fall back to checking for recommended modifiers
     if not items_needing_modifiers:
         for item in order_items:
             # Skip if it already has modifiers
             if item.get("modifier") and len(item.get("modifier", [])) > 0:
                 continue
-                
+
             # Get details for this item
             item_name = item.get("name", "")
             item_details = agent.menu_tool.get_details(item_name)
-            
+
             # Check if item has available modifiers and would benefit from suggestions
             if item_details.get("found") and item_details.get("modifiers"):
                 # Check if this is a meal deal / combo product
@@ -268,7 +302,9 @@ def check_for_missing_modifiers(order_items):
                 if is_combo:
                     # Always prompt for meal deal components
                     items_needing_modifiers.append(item)
-                    logger.info(f"Added combo item {item_name} to items needing modifiers")
+                    logger.info(
+                        f"Added combo item {item_name} to items needing modifiers"
+                    )
                     # Add combo details to constraint_details if not already there
                     if item_name not in constraint_details:
                         child_products = item_details.get("childProducts", [])
@@ -279,43 +315,52 @@ def check_for_missing_modifiers(order_items):
                                     {
                                         "name": child.get("name"),
                                         "id": child.get("id"),
-                                        "required": True
-                                    } for child in child_products
-                                ]
+                                        "required": True,
+                                    }
+                                    for child in child_products
+                                ],
                             }
                     continue
-                
+
                 # Add item with ANY modifier groups to the list - be aggressive!
                 if item_details.get("modifiers"):
                     items_needing_modifiers.append(item)
-                    logger.info(f"Added item {item_name} with modifiers to items needing modifiers")
+                    logger.info(
+                        f"Added item {item_name} with modifiers to items needing modifiers"
+                    )
                     # Add all modifier groups to constraints
                     if item_name not in constraint_details:
                         constraint_details[item_name] = {
                             "is_combo": False,
-                            "modifier_groups": []
+                            "modifier_groups": [],
                         }
-                    
+
                     # Add ALL modifier groups, not just recommended ones
                     for mod_group in item_details.get("modifiers", []):
                         if "modifier_groups" not in constraint_details[item_name]:
                             constraint_details[item_name]["modifier_groups"] = []
-                        
-                        constraint_details[item_name]["modifier_groups"].append({
-                            "name": mod_group.get("name"),
-                            "is_recommended": True,  # Mark all as recommended
-                            "modifiers": [
-                                mod.get("name") for mod in mod_group.get("modifiers", [])
-                            ]
-                        })
-    
+
+                        constraint_details[item_name]["modifier_groups"].append(
+                            {
+                                "name": mod_group.get("name"),
+                                "is_recommended": True,  # Mark all as recommended
+                                "modifiers": [
+                                    mod.get("name")
+                                    for mod in mod_group.get("modifiers", [])
+                                ],
+                            }
+                        )
+
     # Final logging
     if items_needing_modifiers:
-        logger.info(f"Returning {len(items_needing_modifiers)} items that need modifiers")
+        logger.info(
+            f"Returning {len(items_needing_modifiers)} items that need modifiers"
+        )
     else:
         logger.info("No items need modifiers")
-        
+
     return items_needing_modifiers, constraint_details
+
 
 # Constants
 COOLDOWN_PERIOD = 60  # seconds
@@ -342,10 +387,8 @@ def take_order():
     if BUSY_MODE_ACTIVE:
         response = VoiceResponse()
         # Instead of hanging up, offer options when busy
-        response.say(
-            "We're currently busy and not accepting new orders right now."
-        )
-        
+        response.say("We're currently busy and not accepting new orders right now.")
+
         # Gather input to let them choose an option
         with response.gather(
             input="speech dtmf",
@@ -355,10 +398,12 @@ def take_order():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("Press 1 to get menu information, press 2 to leave your name and number for a callback, or press 3 to end the call.")
-        
+            g.say(
+                "Press 1 to get menu information, press 2 to leave your name and number for a callback, or press 3 to end the call."
+            )
+
         # If they don't input anything, repeat the options
         response.redirect("/handle_busy_options")
         return Response(str(response), mimetype="text/xml")
@@ -425,7 +470,6 @@ def take_order():
                 "items": [],
                 "modifiers": [],
                 "modifierGroups": [],
-                "name_variants": {},
             }
 
             # Get available items from menu structure (will be empty)
@@ -439,10 +483,8 @@ def take_order():
         # Final check - if still no items, report menu unavailable
         if not available_items:
             response = VoiceResponse()
-            response.say(
-                "I'm sorry, our menu is currently unavailable."
-            )
-            
+            response.say("I'm sorry, our menu is currently unavailable.")
+
             # Instead of hanging up, offer some alternatives
             with response.gather(
                 input="speech dtmf",
@@ -452,10 +494,12 @@ def take_order():
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
-                g.say("Press 1 to speak with a team member about our daily specials, press 2 to leave your contact information for when our menu is back online, or press 3 to end the call.")
-            
+                g.say(
+                    "Press 1 to speak with a team member about our daily specials, press 2 to leave your contact information for when our menu is back online, or press 3 to end the call."
+                )
+
             # If they don't input anything, redirect to the handler
             response.redirect("/handle_menu_unavailable")
             return Response(str(response), mimetype="text/xml")
@@ -463,10 +507,8 @@ def take_order():
     except Exception as e:
         logger.error(f"Error loading menu: {e}")
         response = VoiceResponse()
-        response.say(
-            "I'm sorry, we're experiencing technical difficulties."
-        )
-        
+        response.say("I'm sorry, we're experiencing technical difficulties.")
+
         # Instead of hanging up, give them options
         with response.gather(
             input="speech dtmf",
@@ -476,10 +518,12 @@ def take_order():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("Press 1 to speak with a team member who can take your order manually, press 2 to leave your contact information for a callback, or press 3 to end the call.")
-        
+            g.say(
+                "Press 1 to speak with a team member who can take your order manually, press 2 to leave your contact information for a callback, or press 3 to end the call."
+            )
+
         # Fallback if no input received
         response.redirect("/handle_technical_difficulties")
         return Response(str(response), mimetype="text/xml")
@@ -529,7 +573,7 @@ def take_order():
                 language="en-US",
                 speech_timeout=5,  # Reduced timeout for better responsiveness
                 timeout=7,  # Still give time to think but reduce waitin) as g:
-            )as g:
+            ) as g:
                 g.say(
                     "I'm waiting for your order. Please tell me what sushi items you'd like to order. For example, you can say 'I'd like two California rolls and one spicy tuna roll'."
                 )
@@ -541,8 +585,6 @@ def take_order():
     # Use the agent to analyze the order
     analysis = analyze_user_input(user_resp)
     intent = analysis.get("intent", "other")
-    
-
 
     # Build the voice response
     response = VoiceResponse()
@@ -589,35 +631,43 @@ def take_order():
         return Response(str(response), mimetype="text/xml")
 
     # Get the menu items from the analysis
-    
-            # Create an order parsing agent
+
+    # Create an order parsing agent
     agent = OrderParsingAgent()
-            
+
     menu_items = []
     # Parse the input
     logger.info(f"[ANALYZE-INPUT] Analyzing user input: '{user_resp}'")
     parsed_order = agent.parse_order(user_resp)
     logger.info(f"[PARSED-ORDER]: {parsed_order}")
-            
+
     # If we found menu items, this is likely an order
     if parsed_order.get("items"):
         menu_items = parsed_order.get("items", [])
         intent = "order_food"
-        logger.info(f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'")
-                
+        logger.info(
+            f"[ANALYZE-RESULT] Found {len(menu_items)} items, intent: 'order_food'"
+        )
+
         # Ensure modifiers are preserved for each item
         for item in menu_items:
             if "modifier" in item and item["modifier"]:
-                logger.info(f"[ANALYZE-MODS] Item '{item.get('name')}' has {len(item['modifier'])} modifiers")
+                logger.info(
+                    f"[ANALYZE-MODS] Item '{item.get('name')}' has {len(item['modifier'])} modifiers"
+                )
                 # Log each modifier for debugging
                 for mod in item["modifier"]:
                     if isinstance(mod, dict):
-                        logger.info(f"[ANALYZE-MOD-DETAIL] Modifier for {item.get('name')}: {mod.get('name')} (ref: {mod.get('reference_handler', 'none')})")
+                        logger.info(
+                            f"[ANALYZE-MOD-DETAIL] Modifier for {item.get('name')}: {mod.get('name')} (ref: {mod.get('reference_handler', 'none')})"
+                        )
                     else:
-                        logger.warning(f"[ANALYZE-MOD-ERROR] Invalid modifier format: {mod}")
+                        logger.warning(
+                            f"[ANALYZE-MOD-ERROR] Invalid modifier format: {mod}"
+                        )
 
     order_items = menu_items
-    logger.info(f"order_items: {order_items}") 
+    logger.info(f"order_items: {order_items}")
     # Process and mark any unavailable items
     from app.utils.order_utils import mark_unavailable_items
 
@@ -651,27 +701,33 @@ def take_order():
 
     # Check if any items need modifier suggestions
     # Before proceeding to order confirmation, check if we should suggest modifiers
-    items_needing_modifiers, constraint_details = check_for_missing_modifiers(available_items)
-    
+    items_needing_modifiers, constraint_details = check_for_missing_modifiers(
+        available_items
+    )
+
     # Store constraint details in session for use in the modifier suggestion flow
     session["constraint_details"] = json.dumps(constraint_details)
-    
+
     if items_needing_modifiers:
         # Store current order in session for the modifier suggestion flow
         session["order_items_without_modifiers_json"] = json.dumps(order_items)
-        
+
         # Get the first item that needs modifiers
         item_to_modify = items_needing_modifiers[0]
         item_name = item_to_modify.get("name", "")
-        
+
         # Store which item we're currently suggesting modifiers for
         session["current_modifier_item"] = item_name
-        session["remaining_modifier_items"] = json.dumps(items_needing_modifiers[1:]) if len(items_needing_modifiers) > 1 else "[]"
-        
+        session["remaining_modifier_items"] = (
+            json.dumps(items_needing_modifiers[1:])
+            if len(items_needing_modifiers) > 1
+            else "[]"
+        )
+
         # Get modifier suggestions using the agent
         agent = OrderParsingAgent()
         modifier_prompt = agent.menu_tool.generate_modifier_prompt(item_name)
-        
+
         # If we have a good prompt, ask the customer
         if modifier_prompt:
             logger.info(f"Suggesting modifiers for {item_name}: {modifier_prompt}")
@@ -687,7 +743,7 @@ def take_order():
             ) as g:
                 g.say(modifier_prompt)
             return Response(str(response), mimetype="text/xml")
-    
+
     # If no items need modifiers, or we couldn't generate a prompt, continue with standard flow
     # Calculate total and prepare confirmation
     calculate_bill_amount(order_items)
@@ -722,27 +778,34 @@ def confirm_order_from_initial():
     """
     Handle order confirmation after initial order has been placed.
     This route now checks whether to proceed directly or check for modifiers first.
-    
+
     The route accepts a skip_modifiers parameter to bypass modifier suggestions.
     It also respects a completed_modifiers session flag to prevent infinite loops.
     """
     # Check if we've already completed the modifier flow
     completed_modifiers = session.get("completed_modifiers", "false").lower() == "true"
-    
+
     # Critical fix: Check for modifiers first unless explicitly disabled or already completed
-    if request.form.get("skip_modifiers", "false").lower() != "true" and not completed_modifiers:
-        # Get the current order items 
+    if (
+        request.form.get("skip_modifiers", "false").lower() != "true"
+        and not completed_modifiers
+    ):
+        # Get the current order items
         if "order_items_json" in session:
             # Check if these items need modifiers
             order_items = json.loads(session.get("order_items_json", "[]"))
             items_needing_modifiers, _ = check_for_missing_modifiers(order_items)
-            
+
             # Only redirect if we actually need modifiers
             if items_needing_modifiers:
-                logger.info("CRITICAL FIX: Redirecting to suggest_modifiers to check for needed modifiers first")
+                logger.info(
+                    "CRITICAL FIX: Redirecting to suggest_modifiers to check for needed modifiers first"
+                )
                 logger.info(f"Session keys available: {list(session.keys())}")
-                logger.info(f"Order items in session: {session.get('order_items_json', '[]')}")
-                
+                logger.info(
+                    f"Order items in session: {session.get('order_items_json', '[]')}"
+                )
+
                 # Create and return the redirect response
                 response = VoiceResponse()
                 response.redirect("/suggest_modifiers")
@@ -766,15 +829,17 @@ def confirm_order_from_initial():
 
     # Create voice response
     response = VoiceResponse()
-    
+
     # Check for silence (no input detected)
     if not user_resp and not dtmf_input:
         # Track confirmation silence retries
         confirm_silence_retry = session.get("confirm_silence_retry", 0)
         session["confirm_silence_retry"] = confirm_silence_retry + 1
-        
-        logger.info(f"Silence detected in initial order confirmation (attempt {confirm_silence_retry+1})")
-        
+
+        logger.info(
+            f"Silence detected in initial order confirmation (attempt {confirm_silence_retry+1})"
+        )
+
         if confirm_silence_retry >= 2:
             # After multiple silent attempts, provide simple DTMF-only options
             with response.gather(
@@ -802,7 +867,7 @@ def confirm_order_from_initial():
                     "I didn't hear your response. Please say yes or press 1 to confirm your order, or say no or press 2 to modify it."
                 )
         return Response(str(response), mimetype="text/xml")
-        
+
     # Interpret response
     interpreted = None
     if dtmf_input:
@@ -812,10 +877,10 @@ def confirm_order_from_initial():
             interpreted = "yes"
         elif user_said_no(user_resp):
             interpreted = "no"
-            
+
     # Reset silence counter if we received input
     session["confirm_silence_retry"] = 0
-    
+
     log_info(f"User confirmation interpreted as: {interpreted}")
 
     # Handle "yes" - process the order
@@ -848,53 +913,64 @@ def confirm_order_from_initial():
                     + ". Press 1 to remove them, 2 to cancel."
                 )
             return Response(str(response), mimetype="text/xml")
-            
+
         # CRITICAL: Check for invalid modifiers that aren't in the menu
         # Get all valid modifiers from the menu
         menu_data = load_menu_data(force_refresh=True)
         valid_modifiers = {
             mod.get("name", "").lower(): mod
             for mod in menu_data.get("modifiers", [])
-            if mod.get("name") and mod.get("available", True) and not mod.get("snoozed", False)
+            if mod.get("name")
+            and mod.get("available", True)
+            and not mod.get("snoozed", False)
         }
-        
+
         # Check each item for invalid modifiers
         invalid_item_modifiers = []
-        
+
         for item in order_items:
             item_name = item.get("name", "")
             invalid_mods = []
-            
+
             # Check each modifier against the menu
             for mod in item.get("modifier", []):
                 mod_name = mod.get("name", "").lower()
                 # Skip standard cooking terms - these are the only exceptions
-                if mod_name in ["rare", "medium rare", "medium", "medium well", "well done"]:
+                if mod_name in [
+                    "rare",
+                    "medium rare",
+                    "medium",
+                    "medium well",
+                    "well done",
+                ]:
                     continue
-                
+
                 # Check if modifier exists in the menu
                 if mod_name not in valid_modifiers:
                     invalid_mods.append(mod.get("name", "unknown"))
-            
+
             # If invalid modifiers found for this item, add to the list
             if invalid_mods:
-                invalid_item_modifiers.append({
-                    "item": item_name,
-                    "invalid_modifiers": invalid_mods
-                })
-        
+                invalid_item_modifiers.append(
+                    {"item": item_name, "invalid_modifiers": invalid_mods}
+                )
+
         # If any items have invalid modifiers, alert the user
         if invalid_item_modifiers:
             # Create a readable message about the invalid modifiers
             alert_message = "I'm sorry, but some of your order items have modifiers that are not on our menu. "
-            
-            for invalid_item in invalid_item_modifiers[:2]:  # Limit to first 2 items for brevity
+
+            for invalid_item in invalid_item_modifiers[
+                :2
+            ]:  # Limit to first 2 items for brevity
                 item_name = invalid_item["item"]
                 invalid_mods = ", ".join(invalid_item["invalid_modifiers"])
-                alert_message += f"Your {item_name} has invalid modifiers: {invalid_mods}. "
-            
+                alert_message += (
+                    f"Your {item_name} has invalid modifiers: {invalid_mods}. "
+                )
+
             alert_message += "Would you like to continue without these modifiers, or modify your order? Press 1 to continue without invalid modifiers, or press 2 to modify your order."
-            
+
             # Prompt the user to decide what to do
             with response.gather(
                 input="speech dtmf",
@@ -904,13 +980,13 @@ def confirm_order_from_initial():
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
                 g.say(alert_message)
-            
+
             # Store the invalid modifiers in session for handling
             session["invalid_item_modifiers"] = json.dumps(invalid_item_modifiers)
-            
+
             return Response(str(response), mimetype="text/xml")
 
         # Redirect to the order checkout process which will handle everything
@@ -968,7 +1044,7 @@ def confirm_order_from_initial():
 def new_modify_order():
     """
     Handle order modifications with strict validation.
-    
+
     This route handles order changes including additions, removals, and modifications.
     It verifies all modifiers against the menu to ensure they exist and are available,
     rejecting any that don't meet these criteria.
@@ -1018,13 +1094,23 @@ def new_modify_order():
 
     logger.info(f"User requested order modification: {user_resp}")
     current_order_items = json.loads(session.get("order_items_json", "[]"))
-    logger.info(f"Initial order items when starting modification: {len(current_order_items)} items")
-    
+    logger.info(
+        f"Initial order items when starting modification: {len(current_order_items)} items"
+    )
+
     # Clear the session if we're starting a new conversation
-    if len(current_order_items) > 0 and any(item.get("name") == "Chicken Sate" for item in current_order_items):
-        logger.info("Found unexpected Chicken Sate in order, clearing session to start fresh")
+    if len(current_order_items) > 0 and any(
+        item.get("name") == "Chicken Sate" for item in current_order_items
+    ):
+        logger.info(
+            "Found unexpected Chicken Sate in order, clearing session to start fresh"
+        )
         # Reset the session with only the steak item
-        clean_order = [item for item in current_order_items if item.get("name") == "Delicious Steak Frites"]
+        clean_order = [
+            item
+            for item in current_order_items
+            if item.get("name") == "Delicious Steak Frites"
+        ]
         current_order_items = clean_order
         session["order_items_json"] = json.dumps(current_order_items)
         logger.info(f"Cleaned order items: {len(current_order_items)} items")
@@ -1036,14 +1122,18 @@ def new_modify_order():
     response = VoiceResponse()
 
     # If no valid modifications, ask again
-    if not modifications or (
-        "additions" not in modifications and 
-        "removals" not in modifications and
-        "modifications" not in modifications
-    ) or (
-        len(modifications.get("additions", [])) == 0 and 
-        len(modifications.get("removals", [])) == 0 and
-        len(modifications.get("modifications", [])) == 0
+    if (
+        not modifications
+        or (
+            "additions" not in modifications
+            and "removals" not in modifications
+            and "modifications" not in modifications
+        )
+        or (
+            len(modifications.get("additions", [])) == 0
+            and len(modifications.get("removals", [])) == 0
+            and len(modifications.get("modifications", [])) == 0
+        )
     ):
         with response.gather(
             input="speech",
@@ -1061,35 +1151,41 @@ def new_modify_order():
 
     # Load the menu for modifier validation
     menu_data = load_menu_data(force_refresh=True)
-    
+
     # Get all valid modifiers from the menu
     valid_menu_modifiers = {
         mod.get("name", "").lower(): mod
         for mod in menu_data.get("modifiers", [])
-        if mod.get("name") and mod.get("available", True) and not mod.get("snoozed", False)
+        if mod.get("name")
+        and mod.get("available", True)
+        and not mod.get("snoozed", False)
     }
-    
+
     # Standard cooking terms that should always be accepted
     cooking_terms = ["rare", "medium rare", "medium", "medium well", "well done"]
-    
+
     logger.info(f"Found {len(valid_menu_modifiers)} valid modifiers in menu")
-    
+
     # Apply strict validation to all modifiers in additions and modifications
     invalid_modifiers = []
-    
+
     # Validate modifiers in additions
     for addition in modifications.get("additions", []):
         if "modifier" in addition and addition["modifier"]:
             valid_addition_mods = []
-            
+
             for mod in addition["modifier"]:
-                mod_name = mod.get("name", "").lower() if isinstance(mod, dict) else mod.lower()
-                
+                mod_name = (
+                    mod.get("name", "").lower()
+                    if isinstance(mod, dict)
+                    else mod.lower()
+                )
+
                 # Validation priority:
                 # 1. First check exact match by name in menu
                 # 2. Then allow only standard cooking terms as exceptions
                 # 3. Reject everything else
-                
+
                 if mod_name in valid_menu_modifiers:
                     # Valid menu modifier
                     if isinstance(mod, dict):
@@ -1104,7 +1200,7 @@ def new_modify_order():
                             "name": menu_mod.get("name"),
                             "reference_handler": menu_mod.get("reference_handler"),
                             "price": menu_mod.get("price", 0.0),
-                            "quantity": 1
+                            "quantity": 1,
                         }
                     valid_addition_mods.append(mod)
                     logger.info(f"Validated modifier with exact menu match: {mod_name}")
@@ -1117,7 +1213,7 @@ def new_modify_order():
                             "name": mod_name.capitalize(),
                             "reference_handler": f"COOK-{hash(mod_name) % 100:02d}",
                             "price": 0.0,
-                            "quantity": 1
+                            "quantity": 1,
                         }
                     valid_addition_mods.append(mod)
                     logger.info(f"Validated standard cooking modifier: {mod_name}")
@@ -1125,18 +1221,22 @@ def new_modify_order():
                     # Invalid modifier - reject it
                     invalid_modifiers.append(mod_name)
                     logger.warning(f"Rejected invalid modifier in addition: {mod_name}")
-            
+
             # Replace with only valid modifiers
             addition["modifier"] = valid_addition_mods
-    
+
     # Validate modifiers in item-specific modifications
     for modification in modifications.get("modifications", []):
         if "modifier" in modification and modification["modifier"]:
             valid_mod_mods = []
-            
+
             for mod in modification["modifier"]:
-                mod_name = mod.get("name", "").lower() if isinstance(mod, dict) else mod.lower()
-                
+                mod_name = (
+                    mod.get("name", "").lower()
+                    if isinstance(mod, dict)
+                    else mod.lower()
+                )
+
                 # Same validation priority as above
                 if mod_name in valid_menu_modifiers:
                     # Valid menu modifier
@@ -1152,7 +1252,7 @@ def new_modify_order():
                             "name": menu_mod.get("name"),
                             "reference_handler": menu_mod.get("reference_handler"),
                             "price": menu_mod.get("price", 0.0),
-                            "quantity": 1
+                            "quantity": 1,
                         }
                     valid_mod_mods.append(mod)
                     logger.info(f"Validated modifier with exact menu match: {mod_name}")
@@ -1165,25 +1265,29 @@ def new_modify_order():
                             "name": mod_name.capitalize(),
                             "reference_handler": f"COOK-{hash(mod_name) % 100:02d}",
                             "price": 0.0,
-                            "quantity": 1
+                            "quantity": 1,
                         }
                     valid_mod_mods.append(mod)
                     logger.info(f"Validated standard cooking modifier: {mod_name}")
                 else:
                     # Invalid modifier - reject it
                     invalid_modifiers.append(mod_name)
-                    logger.warning(f"Rejected invalid modifier in modification: {mod_name}")
-            
+                    logger.warning(
+                        f"Rejected invalid modifier in modification: {mod_name}"
+                    )
+
             # Replace with only valid modifiers
             modification["modifier"] = valid_mod_mods
-    
+
     # If invalid modifiers were detected, inform the user
     if invalid_modifiers:
         logger.warning(f"Detected invalid modifiers: {invalid_modifiers}")
-        
+
         # Get menu suggestions for alternatives
-        suggested_alternatives = list(valid_menu_modifiers.keys())[:5]  # Take first 5 valid modifiers
-        
+        suggested_alternatives = list(valid_menu_modifiers.keys())[
+            :5
+        ]  # Take first 5 valid modifiers
+
         # Create a response informing about invalid modifiers
         with response.gather(
             input="speech dtmf",
@@ -1199,53 +1303,62 @@ def new_modify_order():
             suggestion_text = ""
             if suggested_alternatives:
                 suggestion_text = f" Some available modifiers include: {', '.join(suggested_alternatives)}."
-                
-            g.say(f"I'm sorry, but we don't have '{modifier_text}' on our menu.{suggestion_text} Please specify a different modifier or press 1 to continue without these modifiers.")
+
+            g.say(
+                f"I'm sorry, but we don't have '{modifier_text}' on our menu.{suggestion_text} Please specify a different modifier or press 1 to continue without these modifiers."
+            )
         return Response(str(response), mimetype="text/xml")
-    
+
     # Apply modifications using the validated data
     try:
         from app.utils.order_utils import apply_modifications as apply_from_utils
+
         logger.info("Using apply_modifications from order_utils.py")
         updated_items = apply_from_utils(current_order_items, modifications)
     except Exception as e:
         logger.error(f"Error using apply_modifications from order_utils.py: {str(e)}")
         # Fall back to the local function
         updated_items = apply_modifications(current_order_items, modifications)
-    
+
     logger.info(f"Order updated: {len(updated_items)} items with modifications applied")
 
     # CRITICAL: Perform one final validation to ensure all items and modifiers are valid
     from app.utils.order_utils import prepare_order_for_deliverect
-    
+
     try:
         # This is the most strict validation that ensures only valid menu items with valid modifiers remain
         validated_items = prepare_order_for_deliverect(updated_items)
-        
+
         # Update order with strictly validated items
         updated_items = validated_items
-        logger.info(f"Final validation completed: {len(validated_items)} valid items remain")
-        
+        logger.info(
+            f"Final validation completed: {len(validated_items)} valid items remain"
+        )
+
         # Check for items or modifiers that were removed during validation
         if len(validated_items) < len(updated_items):
-            logger.warning(f"Validation removed {len(updated_items) - len(validated_items)} invalid items")
+            logger.warning(
+                f"Validation removed {len(updated_items) - len(validated_items)} invalid items"
+            )
     except Exception as e:
         logger.error(f"Error during final validation: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         # Continue with the order as-is if validation fails
-    
+
     # Update session with the validated order
     session["order_items_json"] = json.dumps(updated_items)
     calculate_bill_amount(updated_items)
     session["bill_amount"] = int(session.get("total_price", 0) * 100)
     order_description = build_order_description(updated_items)
-    
+
     # Log detailed order information including modifiers
     logger.info(f"Final order after complete validation: {len(updated_items)} items")
     for item in updated_items:
         if "modifier" in item and item["modifier"]:
             mod_list = [f"{mod.get('name', 'unknown')}" for mod in item["modifier"]]
-            logger.info(f"Item {item.get('name')} has {len(item['modifier'])} modifiers: {', '.join(mod_list)}")
+            logger.info(
+                f"Item {item.get('name')} has {len(item['modifier'])} modifiers: {', '.join(mod_list)}"
+            )
 
     # Confirm updated order
     confirmation_message = (
@@ -1272,9 +1385,11 @@ def apply_modifications(current_order, modifications):
     additions = modifications.get("additions", [])
     removals = modifications.get("removals", [])
     item_modifications = modifications.get("modifications", [])
-    
+
     # Log the received modifications
-    logger.info(f"[ORDER-MODIFY] Received modifications: additions={len(additions)}, removals={len(removals)}, modifications={len(item_modifications)}")
+    logger.info(
+        f"[ORDER-MODIFY] Received modifications: additions={len(additions)}, removals={len(removals)}, modifications={len(item_modifications)}"
+    )
 
     # Ensure all removals have a "name" field
     for removal in removals:
@@ -1302,7 +1417,9 @@ def apply_modifications(current_order, modifications):
     logger.info(f"[ORDER-MODIFY] Current order: {json.dumps(current_order)}")
     logger.info(f"[ORDER-MODIFY] Processed additions: {json.dumps(additions)}")
     logger.info(f"[ORDER-MODIFY] Processed removals: {json.dumps(removals)}")
-    logger.info(f"[ORDER-MODIFY] Processed item modifications: {json.dumps(item_modifications)}")
+    logger.info(
+        f"[ORDER-MODIFY] Processed item modifications: {json.dumps(item_modifications)}"
+    )
 
     # Process removals
     for removal in removals:
@@ -1451,101 +1568,130 @@ def apply_modifications(current_order, modifications):
     for modification in item_modifications:
         # Each modification should have an item_name and a modifier array
         if not isinstance(modification, dict):
-            logger.warning(f"[ORDER-MODIFY] Skipping invalid modification format: {modification}")
+            logger.warning(
+                f"[ORDER-MODIFY] Skipping invalid modification format: {modification}"
+            )
             continue
-            
+
         # Get the item name to modify
         item_name = None
         if "item_name" in modification:
             item_name = modification["item_name"].lower()
         elif "name" in modification:
             item_name = modification["name"].lower()
-        
+
         # Skip if no valid item name
         if not item_name:
-            logger.warning(f"[ORDER-MODIFY] Skipping modification with no item name: {modification}")
+            logger.warning(
+                f"[ORDER-MODIFY] Skipping modification with no item name: {modification}"
+            )
             continue
-            
+
         # Find the item in the current order
         if item_name in current_order_by_name:
             # Get the modifiers to add
             modifiers_to_add = modification.get("modifier", [])
-            
+
             # Process each modifier
             for mod in modifiers_to_add:
                 # Convert string modifiers to dictionary format
                 if isinstance(mod, str):
                     # Create a properly formatted modifier from the string
                     mod_name = mod.strip()
-                    
+
                     # Determine modifier type
-                    if "cook" in mod_name.lower() or "rare" in mod_name.lower() or "medium" in mod_name.lower() or "well" in mod_name.lower():
+                    if (
+                        "cook" in mod_name.lower()
+                        or "rare" in mod_name.lower()
+                        or "medium" in mod_name.lower()
+                        or "well" in mod_name.lower()
+                    ):
                         mod_type = "COOK"
-                    elif "side" in mod_name.lower() or "fries" in mod_name.lower() or "salad" in mod_name.lower():
+                    elif (
+                        "side" in mod_name.lower()
+                        or "fries" in mod_name.lower()
+                        or "salad" in mod_name.lower()
+                    ):
                         mod_type = "SIDE"
                     else:
                         mod_type = "GEN"
-                    
+
                     # Convert to dictionary
                     mod = {
                         "name": mod_name.capitalize(),
                         "quantity": 1,
                         "price": 0.0,
-                        "reference_handler": f"MOD-{mod_type}-{mod_name.lower().replace(' ', '-')}"
+                        "reference_handler": f"MOD-{mod_type}-{mod_name.lower().replace(' ', '-')}",
                     }
-                    logger.info(f"[ORDER-MODIFY] Converted string modifier '{mod_name}' to dictionary format")
-                
+                    logger.info(
+                        f"[ORDER-MODIFY] Converted string modifier '{mod_name}' to dictionary format"
+                    )
+
                 # Skip non-dictionary modifiers that couldn't be converted
                 if not isinstance(mod, dict):
-                    logger.warning(f"[ORDER-MODIFY] Skipping non-dictionary modifier: {mod}")
+                    logger.warning(
+                        f"[ORDER-MODIFY] Skipping non-dictionary modifier: {mod}"
+                    )
                     continue
-                    
+
                 # Get modifier information
                 mod_name = mod.get("name", "").lower()
                 mod_quantity = mod.get("quantity", 1)
-                
+
                 if not mod_name:
                     continue
-                    
+
                 # Find the modifier in the menu to get complete information
                 menu_data = load_menu_data()
                 menu_modifier = None
-                
+
                 # Search for the modifier in the menu
                 for menu_mod in menu_data.get("modifiers", []):
                     if menu_mod.get("name", "").lower() == mod_name:
                         menu_modifier = menu_mod
                         break
-                
+
                 # Create or update the modifier with complete information
                 mod_to_add = {
-                    "name": menu_modifier.get("name", mod_name.title()) if menu_modifier else mod_name.title(),
+                    "name": (
+                        menu_modifier.get("name", mod_name.title())
+                        if menu_modifier
+                        else mod_name.title()
+                    ),
                     "quantity": mod_quantity,
                     "price": menu_modifier.get("price", 0.0) if menu_modifier else 0.0,
-                    "reference_handler": menu_modifier.get("reference_handler", "") if menu_modifier else ""
+                    "reference_handler": (
+                        menu_modifier.get("reference_handler", "")
+                        if menu_modifier
+                        else ""
+                    ),
                 }
-                
+
                 # Check if the modifier already exists in the item
                 current_modifiers = current_order_by_name[item_name].get("modifier", [])
                 mod_found = False
-                
+
                 for i, existing_mod in enumerate(current_modifiers):
                     if existing_mod.get("name", "").lower() == mod_name:
                         # Update existing modifier quantity
                         current_modifiers[i]["quantity"] += mod_quantity
                         mod_found = True
                         break
-                
+
                 # If modifier not found, add it
                 if not mod_found:
                     current_modifiers.append(mod_to_add)
-                
+
                 # Update the item's modifiers
                 current_order_by_name[item_name]["modifier"] = current_modifiers
-                
-                logger.info(f"[ORDER-MODIFY] Added/Updated modifier '{mod_to_add['name']}' to item '{current_order_by_name[item_name]['name']}'")
+
+                logger.info(
+                    f"[ORDER-MODIFY] Added/Updated modifier '{mod_to_add['name']}' to item '{current_order_by_name[item_name]['name']}'"
+                )
         else:
-            logger.warning(f"[ORDER-MODIFY] Cannot modify non-existent item: {item_name}")
+            logger.warning(
+                f"[ORDER-MODIFY] Cannot modify non-existent item: {item_name}"
+            )
 
     # Return the updated order as a list
     return list(current_order_by_name.values())
@@ -1570,15 +1716,17 @@ def confirm_order_after_modification():
 
     # Create response
     response = VoiceResponse()
-    
+
     # Check for silence (no input detected)
     if not user_resp and not dtmf_input:
         # Track final confirmation silence retries
         final_silence_retry = session.get("final_silence_retry", 0)
         session["final_silence_retry"] = final_silence_retry + 1
-        
-        logger.info(f"Silence detected in final order confirmation (attempt {final_silence_retry+1})")
-        
+
+        logger.info(
+            f"Silence detected in final order confirmation (attempt {final_silence_retry+1})"
+        )
+
         if final_silence_retry >= 2:
             # After multiple silent attempts, provide simple DTMF-only options with extended timeout
             with response.gather(
@@ -1616,10 +1764,10 @@ def confirm_order_after_modification():
             interpreted = "yes"
         elif user_said_no(user_resp):
             interpreted = "no"
-            
+
     # Reset silence counter if we received input
     session["final_silence_retry"] = 0
-    
+
     log_info(f"User final decision: {interpreted}")
 
     # Handle "yes" - process the order
@@ -1680,82 +1828,107 @@ def confirm_order_after_modification():
         # Send to Deliverect and SMS confirmation
         try:
             # Import the validation function to ensure all items have reference handlers
-            from app.utils.order_utils import prepare_order_for_deliverect, validate_modifiers
+            from app.utils.order_utils import (
+                prepare_order_for_deliverect,
+                validate_modifiers,
+            )
             from app.utils.menu_utils import load_menu_data
 
             # CRITICAL: First validate all modifiers strictly against the menu
             # Load the current menu data to get valid modifiers
             menu_data = load_menu_data(force_refresh=True)
-            
+
             # Get all valid modifiers from the menu (only available, non-snoozed modifiers)
             valid_menu_modifiers = {
                 mod.get("name", "").lower(): mod
                 for mod in menu_data.get("modifiers", [])
-                if mod.get("name") and mod.get("available", True) and not mod.get("snoozed", False)
+                if mod.get("name")
+                and mod.get("available", True)
+                and not mod.get("snoozed", False)
             }
-            
+
             # Validate modifiers first
-            logger.info(f"Performing strict modifier validation on {len(order_items)} items before final submission")
-            
+            logger.info(
+                f"Performing strict modifier validation on {len(order_items)} items before final submission"
+            )
+
             # Standard cooking terms that are always allowed
-            cooking_terms = ["rare", "medium rare", "medium", "medium well", "well done"]
-            
+            cooking_terms = [
+                "rare",
+                "medium rare",
+                "medium",
+                "medium well",
+                "well done",
+            ]
+
             # Track any rejected modifiers to inform the user
             all_rejected_modifiers = []
-            
+
             # For each item, perform strict validation of modifiers
             for item in order_items:
                 if "modifier" in item and item["modifier"]:
                     valid_item_mods = []
                     rejected_item_mods = []
-                    
+
                     for mod in item["modifier"]:
                         if not isinstance(mod, dict) or "name" not in mod:
                             continue
-                            
+
                         mod_name = mod.get("name", "").lower()
-                        
+
                         # Validation priority:
                         # 1. First check exact match by name in menu
                         # 2. Then allow only standard cooking terms as exceptions
                         # 3. Reject everything else
-                        
+
                         if mod_name in valid_menu_modifiers:
                             # Found exact match by name in menu
                             menu_mod = valid_menu_modifiers[mod_name]
                             mod["reference_handler"] = menu_mod.get("reference_handler")
                             mod["price"] = menu_mod.get("price", 0.0)
                             valid_item_mods.append(mod)
-                            logger.info(f"Validated modifier with exact menu match: {mod_name}")
+                            logger.info(
+                                f"Validated modifier with exact menu match: {mod_name}"
+                            )
                         elif mod_name in cooking_terms:
                             # Special case for cooking preferences (these are the ONLY exceptions allowed)
-                            mod["reference_handler"] = f"COOK-{hash(mod_name) % 100:02d}"
+                            mod["reference_handler"] = (
+                                f"COOK-{hash(mod_name) % 100:02d}"
+                            )
                             valid_item_mods.append(mod)
-                            logger.info(f"Validated standard cooking modifier: {mod_name}")
+                            logger.info(
+                                f"Validated standard cooking modifier: {mod_name}"
+                            )
                         else:
                             # Not in menu - reject it!
                             rejected_item_mods.append(mod_name)
                             all_rejected_modifiers.append(mod_name)
-                            logger.warning(f"Rejected non-menu modifier in final confirmation: {mod_name}")
-                    
+                            logger.warning(
+                                f"Rejected non-menu modifier in final confirmation: {mod_name}"
+                            )
+
                     # Update with only valid modifiers
                     item["modifier"] = valid_item_mods
-                    
+
                     if rejected_item_mods:
-                        logger.warning(f"Removed {len(rejected_item_mods)} invalid modifiers from {item.get('name')}: {', '.join(rejected_item_mods)}")
-            
+                        logger.warning(
+                            f"Removed {len(rejected_item_mods)} invalid modifiers from {item.get('name')}: {', '.join(rejected_item_mods)}"
+                        )
+
             # If we found invalid modifiers, inform the user
             if all_rejected_modifiers:
                 # Create a deduplicated list of rejected modifiers
                 unique_rejected = list(set(all_rejected_modifiers))
-                logger.warning(f"Found {len(unique_rejected)} invalid modifiers: {', '.join(unique_rejected)}")
-                
+                logger.warning(
+                    f"Found {len(unique_rejected)} invalid modifiers: {', '.join(unique_rejected)}"
+                )
+
                 # Store rejected modifiers in session to reference later if needed
                 session["rejected_modifiers"] = json.dumps(unique_rejected)
-                
+
                 # Route through the standard invalid modifier handler with the updated order items
                 session["order_items_json"] = json.dumps(order_items)
-                
+
                 with response.gather(
                     input="speech dtmf",
                     action="/handle_invalid_modifiers",
@@ -1770,7 +1943,7 @@ def confirm_order_after_modification():
                         "Press 1 or say 'continue' to remove them and continue with your order, or press 2 or say 'modify' to make changes."
                     )
                 return Response(str(response), mimetype="text/xml")
-            
+
             # Now perform full validation through prepare_order_for_deliverect
             validated_items = prepare_order_for_deliverect(order_items)
 
@@ -1851,7 +2024,7 @@ def confirm_order_after_modification():
         response.say(
             f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status."
         )
-        
+
         # Instead of hanging up, ask if they need anything else
         with response.gather(
             input="speech dtmf",
@@ -1861,10 +2034,12 @@ def confirm_order_after_modification():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("Is there anything else you'd like help with today? Press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call.")
-        
+            g.say(
+                "Is there anything else you'd like help with today? Press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call."
+            )
+
         # Fallback if no input received
         response.redirect("/order_completion_options")
 
@@ -1930,23 +2105,29 @@ def understanding_fallback():
 
     # Create response
     response = VoiceResponse()
-    
+
     # Check for silence (no input detected)
     if not user_resp and not dtmf_input:
         # Track silence during understanding fallback
         understand_silence_retry = session.get("understand_silence_retry", 0)
         session["understand_silence_retry"] = understand_silence_retry + 1
-        
-        logger.info(f"Silence detected in understanding fallback (attempt {understand_silence_retry+1})")
-        
+
+        logger.info(
+            f"Silence detected in understanding fallback (attempt {understand_silence_retry+1})"
+        )
+
         if understand_silence_retry >= 1:
             # After silence in understanding fallback, provide more guidance and clear options
-            logger.info("Multiple silences in understanding fallback - redirecting to main menu")
+            logger.info(
+                "Multiple silences in understanding fallback - redirecting to main menu"
+            )
             session["understand_silence_retry"] = 0
             session["understanding_attempt"] = 0
-            
+
             # Give the user a clear message and redirect to main menu
-            response.say("I notice you're not responding. Let me help you with our main menu options instead.")
+            response.say(
+                "I notice you're not responding. Let me help you with our main menu options instead."
+            )
             response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
         else:
@@ -1959,7 +2140,7 @@ def understanding_fallback():
                 language="en-US",
                 speech_timeout=7,
                 timeout=10,
-                num_digits=1
+                num_digits=1,
             ) as g:
                 g.say(
                     "I didn't hear your response. Press 1 or say 'menu' to hear our popular menu options. Press 2 or say 'main menu' to go back to the main menu."
@@ -1968,7 +2149,7 @@ def understanding_fallback():
 
     # Reset silence counter if we got a response
     session["understand_silence_retry"] = 0
-    
+
     # After too many fallbacks, force back to main menu
     if understanding_attempt >= 2:
         logger.info("Too many understanding fallbacks - forcing back to main menu")
@@ -2036,22 +2217,26 @@ def modification_silence_fallback():
 
     # Create response
     response = VoiceResponse()
-    
+
     # Check for silence (no input detected)
     if not user_resp and not dtmf_input:
         # Track silence in modification fallback
         mod_silence_count = session.get("mod_silence_count", 0)
         session["mod_silence_count"] = mod_silence_count + 1
-        
-        logger.info(f"Silence detected in modification fallback (attempt {mod_silence_count+1})")
-        
+
+        logger.info(
+            f"Silence detected in modification fallback (attempt {mod_silence_count+1})"
+        )
+
         # After silence, confirm with user before proceeding with order as-is
         if mod_silence_count >= 1:
-            logger.warning("Multiple silences in modification fallback - proceeding with order as is")
+            logger.warning(
+                "Multiple silences in modification fallback - proceeding with order as is"
+            )
             session["mod_silence_count"] = 0
             session["mod_fallback_count"] = 0
             session["modify_silence_retry"] = 0
-            
+
             # Give clear spoken confirmation before proceeding
             response.say(
                 "I'll keep your order as is since I'm not hearing your modifications. Let's continue with your order confirmation."
@@ -2068,13 +2253,13 @@ def modification_silence_fallback():
                 language="en-US",
                 speech_timeout=5,
                 timeout=8,
-                num_digits=1
+                num_digits=1,
             ) as g:
                 g.say(
                     "I didn't hear your response. Press 1 or say 'continue' to keep your order as is, or press 2 or say 'cancel' to cancel the order."
                 )
             return Response(str(response), mimetype="text/xml")
-    
+
     # Reset silence counter if we got a response
     session["mod_silence_count"] = 0
 
@@ -2091,11 +2276,16 @@ def modification_silence_fallback():
         return Response(str(response), mimetype="text/xml")
 
     # If they pressed 1 or said to keep order, confirm as is
-    if dtmf_input == "1" or "keep" in user_resp or "as is" in user_resp or "continue" in user_resp:
+    if (
+        dtmf_input == "1"
+        or "keep" in user_resp
+        or "as is" in user_resp
+        or "continue" in user_resp
+    ):
         # Reset modification silence counter
         session["modify_silence_retry"] = 0
         session["mod_fallback_count"] = 0
-        
+
         logger.info("User chose to keep order as is")
 
         # Redirect to confirmation
@@ -2177,7 +2367,7 @@ def handle_newly_snoozed_in_checkout():
             response.say(
                 f"All items in your order including {snoozed_items_str} are now unavailable. We apologize for the inconvenience."
             )
-            
+
             # Instead of hanging up, offer alternatives
             with response.gather(
                 input="speech dtmf",
@@ -2187,10 +2377,12 @@ def handle_newly_snoozed_in_checkout():
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
-                g.say("Press 1 to explore other menu options, press 2 to speak with a team member about today's specials, or press 3 to end the call.")
-            
+                g.say(
+                    "Press 1 to explore other menu options, press 2 to speak with a team member about today's specials, or press 3 to end the call."
+                )
+
             # Fallback if no input received
             response.redirect("/handle_unavailable_order")
             return Response(str(response), mimetype="text/xml")
@@ -2223,7 +2415,7 @@ def handle_newly_snoozed_in_checkout():
         response.say(
             f"We're sorry that {snoozed_items_str} is unavailable. Your order has been cancelled."
         )
-        
+
         # Instead of hanging up, offer alternatives
         with response.gather(
             input="speech dtmf",
@@ -2233,10 +2425,12 @@ def handle_newly_snoozed_in_checkout():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("Press 1 to explore other menu options, press 2 to speak with a team member about today's specials, or press 3 to end the call.")
-        
+            g.say(
+                "Press 1 to explore other menu options, press 2 to speak with a team member about today's specials, or press 3 to end the call."
+            )
+
         # Fallback if no input received
         response.redirect("/handle_unavailable_order")
 
@@ -2245,19 +2439,20 @@ def handle_newly_snoozed_in_checkout():
 
 # ====== New handler routes for smart silence handling and fallbacks ======
 
+
 @order_bp.route("/handle_busy_options", methods=["POST"])
 def handle_busy_options():
     """Handle options when restaurant is in busy mode"""
     # Get user input
     speech_input = request.form.get("SpeechResult", "").lower()
     digits = request.form.get("Digits", "")
-    
+
     response = VoiceResponse()
-    
+
     # Track retry counter
     retry_count = session.get("busy_options_retry", 0)
     session["busy_options_retry"] = retry_count + 1
-    
+
     # Check for silence (no input)
     if not speech_input and not digits:
         # If we've retried too many times, give a helpful message and end
@@ -2267,14 +2462,16 @@ def handle_busy_options():
                 input="dtmf",  # DTMF only for simplicity at this point
                 action="/main_menu",
                 num_digits=1,
-                timeout=10  # Give them extra time
+                timeout=10,  # Give them extra time
             ) as g:
-                g.say("We're having trouble with the connection. Press 1 to return to the main menu or stay on the line and we'll try one more time.")
-            
+                g.say(
+                    "We're having trouble with the connection. Press 1 to return to the main menu or stay on the line and we'll try one more time."
+                )
+
             # If they don't respond, redirect to the main menu as a last resort
             response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
-        
+
         # Otherwise retry with the options
         with response.gather(
             input="speech dtmf",
@@ -2284,17 +2481,24 @@ def handle_busy_options():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("I didn't catch that. Press 1 to get menu information, press 2 to leave your name and number for a callback, or press 3 to end the call.")
-            
+            g.say(
+                "I didn't catch that. Press 1 to get menu information, press 2 to leave your name and number for a callback, or press 3 to end the call."
+            )
+
         return Response(str(response), mimetype="text/xml")
-    
+
     # Process their choice
     if digits == "1" or "menu" in speech_input:
         # Redirect to menu questions
         response.redirect("/handle_menu_questions")
-    elif digits == "2" or "callback" in speech_input or "call back" in speech_input or "leave" in speech_input:
+    elif (
+        digits == "2"
+        or "callback" in speech_input
+        or "call back" in speech_input
+        or "leave" in speech_input
+    ):
         # Gather their callback information
         with response.gather(
             input="speech",
@@ -2303,11 +2507,13 @@ def handle_busy_options():
             speech_model="phone_call",
             language="en-US",
             speech_timeout=7,
-            timeout=10
+            timeout=10,
         ) as g:
             g.say("Please tell me your name and the best time to call you back.")
     elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
-        response.say("Thank you for your understanding. Please call back later when we're less busy. Goodbye!")
+        response.say(
+            "Thank you for your understanding. Please call back later when we're less busy. Goodbye!"
+        )
         response.redirect("/graceful_exit")
     else:
         # Unrecognized input, give them another chance
@@ -2319,11 +2525,14 @@ def handle_busy_options():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("I didn't understand. Press 1 for menu information, 2 to request a callback, or 3 to end the call.")
-    
+            g.say(
+                "I didn't understand. Press 1 for menu information, 2 to request a callback, or 3 to end the call."
+            )
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/handle_menu_unavailable", methods=["POST"])
 def handle_menu_unavailable():
@@ -2331,13 +2540,13 @@ def handle_menu_unavailable():
     # Get user input
     speech_input = request.form.get("SpeechResult", "").lower()
     digits = request.form.get("Digits", "")
-    
+
     response = VoiceResponse()
-    
+
     # Track retry counter
     retry_count = session.get("menu_unavailable_retry", 0)
     session["menu_unavailable_retry"] = retry_count + 1
-    
+
     # Check for silence (no input)
     if not speech_input and not digits:
         if retry_count >= 2:
@@ -2346,14 +2555,16 @@ def handle_menu_unavailable():
                 input="dtmf",  # DTMF only for simplicity at this point
                 action="/main_menu",
                 num_digits=1,
-                timeout=10  # Give them extra time
+                timeout=10,  # Give them extra time
             ) as g:
-                g.say("We're having trouble with the connection. Press 1 to return to the main menu or stay on the line and we'll try one more time.")
-            
+                g.say(
+                    "We're having trouble with the connection. Press 1 to return to the main menu or stay on the line and we'll try one more time."
+                )
+
             # If they don't respond, redirect to the main menu as a last resort
             response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
-        
+
         # Retry with options
         with response.gather(
             input="speech dtmf",
@@ -2363,14 +2574,21 @@ def handle_menu_unavailable():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("I didn't catch that. Press 1 to speak with a team member about our daily specials, press 2 to leave your contact information, or press 3 to end the call.")
-            
+            g.say(
+                "I didn't catch that. Press 1 to speak with a team member about our daily specials, press 2 to leave your contact information, or press 3 to end the call."
+            )
+
         return Response(str(response), mimetype="text/xml")
-    
+
     # Process their choice
-    if digits == "1" or "speak" in speech_input or "team" in speech_input or "specials" in speech_input:
+    if (
+        digits == "1"
+        or "speak" in speech_input
+        or "team" in speech_input
+        or "specials" in speech_input
+    ):
         # Redirect to human agent handler
         response.redirect("/handle_transfer_to_human")
     elif digits == "2" or "contact" in speech_input or "information" in speech_input:
@@ -2382,11 +2600,15 @@ def handle_menu_unavailable():
             speech_model="phone_call",
             language="en-US",
             speech_timeout=7,
-            timeout=10
+            timeout=10,
         ) as g:
-            g.say("Please tell me your name and the best way to contact you when our menu is back online.")
+            g.say(
+                "Please tell me your name and the best way to contact you when our menu is back online."
+            )
     elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
-        response.say("Thank you for your understanding. Please call back later when our menu system is available. Goodbye!")
+        response.say(
+            "Thank you for your understanding. Please call back later when our menu system is available. Goodbye!"
+        )
         response.redirect("/graceful_exit")
     else:
         # Unrecognized input
@@ -2398,11 +2620,14 @@ def handle_menu_unavailable():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("I didn't understand. Press 1 to speak with a team member, 2 to leave your contact info, or 3 to end the call.")
-    
+            g.say(
+                "I didn't understand. Press 1 to speak with a team member, 2 to leave your contact info, or 3 to end the call."
+            )
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/handle_technical_difficulties", methods=["POST"])
 def handle_technical_difficulties():
@@ -2410,13 +2635,13 @@ def handle_technical_difficulties():
     # Get user input
     speech_input = request.form.get("SpeechResult", "").lower()
     digits = request.form.get("Digits", "")
-    
+
     response = VoiceResponse()
-    
+
     # Track retry counter
     retry_count = session.get("tech_difficulties_retry", 0)
     session["tech_difficulties_retry"] = retry_count + 1
-    
+
     # Check for silence (no input)
     if not speech_input and not digits:
         if retry_count >= 2:
@@ -2425,14 +2650,16 @@ def handle_technical_difficulties():
                 input="dtmf",  # DTMF only for simplicity at this point
                 action="/main_menu",
                 num_digits=1,
-                timeout=10  # Give them extra time
+                timeout=10,  # Give them extra time
             ) as g:
-                g.say("We're having trouble with the connection. Press 1 to return to the main menu or stay on the line and we'll try one more time.")
-            
+                g.say(
+                    "We're having trouble with the connection. Press 1 to return to the main menu or stay on the line and we'll try one more time."
+                )
+
             # If they don't respond, redirect to the main menu as a last resort
             response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
-        
+
         # Retry with options
         with response.gather(
             input="speech dtmf",
@@ -2442,12 +2669,14 @@ def handle_technical_difficulties():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("I didn't catch that. Press 1 to speak with a team member, press 2 to leave your contact information, or press 3 to end the call.")
-            
+            g.say(
+                "I didn't catch that. Press 1 to speak with a team member, press 2 to leave your contact information, or press 3 to end the call."
+            )
+
         return Response(str(response), mimetype="text/xml")
-    
+
     # Process their choice
     if digits == "1" or "speak" in speech_input or "team" in speech_input:
         # Transfer to a real person
@@ -2461,11 +2690,15 @@ def handle_technical_difficulties():
             speech_model="phone_call",
             language="en-US",
             speech_timeout=7,
-            timeout=10
+            timeout=10,
         ) as g:
-            g.say("Please tell me your name and the best way to contact you once our system is working again.")
+            g.say(
+                "Please tell me your name and the best way to contact you once our system is working again."
+            )
     elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
-        response.say("We apologize for the technical difficulties. Please try calling back in a few minutes. Goodbye!")
+        response.say(
+            "We apologize for the technical difficulties. Please try calling back in a few minutes. Goodbye!"
+        )
         response.redirect("/graceful_exit")
     else:
         # Unrecognized input
@@ -2477,11 +2710,14 @@ def handle_technical_difficulties():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("I didn't understand. Press 1 to speak with a team member, 2 to leave your contact info, or 3 to end the call.")
-    
+            g.say(
+                "I didn't understand. Press 1 to speak with a team member, 2 to leave your contact info, or 3 to end the call."
+            )
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/order_completion_options", methods=["POST"])
 def order_completion_options():
@@ -2489,20 +2725,24 @@ def order_completion_options():
     # Get user input
     speech_input = request.form.get("SpeechResult", "").lower()
     digits = request.form.get("Digits", "")
-    
+
     response = VoiceResponse()
-    
+
     # Check for silence or invalid input
     if not speech_input and not digits:
         # Track silence retries
         completion_silence_retry = session.get("completion_silence_retry", 0)
         session["completion_silence_retry"] = completion_silence_retry + 1
-        
-        logger.info(f"Silence detected in order completion options (attempt {completion_silence_retry+1})")
-        
+
+        logger.info(
+            f"Silence detected in order completion options (attempt {completion_silence_retry+1})"
+        )
+
         if completion_silence_retry >= 1:
             # After second silence, just thank them and exit
-            logger.info("Multiple silences in completion options - proceeding to graceful exit")
+            logger.info(
+                "Multiple silences in completion options - proceeding to graceful exit"
+            )
             response.say("Thank you for your order at Red Bar Sushi! Goodbye!")
             response.redirect("/graceful_exit")
             return Response(str(response), mimetype="text/xml")
@@ -2516,32 +2756,57 @@ def order_completion_options():
                 language="en-US",
                 speech_timeout=5,
                 timeout=8,
-                num_digits=1
+                num_digits=1,
             ) as g:
-                g.say("If you'd like additional information, please press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call.")
+                g.say(
+                    "If you'd like additional information, please press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call."
+                )
             return Response(str(response), mimetype="text/xml")
-    
+
     # Reset silence counter if we got a response
     session["completion_silence_retry"] = 0
-    
+
     # Process their choice
-    if digits == "1" or "direction" in speech_input or "address" in speech_input or "location" in speech_input:
+    if (
+        digits == "1"
+        or "direction" in speech_input
+        or "address" in speech_input
+        or "location" in speech_input
+    ):
         # Provide directions
-        response.say("Our restaurant is located at 123 Main Street, between 5th and 6th Avenue. Parking is available in the structure across the street. Thank you for your order! Goodbye.")
+        response.say(
+            "Our restaurant is located at 123 Main Street, between 5th and 6th Avenue. Parking is available in the structure across the street. Thank you for your order! Goodbye."
+        )
         response.redirect("/graceful_exit")
-    elif digits == "2" or "hours" in speech_input or "operation" in speech_input or "open" in speech_input:
+    elif (
+        digits == "2"
+        or "hours" in speech_input
+        or "operation" in speech_input
+        or "open" in speech_input
+    ):
         # Provide hours
-        response.say("Our hours of operation are Monday through Friday from 11 AM to 10 PM, and Saturday and Sunday from 12 PM to 11 PM. Thank you for your order! Goodbye.")
+        response.say(
+            "Our hours of operation are Monday through Friday from 11 AM to 10 PM, and Saturday and Sunday from 12 PM to 11 PM. Thank you for your order! Goodbye."
+        )
         response.redirect("/graceful_exit")
-    elif digits == "3" or "end" in speech_input or "goodbye" in speech_input or "bye" in speech_input or "nothing" in speech_input:
+    elif (
+        digits == "3"
+        or "end" in speech_input
+        or "goodbye" in speech_input
+        or "bye" in speech_input
+        or "nothing" in speech_input
+    ):
         response.say("Thank you for your order at Red Bar Sushi! Goodbye!")
         response.redirect("/graceful_exit")
     else:
         # Unrecognized input, just thank them
-        response.say("Thank you for your order at Red Bar Sushi! We look forward to seeing you soon. Goodbye!")
+        response.say(
+            "Thank you for your order at Red Bar Sushi! We look forward to seeing you soon. Goodbye!"
+        )
         response.redirect("/graceful_exit")
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/handle_unavailable_order", methods=["POST"])
 def handle_unavailable_order():
@@ -2549,13 +2814,13 @@ def handle_unavailable_order():
     # Get user input
     speech_input = request.form.get("SpeechResult", "").lower()
     digits = request.form.get("Digits", "")
-    
+
     response = VoiceResponse()
-    
+
     # Track retry counter
     retry_count = session.get("unavailable_retry", 0)
     session["unavailable_retry"] = retry_count + 1
-    
+
     # Check for silence (no input)
     if not speech_input and not digits:
         if retry_count >= 2:
@@ -2564,14 +2829,16 @@ def handle_unavailable_order():
                 input="dtmf",  # DTMF only for simplicity at this point
                 action="/main_menu",
                 num_digits=1,
-                timeout=10  # Give them extra time
+                timeout=10,  # Give them extra time
             ) as g:
-                g.say("We're having trouble with the connection. Press 1 to return to the main menu, press 2 to try again, or stay on the line to end this call.")
-            
+                g.say(
+                    "We're having trouble with the connection. Press 1 to return to the main menu, press 2 to try again, or stay on the line to end this call."
+                )
+
             # If they don't respond, redirect to the main menu as a last resort
             response.redirect("/main_menu_fallback")
             return Response(str(response), mimetype="text/xml")
-        
+
         # Retry with options
         with response.gather(
             input="speech dtmf",
@@ -2581,21 +2848,35 @@ def handle_unavailable_order():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("I didn't catch that. Press 1 to explore other menu options, press 2 to speak with a team member, or press 3 to end the call.")
-            
+            g.say(
+                "I didn't catch that. Press 1 to explore other menu options, press 2 to speak with a team member, or press 3 to end the call."
+            )
+
         return Response(str(response), mimetype="text/xml")
-    
+
     # Process their choice
-    if digits == "1" or "menu" in speech_input or "explore" in speech_input or "other" in speech_input:
+    if (
+        digits == "1"
+        or "menu" in speech_input
+        or "explore" in speech_input
+        or "other" in speech_input
+    ):
         # Redirect to menu questions
         response.redirect("/handle_menu_questions")
-    elif digits == "2" or "speak" in speech_input or "team" in speech_input or "specials" in speech_input:
+    elif (
+        digits == "2"
+        or "speak" in speech_input
+        or "team" in speech_input
+        or "specials" in speech_input
+    ):
         # Redirect to human agent handler
         response.redirect("/handle_transfer_to_human")
     elif digits == "3" or "end" in speech_input or "goodbye" in speech_input:
-        response.say("We apologize again that your preferred items are unavailable. We hope to see you soon when we have them back in stock. Goodbye!")
+        response.say(
+            "We apologize again that your preferred items are unavailable. We hope to see you soon when we have them back in stock. Goodbye!"
+        )
         # Instead of hanging up, redirect to a clean ending
         response.redirect("/graceful_exit")
     else:
@@ -2608,33 +2889,40 @@ def handle_unavailable_order():
             language="en-US",
             speech_timeout=5,
             timeout=7,
-            num_digits=1
+            num_digits=1,
         ) as g:
-            g.say("I didn't understand. Press 1 to explore other menu options, 2 to speak with a team member, or 3 to end the call.")
-    
+            g.say(
+                "I didn't understand. Press 1 to explore other menu options, 2 to speak with a team member, or 3 to end the call."
+            )
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/save_callback_request", methods=["POST"])
 def save_callback_request():
     """Save a callback request from a customer"""
     # Get their information
     contact_info = request.form.get("SpeechResult", "")
-    
+
     response = VoiceResponse()
-    
+
     # Track silence retries
     callback_silence_retry = session.get("callback_silence_retry", 0)
-    
+
     if not contact_info:
         # Increment silence counter
         session["callback_silence_retry"] = callback_silence_retry + 1
-        
-        logger.info(f"Silence detected in callback request (attempt {callback_silence_retry+1})")
-        
+
+        logger.info(
+            f"Silence detected in callback request (attempt {callback_silence_retry+1})"
+        )
+
         if callback_silence_retry >= 1:
             # After multiple silences, give up gracefully
             logger.info("Multiple silences in callback request - exiting gracefully")
-            response.say("I didn't hear your contact information. Please call back when you have a moment to provide your contact details. Goodbye!")
+            response.say(
+                "I didn't hear your contact information. Please call back when you have a moment to provide your contact details. Goodbye!"
+            )
             response.redirect("/graceful_exit")
             return Response(str(response), mimetype="text/xml")
         else:
@@ -2646,46 +2934,57 @@ def save_callback_request():
                 speech_model="phone_call",
                 language="en-US",
                 speech_timeout=7,
-                timeout=10
+                timeout=10,
             ) as g:
-                g.say("I didn't hear anything. Please tell me your name and the best way to contact you.")
+                g.say(
+                    "I didn't hear anything. Please tell me your name and the best way to contact you."
+                )
             return Response(str(response), mimetype="text/xml")
     else:
         # Reset silence counter if they provided information
         session["callback_silence_retry"] = 0
-        
+
         # In a real implementation, this would be saved to a database
         logger.info(f"Callback request received: {contact_info}")
-        
+
         # Thank them for the information
-        response.say("Thank you for your information. A team member will contact you as soon as possible. Goodbye!")
-    
+        response.say(
+            "Thank you for your information. A team member will contact you as soon as possible. Goodbye!"
+        )
+
     # Instead of hanging up, redirect to graceful exit
     response.redirect("/graceful_exit")
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/save_contact_info", methods=["POST"])
 def save_contact_info():
     """Save contact information when menu is unavailable"""
     # Get their information
     contact_info = request.form.get("SpeechResult", "")
-    
+
     response = VoiceResponse()
-    
+
     # Track silence retries
     contact_silence_retry = session.get("contact_silence_retry", 0)
-    
+
     if not contact_info:
         # Increment silence counter
         session["contact_silence_retry"] = contact_silence_retry + 1
-        
-        logger.info(f"Silence detected in contact info request (attempt {contact_silence_retry+1})")
-        
+
+        logger.info(
+            f"Silence detected in contact info request (attempt {contact_silence_retry+1})"
+        )
+
         if contact_silence_retry >= 1:
             # After multiple silences, give up gracefully
-            logger.info("Multiple silences in contact info request - exiting gracefully")
-            response.say("I didn't hear your contact information. Please call back when you have a moment to provide your contact details. Goodbye!")
+            logger.info(
+                "Multiple silences in contact info request - exiting gracefully"
+            )
+            response.say(
+                "I didn't hear your contact information. Please call back when you have a moment to provide your contact details. Goodbye!"
+            )
             response.redirect("/graceful_exit")
             return Response(str(response), mimetype="text/xml")
         else:
@@ -2697,31 +2996,36 @@ def save_contact_info():
                 speech_model="phone_call",
                 language="en-US",
                 speech_timeout=7,
-                timeout=10
+                timeout=10,
             ) as g:
-                g.say("I didn't hear anything. Please tell me your name and contact details so we can notify you when our menu is back online.")
+                g.say(
+                    "I didn't hear anything. Please tell me your name and contact details so we can notify you when our menu is back online."
+                )
             return Response(str(response), mimetype="text/xml")
     else:
         # Reset silence counter if they provided information
         session["contact_silence_retry"] = 0
-        
+
         # In a real implementation, this would be saved to a database
         logger.info(f"Contact info received for menu notification: {contact_info}")
-        
+
         # Thank them for the information
-        response.say("Thank you for your information. We'll contact you when our menu is back online. Goodbye!")
-    
+        response.say(
+            "Thank you for your information. We'll contact you when our menu is back online. Goodbye!"
+        )
+
     # Instead of hanging up, redirect to graceful exit
     response.redirect("/graceful_exit")
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/process_order_checkout", methods=["GET", "POST"])
 def process_order_checkout():
     """
     Process the final order checkout after all validations.
     This endpoint handles the actual order submission to Deliverect.
-    
+
     IMPORTANT: This is the final validation point that ensures only valid order items
     with valid modifiers are sent to Deliverect. All invalid items or modifiers are
     strictly filtered out.
@@ -2732,13 +3036,15 @@ def process_order_checkout():
     session["order_id"] = order_id
     sender = session.get("sender", "")
     caller_name = session.get("caller_name", "Valued Customer")
-    
+
     # Create voice response
     response = VoiceResponse()
-    
+
     # Log starting checkout process
-    logger.info(f"Starting checkout process for order {order_id} with {len(order_items)} items")
-    
+    logger.info(
+        f"Starting checkout process for order {order_id} with {len(order_items)} items"
+    )
+
     # Check cooldown
     if not can_process_action(sender, "order_food", 60):
         response.say(
@@ -2751,37 +3057,51 @@ def process_order_checkout():
     try:
         # Import the validation function to ensure all items have reference handlers
         from app.utils.order_utils import prepare_order_for_deliverect
-        
+
         # Log original order details before validation
         for item in order_items:
             mod_count = len(item.get("modifier", []))
-            logger.info(f"Original order item: {item.get('name')} with {mod_count} modifiers")
+            logger.info(
+                f"Original order item: {item.get('name')} with {mod_count} modifiers"
+            )
             if mod_count > 0:
-                mod_names = [mod.get('name', 'unknown') for mod in item.get("modifier", [])]
-                logger.info(f"Original modifiers for {item.get('name')}: {', '.join(mod_names)}")
-        
+                mod_names = [
+                    mod.get("name", "unknown") for mod in item.get("modifier", [])
+                ]
+                logger.info(
+                    f"Original modifiers for {item.get('name')}: {', '.join(mod_names)}"
+                )
+
         # Full strict validation - this ensures only menu items with valid modifiers remain
         validated_items = prepare_order_for_deliverect(order_items)
-        
+
         # Update the session with the fully validated items
         session["order_items_json"] = json.dumps(validated_items)
-        
+
         # Log validation results
         if len(validated_items) < len(order_items):
-            logger.warning(f"Validation removed {len(order_items) - len(validated_items)} invalid items")
-            
+            logger.warning(
+                f"Validation removed {len(order_items) - len(validated_items)} invalid items"
+            )
+
         # Log final validated order details
         logger.info(f"Final validated order has {len(validated_items)} items")
         for item in validated_items:
             mod_count = len(item.get("modifier", []))
-            logger.info(f"Validated order item: {item.get('name')} with {mod_count} modifiers")
+            logger.info(
+                f"Validated order item: {item.get('name')} with {mod_count} modifiers"
+            )
             if mod_count > 0:
-                mod_names = [mod.get('name', 'unknown') for mod in item.get("modifier", [])]
-                logger.info(f"Validated modifiers for {item.get('name')}: {', '.join(mod_names)}")
-        
+                mod_names = [
+                    mod.get("name", "unknown") for mod in item.get("modifier", [])
+                ]
+                logger.info(
+                    f"Validated modifiers for {item.get('name')}: {', '.join(mod_names)}"
+                )
+
         # Update order_items to use the validated version for the rest of this function
         order_items = validated_items
-        
+
         # Check if we still have valid items after validation
         if not validated_items:
             logger.error("No valid items remain after validation - cannot continue")
@@ -2790,7 +3110,7 @@ def process_order_checkout():
             )
             response.redirect("/handle_transfer_to_human")
             return Response(str(response), mimetype="text/xml")
-            
+
     except Exception as e:
         logger.error(f"Error during order validation: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -2803,8 +3123,10 @@ def process_order_checkout():
         calculate_bill_amount(order_items)
         session["bill_amount"] = int(session.get("total_price", 0) * 100)
         order_description = build_order_description(order_items)
-        session["order_message"] = f"{order_description}\nYour total is ${session.get('total_price', 0):.2f}."
-        
+        session["order_message"] = (
+            f"{order_description}\nYour total is ${session.get('total_price', 0):.2f}."
+        )
+
         text_msg = session.get("order_message", "")
         new_order = Order(
             id=order_id, sender=sender, caller_name=caller_name, message=text_msg
@@ -2816,9 +3138,7 @@ def process_order_checkout():
     except Exception as db_error:
         db.session.rollback()
         logger.error(f"Database error: {db_error}")
-        response.say(
-            "Sorry, we encountered a database issue. Please try again later."
-        )
+        response.say("Sorry, we encountered a database issue. Please try again later.")
         return Response(str(response), mimetype="text/xml")
 
     # Get total price
@@ -2876,9 +3196,7 @@ def process_order_checkout():
             session.get("bill_amount", 0),
             order_items,
         )
-        logger.info(
-            f"SMS confirmation task executed successfully for order {order_id}"
-        )
+        logger.info(f"SMS confirmation task executed successfully for order {order_id}")
     except Exception as task_error:
         logger.error(f"Error sending SMS confirmation: {task_error}")
         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -2898,7 +3216,7 @@ def process_order_checkout():
     response.say(
         f"Great! Your order is confirmed and will be ready in about {time_taken} minutes. A confirmation text with payment options will be sent to your phone. You can also text 'status' to this number anytime to check your order status."
     )
-    
+
     # Instead of hanging up, ask if they need anything else
     with response.gather(
         input="speech dtmf",
@@ -2908,22 +3226,25 @@ def process_order_checkout():
         language="en-US",
         speech_timeout=5,
         timeout=7,
-        num_digits=1
+        num_digits=1,
     ) as g:
-        g.say("Is there anything else you'd like help with today? Press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call.")
-    
+        g.say(
+            "Is there anything else you'd like help with today? Press 1 for directions to our restaurant, press 2 for our hours of operation, or press 3 to end the call."
+        )
+
     # Fallback if no input received
     response.redirect("/order_completion_options")
-    
+
     logger.info(f"Checkout completed successfully for order {order_id}")
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/handle_invalid_modifiers", methods=["POST"])
 def handle_invalid_modifiers():
     """
     Handle the user's response when they're told about invalid modifiers.
     The user can choose to continue without invalid modifiers or modify their order.
-    
+
     This route ensures that invalid modifiers are completely removed from the order
     before proceeding to checkout or modifications, serving as an additional
     safety checkpoint in the order validation flow.
@@ -2931,50 +3252,61 @@ def handle_invalid_modifiers():
     # Get the user input
     speech_input = request.form.get("SpeechResult", "").lower()
     dtmf_input = request.form.get("Digits", "")
-    
+
     # Parse confirmation using helper functions
     from app.utils.order_utils import user_said_yes, user_said_no, dtmf_yes_no
-    
+
     response = VoiceResponse()
-    
+
     # Check for silence (no input)
     if not speech_input and not dtmf_input:
         # Track silence retries for invalid modifier handling
         invalid_mod_silence_retry = session.get("invalid_mod_silence_retry", 0)
         session["invalid_mod_silence_retry"] = invalid_mod_silence_retry + 1
-        
-        logger.info(f"Silence detected in invalid modifier handling (attempt {invalid_mod_silence_retry+1})")
-        
+
+        logger.info(
+            f"Silence detected in invalid modifier handling (attempt {invalid_mod_silence_retry+1})"
+        )
+
         if invalid_mod_silence_retry >= 1:
             # After multiple silences, default to removing invalid modifiers
-            logger.warning("Multiple silences when handling invalid modifiers - defaulting to removing them")
-            
+            logger.warning(
+                "Multiple silences when handling invalid modifiers - defaulting to removing them"
+            )
+
             # Get the invalid modifiers from session
-            invalid_item_modifiers = json.loads(session.get("invalid_item_modifiers", "[]"))
+            invalid_item_modifiers = json.loads(
+                session.get("invalid_item_modifiers", "[]")
+            )
             order_items = json.loads(session.get("order_items_json", "[]"))
-            
+
             # Remove all invalid modifiers
             for invalid_item in invalid_item_modifiers:
                 item_name = invalid_item["item"]
-                invalid_mods = set(mod.lower() for mod in invalid_item["invalid_modifiers"])
-                
+                invalid_mods = set(
+                    mod.lower() for mod in invalid_item["invalid_modifiers"]
+                )
+
                 # Find the item in the order
                 for item in order_items:
                     if item.get("name") == item_name:
                         # Filter out invalid modifiers
                         valid_mods = [
-                            mod for mod in item.get("modifier", [])
+                            mod
+                            for mod in item.get("modifier", [])
                             if mod.get("name", "").lower() not in invalid_mods
                         ]
                         # Update the item with only valid modifiers
                         item["modifier"] = valid_mods
                         break
-            
+
             # Update the session with cleaned order
             session["order_items_json"] = json.dumps(order_items)
-            
+
             # Inform user and proceed
-            response.say("Since I didn't hear your choice, I'll remove the invalid modifiers and proceed with your order.")
+            response.say(
+                "Since I didn't hear your choice, I'll remove the invalid modifiers and proceed with your order."
+            )
             response.redirect("/process_order_checkout")
             return Response(str(response), mimetype="text/xml")
         else:
@@ -2987,119 +3319,154 @@ def handle_invalid_modifiers():
                 language="en-US",
                 speech_timeout=5,
                 timeout=8,
-                num_digits=1
+                num_digits=1,
             ) as g:
-                g.say("I didn't hear your response. Press 1 or say 'continue' to remove the invalid modifiers and continue with your order, or press 2 or say 'modify' to make changes to your order.")
+                g.say(
+                    "I didn't hear your response. Press 1 or say 'continue' to remove the invalid modifiers and continue with your order, or press 2 or say 'modify' to make changes to your order."
+                )
             return Response(str(response), mimetype="text/xml")
-    
+
     # Reset silence counter if we got a response
     session["invalid_mod_silence_retry"] = 0
-    
+
     # Log the user's response
-    logger.info(f"Invalid modifier handling - User response: '{speech_input}', DTMF: '{dtmf_input}'")
-    
+    logger.info(
+        f"Invalid modifier handling - User response: '{speech_input}', DTMF: '{dtmf_input}'"
+    )
+
     # If user chooses to continue without invalid modifiers (yes)
-    if dtmf_input == "1" or user_said_yes(speech_input) or "continue" in speech_input or "proceed" in speech_input:
+    if (
+        dtmf_input == "1"
+        or user_said_yes(speech_input)
+        or "continue" in speech_input
+        or "proceed" in speech_input
+    ):
         # Get the invalid modifiers from session
         invalid_item_modifiers = json.loads(session.get("invalid_item_modifiers", "[]"))
         order_items = json.loads(session.get("order_items_json", "[]"))
-        
+
         # Log the invalid modifiers that will be removed
         for invalid_item in invalid_item_modifiers:
             item_name = invalid_item["item"]
             invalid_mods = invalid_item["invalid_modifiers"]
-            logger.info(f"Removing invalid modifiers from {item_name}: {', '.join(invalid_mods)}")
-        
+            logger.info(
+                f"Removing invalid modifiers from {item_name}: {', '.join(invalid_mods)}"
+            )
+
         # Remove all invalid modifiers
         for invalid_item in invalid_item_modifiers:
             item_name = invalid_item["item"]
             invalid_mods = set(mod.lower() for mod in invalid_item["invalid_modifiers"])
-            
+
             # Find the item in the order
             for item in order_items:
                 if item.get("name") == item_name:
                     # Get original number of modifiers
                     original_mod_count = len(item.get("modifier", []))
-                    
+
                     # Filter out invalid modifiers
                     valid_mods = [
-                        mod for mod in item.get("modifier", [])
+                        mod
+                        for mod in item.get("modifier", [])
                         if mod.get("name", "").lower() not in invalid_mods
                     ]
-                    
+
                     # Update the item with only valid modifiers
                     item["modifier"] = valid_mods
-                    
+
                     # Log the filtering results
-                    logger.info(f"Item {item_name}: Removed {original_mod_count - len(valid_mods)} invalid modifiers, kept {len(valid_mods)} valid modifiers")
-                    
+                    logger.info(
+                        f"Item {item_name}: Removed {original_mod_count - len(valid_mods)} invalid modifiers, kept {len(valid_mods)} valid modifiers"
+                    )
+
                     if valid_mods:
-                        valid_mod_names = [mod.get("name", "unknown") for mod in valid_mods]
-                        logger.info(f"Valid modifiers kept for {item_name}: {', '.join(valid_mod_names)}")
+                        valid_mod_names = [
+                            mod.get("name", "unknown") for mod in valid_mods
+                        ]
+                        logger.info(
+                            f"Valid modifiers kept for {item_name}: {', '.join(valid_mod_names)}"
+                        )
                     break
-        
+
         # Update the session with cleaned order
         session["order_items_json"] = json.dumps(order_items)
-        
+
         # CRITICAL: Perform one final validation pass using prepare_order_for_deliverect
         # This ensures that no invalid modifiers slip through
         from app.utils.order_utils import prepare_order_for_deliverect
-        
+
         try:
             # This is a deep validation that will remove any remaining invalid modifiers
             final_validated_items = prepare_order_for_deliverect(order_items)
-            
+
             # Update session with final validated order
             session["order_items_json"] = json.dumps(final_validated_items)
-            logger.info(f"Final order validation completed: {len(final_validated_items)} valid items remain")
+            logger.info(
+                f"Final order validation completed: {len(final_validated_items)} valid items remain"
+            )
         except Exception as e:
             logger.error(f"Error during final validation: {e}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             # Continue with the order as-is if validation fails
-        
+
         # Continue with order confirmation
-        response.say("Your order has been updated to remove the invalid modifiers. Let's proceed with your order.")
+        response.say(
+            "Your order has been updated to remove the invalid modifiers. Let's proceed with your order."
+        )
         response.redirect("/process_order_checkout")
-        
+
     # If user wants to modify their order (no)
-    elif dtmf_input == "2" or user_said_no(speech_input) or "modify" in speech_input or "change" in speech_input:
+    elif (
+        dtmf_input == "2"
+        or user_said_no(speech_input)
+        or "modify" in speech_input
+        or "change" in speech_input
+    ):
         logger.info("User chose to modify order instead of removing invalid modifiers")
         # Go back to the order modification flow
-        response.say("Let's update your order. Please tell me what changes you'd like to make.")
+        response.say(
+            "Let's update your order. Please tell me what changes you'd like to make."
+        )
         response.redirect("/new_modify_order")
-        
+
     # If user was silent or unclear
     else:
-        logger.info("Unclear user response for invalid modifiers, defaulting to removing them")
+        logger.info(
+            "Unclear user response for invalid modifiers, defaulting to removing them"
+        )
         # Default to removing invalid modifiers and proceeding
         # First get the invalid modifiers from session
         invalid_item_modifiers = json.loads(session.get("invalid_item_modifiers", "[]"))
         order_items = json.loads(session.get("order_items_json", "[]"))
-        
+
         # Remove all invalid modifiers
         for invalid_item in invalid_item_modifiers:
             item_name = invalid_item["item"]
             invalid_mods = set(mod.lower() for mod in invalid_item["invalid_modifiers"])
-            
+
             # Find the item in the order
             for item in order_items:
                 if item.get("name") == item_name:
                     # Filter out invalid modifiers
                     valid_mods = [
-                        mod for mod in item.get("modifier", [])
+                        mod
+                        for mod in item.get("modifier", [])
                         if mod.get("name", "").lower() not in invalid_mods
                     ]
                     # Update the item with only valid modifiers
                     item["modifier"] = valid_mods
                     break
-        
+
         # Update the session with cleaned order
         session["order_items_json"] = json.dumps(order_items)
-        
-        response.say("I didn't catch that. I'll remove the invalid modifiers and proceed with your order.")
+
+        response.say(
+            "I didn't catch that. I'll remove the invalid modifiers and proceed with your order."
+        )
         response.redirect("/process_order_checkout")
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/graceful_exit", methods=["GET", "POST"])
 def graceful_exit():
@@ -3109,13 +3476,13 @@ def graceful_exit():
     to provide input if they're still there but were having connection issues.
     """
     response = VoiceResponse()
-    
+
     # Check if this is a repeated visit to graceful_exit
     exit_attempt = session.get("graceful_exit_attempt", 0)
     session["graceful_exit_attempt"] = exit_attempt + 1
-    
+
     logger.info(f"Graceful exit (attempt {exit_attempt+1})")
-    
+
     # Only give the menu option on the first attempt
     # After that, just end the call to avoid endless loops
     if exit_attempt == 0:
@@ -3124,21 +3491,24 @@ def graceful_exit():
             input="dtmf",
             action="/main_menu",
             num_digits=1,
-            timeout=5  # Short timeout as this is the last chance
+            timeout=5,  # Short timeout as this is the last chance
         ) as g:
-            g.say("Thank you for calling Red Bar Sushi. If you'd like to return to the main menu, please press any key now. Goodbye!")
+            g.say(
+                "Thank you for calling Red Bar Sushi. If you'd like to return to the main menu, please press any key now. Goodbye!"
+            )
     else:
         # On subsequent attempts, just end the call
         logger.info("Multiple graceful exit attempts - ending call")
-    
+
     # Reset the exit counter for future calls
     session["graceful_exit_attempt"] = 0
-    
+
     # End the call - this is appropriate as we've given them a chance to continue
     response.say("Goodbye from Red Bar Sushi. We look forward to your next call.")
     response.hangup()
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/suggest_modifiers", methods=["POST"])
 def suggest_modifiers():
@@ -3152,23 +3522,27 @@ def suggest_modifiers():
     logger.info(f"Request method: {request.method}")
     logger.info(f"Form data: {request.form}")
     logger.info(f"Session keys: {list(session.keys())}")
-    
+
     # Get order items from session
     order_items = json.loads(session.get("order_items_json", "[]"))
-    
+
     # Exit early if no order items
     if not order_items:
         logger.warning("No order items found for modifier suggestions")
         # Redirect to order taking
         return redirect(url_for("order_bp.greeting"))
-    
+
     # Force fresh load of menu data to ensure we have all modifiers
     menu_data = load_menu_data(force_refresh=True)
-    logger.info(f"Loaded fresh menu data with {len(menu_data.get('items', []))} items, {len(menu_data.get('modifiers', []))} modifiers")
-    
+    logger.info(
+        f"Loaded fresh menu data with {len(menu_data.get('items', []))} items, {len(menu_data.get('modifiers', []))} modifiers"
+    )
+
     # Use check_for_missing_modifiers to identify items needing modifier suggestions
-    items_needing_modifiers, constraint_details = check_for_missing_modifiers(order_items)
-    
+    items_needing_modifiers, constraint_details = check_for_missing_modifiers(
+        order_items
+    )
+
     # Detailed logging for debugging
     logger.info(f"Found {len(items_needing_modifiers)} items needing modifiers")
     for item in items_needing_modifiers:
@@ -3177,59 +3551,63 @@ def suggest_modifiers():
         if item_name in constraint_details:
             constraints_json = json.dumps(constraint_details[item_name])
             logger.info(f"Constraints for {item_name}: {constraints_json[:200]}...")
-    
+
     # Create response object
     response = VoiceResponse()
-    
+
     # If no items need modifiers, skip to confirmation
     if not items_needing_modifiers:
         logger.info("No items need modifiers, proceeding to confirmation")
         response.redirect(url_for("order_bp.confirm_order_from_initial"))
         return Response(str(response), mimetype="text/xml")
-    
+
     # Store info in session for the modifier flow
     session["order_items_without_modifiers_json"] = json.dumps(order_items)
     session["constraint_details"] = json.dumps(constraint_details)
-    
+
     # Get the first item that needs modifiers
     first_item = items_needing_modifiers[0]
     first_item_name = first_item.get("name", "")
-    
+
     # Store which item we're currently suggesting modifiers for
     session["current_modifier_item"] = first_item_name
-    session["remaining_modifier_items"] = json.dumps(items_needing_modifiers[1:]) if len(items_needing_modifiers) > 1 else "[]"
-    
+    session["remaining_modifier_items"] = (
+        json.dumps(items_needing_modifiers[1:])
+        if len(items_needing_modifiers) > 1
+        else "[]"
+    )
+
     # Get the agent to generate a modifier prompt
     agent = OrderParsingAgent()
-    
+
     # Handle special case for meal deals / combo products
     item_constraints = constraint_details.get(first_item_name, {})
     is_combo = item_constraints.get("is_combo", False)
-    
+
     if is_combo:
         # This is a meal deal/combo with component selection
         components = item_constraints.get("components", [])
-        
+
         # Format the component options for the prompt
         required_components = []
         optional_components = []
-        
+
         for comp in components:
             if comp.get("required", True):
                 required_components.append(comp.get("name", ""))
             else:
                 optional_components.append(comp.get("name", ""))
-        
+
         # Create component text for required components
         required_text = ""
         if required_components:
             required_text = f"You need to select: {', '.join(required_components[:3])}"
             if len(required_components) > 3:
                 required_text += f", and {len(required_components) - 3} more options"
-        
+
         # Create prompt for meal deal
         meal_deal_prompt = f"For your {first_item_name} meal deal, {required_text}. What would you like to include?"
-        
+
         with response.gather(
             input="speech",
             action="/handle_modifier_suggestion",
@@ -3246,22 +3624,24 @@ def suggest_modifiers():
         modifier_groups = []
         if "modifier_groups" in item_constraints:
             modifier_groups = item_constraints.get("modifier_groups", [])
-        
+
         # If we have specific modifier groups to suggest, create a custom prompt
         if modifier_groups:
             # Build a more specific prompt listing available options
             custom_prompt = f"For your {first_item_name}, "
-            
+
             # Find required modifier groups first
-            required_groups = [g for g in modifier_groups if g.get("min_required", 0) > 0]
-            
+            required_groups = [
+                g for g in modifier_groups if g.get("min_required", 0) > 0
+            ]
+
             if required_groups:
                 # Start with required modifiers
                 group = required_groups[0]
                 group_name = group.get("name", "option")
                 min_required = group.get("min_required", 1)
                 custom_prompt += f"please choose {min_required} {group_name}. "
-                
+
                 # List some examples
                 modifiers = group.get("modifiers", [])
                 if modifiers:
@@ -3269,12 +3649,12 @@ def suggest_modifiers():
                     if len(modifiers) > 3:
                         custom_prompt += ", and others"
                     custom_prompt += ". "
-                
+
                 custom_prompt += "What would you like?"
             else:
                 # For optional modifiers
                 custom_prompt += "would you like to add any modifiers? "
-                
+
                 # List available modifier groups
                 group_names = [g.get("name", "option") for g in modifier_groups[:2]]
                 if group_names:
@@ -3282,9 +3662,11 @@ def suggest_modifiers():
                     if len(modifier_groups) > 2:
                         custom_prompt += ", and other options"
                     custom_prompt += ". "
-                
-                custom_prompt += "What would you like to add? Or say 'skip' to continue."
-            
+
+                custom_prompt += (
+                    "What would you like to add? Or say 'skip' to continue."
+                )
+
             # Use the custom prompt
             with response.gather(
                 input="speech dtmf",
@@ -3294,30 +3676,31 @@ def suggest_modifiers():
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
                 g.say(custom_prompt)
         else:
             # Use our custom function to ensure we get a good prompt
             modifier_result = custom_suggest_modifiers(first_item_name)
             prompt_to_use = modifier_result["prompt"]
-            
+
             # Log the prompt we're using
             logger.info(f"Using prompt for {first_item_name}: {prompt_to_use}")
-            
+
             with response.gather(
                 input="speech dtmf",
-                action="/handle_modifier_suggestion", 
+                action="/handle_modifier_suggestion",
                 enhanced=True,
                 speech_model="phone_call",
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
                 g.say(prompt_to_use)
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/handle_modifier_suggestion", methods=["POST"])
 def handle_modifier_suggestion():
@@ -3326,42 +3709,53 @@ def handle_modifier_suggestion():
     This route processes the customer's response when we suggest modifiers for an item,
     updates the order with selected modifiers, and either continues to the next item
     or proceeds to order confirmation.
-    
-    IMPORTANT: This route includes comprehensive validation of all modifiers against the 
-    actual menu data to ensure ONLY valid modifiers are accepted. Any modifier not 
+
+    IMPORTANT: This route includes comprehensive validation of all modifiers against the
+    actual menu data to ensure ONLY valid modifiers are accepted. Any modifier not
     found in the menu will be rejected and the customer will be informed.
     """
     # Add more detailed logging at entry point
     logger.info(f"=== ENTERING handle_modifier_suggestion function ===")
-    logger.info(f"Session data: order_id={session.get('order_id')}, phone={session.get('sender')}")
-    
+    logger.info(
+        f"Session data: order_id={session.get('order_id')}, phone={session.get('sender')}"
+    )
+
     # Get user response to modifier suggestion
     user_resp = request.form.get("SpeechResult", "").lower()
     digits = request.form.get("Digits", "")
-    
+
     # Get current state from session
     current_item = session.get("current_modifier_item", "")
     remaining_items = json.loads(session.get("remaining_modifier_items", "[]"))
     order_items = json.loads(session.get("order_items_without_modifiers_json", "[]"))
-    
+
     # Add detailed logging about the current state
     logger.info(f"Current item being modified: '{current_item}'")
     logger.info(f"Remaining items for modification: {len(remaining_items)}")
     logger.info(f"User input: Speech='{user_resp}', DTMF='{digits}'")
-    
+
     response = VoiceResponse()
-    
-    logger.info(f"Handling modifier suggestion for {current_item}. User said: '{user_resp}'")
-    
+
+    logger.info(
+        f"Handling modifier suggestion for {current_item}. User said: '{user_resp}'"
+    )
+
     # Check for silence (user didn't respond to suggestion) or if user said they don't want modifiers
-    if (not user_resp and not digits) or user_resp in ["no", "none", "no thanks", "nothing"]:
+    if (not user_resp and not digits) or user_resp in [
+        "no",
+        "none",
+        "no thanks",
+        "nothing",
+    ]:
         # Track silence retries for modifier suggestions
         mod_silence_retry = session.get("modifier_silence_retry", 0)
         session["modifier_silence_retry"] = mod_silence_retry + 1
-        
+
         # If we've tried multiple times or user explicitly declined, just continue without modifiers
         if mod_silence_retry >= 2:
-            logger.info(f"Multiple silence retries for modifier suggestions on {current_item}, continuing without modifiers")
+            logger.info(
+                f"Multiple silence retries for modifier suggestions on {current_item}, continuing without modifiers"
+            )
             # Skip to the next item or continue to confirmation
             pass  # We'll handle this in the common path below
         else:
@@ -3374,134 +3768,172 @@ def handle_modifier_suggestion():
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
-                g.say(f"If you'd like to add any modifiers to your {current_item}, please say them now. Otherwise, press 1 to continue without modifiers.")
+                g.say(
+                    f"If you'd like to add any modifiers to your {current_item}, please say them now. Otherwise, press 1 to continue without modifiers."
+                )
             return Response(str(response), mimetype="text/xml")
-    
+
     # Check if user explicitly declined modifiers with DTMF
-    if digits == "1" or "no" in user_resp or "skip" in user_resp or "continue" in user_resp:
+    if (
+        digits == "1"
+        or "no" in user_resp
+        or "skip" in user_resp
+        or "continue" in user_resp
+    ):
         # User declined modifiers for this item - move to next item or confirmation
         logger.info(f"User declined modifiers for {current_item}")
         pass  # We'll handle this below in the common path
     else:
         # User provided modifier choices - process them
         # Add detailed logging of modifier processing start
-        logger.info(f"Processing modifiers for item '{current_item}' from user input: '{user_resp}'")
-        
+        logger.info(
+            f"Processing modifiers for item '{current_item}' from user input: '{user_resp}'"
+        )
+
         # Use the OrderParsingAgent to analyze the modifier response
         agent = OrderParsingAgent()
-        
+
         # First, load the menu to get valid modifiers
         menu_data = load_menu_data(force_refresh=True)
-        
+
         # Get all valid modifiers from the menu (only available, non-snoozed modifiers)
         valid_menu_modifiers = {
             mod.get("name", "").lower(): mod
             for mod in menu_data.get("modifiers", [])
-            if mod.get("name") and mod.get("available", True) and not mod.get("snoozed", False)
+            if mod.get("name")
+            and mod.get("available", True)
+            and not mod.get("snoozed", False)
         }
-        
+
         # Standard cooking terms that should always be accepted
         cooking_terms = ["rare", "medium rare", "medium", "medium well", "well done"]
-        
+
         logger.info(f"Found {len(valid_menu_modifiers)} valid modifiers in menu")
-        
+
         # Let's intelligently extract modifiers using the agent
         try:
             # Get constraint details from session
             constraint_details = json.loads(session.get("constraint_details", "{}"))
             item_constraints = constraint_details.get(current_item, {})
-            
+
             # Special handling for meal deals / combo products
             is_combo = item_constraints.get("is_combo", False)
-            
+
             # Choose appropriate prompt based on item type
             if is_combo:
                 # For meal deals, we need to parse components
-                analysis = analyze_user_input(f"For my {current_item} combo I'd like {user_resp}")
+                analysis = analyze_user_input(
+                    f"For my {current_item} combo I'd like {user_resp}"
+                )
             else:
                 # Standard modifier prompt for regular items
-                analysis = analyze_user_input(f"I'd like a {current_item} with {user_resp}")
-            
+                analysis = analyze_user_input(
+                    f"I'd like a {current_item} with {user_resp}"
+                )
+
             # Get the menu items from the analysis
             extracted_items = analysis.get("menu_items", [])
-            
+
             # If we found the main item, check for modifiers
             for item in extracted_items:
                 if current_item.lower() in item.get("name", "").lower():
                     # Found our current item in the parsed result
                     raw_modifiers = item.get("modifier", [])
-                    
+
                     # Log the initially extracted modifiers
                     if raw_modifiers:
-                        mod_names = [mod.get("name", "unknown") for mod in raw_modifiers]
-                        mod_details = [f"{mod.get('name', 'unknown')}:{mod.get('quantity', 1)}" for mod in raw_modifiers]
-                        logger.info(f"Extracted modifiers for {current_item}: {', '.join(mod_names)}")
-                        logger.info(f"Detailed modifier data: {json.dumps(raw_modifiers)}")
-                    
+                        mod_names = [
+                            mod.get("name", "unknown") for mod in raw_modifiers
+                        ]
+                        mod_details = [
+                            f"{mod.get('name', 'unknown')}:{mod.get('quantity', 1)}"
+                            for mod in raw_modifiers
+                        ]
+                        logger.info(
+                            f"Extracted modifiers for {current_item}: {', '.join(mod_names)}"
+                        )
+                        logger.info(
+                            f"Detailed modifier data: {json.dumps(raw_modifiers)}"
+                        )
+
                     # Special handling for meal deals / combo products
                     if is_combo:
                         # Get components from the constraints
                         components = item_constraints.get("components", [])
                         component_ids = {comp.get("id") for comp in components}
-                        
+
                         # Look for child items (components) in analysis
                         child_items = []
                         for child in extracted_items:
                             # Skip the main item
                             if child.get("name") == current_item:
                                 continue
-                                
+
                             # Create a component selection
                             child_name = child.get("name", "")
                             child_modifiers = child.get("modifier", [])
-                            
+
                             # Try to match this child to a known component
                             matched_component = None
                             best_match_score = 0
-                            
+
                             # First try direct or substring match
                             for comp in components:
                                 comp_name = comp.get("name", "").lower()
                                 child_name_lower = child_name.lower()
-                                
+
                                 # Exact match
                                 if comp_name == child_name_lower:
                                     matched_component = comp
                                     break
-                                    
+
                                 # Substring match (both ways)
-                                elif comp_name in child_name_lower or child_name_lower in comp_name:
+                                elif (
+                                    comp_name in child_name_lower
+                                    or child_name_lower in comp_name
+                                ):
                                     matched_component = comp
                                     break
-                                    
+
                                 # Word-based matching for partial matches
                                 else:
                                     # Split into words and see how many match
                                     comp_words = set(comp_name.split())
                                     child_words = set(child_name_lower.split())
                                     common_words = comp_words.intersection(child_words)
-                                    
+
                                     if common_words:
                                         # Calculate match score based on number of common words
-                                        match_score = len(common_words) / max(len(comp_words), len(child_words))
-                                        if match_score > best_match_score and match_score > 0.3:  # At least 30% match
+                                        match_score = len(common_words) / max(
+                                            len(comp_words), len(child_words)
+                                        )
+                                        if (
+                                            match_score > best_match_score
+                                            and match_score > 0.3
+                                        ):  # At least 30% match
                                             best_match_score = match_score
                                             matched_component = comp
-                            
+
                             if matched_component:
                                 # Log the match for debugging
-                                logger.info(f"Matched component '{child_name}' to menu component '{matched_component.get('name')}'")
-                                
+                                logger.info(
+                                    f"Matched component '{child_name}' to menu component '{matched_component.get('name')}'"
+                                )
+
                                 # Add the component with its modifiers
-                                child_items.append({
-                                    "name": matched_component.get("name", child_name),
-                                    "id": matched_component.get("id"),
-                                    "quantity": child.get("quantity", 1),
-                                    "modifier": child_modifiers
-                                })
-                        
+                                child_items.append(
+                                    {
+                                        "name": matched_component.get(
+                                            "name", child_name
+                                        ),
+                                        "id": matched_component.get("id"),
+                                        "quantity": child.get("quantity", 1),
+                                        "modifier": child_modifiers,
+                                    }
+                                )
+
                         # Update the meal deal selections in the session
                         if child_items:
                             meal_deal_selections = {}
@@ -3509,34 +3941,50 @@ def handle_modifier_suggestion():
                                 meal_deal_selections[child.get("id")] = {
                                     "name": child.get("name"),
                                     "quantity": child.get("quantity", 1),
-                                    "modifier": child.get("modifier", [])
+                                    "modifier": child.get("modifier", []),
                                 }
-                            
+
                             # Store meal deal selections in session
-                            session["meal_deal_selections"] = json.dumps(meal_deal_selections)
-                            
+                            session["meal_deal_selections"] = json.dumps(
+                                meal_deal_selections
+                            )
+
                             # If we have meal deal selections, process them differently
                             from app.utils.menu_utils import process_meal_deal
-                            
+
                             # Find the meal deal item in the order
                             for order_item in order_items:
                                 if order_item.get("name") == current_item:
                                     # Get the original meal deal details
                                     agent = OrderParsingAgent()
-                                    meal_deal_details = agent.menu_tool.get_details(current_item)
-                                    
+                                    meal_deal_details = agent.menu_tool.get_details(
+                                        current_item
+                                    )
+
                                     # Process the meal deal with selections
-                                    processed_meal = process_meal_deal(meal_deal_details, meal_deal_selections)
-                                    
+                                    processed_meal = process_meal_deal(
+                                        meal_deal_details, meal_deal_selections
+                                    )
+
                                     # Validate the meal deal - check if all required components are selected
                                     missing_components = []
-                                    for child in meal_deal_details.get("childProducts", []):
-                                        if child.get("required", True) and child.get("id") not in meal_deal_selections:
-                                            missing_components.append(child.get("name", "Unknown component"))
-                                    
+                                    for child in meal_deal_details.get(
+                                        "childProducts", []
+                                    ):
+                                        if (
+                                            child.get("required", True)
+                                            and child.get("id")
+                                            not in meal_deal_selections
+                                        ):
+                                            missing_components.append(
+                                                child.get("name", "Unknown component")
+                                            )
+
                                     # If missing required components, prompt the user
                                     if missing_components:
-                                        logger.warning(f"Missing required components in meal deal {current_item}: {', '.join(missing_components)}")
+                                        logger.warning(
+                                            f"Missing required components in meal deal {current_item}: {', '.join(missing_components)}"
+                                        )
                                         with response.gather(
                                             input="speech",
                                             action="/handle_modifier_suggestion",
@@ -3547,84 +3995,108 @@ def handle_modifier_suggestion():
                                             timeout=7,
                                         ) as g:
                                             missing_text = ", ".join(missing_components)
-                                            g.say(f"Your {current_item} needs to include {missing_text}. What would you like for these components?")
-                                        return Response(str(response), mimetype="text/xml")
-                                    
+                                            g.say(
+                                                f"Your {current_item} needs to include {missing_text}. What would you like for these components?"
+                                            )
+                                        return Response(
+                                            str(response), mimetype="text/xml"
+                                        )
+
                                     # Update the order item with processed meal deal
                                     order_item.update(processed_meal)
-                                    
+
                                     # Log the processed meal deal
-                                    logger.info(f"Processed meal deal {current_item} with {len(meal_deal_selections)} components")
-                                    
+                                    logger.info(
+                                        f"Processed meal deal {current_item} with {len(meal_deal_selections)} components"
+                                    )
+
                                     # Update the session with the modified order
-                                    session["order_items_without_modifiers_json"] = json.dumps(order_items)
+                                    session["order_items_without_modifiers_json"] = (
+                                        json.dumps(order_items)
+                                    )
                                     break
-                            
+
                             # Skip regular modifier processing for meal deals
                             break
-                    
+
                     # If standard modifiers are found, validate them strictly against the menu
                     if raw_modifiers:
                         # STRICT VALIDATION: Only accept modifiers that are EXACTLY in the menu
                         # or are standard cooking terms
                         valid_modifiers = []
                         rejected_modifiers = []
-                        
+
                         for mod in raw_modifiers:
                             mod_name = mod.get("name", "").lower()
-                            
+
                             # Validation priority:
                             # 1. First check exact match by name in menu
                             # 2. Then allow only standard cooking terms as exceptions
                             # 3. Reject everything else
-                            
+
                             if mod_name in valid_menu_modifiers:
                                 # Found exact match by name in menu
                                 menu_mod = valid_menu_modifiers[mod_name]
-                                mod["reference_handler"] = menu_mod.get("reference_handler")
+                                mod["reference_handler"] = menu_mod.get(
+                                    "reference_handler"
+                                )
                                 mod["price"] = menu_mod.get("price", 0.0)
                                 valid_modifiers.append(mod)
-                                logger.info(f"Validated modifier with exact menu match: {mod_name}")
+                                logger.info(
+                                    f"Validated modifier with exact menu match: {mod_name}"
+                                )
                             elif mod_name in cooking_terms:
                                 # Special case for cooking preferences (these are the ONLY exceptions allowed)
-                                mod["reference_handler"] = f"COOK-{hash(mod_name) % 100:02d}"
+                                mod["reference_handler"] = (
+                                    f"COOK-{hash(mod_name) % 100:02d}"
+                                )
                                 valid_modifiers.append(mod)
-                                logger.info(f"Validated standard cooking modifier: {mod_name}")
+                                logger.info(
+                                    f"Validated standard cooking modifier: {mod_name}"
+                                )
                             else:
                                 # Not in menu - reject it!
                                 rejected_modifiers.append(mod_name)
-                                logger.warning(f"Rejected non-menu modifier: {mod_name}")
-                        
+                                logger.warning(
+                                    f"Rejected non-menu modifier: {mod_name}"
+                                )
+
                         # If some modifiers were rejected, inform the user
                         if rejected_modifiers:
                             # Log the rejected modifiers
-                            logger.warning(f"Rejected invalid modifiers for {current_item}: {', '.join(rejected_modifiers)}")
-                            
+                            logger.warning(
+                                f"Rejected invalid modifiers for {current_item}: {', '.join(rejected_modifiers)}"
+                            )
+
                             # Get a list of valid modifiers to suggest as alternatives
                             suggested_alternatives = []
                             valid_modifier_suggestions = []
-                            
+
                             # Get valid modifiers for this item from the constraints
-                            constraint_details = json.loads(session.get("constraint_details", "{}"))
+                            constraint_details = json.loads(
+                                session.get("constraint_details", "{}")
+                            )
                             item_constraints = constraint_details.get(current_item, {})
-                            
+
                             if "modifier_groups" in item_constraints:
-                                for group in item_constraints.get("modifier_groups", []):
+                                for group in item_constraints.get(
+                                    "modifier_groups", []
+                                ):
                                     group_mods = group.get("modifiers", [])
                                     valid_modifier_suggestions.extend(group_mods)
-                            
+
                             # Take only the first 5 suggestions to avoid overwhelming the user
                             suggested_alternatives = valid_modifier_suggestions[:5]
-                            
+
                             # Construct the response message
                             msg = f"I'm sorry, we don't have {', '.join(rejected_modifiers)} available for your {current_item}. "
-                            
+
                             # Add suggestions if available
                             if suggested_alternatives:
                                 msg += f"Available options include: {', '.join(suggested_alternatives)}. "
-                            
+
                             msg += "Please specify a different modifier, or press 1 to continue without these modifiers."
-                            
+
                             # Inform the user about invalid modifiers and ask for valid ones
                             with response.gather(
                                 input="speech dtmf",
@@ -3634,11 +4106,11 @@ def handle_modifier_suggestion():
                                 language="en-US",
                                 speech_timeout=5,
                                 timeout=7,
-                                num_digits=1
+                                num_digits=1,
                             ) as g:
                                 g.say(msg)
                             return Response(str(response), mimetype="text/xml")
-                        
+
                         # Update the relevant item in the order with valid modifiers
                         for order_item in order_items:
                             if order_item.get("name", "") == current_item:
@@ -3646,108 +4118,138 @@ def handle_modifier_suggestion():
                                 # Initialize the modifier list if needed
                                 if "modifier" not in order_item:
                                     order_item["modifier"] = []
-                                
+
                                 # First check if we're getting repeated modifiers
-                                existing_mods = {mod.get("name", "").lower(): True for mod in order_item.get("modifier", [])}
-                                
+                                existing_mods = {
+                                    mod.get("name", "").lower(): True
+                                    for mod in order_item.get("modifier", [])
+                                }
+
                                 # Filter out duplicates
                                 new_mods = []
                                 for mod in valid_modifiers:
                                     if mod.get("name", "").lower() not in existing_mods:
                                         new_mods.append(mod)
-                                        
+
                                 # Add only new modifiers
                                 order_item["modifier"].extend(new_mods)
-                                
+
                                 # If we're not adding anything new, mark a flag to advance to next item
-                                if not new_mods and len(order_item.get("modifier", [])) > 0:
+                                if (
+                                    not new_mods
+                                    and len(order_item.get("modifier", [])) > 0
+                                ):
                                     session["force_next_item"] = "true"
-                                
+
                                 # Log modification details
-                                original_count = len(order_item.get("modifier", [])) - len(new_mods)
-                                logger.info(f"Before modification: Item {current_item} had {original_count} modifiers")
-                                
+                                original_count = len(
+                                    order_item.get("modifier", [])
+                                ) - len(new_mods)
+                                logger.info(
+                                    f"Before modification: Item {current_item} had {original_count} modifiers"
+                                )
+
                                 # Log the modifiers being added
                                 if new_mods:
-                                    mod_names = [mod.get("name", "unknown") for mod in new_mods]
-                                    logger.info(f"Added strictly validated modifiers to {current_item}: {', '.join(mod_names)}")
+                                    mod_names = [
+                                        mod.get("name", "unknown") for mod in new_mods
+                                    ]
+                                    logger.info(
+                                        f"Added strictly validated modifiers to {current_item}: {', '.join(mod_names)}"
+                                    )
                                 else:
-                                    logger.info(f"No new modifiers added to {current_item} (detected duplicates)")
-                                    
-                                logger.info(f"After modification: Item {current_item} now has {len(order_item.get('modifier', []))} modifiers")
-                                
+                                    logger.info(
+                                        f"No new modifiers added to {current_item} (detected duplicates)"
+                                    )
+
+                                logger.info(
+                                    f"After modification: Item {current_item} now has {len(order_item.get('modifier', []))} modifiers"
+                                )
+
                                 # Update the session with modified order
-                                session["order_items_without_modifiers_json"] = json.dumps(order_items)
+                                session["order_items_without_modifiers_json"] = (
+                                    json.dumps(order_items)
+                                )
                                 break
         except Exception as e:
             logger.error(f"Error processing modifier response: {e}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             # Continue with the flow even if modifier processing fails
-    
+
     # Check if there are more items to suggest modifiers for
     # Also check if we need to force advance to the next item due to duplicate modifiers
     force_next = session.get("force_next_item", "false").lower() == "true"
-    
+
     if force_next:
         logger.info("Forcing advance to next item due to duplicate modifiers")
         session["force_next_item"] = "false"  # Reset the flag
-        
+
     if remaining_items:
         # Get the next item that needs modifiers
         next_item = remaining_items[0]
         next_item_name = next_item.get("name", "")
-        
+
         # Update the session state
         session["current_modifier_item"] = next_item_name
-        session["remaining_modifier_items"] = json.dumps(remaining_items[1:]) if len(remaining_items) > 1 else "[]"
-        
+        session["remaining_modifier_items"] = (
+            json.dumps(remaining_items[1:]) if len(remaining_items) > 1 else "[]"
+        )
+
         # Get constraint details from session
         constraint_details = json.loads(session.get("constraint_details", "{}"))
         item_constraints = constraint_details.get(next_item_name, {})
-        
+
         # Generate a more specific prompt based on constraint details if available
         agent = OrderParsingAgent()
-        
+
         # Special handling for meal deals / combo items
         if item_constraints.get("is_combo", False):
             # This is a meal deal with component selection needed
             components = item_constraints.get("components", [])
-            
+
             # Group components by type for a more natural prompt
             required_components = []
             optional_components = []
-            
+
             for comp in components:
                 if comp.get("required", True):
                     required_components.append(comp.get("name", ""))
                 else:
                     optional_components.append(comp.get("name", ""))
-            
+
             # Create component text for required components
             required_text = ""
             if required_components:
-                required_text = f"You need to select: {', '.join(required_components[:3])}"
+                required_text = (
+                    f"You need to select: {', '.join(required_components[:3])}"
+                )
                 if len(required_components) > 3:
-                    required_text += f", and {len(required_components) - 3} more options"
-            
+                    required_text += (
+                        f", and {len(required_components) - 3} more options"
+                    )
+
             # Create component text for optional components
             optional_text = ""
             if optional_components:
-                optional_text = f"You can also add: {', '.join(optional_components[:3])}"
+                optional_text = (
+                    f"You can also add: {', '.join(optional_components[:3])}"
+                )
                 if len(optional_components) > 3:
-                    optional_text += f", and {len(optional_components) - 3} more options"
-            
+                    optional_text += (
+                        f", and {len(optional_components) - 3} more options"
+                    )
+
             # Create a specific prompt for meal deals
             meal_deal_prompt = f"For your {next_item_name} meal deal, "
-            
+
             if required_text:
                 meal_deal_prompt += required_text + ". "
-            
+
             if optional_text:
                 meal_deal_prompt += optional_text + ". "
-                
+
             meal_deal_prompt += "What would you like to include in your meal?"
-            
+
             with response.gather(
                 input="speech",
                 action="/handle_modifier_suggestion",
@@ -3759,24 +4261,29 @@ def handle_modifier_suggestion():
             ) as g:
                 g.say(meal_deal_prompt)
             return Response(str(response), mimetype="text/xml")
-        
+
         # Special handling for required modifiers (min/max constraints)
-        elif "modifier_groups" in item_constraints and item_constraints["modifier_groups"]:
+        elif (
+            "modifier_groups" in item_constraints
+            and item_constraints["modifier_groups"]
+        ):
             # Get the first required modifier group
             req_mod_group = None
             for group in item_constraints["modifier_groups"]:
                 if group.get("min_required", 0) > 0:
                     req_mod_group = group
                     break
-            
+
             if req_mod_group:
                 # Create a prompt for required modifiers
                 group_name = req_mod_group.get("name", "")
                 min_required = req_mod_group.get("min_required", 1)
-                options = ", ".join(req_mod_group.get("modifiers", [])[:5])  # Show first 5 options
-                
+                options = ", ".join(
+                    req_mod_group.get("modifiers", [])[:5]
+                )  # Show first 5 options
+
                 required_prompt = f"Your {next_item_name} requires {min_required} selection{'s' if min_required > 1 else ''} from {group_name}. Options include: {options}. What would you like?"
-                
+
                 with response.gather(
                     input="speech",
                     action="/handle_modifier_suggestion",
@@ -3788,23 +4295,28 @@ def handle_modifier_suggestion():
                 ) as g:
                     g.say(required_prompt)
                 return Response(str(response), mimetype="text/xml")
-        
+
         # Regular modifier prompting for other cases
         # First check if we have specific modifier groups that we should mention
-        if "modifier_groups" in item_constraints and item_constraints["modifier_groups"]:
+        if (
+            "modifier_groups" in item_constraints
+            and item_constraints["modifier_groups"]
+        ):
             # Build a more specific prompt listing available options
             mod_groups_str = ""
-            for group in item_constraints["modifier_groups"][:2]:  # Limit to 2 groups to keep prompt reasonable
+            for group in item_constraints["modifier_groups"][
+                :2
+            ]:  # Limit to 2 groups to keep prompt reasonable
                 group_name = group.get("name", "")
                 # Get a few example modifiers
                 example_mods = group.get("modifiers", [])[:3]
                 if example_mods:
                     mod_examples = ", ".join(example_mods)
                     mod_groups_str += f" {group_name} options like {mod_examples};"
-            
+
             # Create a custom prompt mentioning available options
             custom_prompt = f"Would you like any modifications for your {next_item_name}? We have{mod_groups_str} or you can skip by saying 'no thanks'."
-            
+
             with response.gather(
                 input="speech dtmf",
                 action="/handle_modifier_suggestion",
@@ -3813,14 +4325,14 @@ def handle_modifier_suggestion():
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
                 g.say(custom_prompt)
             return Response(str(response), mimetype="text/xml")
-        
+
         # Fall back to the AI-generated prompt for other cases
         modifier_prompt = agent.menu_tool.generate_modifier_prompt(next_item_name)
-        
+
         # If we have a good prompt, ask the customer
         if modifier_prompt:
             with response.gather(
@@ -3831,33 +4343,37 @@ def handle_modifier_suggestion():
                 language="en-US",
                 speech_timeout=5,
                 timeout=7,
-                num_digits=1
+                num_digits=1,
             ) as g:
                 g.say(modifier_prompt)
             return Response(str(response), mimetype="text/xml")
-    
+
     # No more items need modifiers - proceed to order confirmation
     # Update the final order in session
     session["order_items_json"] = session["order_items_without_modifiers_json"]
-    
+
     # Calculate total and prepare confirmation message
     order_items = json.loads(session["order_items_json"])
     calculate_bill_amount(order_items)
     order_description = build_order_description(order_items)
     session["bill_amount"] = int(session.get("total_price", 0) * 100)
-    session["order_message"] = f"{order_description}\nYour total is ${session.get('total_price', 0):.2f}."
-    
+    session["order_message"] = (
+        f"{order_description}\nYour total is ${session.get('total_price', 0):.2f}."
+    )
+
     # Log completion of modifier flow with summary
     logger.info(f"=== COMPLETED modifier flow for all items ===")
     logger.info(f"Final order has {len(order_items)} items with modifiers")
     for item in order_items:
         modifier_count = len(item.get("modifier", []))
-        logger.info(f"Item '{item.get('name')}' has {modifier_count} modifiers: {[m.get('name') for m in item.get('modifier', [])]}")
+        logger.info(
+            f"Item '{item.get('name')}' has {modifier_count} modifiers: {[m.get('name') for m in item.get('modifier', [])]}"
+        )
     logger.info(f"Order total: ${session.get('total_price', 0):.2f}")
-    
+
     # Mark the modifiers flow as completed to prevent infinite loops
     session["completed_modifiers"] = "true"
-    
+
     # Ask for confirmation of complete order with modifiers
     with response.gather(
         input="speech dtmf",
@@ -3873,8 +4389,9 @@ def handle_modifier_suggestion():
             session["order_message"]
             + " If correct, say yes or press 1. If you need changes, say no or press 2."
         )
-    
+
     return Response(str(response), mimetype="text/xml")
+
 
 @order_bp.route("/order_status", methods=["POST"])
 def order_status():

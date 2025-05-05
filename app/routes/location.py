@@ -22,8 +22,10 @@ from app.utils.order_utils import (
     calculate_bill_amount,
 )
 from app.utils.agent_utils import analyze_user_input
-from app.utils.menu_utils import find_menu_item_by_name
-from app.utils.menu_utils import (
+
+# Import from menu_utils_db instead of menu_utils to use database-backed implementations
+from app.utils.menu_utils_db import find_menu_item_by_name
+from app.utils.menu_utils_db import (
     load_menu_data,
     validate_modifier_constraints,
     process_deliverect_menu,
@@ -410,16 +412,15 @@ def take_order_per_location(location_id):
         response.say(
             f"We're currently busy at our {location_id} location and not accepting new orders right now."
         )
-        
+
         # Instead of hanging up, give them options
         with response.gather(
-            input="dtmf",
-            action="/main_menu",
-            num_digits=1,
-            timeout=7
+            input="dtmf", action="/main_menu", num_digits=1, timeout=7
         ) as g:
-            g.say("Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call.")
-            
+            g.say(
+                "Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call."
+            )
+
         # Add a redirect to a graceful exit if they don't respond
         response.redirect("/graceful_exit")
         return Response(str(response), mimetype="text/xml")
@@ -432,16 +433,15 @@ def take_order_per_location(location_id):
         response.say(
             f"I'm sorry, our menu at our {location_id} location is currently unavailable."
         )
-        
+
         # Instead of hanging up, give them options
         with response.gather(
-            input="dtmf",
-            action="/main_menu",
-            num_digits=1,
-            timeout=7
+            input="dtmf", action="/main_menu", num_digits=1, timeout=7
         ) as g:
-            g.say("Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call.")
-            
+            g.say(
+                "Press 1 to return to the main menu, press 2 to try a different location, or stay on the line to end the call."
+            )
+
         # Add a redirect to a graceful exit if they don't respond
         response.redirect("/graceful_exit")
         return Response(str(response), mimetype="text/xml")

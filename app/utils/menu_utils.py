@@ -28,16 +28,18 @@ if os.environ.get("FLASK_ENV") == "development":
 _menu_requests_cache = {}
 _menu_requests_cache_duration = 300  # 5 minutes for menu requests
 
+
 def menu_request_cache(func):
     """
     Decorator to cache menu item requests to avoid redundant processing for common questions.
-    
+
     Args:
         func: The function to decorate
-        
+
     Returns:
         Wrapped function with caching
     """
+
     def wrapper(*args, **kwargs):
         # Generate a cache key based on the function name and arguments
         # For simplicity, we'll just use the first string argument as the key
@@ -46,38 +48,40 @@ def menu_request_cache(func):
             if isinstance(arg, str):
                 cache_key = f"{func.__name__}:{arg.lower().strip()}"
                 break
-                
+
         if not cache_key:
             # No suitable cache key found, just call the function
             return func(*args, **kwargs)
-            
+
         # Check if we have a cached result
         if cache_key in _menu_requests_cache:
             cached_data, timestamp = _menu_requests_cache[cache_key]
             current_time = time.time()
-            
+
             # Check if cache is still valid
             if current_time - timestamp < _menu_requests_cache_duration:
                 logger.info(f"Using cached menu request for: {cache_key}")
                 return cached_data
-                
+
         # Cache miss or expired, call the function
         result = func(*args, **kwargs)
-        
+
         # Store the result in cache
         _menu_requests_cache[cache_key] = (result, time.time())
-        
+
         # Limit cache size to avoid memory issues
         if len(_menu_requests_cache) > 100:
             # Remove oldest entries
-            oldest_keys = sorted(_menu_requests_cache.items(), 
-                               key=lambda x: x[1][1])[:50]
+            oldest_keys = sorted(_menu_requests_cache.items(), key=lambda x: x[1][1])[
+                :50
+            ]
             for key, _ in oldest_keys:
                 _menu_requests_cache.pop(key, None)
-                
+
         return result
-        
+
     return wrapper
+
 
 # Toggle to use redbar_menu_data.json instead of menu_data.json
 # Set this to True to use redbar_menu_data.json
@@ -332,7 +336,7 @@ def create_default_menu():
 def load_menu_data(force_refresh=False, location_id=None):
     """
     Load menu data from the file, with caching to avoid frequent reads.
-    
+
     This function employs aggressive caching to minimize disk access and improve performance.
     The cache is shared across all parts of the application.
 
@@ -399,8 +403,6 @@ def load_menu_data(force_refresh=False, location_id=None):
     else:
         file_path = find_menu_file_path()
 
-    
-    
     logger.info(f"Loading menu data from {file_path}")
 
     try:
@@ -424,11 +426,7 @@ def load_menu_data(force_refresh=False, location_id=None):
             # If it's not a Deliverect format, just use an empty structure
             else:
                 logger.error("Invalid menu data detected - using empty menu structure")
-                menu_data = {
-                    "items": [],
-                    "modifiers": [],
-                    "modifierGroups": []
-                }
+                menu_data = {"items": [], "modifiers": [], "modifierGroups": []}
                 logger.info("Created empty menu structure")
 
         # Update both caches - the new location-based one and the legacy one
@@ -528,14 +526,16 @@ def find_menu_item(item_name: str, check_availability: bool = False) -> tuple:
 
 @menu_request_cache
 def find_menu_item_by_name(
-    item_name: str, check_availability: bool = False, context: Optional[Dict[str, Any]] = None
+    item_name: str,
+    check_availability: bool = False,
+    context: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Find a menu item by name, using AI matching if exact match fails.
-    
+
     This is a bridge function that first tries an exact match for efficiency,
     then uses AI matching for better fuzzy matching capabilities.
-    
+
     The function is cached to avoid redundant lookups for common items.
 
     Args:
@@ -553,41 +553,47 @@ def find_menu_item_by_name(
 
     # Normalize the item name
     item_name_lower = item_name.lower().strip()
-    
+
     # Get menu data
     menu_data = load_menu_data()
-    
+
     # Step 1: Try exact matching first for efficiency
     for item in menu_data.get("items", []):
         # Skip category items - they are not orderable
         if item.get("is_category", False):
             continue
-            
+
         if item.get("name", "").lower() == item_name_lower:
             # Verify this item is available if required
             if not check_availability or (
                 item.get("available", True) and not item.get("snoozed", False)
             ):
-                logger.info(f"[MENU-LOOKUP] Found direct menu item match: {item.get('name')}")
+                logger.info(
+                    f"[MENU-LOOKUP] Found direct menu item match: {item.get('name')}"
+                )
                 return item
             else:
-                logger.warning(f"[MENU-LOOKUP] Found direct match '{item.get('name')}' but item is unavailable/snoozed")
+                logger.warning(
+                    f"[MENU-LOOKUP] Found direct match '{item.get('name')}' but item is unavailable/snoozed"
+                )
                 return None if check_availability else item
 
     # Step 2: No exact match, try AI matching
     # Import here to avoid circular imports
     try:
         # Lazy import to avoid circular imports
-        from app.utils.menu_matcher import find_menu_item_ai
-        
+        from app.utils.menu_matcher_db import find_menu_item_ai
+
         ai_match = find_menu_item_ai(item_name, check_availability, context)
         if ai_match:
-            logger.info(f"[MENU-LOOKUP] AI matcher found: {ai_match.get('name')} for '{item_name}'")
+            logger.info(
+                f"[MENU-LOOKUP] AI matcher found: {ai_match.get('name')} for '{item_name}'"
+            )
             return ai_match
     except Exception as e:
         logger.error(f"[MENU-LOOKUP] Error in AI matching: {str(e)}")
         # Continue with fallback if AI matching fails
-    
+
     # No match found
     logger.warning(f"[MENU-LOOKUP] No match found for '{item_name}'")
     return None
@@ -879,7 +885,7 @@ def get_popular_menu_items():
         # Skip category items - they are not orderable
         if item.get("is_category", False):
             continue
-            
+
         if item.get("available", True) and not is_item_snoozed(item):
             available_items.append(item)
 
@@ -1026,10 +1032,14 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
     """
     menu_data = load_menu_data()
     # Create lookup dictionaries for faster access
-    modifier_groups_by_id = {mg.get("id"): mg for mg in menu_data.get("modifierGroups", [])}
+    modifier_groups_by_id = {
+        mg.get("id"): mg for mg in menu_data.get("modifierGroups", [])
+    }
     items_by_name = {item.get("name"): item for item in menu_data.get("items", [])}
-    modifiers_by_ref = {mod.get("reference_handler"): mod for mod in menu_data.get("modifiers", [])}
-    
+    modifiers_by_ref = {
+        mod.get("reference_handler"): mod for mod in menu_data.get("modifiers", [])
+    }
+
     # Track constraints for user prompting
     constraints_needed = {}
     has_validation_error = False  # Track if we have a real validation error
@@ -1045,16 +1055,16 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
 
         # Get modifier groups for this item
         item_mod_groups = menu_item.get("modifierGroups", [])
-        
+
         # IMPORTANT CHANGE: Always include ALL items with modifier groups in constraints
         # This ensures every item with possible modifiers gets prompted
         if return_detailed_constraints and item_mod_groups:
             if item_name not in constraints_needed:
                 constraints_needed[item_name] = {
                     "is_combo": menu_item.get("isCombo", False),
-                    "modifier_groups": []
+                    "modifier_groups": [],
                 }
-        
+
         # Check for combo/meal deal items
         is_combo = menu_item.get("isCombo", False)
         if is_combo and return_detailed_constraints:
@@ -1063,13 +1073,10 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
             if child_products:
                 if item_name not in constraints_needed:
                     constraints_needed[item_name] = {"is_combo": True}
-                    
+
                 constraints_needed[item_name]["components"] = [
-                    {
-                        "name": child.get("name"),
-                        "id": child.get("id"),
-                        "required": True
-                    } for child in child_products
+                    {"name": child.get("name"), "id": child.get("id"), "required": True}
+                    for child in child_products
                 ]
 
         # For each modifier group, check constraints
@@ -1082,39 +1089,43 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
             # Get min/max constraints per Deliverect spec (see real_docs.md)
             min_required = group.get("min", 0)  # Minimum selections required
             max_allowed = group.get("max", 999)  # Maximum selections allowed
-            multi_max = group.get("multiMax", 1)  # Maximum quantity of any single modifier
-            
+            multi_max = group.get(
+                "multiMax", 1
+            )  # Maximum quantity of any single modifier
+
             # Special handling for variant groups
             is_variant_group = group.get("isVariantGroup", False)
-            
+
             # Get modifiers that belong to this group
             group_mod_refs = group.get("subProducts", [])
             group_mod_names = []
-            
+
             for ref in group_mod_refs:
                 mod = modifiers_by_ref.get(ref)
                 if mod:
                     group_mod_names.append(mod.get("name"))
-            
+
             # IMPORTANT: If we're in detailed constraint mode, always add this group to constraints
             if return_detailed_constraints:
                 if item_name not in constraints_needed:
                     constraints_needed[item_name] = {
                         "is_combo": is_combo,
-                        "modifier_groups": []
+                        "modifier_groups": [],
                     }
-                
+
                 if "modifier_groups" not in constraints_needed[item_name]:
                     constraints_needed[item_name]["modifier_groups"] = []
-                    
-                constraints_needed[item_name]["modifier_groups"].append({
-                    "name": group_name,
-                    "min_required": min_required, 
-                    "max_allowed": max_allowed,
-                    "modifiers": group_mod_names,
-                    "is_variant": is_variant_group
-                })
-            
+
+                constraints_needed[item_name]["modifier_groups"].append(
+                    {
+                        "name": group_name,
+                        "min_required": min_required,
+                        "max_allowed": max_allowed,
+                        "modifiers": group_mod_names,
+                        "is_variant": is_variant_group,
+                    }
+                )
+
             # Count modifiers from this group
             mod_count = 0
             mod_quantities = {}  # Track quantity per modifier for multiMax check
@@ -1122,12 +1133,12 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
             for mod in modifiers:
                 mod_ref = mod.get("reference_handler")
                 mod_name = mod.get("name", "")
-                
+
                 # Check if this modifier belongs to the current group
                 if mod_ref in group_mod_refs or mod_name in group_mod_names:
                     mod_quantity = mod.get("quantity", 1)
                     mod_count += mod_quantity
-                    
+
                     # Track quantity per modifier for multiMax check
                     if mod_ref in mod_quantities:
                         mod_quantities[mod_ref] += mod_quantity
@@ -1138,7 +1149,7 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
             if mod_count < min_required and min_required > 0:
                 has_validation_error = True
                 error_msg = f"Item '{item_name}' requires at least {min_required} selection{'s' if min_required > 1 else ''} from '{group_name}'{' (variants)' if is_variant_group else ''}"
-                
+
                 # If not returning detailed constraints, exit early with error
                 if not return_detailed_constraints:
                     return (False, error_msg, {})
@@ -1146,11 +1157,11 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
             if mod_count > max_allowed:
                 has_validation_error = True
                 error_msg = f"Item '{item_name}' allows at most {max_allowed} selection{'s' if max_allowed > 1 else ''} from '{group_name}'"
-                
+
                 # If not returning detailed constraints, exit early with error
                 if not return_detailed_constraints:
                     return (False, error_msg, {})
-                
+
             # Check multiMax constraint - max quantity of any single modifier
             if multi_max > 0:  # 0 means unlimited
                 for mod_ref, quantity in mod_quantities.items():
@@ -1158,17 +1169,25 @@ def validate_modifier_constraints(order_items, return_detailed_constraints=False
                     if quantity > multi_max:
                         has_validation_error = True
                         error_msg = f"Item '{item_name}' allows at most {multi_max} of '{mod_name}' from '{group_name}'"
-                        
+
                         # If not returning detailed constraints, exit early with error
                         if not return_detailed_constraints:
                             return (False, error_msg, {})
 
     if return_detailed_constraints:
         # We return all constraints, even if there are no validation errors
-        return (not has_validation_error, "" if not has_validation_error else error_msg, constraints_needed)
+        return (
+            not has_validation_error,
+            "" if not has_validation_error else error_msg,
+            constraints_needed,
+        )
     else:
         # Without detailed constraints, we just return the validation status
-        return (not has_validation_error, "" if not has_validation_error else error_msg, {})
+        return (
+            not has_validation_error,
+            "" if not has_validation_error else error_msg,
+            {},
+        )
 
 
 def process_deliverect_menu(data, location_id=None):
@@ -1384,11 +1403,12 @@ def process_meal_deal(meal_deal_item, selections=None):
         dict: Processed meal deal item with child items and their modifiers
     """
     import logging
+
     logger = logging.getLogger(__name__)
-    
+
     if not selections:
         selections = {}
-        
+
     # Get the menu data for validation
     menu_data = load_menu_data()
 
@@ -1398,9 +1418,9 @@ def process_meal_deal(meal_deal_item, selections=None):
         "reference_handler": meal_deal_item.get("reference_handler", ""),
         "price": meal_deal_item.get("price", 0.0),
         "quantity": 1,
-        "modifier": [],       # Modifiers applied to the entire meal deal
-        "childItems": [],     # Component items in the meal deal
-        "isCombo": True       # Mark this as a combo meal for proper handling
+        "modifier": [],  # Modifiers applied to the entire meal deal
+        "childItems": [],  # Component items in the meal deal
+        "isCombo": True,  # Mark this as a combo meal for proper handling
     }
 
     # Check if we have all required components
@@ -1409,22 +1429,24 @@ def process_meal_deal(meal_deal_item, selections=None):
         child_id = child.get("id")
         if child.get("required", True):  # Assume components are required by default
             required_components.append(child_id)
-    
+
     # Verify all required components are present
     for component_id in required_components:
         if component_id not in selections:
-            logger.warning(f"Required component {component_id} missing from meal deal {result['name']}")
+            logger.warning(
+                f"Required component {component_id} missing from meal deal {result['name']}"
+            )
             # In some meal deals, this might be a problem - for now we'll allow it
             # and let validation catch it elsewhere if needed
-    
+
     # Process each child product (component)
     for child in meal_deal_item.get("childProducts", []):
         child_id = child.get("id")
         selection = selections.get(child_id, {})
-        
+
         # Get quantity for this component (default to 1)
         quantity = selection.get("quantity", 1)
-        
+
         # Create child item with proper structure
         child_item = {
             "name": child.get("name"),
@@ -1434,7 +1456,7 @@ def process_meal_deal(meal_deal_item, selections=None):
             "modifier": [],  # Will be populated below
             "for_component": child_id,  # Track which component this belongs to
         }
-        
+
         # Process modifiers for this component
         if "modifier" in selection and selection["modifier"]:
             # Handle different possible formats of the modifier data
@@ -1451,24 +1473,31 @@ def process_meal_deal(meal_deal_item, selections=None):
                             except (ValueError, TypeError):
                                 # Default to 1 if conversion fails
                                 mod_quantity = 1
-                                
+
                         # Copy existing modifier with proper structure
                         processed_mod = {
                             "name": mod.get("name", ""),
                             "reference_handler": mod.get("reference_handler", ""),
                             "price": mod.get("price", 0.0),
                             "quantity": mod_quantity,
-                            "for_component": child_id  # Track which component this modifier belongs to
+                            "for_component": child_id,  # Track which component this modifier belongs to
                         }
-                        
+
                         # Look up modifier in menu for better reference data
                         for menu_mod in menu_data.get("modifiers", []):
-                            if (menu_mod.get("name", "").lower() == processed_mod["name"].lower() or
-                                menu_mod.get("reference_handler") == processed_mod["reference_handler"]):
+                            if (
+                                menu_mod.get("name", "").lower()
+                                == processed_mod["name"].lower()
+                                or menu_mod.get("reference_handler")
+                                == processed_mod["reference_handler"]
+                            ):
                                 # Update reference handler if found
-                                processed_mod["reference_handler"] = menu_mod.get("reference_handler", processed_mod["reference_handler"])
+                                processed_mod["reference_handler"] = menu_mod.get(
+                                    "reference_handler",
+                                    processed_mod["reference_handler"],
+                                )
                                 break
-                        
+
                         # Add nested modifiers if present
                         if "subModifiers" in mod and mod["subModifiers"]:
                             processed_mod["subModifiers"] = []
@@ -1480,43 +1509,48 @@ def process_meal_deal(meal_deal_item, selections=None):
                                         sub_quantity = int(sub_quantity)
                                     except (ValueError, TypeError):
                                         sub_quantity = 1
-                                
+
                                 # Create sub-modifier with proper structure
                                 sub_processed = {
                                     "name": sub_mod.get("name", ""),
-                                    "reference_handler": sub_mod.get("reference_handler", ""),
+                                    "reference_handler": sub_mod.get(
+                                        "reference_handler", ""
+                                    ),
                                     "price": sub_mod.get("price", 0.0),
                                     "quantity": sub_quantity,
-                                    "for_component": child_id
+                                    "for_component": child_id,
                                 }
-                                
+
                                 # Add to processed modifiers
                                 processed_mod["subModifiers"].append(sub_processed)
-                            
+
                         child_item["modifier"].append(processed_mod)
                     elif isinstance(mod, str):
                         # Extract quantity if present in the string format "3 Scoops of Rice"
                         mod_name = mod
                         mod_quantity = 1
-                        
+
                         # Check for leading number pattern
                         import re
-                        quantity_match = re.match(r'^(\d+)\s+(.+)$', mod)
+
+                        quantity_match = re.match(r"^(\d+)\s+(.+)$", mod)
                         if quantity_match:
                             try:
                                 mod_quantity = int(quantity_match.group(1))
                                 mod_name = quantity_match.group(2)
                             except (ValueError, IndexError):
                                 pass  # Keep defaults if parsing fails
-                        
+
                         # Create basic structure with extracted quantity
-                        child_item["modifier"].append({
-                            "name": mod_name,
-                            "reference_handler": f"MOD-{mod_name.lower().replace(' ', '-')}",
-                            "price": 0.0,
-                            "quantity": mod_quantity,
-                            "for_component": child_id
-                        })
+                        child_item["modifier"].append(
+                            {
+                                "name": mod_name,
+                                "reference_handler": f"MOD-{mod_name.lower().replace(' ', '-')}",
+                                "price": 0.0,
+                                "quantity": mod_quantity,
+                                "for_component": child_id,
+                            }
+                        )
             elif isinstance(selection["modifier"], dict):
                 # Handle dictionary format (less common)
                 for mod_name, mod_details in selection["modifier"].items():
@@ -1531,11 +1565,12 @@ def process_meal_deal(meal_deal_item, selections=None):
                                 quantity = 1
                         else:
                             quantity = mod_quantity
-                    
+
                     # Check for quantity in name "3 Scoops of Rice"
                     if isinstance(mod_name, str):
                         import re
-                        quantity_match = re.match(r'^(\d+)\s+(.+)$', mod_name)
+
+                        quantity_match = re.match(r"^(\d+)\s+(.+)$", mod_name)
                         if quantity_match:
                             try:
                                 name_quantity = int(quantity_match.group(1))
@@ -1545,27 +1580,38 @@ def process_meal_deal(meal_deal_item, selections=None):
                                     quantity = name_quantity
                             except (ValueError, IndexError):
                                 pass  # Keep defaults if parsing fails
-                    
+
                     # Create the modifier with proper structure
                     ref_handler = f"MOD-{mod_name.lower().replace(' ', '-')}"
-                    if isinstance(mod_details, dict) and "reference_handler" in mod_details:
+                    if (
+                        isinstance(mod_details, dict)
+                        and "reference_handler" in mod_details
+                    ):
                         ref_handler = mod_details.get("reference_handler")
-                        
+
                     # Build the modifier
-                    child_item["modifier"].append({
-                        "name": mod_name,
-                        "reference_handler": ref_handler,
-                        "price": mod_details.get("price", 0.0) if isinstance(mod_details, dict) else 0.0,
-                        "quantity": quantity,
-                        "for_component": child_id
-                    })
-                    
+                    child_item["modifier"].append(
+                        {
+                            "name": mod_name,
+                            "reference_handler": ref_handler,
+                            "price": (
+                                mod_details.get("price", 0.0)
+                                if isinstance(mod_details, dict)
+                                else 0.0
+                            ),
+                            "quantity": quantity,
+                            "for_component": child_id,
+                        }
+                    )
+
                     # Look up in menu for better reference data if needed
                     if not ref_handler or ref_handler.startswith("MOD-"):
                         for menu_mod in menu_data.get("modifiers", []):
                             if menu_mod.get("name", "").lower() == mod_name.lower():
                                 # Update the reference handler with the actual one from menu
-                                child_item["modifier"][-1]["reference_handler"] = menu_mod.get("reference_handler", ref_handler)
+                                child_item["modifier"][-1]["reference_handler"] = (
+                                    menu_mod.get("reference_handler", ref_handler)
+                                )
                                 break
 
         # Add the processed child item to the meal deal
@@ -1574,7 +1620,7 @@ def process_meal_deal(meal_deal_item, selections=None):
     # Also process any modifiers that apply to the entire meal deal, not specific components
     if "modifier" in meal_deal_item and meal_deal_item["modifier"]:
         result["modifier"] = []
-        
+
         for mod in meal_deal_item["modifier"]:
             if isinstance(mod, dict):
                 # Handle quantities properly
@@ -1584,23 +1630,28 @@ def process_meal_deal(meal_deal_item, selections=None):
                         mod_quantity = int(mod_quantity)
                     except (ValueError, TypeError):
                         mod_quantity = 1
-                
+
                 # Create properly structured modifier
                 processed_mod = {
                     "name": mod.get("name", ""),
                     "reference_handler": mod.get("reference_handler", ""),
                     "price": mod.get("price", 0.0),
-                    "quantity": mod_quantity
+                    "quantity": mod_quantity,
                 }
-                
+
                 # Look up reference data if needed
                 if not processed_mod["reference_handler"] and processed_mod["name"]:
                     # Try to find in menu
                     for menu_mod in menu_data.get("modifiers", []):
-                        if menu_mod.get("name", "").lower() == processed_mod["name"].lower():
-                            processed_mod["reference_handler"] = menu_mod.get("reference_handler", "")
+                        if (
+                            menu_mod.get("name", "").lower()
+                            == processed_mod["name"].lower()
+                        ):
+                            processed_mod["reference_handler"] = menu_mod.get(
+                                "reference_handler", ""
+                            )
                             break
-                            
+
                 # Add any nested modifiers if present
                 if "subModifiers" in mod and mod["subModifiers"]:
                     processed_mod["subModifiers"] = []
@@ -1609,30 +1660,33 @@ def process_meal_deal(meal_deal_item, selections=None):
                         sub_processed = build_nested_modifiers(sub_mod, menu_data)
                         if sub_processed:
                             processed_mod["subModifiers"].append(sub_processed)
-                
+
                 result["modifier"].append(processed_mod)
             elif isinstance(mod, str):
                 # Handle string modifiers with potential quantities
                 mod_name = mod
                 mod_quantity = 1
-                
+
                 # Check for quantity pattern
                 import re
-                quantity_match = re.match(r'^(\d+)\s+(.+)$', mod)
+
+                quantity_match = re.match(r"^(\d+)\s+(.+)$", mod)
                 if quantity_match:
                     try:
                         mod_quantity = int(quantity_match.group(1))
                         mod_name = quantity_match.group(2)
                     except (ValueError, IndexError):
                         pass  # Keep defaults if parsing fails
-                
+
                 # Create basic structure
-                result["modifier"].append({
-                    "name": mod_name,
-                    "reference_handler": f"MOD-{mod_name.lower().replace(' ', '-')}",
-                    "price": 0.0,
-                    "quantity": mod_quantity
-                })
+                result["modifier"].append(
+                    {
+                        "name": mod_name,
+                        "reference_handler": f"MOD-{mod_name.lower().replace(' ', '-')}",
+                        "price": 0.0,
+                        "quantity": mod_quantity,
+                    }
+                )
 
     return result
 
@@ -1641,7 +1695,7 @@ def add_name_variants(item_name, variants_dict=None):
     """
     This function is being transitioned away from as we're moving to using
     an AI agent for menu item matching instead of name variants.
-    
+
     Args:
         item_name: The name of the item to generate variants for (unused)
         variants_dict: Optional dictionary to update (maintained for compatibility)
@@ -1652,7 +1706,7 @@ def add_name_variants(item_name, variants_dict=None):
     # Initialize empty dict if needed for backward compatibility
     if variants_dict is None:
         variants_dict = {}
-        
+
     # This function intentionally does nothing - AI agent will handle matching
     return variants_dict
 
@@ -1661,7 +1715,7 @@ def add_name_variants_to_menu(menu_data, variants_dict=None):
     """
     This function is being transitioned away from as we're moving to using
     an AI agent for menu item matching instead of name variants.
-    
+
     Args:
         menu_data: The menu data to update
         variants_dict: Dictionary of variants (not used)
@@ -1673,15 +1727,15 @@ def add_name_variants_to_menu(menu_data, variants_dict=None):
     # This maintains structure compatibility while removing the logic
     if "name_variants" not in menu_data:
         menu_data["name_variants"] = {}
-        
+
     return menu_data
 
 
 def build_nested_modifiers(modifier, menu_data, max_nesting_level=3):
     """
-    Build a nested structure of modifiers with robust validation and support for 
+    Build a nested structure of modifiers with robust validation and support for
     deep nesting up to the specified level. Handles modifier quantities correctly.
-    
+
     Based on Deliverect structure in real_docs.md, each modifier can have subItems/subModifiers,
     and modifiers can be attached to components in meal deals.
 
@@ -1694,21 +1748,24 @@ def build_nested_modifiers(modifier, menu_data, max_nesting_level=3):
         dict: Processed modifier with nested sub-modifiers
     """
     import logging
+
     logger = logging.getLogger(__name__)
-    
+
     # Safety check for recursion depth
     if max_nesting_level <= 0:
-        logger.warning(f"Maximum nesting level reached for modifier {modifier.get('name', 'unknown')}")
+        logger.warning(
+            f"Maximum nesting level reached for modifier {modifier.get('name', 'unknown')}"
+        )
         return None
-    
+
     # Get modifier details
     mod_name = modifier.get("name", "")
     mod_ref = modifier.get("reference_handler", "")
-    
+
     # If reference handler is missing, try to generate one
     if not mod_ref and mod_name:
         mod_ref = f"MOD-{mod_name.lower().replace(' ', '-')}"
-        
+
     # Create base modifier with proper structure for Deliverect
     result = {
         "name": mod_name,
@@ -1717,47 +1774,59 @@ def build_nested_modifiers(modifier, menu_data, max_nesting_level=3):
         "quantity": modifier.get("quantity", 1),
         "subModifiers": [],
     }
-    
+
     # Preserve component tracking if present
     if "for_component" in modifier:
         result["for_component"] = modifier["for_component"]
-    
+
     # Process known sub-modifiers directly specified
     if "modifiers" in modifier and modifier["modifiers"]:
         for sub_mod in modifier["modifiers"]:
-            sub_result = build_nested_modifiers(sub_mod, menu_data, max_nesting_level - 1)
+            sub_result = build_nested_modifiers(
+                sub_mod, menu_data, max_nesting_level - 1
+            )
             if sub_result:
                 result["subModifiers"].append(sub_result)
-    
+
     # Also handle subModifiers key for consistency
     if "subModifiers" in modifier and modifier["subModifiers"]:
         for sub_mod in modifier["subModifiers"]:
-            sub_result = build_nested_modifiers(sub_mod, menu_data, max_nesting_level - 1)
+            sub_result = build_nested_modifiers(
+                sub_mod, menu_data, max_nesting_level - 1
+            )
             if sub_result:
                 result["subModifiers"].append(sub_result)
-                
+
     # Handle the direct subItems format used in Deliverect payloads
     if "subItems" in modifier and modifier["subItems"]:
         for sub_item in modifier["subItems"]:
             sub_result = {
                 "name": sub_item.get("name", ""),
-                "reference_handler": sub_item.get("plu", sub_item.get("reference_handler", "")),
+                "reference_handler": sub_item.get(
+                    "plu", sub_item.get("reference_handler", "")
+                ),
                 "price": sub_item.get("price", 0.0),
                 "quantity": sub_item.get("quantity", 1),
-                "subModifiers": []
+                "subModifiers": [],
             }
-            
+
             # Recursively process nested subItems if present
-            if "subItems" in sub_item and sub_item["subItems"] and max_nesting_level > 1:
+            if (
+                "subItems" in sub_item
+                and sub_item["subItems"]
+                and max_nesting_level > 1
+            ):
                 sub_result["subModifiers"] = []
                 for nested_sub in sub_item["subItems"]:
-                    nested_result = build_nested_modifiers(nested_sub, menu_data, max_nesting_level - 2)
+                    nested_result = build_nested_modifiers(
+                        nested_sub, menu_data, max_nesting_level - 2
+                    )
                     if nested_result:
                         sub_result["subModifiers"].append(nested_result)
-                        
+
             result["subModifiers"].append(sub_result)
-    
-    # If the reference handler matches a known modifier group, 
+
+    # If the reference handler matches a known modifier group,
     # try to find and attach its modifiers from the menu data
     if menu_data and "modifierGroups" in menu_data:
         # Try to find this modifier reference in modifier groups
@@ -1767,17 +1836,22 @@ def build_nested_modifiers(modifier, menu_data, max_nesting_level=3):
                 for sub_ref in group.get("subProducts", []):
                     # Find the modifier by reference
                     for menu_mod in menu_data.get("modifiers", []):
-                        if menu_mod.get("reference_handler") == sub_ref or menu_mod.get("plu") == sub_ref:
+                        if (
+                            menu_mod.get("reference_handler") == sub_ref
+                            or menu_mod.get("plu") == sub_ref
+                        ):
                             # Add this modifier as a subModifier
                             sub_mod = {
                                 "name": menu_mod.get("name", ""),
-                                "reference_handler": menu_mod.get("reference_handler", ""),
+                                "reference_handler": menu_mod.get(
+                                    "reference_handler", ""
+                                ),
                                 "price": menu_mod.get("price", 0.0),
-                                "quantity": 1  # Default quantity
+                                "quantity": 1,  # Default quantity
                             }
                             if "for_component" in modifier:
                                 sub_mod["for_component"] = modifier["for_component"]
                             result["subModifiers"].append(sub_mod)
                             break
-    
+
     return result

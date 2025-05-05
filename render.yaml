@@ -1,8 +1,14 @@
+###############################################################################
+# render.yaml - RedBar Sushi AI (production + staging + e2e job)              #
+###############################################################################
+# render.yaml - RedBar Sushi AI (production + staging + e2e job)              #
+###############################################################################
+
 services:
-  # Main web service for production
+  # ─────────────────────────  PRODUCTION STACK  ───────────────────────── #
   - type: web
     name: redbarsushi-web
-    env: python
+    runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
     envVars:
@@ -10,6 +16,12 @@ services:
         value: web
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: DB_MAX_RETRIES
+        value: "5"
+      - key: DB_INITIAL_RETRY_DELAY
+        value: "1.0"
+      - key: DB_MAX_RETRY_DELAY
+        value: "30.0"
       - key: REDIS_URL
         fromService:
           name: redbarsushi-redis
@@ -25,47 +37,10 @@ services:
           name: redbarsushi-redis
           type: redis
           property: connectionString
-      # The remaining environment variables will need to be added
-      # in the Render dashboard after deployment
 
-  # Staging web service
-  - type: web
-    name: redbarsushi-staging
-    env: python
-    branch: staging
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
-    envVars:
-      - key: PROCESS
-        value: web
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: FLASK_ENV
-        value: staging
-      - key: IS_STAGING
-        value: "true"
-      - key: REDIS_URL
-        fromService:
-          name: redbarsushi-staging-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_BROKER_URL
-        fromService:
-          name: redbarsushi-staging-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_RESULT_BACKEND
-        fromService:
-          name: redbarsushi-staging-redis
-          type: redis
-          property: connectionString
-      # The remaining environment variables will need to be added
-      # in the Render dashboard after deployment
-
-  # Celery worker for production
   - type: worker
     name: redbarsushi-celery
-    env: python
+    runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: ./fix_celery.sh
     envVars:
@@ -73,6 +48,12 @@ services:
         value: celery
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: DB_MAX_RETRIES
+        value: "5"
+      - key: DB_INITIAL_RETRY_DELAY
+        value: "1.0"
+      - key: DB_MAX_RETRY_DELAY
+        value: "30.0"
       - key: REDIS_URL
         fromService:
           name: redbarsushi-redis
@@ -88,14 +69,56 @@ services:
           name: redbarsushi-redis
           type: redis
           property: connectionString
-      # The remaining environment variables will need to be added
-      # in the Render dashboard after deployment
 
-  # Celery worker for staging
+  - type: redis
+    name: redbarsushi-redis
+    plan: free
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+
+  # ───────────────────────────  STAGING STACK  ────────────────────────── #
+  - type: web
+    name: redbarsushi-staging
+    branch: staging
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --worker-class=gevent --workers=1 --threads=4 'run:app'
+    envVars:
+      - key: PROCESS
+        value: web
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: FLASK_ENV
+        value: staging
+      - key: IS_STAGING
+        value: "true"
+      - key: DB_MAX_RETRIES
+        value: "5"
+      - key: DB_INITIAL_RETRY_DELAY
+        value: "1.0"
+      - key: DB_MAX_RETRY_DELAY
+        value: "30.0"
+      - key: REDIS_URL
+        fromService:
+          name: redbarsushi-staging-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: redbarsushi-staging-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: redbarsushi-staging-redis
+          type: redis
+          property: connectionString
+
   - type: worker
     name: redbarsushi-staging-celery
-    env: python
     branch: staging
+    runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: ./fix_celery.sh
     envVars:
@@ -107,6 +130,12 @@ services:
         value: staging
       - key: IS_STAGING
         value: "true"
+      - key: DB_MAX_RETRIES
+        value: "5"
+      - key: DB_INITIAL_RETRY_DELAY
+        value: "1.0"
+      - key: DB_MAX_RETRY_DELAY
+        value: "30.0"
       - key: REDIS_URL
         fromService:
           name: redbarsushi-staging-redis
@@ -122,21 +151,29 @@ services:
           name: redbarsushi-staging-redis
           type: redis
           property: connectionString
-      # The remaining environment variables will need to be added
-      # in the Render dashboard after deployment
 
-  # Redis for production
-  - type: redis
-    name: redbarsushi-redis
-    ipAllowList:
-      - source: 0.0.0.0/0
-        description: everywhere
-    plan: free
-    
-  # Redis for staging
   - type: redis
     name: redbarsushi-staging-redis
+    branch: staging
+    plan: free
     ipAllowList:
       - source: 0.0.0.0/0
         description: everywhere
-    plan: free
+
+  # ─────────────────────  PLAYWRIGHT E2E JOB (staging)  ───────────────────── #
+  - type: job
+    name: redbarsushi-staging-e2e
+    branch: staging
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt -r requirements.ci.txt
+      pip install playwright==1.43.0 pytest-playwright
+    startCommand: |
+      until curl -fsS https://redbarsushi-staging.onrender.com/health; do
+        echo "⏳ waiting for staging…"; sleep 5; done
+      export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      export BASE_URL=https://redbarsushi-staging.onrender.com
+      pytest tests/e2e -v
+    envVars:
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        value: "1"
