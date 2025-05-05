@@ -17,10 +17,14 @@ from app.routes.voice.twilio.twiml import generate_media_streams_twiml, get_envi
 logger = logging.getLogger(__name__)
 
 @realtime_voice_bp.route("/", methods=["GET", "POST"])
+@realtime_voice_bp.route("/webhook/voice", methods=["GET", "POST"])
 def receive_call():
     """
     Handle an incoming voice call with the Realtime API integration.
     Uses Twilio Media Streams for real-time audio processing.
+    
+    This endpoint is accessible at both / and /webhook/voice for compatibility
+    with different Twilio webhook configurations.
     """
     # Create a log file for this specific call
     call_sid = request.values.get("CallSid", str(uuid.uuid4()))
