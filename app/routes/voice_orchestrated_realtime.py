@@ -34,6 +34,17 @@ from app.agents.factory_with_orchestration import enhanced_agent_factory
 # Import real-time audio processing utilities
 from app.utils.realtime_audio_sdk import get_realtime_processor, pcm_to_ulaw
 
+# Import enhanced diagnostics
+from app.utils.enhanced_diagnostics import (
+    log_websocket_handshake,
+    log_websocket_message,
+    send_heartbeat,
+    log_system_status,
+    log_audio_processing_stats,
+    log_realtime_session_details,
+    check_redis_connection
+)
+
 # Import agent orchestration components
 from app.utils.agent_orchestration import (
     AgentGraph,
@@ -759,192 +770,101 @@ async def media_stream(ws):
     # Log detailed connection info to make diagnosing WebSocket issues easier
     connection_time = time.time()
     connection_id = str(uuid.uuid4())
-    print(f"⚡⚡⚡ [WEBSOCKET CONNECTION] New connection at {connection_time}, ID: {connection_id} ⚡⚡⚡")
-    logger.critical(f"⚡⚡⚡ [WEBSOCKET CONNECTION] New WebSocket connection to /ws/voice/media at {connection_time}, ID: {connection_id} ⚡⚡⚡")
-    logger.critical(f"[WEBSOCKET DEBUG] WebSocket object type: {type(ws).__name__}")
-    logger.critical(f"[WEBSOCKET DEBUG] WebSocket object methods: {[method for method in dir(ws) if not method.startswith('_') and callable(getattr(ws, method))]}")
+    session_id = str(uuid.uuid4())  # This will be used for all logging
+    keepalive_task = None  # Will hold the keep-alive task when created
     
-    # Try to log as much information as possible about the WebSocket connection
+    print(f"⚡⚡⚡ [WEBSOCKET CONNECTION] New connection at {connection_time}, ID: {session_id} ⚡⚡⚡")
+    logger.critical(f"⚡⚡⚡ [WEBSOCKET CONNECTION] New WebSocket connection to /ws/voice/media at {connection_time}, ID: {session_id} ⚡⚡⚡")
+    
+    # Create immediately a comprehensive log of system status
+    log_system_status(session_id, "websocket_connect")
+    
+    # Set up enhanced logging for this session
+    log_dir = os.path.join(os.getcwd(), 'logs')
+    if not os.path.exists(log_dir):
+        try:
+            os.makedirs(log_dir)
+        except:
+            pass  # If we can't create the dir, we'll fallback to default logging
+    
     try:
-        # Log request information
-        if hasattr(ws, 'request'):
-            logger.critical(f"[WEBSOCKET DEBUG] WebSocket has request attribute")
-            logger.critical(f"[WEBSOCKET DEBUG] WebSocket request type: {type(ws.request).__name__}")
-            
-            if hasattr(ws.request, 'headers'):
-                logger.critical(f"[WEBSOCKET DEBUG] WebSocket request headers:")
-                for name, value in ws.request.headers.items():
-                    logger.critical(f"[WEBSOCKET DEBUG]   - {name}: {value}")
-            
-            if hasattr(ws.request, 'path'):
-                logger.critical(f"[WEBSOCKET DEBUG] WebSocket request path: {ws.request.path}")
-            
-            if hasattr(ws.request, 'query_string'):
-                logger.critical(f"[WEBSOCKET DEBUG] WebSocket query string: {ws.request.query_string}")
-            
-            if hasattr(ws.request, 'environ'):
-                logger.critical(f"[WEBSOCKET DEBUG] WebSocket environ keys: {sorted(ws.request.environ.keys())}")
-                # Log important WSGI environ variables
-                for key in ['REQUEST_METHOD', 'SERVER_NAME', 'SERVER_PORT', 'HTTP_HOST', 
-                           'HTTP_USER_AGENT', 'HTTP_UPGRADE', 'HTTP_CONNECTION', 'HTTP_SEC_WEBSOCKET_KEY']:
-                    if key in ws.request.environ:
-                        logger.critical(f"[WEBSOCKET DEBUG]   - {key}: {ws.request.environ[key]}")
-    except asyncio.TimeoutError as te:
-        session_id = "unknown" if 'session_id' not in locals() else session_id
-        logger.error(f"[MEDIA_STREAM] ❌ CRITICAL: Timeout error in media stream for session {session_id}: {str(te)}")
-        logger.error(f"[MEDIA_STREAM] Timeout stack trace: {traceback.format_exc()}")
+        # Create a session-specific file handler
+        session_log_file = os.path.join(log_dir, f'media_stream_{session_id}.log')
+        session_file_handler = logging.FileHandler(session_log_file)
+        session_file_handler.setLevel(logging.DEBUG)
+        session_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+        session_file_handler.setFormatter(session_formatter)
+        logger.addHandler(session_file_handler)
         
-        # Log detailed environment information
-        logger.error(f"[MEDIA_STREAM] Environment information: Python {sys.version}, OS: {sys.platform}")
-        logger.error(f"[MEDIA_STREAM] Available environment vars: {[k for k in os.environ.keys() if not any(secret in k.lower() for secret in ['key', 'token', 'secret', 'password'])]}")
+        # Also log to a common WebSocket log file
+        ws_log_file = os.path.join(log_dir, 'websocket_connections.log')
+        ws_file_handler = logging.FileHandler(ws_log_file)
+        ws_file_handler.setLevel(logging.INFO)
+        ws_file_handler.setFormatter(session_formatter)
+        logger.addHandler(ws_file_handler)
         
-        # Try to send diagnostic info to client
-        try:
-            await ws.send(json.dumps({
-                "event": "error",
-                "error_type": "timeout",
-                "text": f"System timeout error: {str(te)}",
-                "timestamp": time.time()
-            }))
-        except:
-            logger.error("[MEDIA_STREAM] Could not send timeout error to client")
-            
-        # Try to perform an emergency cleanup
-        try:
-            logger.warning("[MEDIA_STREAM] Attempting emergency cleanup after timeout...")
-            # Try to cancel any pending tasks
-            if 'twilio_task' in locals() and not twilio_task.done():
-                twilio_task.cancel()
-            
-            # Try to log connection summary
-            if 'log_connection_summary' in locals():
-                log_connection_summary("timeout_error")
-        except Exception as cleanup_error:
-            logger.error(f"[MEDIA_STREAM] Error during timeout cleanup: {cleanup_error}")
-            
-    except ConnectionError as ce:
-        session_id = "unknown" if 'session_id' not in locals() else session_id
-        logger.error(f"[MEDIA_STREAM] ❌ CRITICAL: Connection error in media stream for session {session_id}: {str(ce)}")
-        logger.error(f"[MEDIA_STREAM] Connection error trace: {traceback.format_exc()}")
-        
-        # Try to send diagnostic info to client
-        try:
-            await ws.send(json.dumps({
-                "event": "error",
-                "error_type": "connection",
-                "text": f"Connection error: {str(ce)}",
-                "timestamp": time.time()
-            }))
-        except:
-            pass
-            
-    except json.JSONDecodeError as je:
-        session_id = "unknown" if 'session_id' not in locals() else session_id
-        logger.error(f"[MEDIA_STREAM] ❌ JSON decode error in media stream for session {session_id}: {str(je)}")
-        logger.error(f"[MEDIA_STREAM] JSON error data: {je.doc[:100]}...")
-        logger.error(f"[MEDIA_STREAM] JSON error position: {je.pos}")
-        logger.error(f"[MEDIA_STREAM] JSON error trace: {traceback.format_exc()}")
-        
-        # Try to send diagnostic info to client
-        try:
-            await ws.send(json.dumps({
-                "event": "error",
-                "error_type": "json_error",
-                "text": f"JSON parsing error: {str(je)}",
-                "timestamp": time.time()
-            }))
-        except:
-            pass
-            
-    except Exception as e:
-        logger.critical(f"[WEBSOCKET DEBUG] Error logging WebSocket request details: {e}")
-        logger.critical(f"[WEBSOCKET DEBUG] Error trace: {traceback.format_exc()}")
+        logger.info(f"███████████████████████████████████████████████████████████████")
+        logger.info(f"████ NEW WEBSOCKET CONNECTION - SESSION ID: {session_id} ████")
+        logger.info(f"███████████████████████████████████████████████████████████████")
+    except Exception as log_error:
+        logger.error(f"Failed to set up session-specific logging: {log_error}")
     
-    # Try to send and receive messages to diagnose the connection
+    # Log WebSocket handshake details
+    try:
+        if hasattr(ws, 'request'):
+            log_websocket_handshake(ws.request, "post-upgrade")
+        
+        logger.critical(f"[WEBSOCKET DEBUG] WebSocket object type: {type(ws).__name__}")
+        logger.critical(f"[WEBSOCKET DEBUG] WebSocket object methods: {[method for method in dir(ws) if not method.startswith('_') and callable(getattr(ws, method))]}")
+    except Exception as handshake_error:
+        logger.error(f"[WEBSOCKET DEBUG] Error logging handshake details: {handshake_error}")
+        logger.error(traceback.format_exc())
+    
+    # Start the keep-alive task to prevent connection timeouts
+    try:
+        logger.info(f"[WEBSOCKET:{session_id}] Starting keep-alive task")
+        keepalive_task = asyncio.create_task(
+            send_heartbeat(ws, session_id, interval=10.0),  # Send heartbeat every 10 seconds
+            name=f"heartbeat-{session_id}"
+        )
+        logger.info(f"[WEBSOCKET:{session_id}] Keep-alive task started with 10-second interval")
+    except Exception as task_error:
+        logger.error(f"[WEBSOCKET:{session_id}] Error starting keep-alive task: {task_error}")
+        logger.error(traceback.format_exc())
+    
+    # Test the WebSocket connection with a simple echo
     try:
         # Send a test message
-        logger.critical("[WEBSOCKET DEBUG] Attempting to send test message...")
-        try:
-            test_msg = json.dumps({"type": "connection_test", "time": time.time(), "id": connection_id})
-            await ws.send(test_msg)
-            logger.critical("[WEBSOCKET DEBUG] Successfully sent test message")
-        except Exception as send_error:
-            logger.critical(f"[WEBSOCKET DEBUG] Error sending test message: {send_error}")
-            logger.critical(f"[WEBSOCKET DEBUG] Send error trace: {traceback.format_exc()}")
+        logger.critical(f"[WEBSOCKET:{session_id}] Sending connection test message")
+        test_msg = json.dumps({
+            "type": "connection_test", 
+            "time": time.time(), 
+            "id": session_id,
+            "message": "Testing WebSocket connection"
+        })
+        await ws.send(test_msg)
+        logger.critical(f"[WEBSOCKET:{session_id}] ✅ Successfully sent test message")
         
-        # Try to receive a message
-        logger.critical("[WEBSOCKET DEBUG] Attempting to receive initial message...")
+        # Try to receive an initial message with a short timeout
         try:
+            logger.critical(f"[WEBSOCKET:{session_id}] Waiting for initial message (1s timeout)")
             initial_msg = await asyncio.wait_for(ws.receive(), timeout=1.0)
-            logger.critical(f"[WEBSOCKET DEBUG] ✅ Received initial message: {initial_msg}")
+            logger.critical(f"[WEBSOCKET:{session_id}] ✅ Received initial message")
             
-            # Try to parse the message
-            if isinstance(initial_msg, str):
-                try:
-                    data = json.loads(initial_msg)
-                    logger.critical(f"[WEBSOCKET DEBUG] Parsed JSON message: {data}")
-                    if "event" in data:
-                        logger.critical(f"[WEBSOCKET DEBUG] Twilio event type: {data['event']}")
-                except json.JSONDecodeError:
-                    logger.critical(f"[WEBSOCKET DEBUG] Received non-JSON message: {initial_msg[:200]}")
-            else:
-                logger.critical(f"[WEBSOCKET DEBUG] Received binary message, length: {len(initial_msg)} bytes")
+            # Log the message using the enhanced logging
+            await log_websocket_message(initial_msg, "RECV", "initial", session_id)
         except asyncio.TimeoutError:
-            logger.critical("[WEBSOCKET DEBUG] ⚠️ No initial message received within timeout")
+            logger.warning(f"[WEBSOCKET:{session_id}] ⚠️ No initial message received within 1 second timeout")
+            logger.warning(f"[WEBSOCKET:{session_id}] This is normal if Twilio is waiting to send the first media chunk")
         except Exception as recv_error:
-            logger.critical(f"[WEBSOCKET DEBUG] ❌ Error receiving initial message: {recv_error}")
-            logger.critical(f"[WEBSOCKET DEBUG] Receive error trace: {traceback.format_exc()}")
-    except Exception as conn_error:
-        logger.critical(f"[WEBSOCKET DEBUG] ❌ Connection error: {conn_error}")
-        logger.critical(f"[WEBSOCKET DEBUG] Connection error trace: {traceback.format_exc()}")
+            logger.error(f"[WEBSOCKET:{session_id}] ❌ Error receiving initial message: {recv_error}")
+            logger.error(traceback.format_exc())
+    except Exception as test_error:
+        logger.error(f"[WEBSOCKET:{session_id}] ❌ Error during WebSocket connection test: {test_error}")
+        logger.error(traceback.format_exc())
+    
+    # Now initialize the main WebSocket handling
     try:
-        # Create a file handler for this specific session to ensure logs are preserved
-        session_id = str(uuid.uuid4())
-        log_dir = os.path.join(os.getcwd(), 'logs')
-        if not os.path.exists(log_dir):
-            try:
-                os.makedirs(log_dir)
-            except:
-                pass  # If we can't create the dir, we'll fallback to default logging
-        
-        try:
-            # Create a session-specific file handler
-            session_log_file = os.path.join(log_dir, f'media_stream_{session_id}.log')
-            session_file_handler = logging.FileHandler(session_log_file)
-            session_file_handler.setLevel(logging.DEBUG)
-            session_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-            session_file_handler.setFormatter(session_formatter)
-            logger.addHandler(session_file_handler)
-            
-            # Also log to a common WebSocket log file
-            ws_log_file = os.path.join(log_dir, 'websocket_connections.log')
-            ws_file_handler = logging.FileHandler(ws_log_file)
-            ws_file_handler.setLevel(logging.INFO)
-            ws_file_handler.setFormatter(session_formatter)
-            logger.addHandler(ws_file_handler)
-            
-            logger.info(f"███████████████████████████████████████████████████████████████")
-            logger.info(f"████ NEW WEBSOCKET CONNECTION - SESSION ID: {session_id} ████")
-            logger.info(f"███████████████████████████████████████████████████████████████")
-        except Exception as log_error:
-            logger.error(f"Failed to set up session-specific logging: {log_error}")
-    
-        # Print environment info to help with debugging
-        try:
-            logger.info("==== ENVIRONMENT INFORMATION ====")
-            logger.info(f"Worker PID: {os.getpid()}")
-            logger.info(f"Current directory: {os.getcwd()}")
-            logger.info(f"Python version: {sys.version}")
-            logger.info(f"Environment vars: REDIS_URL exists: {'Yes' if os.environ.get('REDIS_URL') else 'No'}")
-            logger.info(f"Environment vars: OPENAI_API_KEY exists: {'Yes' if os.environ.get('OPENAI_API_KEY') else 'No'}")
-            logger.info(f"Environment vars: TWILIO_ACCOUNT_SID exists: {'Yes' if os.environ.get('TWILIO_ACCOUNT_SID') else 'No'}")
-            logger.info(f"Environment vars: FLASK_ENV: {os.environ.get('FLASK_ENV', 'not set')}")
-            logger.info(f"Environment vars: IS_STAGING: {os.environ.get('IS_STAGING', 'not set')}")
-            logger.info(f"Environment vars: RENDER: {os.environ.get('RENDER', 'not set')}")
-            logger.info("==== END ENVIRONMENT INFORMATION ====")
-        except Exception as env_error:
-            logger.error(f"Error logging environment info: {env_error}")
-    
         # Track detailed metrics and events
         ws_events = []
         
@@ -958,6 +878,19 @@ async def media_stream(ws):
             "tool_calls": 0,
             "transcripts_processed": 0,
             "last_activity_time": time.time(),
+        }
+        
+        # Track detailed stats about audio chunks
+        audio_stats = {
+            "first_chunk_time": None,
+            "last_chunk_time": None,
+            "min_chunk_size": float('inf'),
+            "max_chunk_size": 0,
+            "total_audio_size": 0,
+            "chunk_count": 0,
+            "chunk_sizes": [],
+            "transcripts_generated": 0,
+            "silence_events": 0
         }
         
         # Function to log the connection summary when it ends
@@ -983,37 +916,84 @@ async def media_stream(ws):
             logger.info(f"[MEDIA_STREAM] New media stream connection: {session_id}")
             
             # Initialize the Realtime processor
-            realtime_processor = get_realtime_processor()
-            logger.info(f"[MEDIA_STREAM] Initialized realtime processor: {id(realtime_processor)}")
+            # Log first attempt at real-time API initialization
+            logger.info(f"[REALTIME:{session_id}] Attempting to initialize OpenAI Realtime processor")
+            try:
+                realtime_processor = get_realtime_processor()
+                
+                # Log success and extract configuration
+                logger.info(f"[REALTIME:{session_id}] ✅ Successfully initialized realtime processor: {id(realtime_processor)}")
+                
+                # Get and log the session configuration if available
+                if hasattr(realtime_processor, 'get_config'):
+                    session_config = realtime_processor.get_config()
+                    log_realtime_session_details(session_config, "starting", session_id)
+                else:
+                    logger.info(f"[REALTIME:{session_id}] Session config not available")
+                    
+                # Check if we're using the optimized client or fallback
+                is_fallback = False
+                if hasattr(realtime_processor, 'is_fallback'):
+                    is_fallback = realtime_processor.is_fallback
+                    logger.critical(f"[REALTIME:{session_id}] Using fallback WebSocket implementation: {is_fallback}")
+                
+                # If using fallback, log warning and more details
+                if is_fallback:
+                    logger.warning(f"[REALTIME:{session_id}] ⚠️ USING FALLBACK WEBSOCKET IMPLEMENTATION")
+                    logger.warning(f"[REALTIME:{session_id}] The optimized OpenAI Realtime client is not available")
+                    logger.warning(f"[REALTIME:{session_id}] This may cause issues with audio processing and VAD")
+                    
+                    # Log platform details to help diagnose why optimized client isn't available
+                    import platform
+                    logger.warning(f"[REALTIME:{session_id}] Platform details: {platform.platform()}")
+                    logger.warning(f"[REALTIME:{session_id}] Python architecture: {platform.architecture()}")
+                    logger.warning(f"[REALTIME:{session_id}] Machine: {platform.machine()}")
+                    logger.warning(f"[REALTIME:{session_id}] Python implementation: {platform.python_implementation()}")
+                    
+            except Exception as rt_error:
+                logger.error(f"[REALTIME:{session_id}] ❌ Failed to initialize Realtime processor: {rt_error}")
+                logger.error(f"[REALTIME:{session_id}] Initialization error trace: {traceback.format_exc()}")
+                raise RuntimeError(f"Failed to initialize OpenAI Realtime processor: {rt_error}")
         
             # Initialize orchestrated agents
             try:
-                logger.info("[MEDIA_STREAM] Initializing orchestrated agents...")
+                logger.info(f"[AGENT:{session_id}] Initializing orchestrated agents")
                 frontline = init_agents()
-                logger.info(f"[MEDIA_STREAM] ✅ Agents initialized successfully for session: {session_id}")
-                logger.info(f"[MEDIA_STREAM] Agent type: {type(frontline).__name__}")
+                logger.info(f"[AGENT:{session_id}] ✅ Agents initialized successfully")
+                logger.info(f"[AGENT:{session_id}] Agent type: {type(frontline).__name__}")
                 
                 # Log agent capabilities for debugging
                 if hasattr(frontline, 'get_capabilities'):
                     capabilities = frontline.get_capabilities()
-                    logger.info(f"[MEDIA_STREAM] Agent capabilities: {capabilities}")
+                    logger.info(f"[AGENT:{session_id}] Agent capabilities: {capabilities}")
                     
                 # Log agent configuration if available
                 if hasattr(frontline, 'config'):
-                    logger.info(f"[MEDIA_STREAM] Agent config: {frontline.config}")
+                    logger.info(f"[AGENT:{session_id}] Agent config: {frontline.config}")
                     
                 # Log agent model if available
                 if hasattr(frontline, 'model'):
-                    logger.info(f"[MEDIA_STREAM] Agent model: {frontline.model}")
+                    logger.info(f"[AGENT:{session_id}] Agent model: {frontline.model}")
+                
+                # Check Redis connection health
+                try:
+                    from app.utils.conversation_store import redis_client
+                    if redis_client:
+                        redis_health = check_redis_connection(redis_client, session_id)
+                        logger.info(f"[AGENT:{session_id}] Redis connection health check: {'✅ Healthy' if redis_health else '❌ Unhealthy'}")
+                except Exception as redis_error:
+                    logger.error(f"[AGENT:{session_id}] ⚠️ Redis check error: {redis_error}")
                 
                 # Send connection confirmation to client
-                logger.info("[MEDIA_STREAM] Sending connection confirmation to client")
-                await ws.send(json.dumps({
+                confirm_msg = {
                     "type": "connected",
                     "session_id": session_id,
                     "timestamp": time.time(),
                     "message": "Connected to Red Bar Sushi AI system"
-                }))
+                }
+                logger.info(f"[WEBSOCKET:{session_id}] Sending connection confirmation")
+                await ws.send(json.dumps(confirm_msg))
+                await log_websocket_message(json.dumps(confirm_msg), "SEND", "connected", session_id)
                 metrics["events_sent"] += 1
             except Exception as e:
                 logger.error(f"[MEDIA_STREAM] ❌ Failed to initialize agents: {str(e)}")
@@ -1134,6 +1114,20 @@ async def media_stream(ws):
                                                 # Add to queue for processing
                                                 await incoming_audio_queue.put(audio_chunk)
                                                 
+                                                # Every 20th chunk, send a heartbeat that specifically indicates the audio stream
+                                                # is still active and being processed
+                                                if metrics["audio_chunks_received"] % 20 == 0:
+                                                    try:
+                                                        audio_heartbeat = {
+                                                            "type": "audio_heartbeat",
+                                                            "chunk_count": metrics["audio_chunks_received"],
+                                                            "session_id": session_id,
+                                                            "timestamp": time.time()
+                                                        }
+                                                        await ws.send(json.dumps(audio_heartbeat))
+                                                    except Exception as hb_error:
+                                                        logger.warning(f"[AUDIO:{session_id}] Could not send audio heartbeat: {hb_error}")
+                                                
                                                 # Log audio stats periodically
                                                 if metrics["audio_chunks_received"] % 100 == 0:
                                                     # Calculate average chunk size from the last 100 chunks
@@ -1146,10 +1140,14 @@ async def media_stream(ws):
                                                         chunks_per_second = metrics["audio_chunks_received"] / audio_duration
                                                         bytes_per_second = audio_stats["total_audio_size"] / audio_duration
                                                         
-                                                        logger.info(f"[MEDIA_STREAM] Audio stats: {metrics['audio_chunks_received']} chunks, " 
+                                                        logger.info(f"[AUDIO:{session_id}] Stats: {metrics['audio_chunks_received']} chunks, " 
                                                                     f"avg size: {avg_chunk_size:.1f} bytes, "
                                                                     f"rate: {chunks_per_second:.1f} chunks/sec, "
                                                                     f"{bytes_per_second:.1f} bytes/sec")
+                                                        
+                                                        # Every 500 chunks, log comprehensive audio stats
+                                                        if metrics["audio_chunks_received"] % 500 == 0:
+                                                            log_audio_processing_stats(audio_stats, session_id)
                                             
                                             # Count this message
                                             message_count += 1
@@ -1232,86 +1230,243 @@ async def media_stream(ws):
                 logger.error(f"[MEDIA_STREAM] Error creating Twilio task: {str(task_error)}")
                 logger.error(f"[MEDIA_STREAM] Task creation error trace: {traceback.format_exc()}")
             
-            # Track if we've sent an initial greeting
+            # Track greeting and flow state
             greeting_sent = False
+            greeting_timestamp = None
+            first_transcript_received = None
+            first_silence_event = None
+            first_response_sent = None
             
             # Process incoming audio with Realtime API
             try:
-                logger.info("[MEDIA_STREAM] Setting up audio generator for Realtime API")
+                logger.info(f"[STREAM:{session_id}] Setting up Realtime audio stream processing")
                 async def audio_generator():
-                    logger.info("[MEDIA_STREAM] Audio generator started")
+                    logger.info(f"[AUDIO:{session_id}] Starting audio generator")
                     chunks_yielded = 0
+                    last_yield_time = time.time()
+                    generator_start_time = time.time()
                     
+                    # Add a function to log generator stats
+                    def log_generator_stats(reason="periodic"):
+                        duration = time.time() - generator_start_time
+                        rate = chunks_yielded / duration if duration > 0 else 0
+                        time_since_last = time.time() - last_yield_time
+                        
+                        logger.info(f"[AUDIO:{session_id}] Generator stats ({reason}): {chunks_yielded} chunks yielded, {duration:.1f}s running, {rate:.1f} chunks/sec")
+                        logger.info(f"[AUDIO:{session_id}] Time since last yield: {time_since_last:.1f}s")
+                        
                     try:
+                        # Log the initial state
+                        logger.info(f"[AUDIO:{session_id}] Audio generator ready, queue size: {incoming_audio_queue.qsize()}")
+                        
                         while True:
                             try:
                                 # Use a timeout to prevent blocking forever
-                                audio_chunk = await asyncio.wait_for(incoming_audio_queue.get(), timeout=30.0)
+                                audio_chunk = await asyncio.wait_for(incoming_audio_queue.get(), timeout=15.0)
                                 chunks_yielded += 1
+                                last_yield_time = time.time()
                                 
-                                # Log progress periodically
-                                if chunks_yielded % 100 == 0:
-                                    logger.debug(f"[MEDIA_STREAM] Audio generator yielded {chunks_yielded} chunks")
+                                # Log progress with different frequencies based on count
+                                if chunks_yielded == 1:
+                                    # Always log the first chunk
+                                    logger.info(f"[AUDIO:{session_id}] ✅ First audio chunk yielded, size: {len(audio_chunk)} bytes")
+                                elif chunks_yielded <= 10 and chunks_yielded % 2 == 0:
+                                    # Log early chunks more frequently
+                                    logger.debug(f"[AUDIO:{session_id}] Audio generator yielded chunk #{chunks_yielded}, size: {len(audio_chunk)} bytes")
+                                elif chunks_yielded % 100 == 0:
+                                    # Log periodic statistics
+                                    log_generator_stats("periodic")
                                 
+                                # Yield the audio chunk to the Realtime API
                                 yield audio_chunk
+                                
+                                # Mark the task as done
+                                incoming_audio_queue.task_done()
                             
                             except asyncio.TimeoutError:
-                                # Check if we should exit due to no audio
-                                logger.warning("[MEDIA_STREAM] No audio received for 30 seconds in generator")
+                                # Log timeout with increasing severity based on time since last yield
+                                time_since_last = time.time() - last_yield_time
                                 
-                                # Only exit if Twilio task is also done
+                                if time_since_last < 20:
+                                    logger.debug(f"[AUDIO:{session_id}] No audio received for {time_since_last:.1f}s in generator")
+                                elif time_since_last < 30:
+                                    logger.info(f"[AUDIO:{session_id}] No audio received for {time_since_last:.1f}s in generator")
+                                else:
+                                    logger.warning(f"[AUDIO:{session_id}] ⚠️ No audio received for {time_since_last:.1f}s in generator")
+                                
+                                # Log generator stats on timeout
+                                log_generator_stats("timeout")
+                                
+                                # Check if we should exit due to inactivity
                                 if twilio_task.done():
-                                    logger.warning("[MEDIA_STREAM] Exiting audio generator due to inactivity and Twilio task completion")
+                                    logger.warning(f"[AUDIO:{session_id}] Exiting audio generator - Twilio task is complete")
                                     break
+                                    
+                                if time_since_last > 60:
+                                    logger.warning(f"[AUDIO:{session_id}] Exiting audio generator - no audio for 60+ seconds")
+                                    log_system_status(session_id, "audio_timeout")
+                                    break
+                                    
+                                # Send a diagnostic message to the client about the timeout
+                                try:
+                                    await ws.send(json.dumps({
+                                        "type": "diagnostic",
+                                        "event": "audio_timeout",
+                                        "time_since_last": time_since_last,
+                                        "timestamp": time.time(),
+                                        "session_id": session_id
+                                    }))
+                                except Exception as ws_err:
+                                    logger.error(f"[AUDIO:{session_id}] ❌ Could not send timeout diagnostic: {ws_err}")
+                                
                                 # Otherwise keep waiting
                                 continue
                             
                             except Exception as chunk_error:
-                                logger.error(f"[MEDIA_STREAM] Error getting audio chunk: {chunk_error}")
+                                logger.error(f"[AUDIO:{session_id}] ❌ Error getting audio chunk: {chunk_error}")
                                 logger.error(traceback.format_exc())
-                                # Continue trying to get more chunks
+                                
+                                # Try to send diagnostic info to client
+                                try:
+                                    await ws.send(json.dumps({
+                                        "type": "diagnostic",
+                                        "event": "audio_error",
+                                        "error": str(chunk_error),
+                                        "timestamp": time.time(),
+                                        "session_id": session_id
+                                    }))
+                                except Exception:
+                                    pass
+                                    
+                                # Continue trying to get more chunks - more resilient
                                 continue
+                                
                     except Exception as gen_error:
-                        logger.error(f"[MEDIA_STREAM] Audio generator error: {gen_error}")
+                        logger.error(f"[AUDIO:{session_id}] ❌ Fatal audio generator error: {gen_error}")
                         logger.error(traceback.format_exc())
+                        
+                        # Try to send diagnostic info to client
+                        try:
+                            await ws.send(json.dumps({
+                                "type": "error",
+                                "error_type": "audio_generator",
+                                "text": f"Audio generator error: {str(gen_error)}",
+                                "timestamp": time.time()
+                            }))
+                        except Exception:
+                            pass
+                            
                     finally:
-                        logger.info(f"[MEDIA_STREAM] Audio generator exiting after yielding {chunks_yielded} chunks")
+                        # Log final stats
+                        duration = time.time() - generator_start_time
+                        rate = chunks_yielded / duration if duration > 0 else 0
+                        logger.info(f"[AUDIO:{session_id}] Audio generator exiting after yielding {chunks_yielded} chunks over {duration:.1f}s ({rate:.1f} chunks/sec)")
             except Exception as setup_error:
                 logger.error(f"[MEDIA_STREAM] Error setting up audio generator: {setup_error}")
                 logger.error(traceback.format_exc())
             
             # Process the media stream
-            logger.info("[MEDIA_STREAM] Starting Realtime media stream processing")
+            logger.info(f"[STREAM:{session_id}] Starting Realtime media stream processing")
             
             # Track detailed events for debugging
             event_counts = {}
             processed_events = 0
+            stream_start_time = time.time()
+            last_event_time = time.time()
+            
+            # Structure to track timing of key events for diagnostics
+            event_timing = {
+                "stream_start": stream_start_time,
+                "first_event": None,
+                "first_transcript": None,
+                "first_silence": None,
+                "first_tool_call": None,
+                "greeting_sent": None,
+                "post_greeting_silence": None,
+                "post_greeting_transcript": None,
+            }
             
             try:
+                logger.info(f"[STREAM:{session_id}] Creating and starting Realtime stream")
                 async for event in realtime_processor.process_media_stream(audio_generator(), session_id):
+                    # Track event timing
+                    current_time = time.time()
+                    time_since_last = current_time - last_event_time
+                    last_event_time = current_time
+                    
+                    # Record first event timing
+                    if event_timing["first_event"] is None:
+                        event_timing["first_event"] = current_time
+                        elapsed = current_time - stream_start_time
+                        logger.info(f"[STREAM:{session_id}] ✅ First event received after {elapsed:.3f}s")
+                    
                     # Update metrics
                     metrics["events_processed"] += 1
                     processed_events += 1
-                    metrics["last_activity_time"] = time.time()
+                    metrics["last_activity_time"] = current_time
                 
                     # Handle different event types
                     event_type = event.get("type", "")
                     event_counts[event_type] = event_counts.get(event_type, 0) + 1
                     
-                    # Log event with appropriate level of detail
-                    if processed_events <= 5 or processed_events % 50 == 0:
-                        logger.info(f"[MEDIA_STREAM] Event {processed_events}: type={event_type}")
+                    # Set event type-specific timing metrics
+                    if event_type == "transcript_complete" and event_timing["first_transcript"] is None:
+                        event_timing["first_transcript"] = current_time
+                        elapsed = current_time - stream_start_time
+                        logger.info(f"[STREAM:{session_id}] ✅ First transcript received after {elapsed:.3f}s")
+                        
+                        # Record post-greeting transcript if greeting was already sent
+                        if greeting_sent and event_timing["post_greeting_transcript"] is None:
+                            event_timing["post_greeting_transcript"] = current_time
+                            time_after_greeting = current_time - greeting_timestamp
+                            logger.info(f"[STREAM:{session_id}] ✅ First transcript after greeting received {time_after_greeting:.3f}s after greeting")
+                    
+                    elif event_type == "silence_detected" and event_timing["first_silence"] is None:
+                        event_timing["first_silence"] = current_time
+                        elapsed = current_time - stream_start_time
+                        logger.info(f"[STREAM:{session_id}] ✅ First silence event received after {elapsed:.3f}s")
+                        
+                        # Record post-greeting silence if greeting was already sent
+                        if greeting_sent and event_timing["post_greeting_silence"] is None:
+                            event_timing["post_greeting_silence"] = current_time
+                            time_after_greeting = current_time - greeting_timestamp
+                            logger.critical(f"[STREAM:{session_id}] ✅ CRITICAL: First silence after greeting detected {time_after_greeting:.3f}s after greeting")
+                    
+                    elif event_type == "tool_call" and event_timing["first_tool_call"] is None:
+                        event_timing["first_tool_call"] = current_time
+                        elapsed = current_time - stream_start_time
+                        logger.info(f"[STREAM:{session_id}] ✅ First tool call received after {elapsed:.3f}s")
+                    
+                    # Log every event with appropriate detail level based on count and type
+                    if processed_events <= 10 or processed_events % 20 == 0 or event_type not in ["audio", "ping", "pong"]:
+                        log_level = logging.INFO
+                        # Use WARNING for silence events to make them stand out
+                        if event_type == "silence_detected":
+                            log_level = logging.WARNING
+                        
+                        # Format event counts nicely
+                        event_counts_str = ", ".join([f"{k}: {v}" for k, v in event_counts.items()])
+                        
+                        # Calculate timing info
+                        elapsed_total = current_time - stream_start_time
+                        event_rate = processed_events / elapsed_total if elapsed_total > 0 else 0
+                        
+                        logger.log(log_level, f"[STREAM:{session_id}] Event #{processed_events}: type={event_type}, " +
+                                             f"time_since_last={time_since_last:.3f}s, " +
+                                             f"elapsed={elapsed_total:.1f}s, rate={event_rate:.1f}/s")
                         
                     # Record the event for debugging
                     ws_events.append({
-                        "time": time.time(),
+                        "time": current_time,
                         "type": event_type,
-                        "event_count": processed_events
+                        "event_count": processed_events,
+                        "time_since_start": current_time - stream_start_time,
+                        "time_since_last": time_since_last
                     })
                     
-                    # Log event counts periodically
-                    if processed_events % 50 == 0:
-                        logger.info(f"[MEDIA_STREAM] Processed {processed_events} events, counts by type: {event_counts}")
+                    # Log detailed event counts periodically or on key events
+                    if processed_events % 50 == 0 or (event_type in ["silence_detected", "transcript_complete"] and processed_events > 10):
+                        logger.info(f"[STREAM:{session_id}] Processed {processed_events} events: {event_counts_str}")
                 
                     # Handle specific event types
                     if event_type == "transcript_complete":
@@ -1432,29 +1587,71 @@ async def media_stream(ws):
                             # Generate appropriate response based on state
                             if not greeting_sent:
                                 # Send initial greeting if none sent yet
-                                logger.info("[MEDIA_STREAM] Sending initial greeting")
+                                greeting_timestamp = time.time()
+                                event_timing["greeting_sent"] = greeting_timestamp
+                                
+                                logger.critical(f"[GREETING:{session_id}] ⚠️ SENDING INITIAL GREETING after {greeting_timestamp - stream_start_time:.3f}s of processing")
                                 greeting = "Welcome to Red Bar Sushi. How can I help you today?"
                                 
                                 # Send greeting to client
-                                await ws.send(json.dumps({
-                                    "event": "message",
-                                    "text": greeting,
-                                    "timestamp": time.time()
-                                }))
-                                metrics["events_sent"] += 1
-                                
-                                # Convert greeting to audio (base64 for now)
-                                await ws.send(json.dumps({
-                                    "event": "media",
-                                    "streamSid": session_id,
-                                    "media": {
-                                        "payload": base64.b64encode(greeting.encode('utf-8')).decode('utf-8')
+                                try:
+                                    greeting_msg = {
+                                        "event": "message",
+                                        "text": greeting,
+                                        "timestamp": greeting_timestamp,
+                                        "session_id": session_id
                                     }
-                                }))
-                                metrics["events_sent"] += 1
-                                
-                                greeting_sent = True
-                                logger.info("[MEDIA_STREAM] ✅ Initial greeting sent")
+                                    await ws.send(json.dumps(greeting_msg))
+                                    await log_websocket_message(json.dumps(greeting_msg), "SEND", "greeting_text", session_id)
+                                    metrics["events_sent"] += 1
+                                    
+                                    # Convert greeting to audio (base64 for now)
+                                    audio_msg = {
+                                        "event": "media",
+                                        "streamSid": session_id,
+                                        "media": {
+                                            "payload": base64.b64encode(greeting.encode('utf-8')).decode('utf-8')
+                                        },
+                                        "timestamp": time.time()
+                                    }
+                                    await ws.send(json.dumps(audio_msg))
+                                    metrics["events_sent"] += 1
+                                    
+                                    # Log detailed system status at greeting time
+                                    log_system_status(session_id, "greeting_sent")
+                                    
+                                    # Send a diagnostic event with key metrics
+                                    diagnostic_msg = {
+                                        "type": "diagnostic",
+                                        "event": "greeting_sent",
+                                        "timestamp": time.time(),
+                                        "session_id": session_id,
+                                        "audio_chunks_received": metrics["audio_chunks_received"],
+                                        "events_processed": metrics["events_processed"],
+                                        "time_since_start": time.time() - stream_start_time,
+                                        "time_since_first_event": event_timing["first_event"] and (time.time() - event_timing["first_event"])
+                                    }
+                                    await ws.send(json.dumps(diagnostic_msg))
+                                    
+                                    greeting_sent = True
+                                    logger.critical(f"[GREETING:{session_id}] ✅ INITIAL GREETING SUCCESSFULLY SENT")
+                                except Exception as greeting_error:
+                                    # If we fail to send the greeting, this is critical
+                                    logger.critical(f"[GREETING:{session_id}] ❌ CRITICAL: Failed to send initial greeting: {greeting_error}")
+                                    logger.critical(traceback.format_exc())
+                                    
+                                    # Try to log this error back to Twilio to help with diagnostics
+                                    try:
+                                        error_msg = {
+                                            "type": "error",
+                                            "error_type": "greeting_failure",
+                                            "text": f"Failed to send greeting: {str(greeting_error)}",
+                                            "timestamp": time.time(),
+                                            "session_id": session_id
+                                        }
+                                        await ws.send(json.dumps(error_msg))
+                                    except:
+                                        pass
                             elif current_state == FSMState.GREETING:
                                 # In greeting state, prompt for name
                                 logger.info("[MEDIA_STREAM] In GREETING state, prompting for name")
