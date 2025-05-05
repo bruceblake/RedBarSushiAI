@@ -16,6 +16,25 @@ import websockets
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# Create a file handler to ensure logs are saved even if console logging is insufficient
+import os
+log_dir = os.path.join(os.getcwd(), 'logs')
+if not os.path.exists(log_dir):
+    try:
+        os.makedirs(log_dir)
+    except:
+        pass  # If we can't create the dir, we'll fallback to default logging
+
+try:
+    file_handler = logging.FileHandler(os.path.join(log_dir, 'realtime_audio.log'))
+    file_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.info("======= REALTIME AUDIO SDK LOGGING INITIALIZED =======")
+except Exception as e:
+    logger.error(f"Failed to set up file logging: {str(e)}")
+
 # Import OpenAI API key from agent_utils
 from app.utils.agent_utils import OPENAI_API_KEY
 
@@ -120,8 +139,15 @@ class RealtimeSession:
     
     async def connect(self, session_config: Dict[str, Any] = None):
         """Connect to the OpenAI Realtime API"""
+        logger.info("==== REALTIME SESSION CONNECTION ATTEMPT ====")
+        logger.info(f"API KEY starting with: {self.api_key[:4] if self.api_key else 'None'}")
+        logger.info(f"WebSocket URL: {self.WEBSOCKET_URL}")
+        
         if session_config is None:
             session_config = {}
+            logger.info("No session config provided, using defaults")
+        else:
+            logger.info(f"Session config provided: {json.dumps(session_config)}")
         
         # Configure turn detection if not set
         if "turn_detection" not in session_config:
@@ -133,6 +159,7 @@ class RealtimeSession:
                 "create_response": True,      # Auto-create responses on turn change
                 "speech_started_delay": 0.3,  # Slight delay for better detection
             }
+            logger.info("Added default turn detection configuration")
         
         # Create a new session
         self.session_id = str(uuid.uuid4())
@@ -143,45 +170,62 @@ class RealtimeSession:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+        logger.info(f"Headers prepared (Authorization token present: {'Yes' if self.api_key else 'No'})")
         
         try:
-            logger.info("Connecting to OpenAI Realtime WebSocket API")
+            logger.info("Attempting to connect to OpenAI Realtime WebSocket API...")
             self.websocket = await websockets.connect(
                 self.WEBSOCKET_URL, extra_headers=headers
             )
-            logger.info("WebSocket connection established")
+            logger.info("✅ WebSocket connection successfully established")
             
             # Initialize session with the provided configuration
+            logger.info(f"Sending session.update event with config: {json.dumps(session_config)}")
             await self.send_event({"type": "session.update", "session": session_config})
+            logger.info("✅ Session update event sent, waiting for session.created event")
             
             # Start listening for events
             self._listening_task = asyncio.create_task(self._listen_for_events())
+            logger.info("✅ Event listening task started")
             
             # Wait for the session.created event
             session_created = False
             timeout = 15  # Seconds
             start_time = time.time()
+            logger.info(f"Waiting up to {timeout} seconds for session.created event")
             
             while not session_created and time.time() - start_time < timeout:
                 try:
+                    logger.info("Waiting for event from queue...")
                     event = await asyncio.wait_for(self.events_queue.get(), timeout=5)
+                    logger.info(f"Received event type: {event.get('type', 'unknown')}")
                     
                     if event.get("type") == "session.created":
                         session_created = True
                         self.session_id = event.get("session", {}).get("id")
-                        logger.info(f"Session created successfully with ID: {self.session_id}")
+                        logger.info(f"✅ Session created successfully with ID: {self.session_id}")
+                        logger.info(f"Full session creation event: {json.dumps(event)}")
                     elif event.get("type") == "error":
-                        logger.error(f"Error event received during session creation: {event}")
+                        logger.error(f"❌ Error event received during session creation: {event}")
+                        logger.error(f"Error details: {json.dumps(event)}")
                         raise ConnectionError(f"Error creating session: {event.get('message', 'Unknown error')}")
+                    else:
+                        logger.info(f"Unexpected event type during session creation: {event.get('type')}")
+                        logger.info(f"Full event details: {json.dumps(event)}")
                 except asyncio.TimeoutError:
-                    logger.warning("Timeout waiting for events during session creation")
+                    logger.warning("⚠️ Timeout waiting for events during session creation")
+                    elapsed = time.time() - start_time
+                    logger.warning(f"Elapsed time: {elapsed:.2f}s, timeout at: {timeout}s")
             
             if not session_created:
+                logger.error("❌ Timed out waiting for session.created event after full timeout period")
                 raise ConnectionError("Timed out waiting for session.created event")
             
+            logger.info("==== REALTIME SESSION CONNECTION SUCCESSFUL ====")
             return self.session_id
         except Exception as e:
-            logger.error(f"Error connecting to OpenAI Realtime API: {e}")
+            logger.error(f"❌ Error connecting to OpenAI Realtime API: {e}")
+            logger.error(f"Connection error details: {str(e)}")
             logger.error(traceback.format_exc())
             raise
     
@@ -200,18 +244,59 @@ class RealtimeSession:
     async def _listen_for_events(self):
         """Listen for events from the OpenAI Realtime API"""
         if not self.websocket:
+            logger.error("Cannot listen for events - WebSocket is not connected")
             raise RuntimeError("Not connected to OpenAI Realtime API")
+        
+        logger.info("Starting event listener for WebSocket connection")
+        event_count = 0
         
         try:
             while True:
-                message = await self.websocket.recv()
-                event = json.loads(message)
-                await self.events_queue.put(event)
-                logger.debug(f"Received event: {event.get('type')}")
-        except websockets.exceptions.ConnectionClosed:
-            logger.info("WebSocket connection closed")
+                logger.debug("Waiting for next WebSocket message...")
+                try:
+                    message = await asyncio.wait_for(self.websocket.recv(), timeout=30.0)
+                    event_count += 1
+                    
+                    # Parse the message
+                    event = json.loads(message)
+                    event_type = event.get('type', 'unknown')
+                    
+                    # Log different level based on event type
+                    if event_type in ['error', 'session.error']:
+                        logger.error(f"Event #{event_count}: Received ERROR event: {json.dumps(event)}")
+                    elif event_type in ['silence_detected', 'speech.started', 'speech.finished', 'tool_call']:
+                        logger.info(f"Event #{event_count}: Received {event_type} event")
+                        logger.debug(f"Event details: {json.dumps(event)}")
+                    elif event_type.startswith('response.'):
+                        # For response events, show truncated content
+                        if 'delta' in event and isinstance(event['delta'], str) and len(event['delta']) > 50:
+                            logger.info(f"Event #{event_count}: Received {event_type} event with delta: {event['delta'][:50]}...")
+                        else:
+                            logger.info(f"Event #{event_count}: Received {event_type} event")
+                        logger.debug(f"Event details: {json.dumps(event)}")
+                    else:
+                        logger.info(f"Event #{event_count}: Received {event_type} event")
+                        logger.debug(f"Event details: {json.dumps(event)}")
+                    
+                    # Add to queue for processing
+                    await self.events_queue.put(event)
+                    
+                    # Log queue status periodically
+                    if event_count % 10 == 0:
+                        logger.info(f"Event listener processed {event_count} total events, queue size: {self.events_queue.qsize()}")
+                        
+                except asyncio.TimeoutError:
+                    logger.warning("No WebSocket messages received for 30 seconds - connection might be stalled")
+                    continue
+                        
+        except websockets.exceptions.ConnectionClosed as e:
+            logger.error(f"WebSocket connection closed unexpectedly: {e}")
+            logger.error(f"Close code: {e.code}, Close reason: {e.reason}")
         except Exception as e:
-            logger.error(f"Error listening for events: {e}")
+            logger.error(f"Error in event listener: {e}")
+            logger.error(f"Full exception details: {traceback.format_exc()}")
+        finally:
+            logger.info(f"Event listener exiting after processing {event_count} events")
     
     async def close(self):
         """Close the WebSocket connection"""
@@ -423,108 +508,241 @@ class RealtimeAudioProcessor:
         if session_id is None:
             session_id = str(uuid.uuid4())
         
+        logger.info(f"==== PROCESSING MEDIA STREAM START - SESSION ID: {session_id} ====")
+        
+        # Count various message types for debugging
+        audio_chunk_count = 0
+        chunk_sizes = []
+        media_events = 0
+        bytes_events = 0
+        unknown_events = 0
+        
         async def audio_generator():
-            async for message in twilio_media_stream:
-                if isinstance(message, dict):
-                    # Handle Twilio Media Streams API message format
-                    if message.get("event") == "media":
-                        payload = message.get("media", {}).get("payload")
-                        if payload:
-                            # Decode base64 audio from Twilio
-                            audio_chunk = base64.b64decode(payload)
-                            yield audio_chunk
-                elif isinstance(message, bytes):
-                    # Handle raw audio bytes
-                    yield message
+            nonlocal audio_chunk_count, media_events, bytes_events, unknown_events, chunk_sizes
+            
+            logger.info("Starting audio generator to process Twilio media stream")
+            
+            try:
+                async for message in twilio_media_stream:
+                    try:
+                        if isinstance(message, dict):
+                            # Handle Twilio Media Streams API message format
+                            event_type = message.get("event", "unknown")
+                            logger.debug(f"Received Twilio event: {event_type}")
+                            
+                            if event_type == "media":
+                                media_events += 1
+                                payload = message.get("media", {}).get("payload")
+                                
+                                if payload:
+                                    try:
+                                        # Decode base64 audio from Twilio
+                                        audio_chunk = base64.b64decode(payload)
+                                        audio_chunk_count += 1
+                                        chunk_sizes.append(len(audio_chunk))
+                                        
+                                        # Log progress periodically
+                                        if audio_chunk_count % 20 == 0:
+                                            avg_size = sum(chunk_sizes[-20:]) / min(20, len(chunk_sizes))
+                                            logger.info(f"Processed {audio_chunk_count} audio chunks, avg size: {avg_size:.1f} bytes")
+                                        
+                                        yield audio_chunk
+                                    except Exception as decode_error:
+                                        logger.error(f"Error decoding base64 audio: {decode_error}")
+                                        continue
+                                else:
+                                    logger.warning("Received media event with no payload")
+                            elif event_type == "start":
+                                logger.info(f"Received stream start event: {message}")
+                            elif event_type == "stop":
+                                logger.info(f"Received stream stop event: {message}")
+                            elif event_type == "connected":
+                                logger.info(f"Received stream connected event: {message}")
+                            else:
+                                logger.info(f"Received other Twilio event: {event_type} - {message}")
+                                
+                        elif isinstance(message, bytes):
+                            # Handle raw audio bytes
+                            bytes_events += 1
+                            audio_chunk_count += 1
+                            chunk_sizes.append(len(message))
+                            
+                            # Log progress periodically
+                            if audio_chunk_count % 20 == 0:
+                                avg_size = sum(chunk_sizes[-20:]) / min(20, len(chunk_sizes))
+                                logger.info(f"Processed {audio_chunk_count} raw audio chunks, avg size: {avg_size:.1f} bytes")
+                            
+                            yield message
+                        else:
+                            unknown_events += 1
+                            logger.warning(f"Received unknown message type: {type(message)}")
+                            
+                    except Exception as message_error:
+                        logger.error(f"Error processing message: {message_error}")
+                        logger.error(traceback.format_exc())
+                        
+            except Exception as stream_error:
+                logger.error(f"Error in audio generator: {stream_error}")
+                logger.error(traceback.format_exc())
+            finally:
+                logger.info(f"Audio generator finished after processing {audio_chunk_count} chunks")
+                logger.info(f"Stats: {media_events} media events, {bytes_events} bytes events, {unknown_events} unknown events")
+        
+        # Stats for events yielded
+        events_yielded = 0
+        event_types_yielded = {}
         
         # Process the Realtime session
-        async for event in self.process_realtime_session(
-            session_id, 
-            audio_generator(), 
-            content_type="audio/mulaw"
-        ):
-            # Transform events for client consumption
-            event_type = event.get("type", "")
-            
-            if event_type == "response.audio_transcript.delta":
-                yield {
-                    "type": "transcript",
-                    "text": event.get("delta", ""),
-                    "final": False,
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "response.audio_transcript.done":
-                yield {
-                    "type": "transcript_complete",
-                    "text": event.get("text", ""),
-                    "final": True,
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "response.text.delta":
-                yield {
-                    "type": "message",
-                    "text": event.get("delta", ""),
-                    "complete": False,
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "response.text.done":
-                yield {
-                    "type": "message_complete",
-                    "text": event.get("text", ""),
-                    "complete": True,
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "response.audio.delta":
-                # Pass through audio data as is - we'll convert it in the voice route
-                yield {
-                    "type": "audio",
-                    "data": event.get("delta", ""),
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "response.audio.done":
-                yield {
-                    "type": "audio_complete",
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "tool_call":
-                yield {
-                    "type": "tool_call",
-                    "name": event.get("name", ""),
-                    "arguments": event.get("arguments", {}),
-                    "id": event.get("id", ""),
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "speech.started":
-                yield {
-                    "type": "speech_started",
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "speech.finished":
-                yield {
-                    "type": "speech_finished",
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "silence_detected":
-                yield {
-                    "type": "silence_detected",
-                    "timestamp": time.time()
-                }
-            
-            elif event_type == "error":
-                yield {
-                    "type": "error",
-                    "error": event.get("message", "Unknown error"),
-                    "timestamp": time.time()
-                }
+        try:
+            logger.info("Starting process_realtime_session with audio generator")
+            async for event in self.process_realtime_session(
+                session_id, 
+                audio_generator(), 
+                content_type="audio/mulaw"
+            ):
+                # Transform events for client consumption
+                event_type = event.get("type", "")
+                transformed_event = None
+                
+                # Update event type stats
+                event_types_yielded[event_type] = event_types_yielded.get(event_type, 0) + 1
+                events_yielded += 1
+                
+                # Log progress periodically
+                if events_yielded % 10 == 0:
+                    logger.info(f"Yielded {events_yielded} total events - types: {event_types_yielded}")
+                
+                try:
+                    if event_type == "response.audio_transcript.delta":
+                        delta_text = event.get("delta", "")
+                        logger.debug(f"Processing transcript delta: {delta_text}")
+                        transformed_event = {
+                            "type": "transcript",
+                            "text": delta_text,
+                            "final": False,
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "response.audio_transcript.done":
+                        final_text = event.get("text", "")
+                        logger.info(f"Processing complete transcript: {final_text}")
+                        transformed_event = {
+                            "type": "transcript_complete",
+                            "text": final_text,
+                            "final": True,
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "response.text.delta":
+                        delta_text = event.get("delta", "")
+                        if len(delta_text) > 50:
+                            logger.debug(f"Processing text delta: {delta_text[:50]}...")
+                        else:
+                            logger.debug(f"Processing text delta: {delta_text}")
+                        transformed_event = {
+                            "type": "message",
+                            "text": delta_text,
+                            "complete": False,
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "response.text.done":
+                        final_text = event.get("text", "")
+                        logger.info(f"Processing complete text: {final_text}")
+                        transformed_event = {
+                            "type": "message_complete",
+                            "text": final_text,
+                            "complete": True,
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "response.audio.delta":
+                        # Pass through audio data as is - we'll convert it in the voice route
+                        logger.debug("Processing audio delta")
+                        transformed_event = {
+                            "type": "audio",
+                            "data": event.get("delta", ""),
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "response.audio.done":
+                        logger.info("Audio response complete")
+                        transformed_event = {
+                            "type": "audio_complete",
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "tool_call":
+                        tool_name = event.get("name", "")
+                        logger.info(f"Processing tool call: {tool_name}")
+                        logger.debug(f"Tool call arguments: {event.get('arguments', {})}")
+                        transformed_event = {
+                            "type": "tool_call",
+                            "name": tool_name,
+                            "arguments": event.get("arguments", {}),
+                            "id": event.get("id", ""),
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "speech.started":
+                        logger.info("Speech started event detected")
+                        transformed_event = {
+                            "type": "speech_started",
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "speech.finished":
+                        logger.info("Speech finished event detected")
+                        transformed_event = {
+                            "type": "speech_finished",
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "silence_detected":
+                        logger.info("Silence detected event")
+                        transformed_event = {
+                            "type": "silence_detected",
+                            "timestamp": time.time()
+                        }
+                    
+                    elif event_type == "error":
+                        error_msg = event.get("message", "Unknown error")
+                        logger.error(f"Error event: {error_msg}")
+                        logger.error(f"Full error event: {json.dumps(event)}")
+                        transformed_event = {
+                            "type": "error",
+                            "error": error_msg,
+                            "timestamp": time.time()
+                        }
+                    else:
+                        logger.warning(f"Unhandled event type: {event_type}")
+                        logger.debug(f"Unhandled event data: {json.dumps(event)}")
+                
+                except Exception as transform_error:
+                    logger.error(f"Error transforming event {event_type}: {transform_error}")
+                    logger.error(traceback.format_exc())
+                    transformed_event = {
+                        "type": "error",
+                        "error": f"Error transforming event: {transform_error}",
+                        "timestamp": time.time()
+                    }
+                
+                if transformed_event:
+                    logger.debug(f"Yielding transformed event: {transformed_event['type']}")
+                    yield transformed_event
+                
+        except Exception as e:
+            logger.error(f"Error processing media stream: {e}")
+            logger.error(traceback.format_exc())
+            yield {
+                "type": "error",
+                "error": f"Error processing media stream: {str(e)}",
+                "timestamp": time.time()
+            }
+        
+        logger.info(f"==== MEDIA STREAM PROCESSING COMPLETE - SESSION ID: {session_id} ====")
+        logger.info(f"Processed {audio_chunk_count} audio chunks, yielded {events_yielded} events")
+        logger.info(f"Event types yielded: {event_types_yielded}")
     
     async def send_tool_response(self, session, tool_id, result):
         """
