@@ -328,17 +328,18 @@ def create_app(test_config=None):
     app.register_blueprint(monitoring_bp, url_prefix='/monitoring')  # Monitoring and health check routes
     
     # Register the appropriate voice handler based on configuration
-    logger.info(f"Configuring voice handler: {VOICE_HANDLER}")
+    app_logger = logging.getLogger(__name__)
+    app_logger.info(f"Configuring voice handler: {VOICE_HANDLER}")
     if VOICE_HANDLER == "orchestrated":
         # Use the advanced orchestrated implementation as primary handler
         app.register_blueprint(orchestrated_voice_bp)
         app.register_blueprint(voice_bp, url_prefix='/voice_standard')  # Standard as fallback
-        logger.info("Voice handler set to ORCHESTRATED (multi-agent with handoffs, FSM, etc.)")
+        app_logger.info("Voice handler set to ORCHESTRATED (multi-agent with handoffs, FSM, etc.)")
     else:
         # Use the standard implementation as primary handler
         app.register_blueprint(voice_bp)
         app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')  # Orchestrated as alternative
-        logger.info("Voice handler set to STANDARD (original implementation)")
+        app_logger.info("Voice handler set to STANDARD (original implementation)")
 
     # Configure optimized logging
     # Clear any existing handlers to avoid duplicates
