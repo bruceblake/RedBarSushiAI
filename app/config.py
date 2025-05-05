@@ -14,6 +14,12 @@ load_dotenv(".env.test", override=True)
 APP_SECRET_KEY = os.getenv("APP_SECRET_KEY", "bd0acf5c060feaa576051293a661a49a")
 
 # ------------------------------
+# Voice Handling Configuration
+# ------------------------------
+# Options: "standard", "orchestrated"
+VOICE_HANDLER = os.getenv("VOICE_HANDLER", "orchestrated")
+
+# ------------------------------
 # Database Configuration
 # ------------------------------
 # In Docker, the URI will be set by the entrypoint script

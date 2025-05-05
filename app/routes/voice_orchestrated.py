@@ -60,6 +60,32 @@ slot_store = None
 fsm_orchestrator = None
 model_escalator = None
 
+@orchestrated_voice_bp.before_app_first_request
+def initialize_agents():
+    """Initialize the orchestrated agents when the app starts."""
+    global frontline_agent, agent_graph, slot_store, fsm_orchestrator, model_escalator
+    
+    try:
+        # Create all agents through the enhanced factory
+        frontline_agent = enhanced_agent_factory.create_agents()
+        
+        # Initialize the orchestration components
+        agent_graph = AgentGraph()
+        slot_store = SlotStore()
+        fsm_orchestrator = FSMOrchestrator()
+        model_escalator = ModelEscalator()
+        
+        # Initialize the orchestrators with our components
+        initialize_orchestrators(agent_graph, slot_store, fsm_orchestrator, model_escalator)
+        
+        if frontline_agent:
+            logger.info("Successfully initialized orchestrated agents")
+        else:
+            logger.error("Failed to initialize orchestrated agents")
+    except Exception as e:
+        logger.error(f"Error initializing orchestrated agents: {str(e)}")
+        logger.error(traceback.format_exc())
+
 def setup_gather_params(
     context, retry_count=0, include_dtmf=False, action=None, msg=None
 ):

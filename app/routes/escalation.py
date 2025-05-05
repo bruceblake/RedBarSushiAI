@@ -19,7 +19,7 @@ from app.utils.agents_sdk import text_to_speech
 logger = logging.getLogger(__name__)
 
 # Create blueprint
-escalation_bp = Blueprint("escalation", __name__, url_prefix="/voice_sdk/escalation")
+escalation_bp = Blueprint("escalation", __name__, url_prefix="/escalation")
 
 # Twilio validation
 def validate_twilio_request(f):

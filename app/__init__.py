@@ -288,32 +288,41 @@ def create_app(test_config=None):
     # Initialize WebSockets
     sock.init_app(app)
 
-    # Register Blueprints for routes
-    from app.routes.voice import voice_bp
+    # Import common routes
+    from app.routes.realtime import realtime_bp
+    from app.routes.escalation import escalation_bp
+    from app.routes.monitoring import monitoring_bp
     from app.routes.menu import menu_bp
     from app.routes.order import order_bp
     from app.routes.location import location_bp
     from app.routes.order_ai import order_ai_bp
-    from app.routes.voice_sdk import voice_sdk_bp
-    from app.routes.realtime import realtime_bp
-    from app.routes.escalation import escalation_bp
-    from app.routes.monitoring import monitoring_bp
-
-    # Register blueprints with explicit URL prefixes for clarity
-    # Register blueprints with original structure for backwards compatibility
-    app.register_blueprint(
-        voice_bp
-    )  # Keep at root level for Twilio webhook compatibility
-    app.register_blueprint(
-        menu_bp
-    )  # Keep at root level for existing Deliverect integrations
-    app.register_blueprint(order_bp)  # Keep at root level for order webhooks
-    app.register_blueprint(location_bp)  # Keep at root level for consistency
+    
+    # Import voice implementations
+    from app.config import VOICE_HANDLER
+    from app.routes.voice import voice_bp
+    from app.routes.voice_orchestrated import orchestrated_voice_bp
+    
+    # Register non-voice routes
+    app.register_blueprint(menu_bp)  # Menu routes
+    app.register_blueprint(order_bp)  # Order routes
+    app.register_blueprint(location_bp)  # Location routes
     app.register_blueprint(order_ai_bp)  # AI-powered interactive order resolution
-    app.register_blueprint(voice_sdk_bp, url_prefix='/voice_sdk')  # New Agents SDK voice routes
     app.register_blueprint(realtime_bp, url_prefix='/realtime')  # Realtime audio processing
     app.register_blueprint(escalation_bp)  # Staff handoff and escalation routes
     app.register_blueprint(monitoring_bp, url_prefix='/monitoring')  # Monitoring and health check routes
+    
+    # Register the appropriate voice handler based on configuration
+    logger.info(f"Configuring voice handler: {VOICE_HANDLER}")
+    if VOICE_HANDLER == "orchestrated":
+        # Use the advanced orchestrated implementation as primary handler
+        app.register_blueprint(orchestrated_voice_bp)
+        app.register_blueprint(voice_bp, url_prefix='/voice_standard')  # Standard as fallback
+        logger.info("Voice handler set to ORCHESTRATED (multi-agent with handoffs, FSM, etc.)")
+    else:
+        # Use the standard implementation as primary handler
+        app.register_blueprint(voice_bp)
+        app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')  # Orchestrated as alternative
+        logger.info("Voice handler set to STANDARD (original implementation)")
 
     # Configure optimized logging
     # Clear any existing handlers to avoid duplicates
