@@ -189,6 +189,44 @@ async def handle_media_stream(ws, session_id=None):
             logger.info(f"███████████████████████████████████████████████████████████████")
             logger.info(f"████ WEBSOCKET CONNECTION CLOSED - SESSION ID: {session_id} ████")
             logger.info(f"███████████████████████████████████████████████████████████████")
+            
+            # Enhanced disconnection logging
+            try:
+                from app.utils.enhanced_diagnostics import log_connection_event
+                # Determine if we had any activity after greeting
+                post_greeting_audio = False
+                post_greeting_speech = False
+                greeting_timestamp = event_timing.get("greeting_sent")
+                
+                if greeting_timestamp and event_timing.get("first_transcript") and event_timing["first_transcript"] > greeting_timestamp:
+                    post_greeting_speech = True
+                
+                if greeting_timestamp and metrics["audio_chunks_received"] > 0:
+                    # Calculate approximate time of last audio based on first chunk and rate
+                    if audio_stats.get("last_chunk_time") and audio_stats["last_chunk_time"] > greeting_timestamp:
+                        post_greeting_audio = True
+                
+                # Log disconnection with detailed analysis
+                log_connection_event(
+                    "disconnection",
+                    {
+                        "reason": reason,
+                        "total_duration": duration,
+                        "time_since_greeting": (end_time - greeting_timestamp) if greeting_timestamp else None,
+                        "post_greeting_audio": post_greeting_audio,
+                        "post_greeting_speech": post_greeting_speech,
+                        "audio_chunks": metrics["audio_chunks_received"],
+                        "transcripts": metrics["transcripts_processed"],
+                        "silence_events": metrics["silence_events"],
+                        "events_processed": metrics["events_processed"],
+                        "greeting_time": greeting_timestamp,
+                        "start_time": metrics["connection_start_time"],
+                        "end_time": end_time
+                    },
+                    session_id
+                )
+            except Exception as e:
+                logger.error(f"Error logging disconnection event: {e}")
 
         # Main processing block
         try:
@@ -584,7 +622,7 @@ async def handle_media_stream(ws, session_id=None):
                 
                 # Handle specific event types using the dedicated handlers
                 if event_type == "transcript_complete":
-                    await handle_transcript_event(ws, session_id, frontline, event, metrics)
+                    await handle_transcript_event(ws, session_id, frontline, event, metrics, event_timing)
                     
                 elif event_type == "tool_call":
                     await handle_tool_call_event(ws, session_id, tool_registry, event, metrics)

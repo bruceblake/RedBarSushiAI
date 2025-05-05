@@ -36,6 +36,27 @@ async def handle_silence_event(ws, session_id, frontline_agent, fsm_orchestrator
     metrics["silence_events"] += 1
     logger.info(f"[SILENCE:{session_id}] Silence detected (event #{metrics['silence_events']})")
     
+    # If this is after the greeting, log as a critical event
+    if greeting_sent and greeting_timestamp:
+        time_since_greeting = time.time() - greeting_timestamp
+        # Try to import and use the enhanced diagnostics module
+        try:
+            from app.utils.enhanced_diagnostics import log_connection_event
+            log_connection_event(
+                "post_greeting_silence",
+                {
+                    "time_since_greeting": time_since_greeting,
+                    "silence_count": metrics["silence_events"],
+                    "audio_chunks": metrics["audio_chunks_received"],
+                    "events_processed": metrics["events_processed"],
+                    "greeting_timestamp": greeting_timestamp,
+                    "fsm_state": fsm_orchestrator.get_current_state(session_id) if fsm_orchestrator else "unknown"
+                },
+                session_id
+            )
+        except Exception as e:
+            logger.error(f"[SILENCE:{session_id}] Failed to log post-greeting silence event: {e}")
+    
     try:
         # Get current FSM state
         current_state = fsm_orchestrator.get_current_state(session_id)
@@ -85,6 +106,21 @@ async def handle_silence_event(ws, session_id, frontline_agent, fsm_orchestrator
                     "time_since_first_event": event_timing["first_event"] and (time.time() - event_timing["first_event"])
                 }
                 await ws.send(json.dumps(diagnostic_msg))
+                
+                # Enhanced logging of greeting event
+                from app.utils.enhanced_diagnostics import log_connection_event
+                log_connection_event(
+                    "greeting_sent",
+                    {
+                        "text": greeting,
+                        "time_since_connection": time.time() - event_timing["stream_start"],
+                        "audio_chunks": metrics["audio_chunks_received"],
+                        "events_processed": metrics["events_processed"],
+                        "greeting_timestamp": new_greeting_timestamp,
+                        "fsm_state": fsm_orchestrator.get_current_state(session_id) if fsm_orchestrator else "unknown"
+                    },
+                    session_id
+                )
                 
                 greeting_sent = True
                 greeting_timestamp = new_greeting_timestamp

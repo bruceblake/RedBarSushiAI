@@ -20,6 +20,75 @@ from datetime import datetime
 # Set up logger
 logger = logging.getLogger(__name__)
 
+def check_x11_environment():
+    """
+    Check if X11 environment is properly configured and provide diagnostic information.
+    
+    Returns:
+        dict: X11 environment status with diagnostic information
+    """
+    x11_status = {
+        "is_configured": False,
+        "display": None,
+        "errors": [],
+        "headless_mode": False,
+        "recommendations": []
+    }
+    
+    try:
+        # Check if DISPLAY is set
+        display = os.environ.get("DISPLAY")
+        x11_status["display"] = display
+        
+        if not display:
+            x11_status["errors"].append("DISPLAY environment variable is not set")
+            x11_status["recommendations"].append("Set DISPLAY environment variable (e.g., export DISPLAY=:0)")
+            
+            # Check if we're in headless mode
+            if os.environ.get("OPENAI_REALTIME_NO_DISPLAY") == "1" or os.environ.get("HEADLESS") == "1":
+                x11_status["headless_mode"] = True
+                logger.info("System is configured for headless mode operation")
+            else:
+                x11_status["recommendations"].append("Set OPENAI_REALTIME_NO_DISPLAY=1 to enable headless mode")
+                
+        else:
+            # Check if X11 connection works
+            try:
+                # Try importing a library that requires X11
+                import tkinter
+                x11_status["is_configured"] = True
+            except ImportError:
+                # tkinter isn't installed, so we can't test
+                x11_status["errors"].append("Cannot check X11 connection: tkinter not installed")
+                x11_status["recommendations"].append("Install tkinter or run in headless mode")
+            except Exception as e:
+                x11_status["errors"].append(f"X11 connection error: {str(e)}")
+                x11_status["recommendations"].append("Check if X server is running or use headless mode")
+                
+        # Check if Xvfb is running
+        try:
+            xvfb_processes = [p for p in psutil.process_iter(['name']) if p.info['name'] == 'Xvfb']
+            if xvfb_processes:
+                x11_status["xvfb_running"] = True
+                x11_status["xvfb_count"] = len(xvfb_processes)
+            else:
+                x11_status["xvfb_running"] = False
+                if not x11_status["headless_mode"] and not x11_status["is_configured"]:
+                    x11_status["recommendations"].append("Start Xvfb server (Xvfb :1 -screen 0 1024x768x24 &)")
+        except:
+            x11_status["xvfb_check_failed"] = True
+            
+        # Log the status
+        logger.critical(f"X11 Environment Check: {json.dumps(x11_status, indent=2)}")
+        
+        return x11_status
+        
+    except Exception as e:
+        logger.error(f"Error checking X11 environment: {e}")
+        logger.error(traceback.format_exc())
+        x11_status["errors"].append(f"Internal error in X11 check: {str(e)}")
+        return x11_status
+
 def log_websocket_handshake(request, phase="pre-upgrade"):
     """
     Log detailed information about WebSocket handshake requests.
@@ -399,3 +468,58 @@ def check_redis_connection(redis_client, session_id="unknown"):
         logger.error(f"[REDIS_CHECK:{session_id}] Redis connection error: {e}")
         logger.error(traceback.format_exc())
         return False
+        
+def log_connection_event(event_type, details, session_id="unknown"):
+    """
+    Log detailed information about connection events, particularly around greeting.
+    
+    Args:
+        event_type: Type of connection event ('greeting_sent', 'post_greeting_silence', etc.)
+        details: Additional details about the event
+        session_id: The session ID for correlation
+    """
+    try:
+        timestamp = time.time()
+        formatted_time = datetime.fromtimestamp(timestamp).isoformat()
+        
+        logger.critical(f"[CONNECTION_EVENT:{session_id}] ========== Connection Event: {event_type} ==========")
+        logger.critical(f"[CONNECTION_EVENT:{session_id}] Timestamp: {formatted_time}")
+        
+        # Log different details based on event type
+        if event_type == "greeting_sent":
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Greeting sent at: {formatted_time}")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Greeting text: {details.get('text', 'unknown')}")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Time since connection: {details.get('time_since_connection', 0):.3f}s")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Audio chunks before greeting: {details.get('audio_chunks', 0)}")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Events processed before greeting: {details.get('events_processed', 0)}")
+            
+        elif event_type == "post_greeting_silence":
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] ⚠️ SILENCE AFTER GREETING DETECTED ⚠️")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Silence detected at: {formatted_time}")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Time since greeting: {details.get('time_since_greeting', 0):.3f}s")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Total silence events: {details.get('silence_count', 0)}")
+            
+        elif event_type == "post_greeting_transcript":
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] First transcript after greeting detected")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Transcript text: {details.get('text', 'unknown')}")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Time since greeting: {details.get('time_since_greeting', 0):.3f}s")
+            
+        elif event_type == "disconnection":
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] ❌ WEBSOCKET DISCONNECTION ❌")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Disconnection reason: {details.get('reason', 'unknown')}")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Total connection duration: {details.get('total_duration', 0):.3f}s")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Time since greeting: {details.get('time_since_greeting', 0):.3f}s")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Was greeting followed by user audio: {details.get('post_greeting_audio', False)}")
+            logger.critical(f"[CONNECTION_EVENT:{session_id}] Was greeting followed by user speech: {details.get('post_greeting_speech', False)}")
+            
+        # Log all provided details for completeness
+        for key, value in details.items():
+            if key not in ['text', 'time_since_connection', 'audio_chunks', 'events_processed', 
+                          'time_since_greeting', 'silence_count', 'reason', 'total_duration',
+                          'post_greeting_audio', 'post_greeting_speech']:
+                logger.critical(f"[CONNECTION_EVENT:{session_id}] {key}: {value}")
+        
+        logger.critical(f"[CONNECTION_EVENT:{session_id}] ========== End Connection Event ==========")
+    except Exception as e:
+        logger.error(f"Error logging connection event: {e}")
+        logger.error(traceback.format_exc())

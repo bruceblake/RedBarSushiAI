@@ -14,7 +14,7 @@ import traceback
 # Set up logger
 logger = logging.getLogger(__name__)
 
-async def handle_transcript_event(ws, session_id, frontline_agent, event, metrics):
+async def handle_transcript_event(ws, session_id, frontline_agent, event, metrics, event_timing=None):
     """
     Handle a transcript_complete event from the Realtime API.
     
@@ -24,12 +24,36 @@ async def handle_transcript_event(ws, session_id, frontline_agent, event, metric
         frontline_agent: The frontline agent instance
         event: The transcript event from the Realtime API
         metrics: Connection metrics dictionary
+        event_timing: Dictionary of timing metrics (optional)
     """
     # Process complete transcript with frontline agent
     transcript = event.get("text", "")
     if transcript:
         metrics["transcripts_processed"] += 1
         logger.info(f"[TRANSCRIPT:{session_id}] Processing transcript #{metrics['transcripts_processed']}: {transcript}")
+        
+        # Check if this is the first transcript after greeting
+        if event_timing and "greeting_sent" in event_timing:
+            greeting_timestamp = event_timing.get("greeting_sent")
+            # If this is the first transcript after greeting, log it as a critical event
+            if greeting_timestamp:
+                time_since_greeting = time.time() - greeting_timestamp
+                # Log this as a critical post-greeting event
+                try:
+                    from app.utils.enhanced_diagnostics import log_connection_event
+                    log_connection_event(
+                        "post_greeting_transcript",
+                        {
+                            "text": transcript,
+                            "time_since_greeting": time_since_greeting,
+                            "transcript_count": metrics["transcripts_processed"],
+                            "audio_chunks": metrics.get("audio_chunks_received", 0),
+                            "events_processed": metrics.get("events_processed", 0)
+                        },
+                        session_id
+                    )
+                except Exception as e:
+                    logger.error(f"[TRANSCRIPT:{session_id}] Failed to log post-greeting transcript event: {e}")
         
         # Process with orchestrated agent
         try:
