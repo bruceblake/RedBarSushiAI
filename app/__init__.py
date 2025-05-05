@@ -290,6 +290,10 @@ def create_app(test_config=None):
 
     # Initialize WebSockets
     sock.init_app(app)
+    
+    # Fix for WebSocket route registration
+    # This ensures the WebSocket WSGI middleware is properly attached to the app
+    app.wsgi_app = sock.websocket(app.wsgi_app)
 
     # Import common routes
     from app.routes.realtime import realtime_bp
