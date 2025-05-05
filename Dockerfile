@@ -32,45 +32,53 @@ FROM base AS dependencies
 
 WORKDIR /install
 
-# Copy requirements files
-COPY requirements.txt requirements.prod.txt requirements.docker.txt requirements_minimal.txt ./
+# Copy requirements files and install script
+COPY requirements.strict.txt requirements.txt requirements.prod.txt requirements.docker.txt requirements_minimal.txt install_all_dependencies.sh ./
 
-# Install base Python packages with retries and timeouts
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel 
+# Make install script executable
+RUN chmod +x ./install_all_dependencies.sh
 
-# Try to install the full requirements first
+# Install base Python packages
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Try to install using the strict requirements first
 RUN set -e; \
-    if [ -f "requirements.docker.txt" ]; then \
-        echo "Attempting to install Docker-specific requirements..."; \
-        if pip install --no-cache-dir -r requirements.docker.txt; then \
-            echo "✅ Successfully installed Docker requirements"; \
+    if [ -f "requirements.strict.txt" ]; then \
+        echo "Installing from strict requirements file..."; \
+        if pip install --no-cache-dir -r requirements.strict.txt; then \
+            echo "✅ Successfully installed all dependencies from strict requirements"; \
         else \
-            echo "❌ Failed to install Docker requirements. Falling back to minimal requirements."; \
-            pip install --no-cache-dir -r requirements_minimal.txt; \
-            echo "⚠️ Only minimal WebSocket requirements installed. Some functionality may not work."; \
-        fi; \
-    elif [ -f "requirements.prod.txt" ]; then \
-        echo "Attempting to install production requirements..."; \
-        if pip install --no-cache-dir -r requirements.prod.txt; then \
-            echo "✅ Successfully installed production requirements"; \
-        else \
-            echo "❌ Failed to install production requirements. Falling back to minimal requirements."; \
-            pip install --no-cache-dir -r requirements_minimal.txt; \
-            echo "⚠️ Only minimal WebSocket requirements installed. Some functionality may not work."; \
+            echo "❌ Failed to install from strict requirements. Falling back to Docker requirements."; \
+            # Try Docker-specific requirements
+            if [ -f "requirements.docker.txt" ] && pip install --no-cache-dir -r requirements.docker.txt; then \
+                echo "✅ Successfully installed Docker requirements"; \
+            elif [ -f "requirements.prod.txt" ] && pip install --no-cache-dir -r requirements.prod.txt; then \
+                echo "✅ Successfully installed production requirements"; \
+            elif [ -f "requirements.txt" ] && pip install --no-cache-dir -r requirements.txt; then \
+                echo "✅ Successfully installed standard requirements"; \
+            else \
+                echo "❌ All requirements files failed. Falling back to minimal requirements."; \
+                pip install --no-cache-dir -r requirements_minimal.txt; \
+                echo "⚠️ Only minimal WebSocket requirements installed. Some functionality may not work."; \
+            fi; \
         fi; \
     else \
-        echo "Attempting to install standard requirements..."; \
-        if pip install --no-cache-dir -r requirements.txt; then \
+        # Fall back to previous approach if strict requirements file is missing
+        if [ -f "requirements.docker.txt" ] && pip install --no-cache-dir -r requirements.docker.txt; then \
+            echo "✅ Successfully installed Docker requirements"; \
+        elif [ -f "requirements.prod.txt" ] && pip install --no-cache-dir -r requirements.prod.txt; then \
+            echo "✅ Successfully installed production requirements"; \
+        elif [ -f "requirements.txt" ] && pip install --no-cache-dir -r requirements.txt; then \
             echo "✅ Successfully installed standard requirements"; \
         else \
-            echo "❌ Failed to install standard requirements. Falling back to minimal requirements."; \
+            echo "❌ All requirements files failed. Falling back to minimal requirements."; \
             pip install --no-cache-dir -r requirements_minimal.txt; \
             echo "⚠️ Only minimal WebSocket requirements installed. Some functionality may not work."; \
         fi; \
     fi;
 
 # Ensure the critical WebSocket packages are installed
-RUN pip install --no-cache-dir --upgrade flask-sock==0.7.0 gevent-websocket==0.10.1
+RUN pip install --no-cache-dir --upgrade flask-sock==0.7.0 gevent-websocket==0.10.1 pyaudio==0.2.14
 
 # Dependencies are already installed in previous step
 

@@ -52,8 +52,12 @@ class ToolRegistry:
             return tool["function"](**args)
 
 
-def register_default_tools(frontline_agent, registry):
+def register_default_tools(registry):
     """Register default tools with the registry."""
+    
+    # Get the frontline agent from global components
+    from app.routes.voice import get_global_component
+    frontline_agent = get_global_component('frontline_agent')
     
     # Lookup menu item
     registry.register_tool(

@@ -140,7 +140,7 @@ async def handle_media_stream(ws, session_id=None):
             logger.critical(f"[WEBSOCKET:{session_id}] ✅ Received initial message")
             
             # Log the message using the enhanced logging
-            await log_websocket_message(initial_msg, "RECV", "initial", session_id)
+            await log_websocket_message_flow(initial_msg, "RECV", ws, session_id, "initial")
         except asyncio.TimeoutError:
             logger.warning(f"[WEBSOCKET:{session_id}] ⚠️ No initial message received within 1 second timeout")
             logger.warning(f"[WEBSOCKET:{session_id}] This is normal if Twilio is waiting to send the first media chunk")

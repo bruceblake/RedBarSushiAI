@@ -10,6 +10,7 @@ import logging
 import json
 import time
 import asyncio
+import traceback
 from flask import Blueprint
 
 # Import the blueprints
@@ -56,6 +57,55 @@ def get_global_component(name):
         Component instance or None if not found
     """
     return _global_components.get(name)
+
+def init_voice_system(flask_app):
+    """
+    Initialize the voice system with all required components.
+    
+    Args:
+        flask_app: The Flask application instance
+        
+    Returns:
+        dict: Information about the initialized voice system
+    """
+    logger.info("Initializing voice system with OpenAI Realtime API")
+    
+    # Initialize voice components
+    try:
+        # Import agent components here to avoid circular imports
+        from app.agents.factory_with_orchestration import enhanced_agent_factory
+        from app.utils.agent_orchestration import FSMOrchestrator
+        from app.routes.voice.utils.tools_registry import ToolRegistry, register_default_tools
+        
+        # Create agents using the factory
+        frontline_agent = enhanced_agent_factory.create_agents()
+        fsm_orchestrator = FSMOrchestrator()
+        
+        # Create tool registry and register default tools
+        tool_registry = ToolRegistry()
+        register_default_tools(tool_registry)
+        
+        # Set global components
+        set_global_components(
+            frontline_agent=frontline_agent,
+            fsm_orchestrator=fsm_orchestrator,
+            tool_registry=tool_registry
+        )
+        
+        logger.info("Voice system components initialized successfully")
+        
+        # Initialize routes with the Flask app
+        init_voice_routes(flask_app)
+        
+        return {
+            "status": "success",
+            "components": ["frontline_agent", "fsm_orchestrator", "tool_registry"],
+            "routes_initialized": True
+        }
+    except Exception as e:
+        logger.error(f"Error initializing voice system: {str(e)}")
+        logger.error(f"Error details: {traceback.format_exc()}")
+        raise RuntimeError(f"Failed to initialize voice system: {str(e)}")
 
 def init_voice_routes(flask_app):
     """
@@ -160,6 +210,6 @@ def init_voice_routes(flask_app):
     
     logger.info("Voice routes initialized successfully")
 
-# Export the blueprints and initialization function
-__all__ = ["voice_bp", "realtime_voice_bp", "voice_debug_bp", "init_voice_routes",
+# Export the blueprints and initialization functions
+__all__ = ["voice_bp", "realtime_voice_bp", "voice_debug_bp", "init_voice_routes", "init_voice_system",
            "set_global_components", "get_global_component"]

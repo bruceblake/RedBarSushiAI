@@ -51,51 +51,112 @@ if [ -z "$FLASK_APP" ]; then
 	export FLASK_APP="run.py"
 fi
 
-# Install strict requirements
-echo "Installing all required dependencies with exact versions..."
-if [ -f "requirements.strict.txt" ]; then
-    # Install everything from strict requirements
-    pip install --no-cache-dir -r requirements.strict.txt
-    echo "✅ All dependencies installed successfully from requirements.strict.txt"
+# Use our comprehensive dependency installation script if available
+if [ -f "install_all_dependencies.sh" ]; then
+    echo "Running comprehensive dependency installation script..."
+    chmod +x ./install_all_dependencies.sh
+    # Set environment variables for the script to know we're in Render
+    export RENDER=true
+    export RENDER_SERVICE_ID=${RENDER_SERVICE_ID:-"docker-container"}
+    
+    # Run the installation script
+    ./install_all_dependencies.sh || {
+        echo "⚠️ Dependency installation script failed, falling back to manual installation"
+        # Fall back to strict requirements
+        if [ -f "requirements.strict.txt" ]; then
+            echo "Installing from strict requirements file..."
+            pip install --no-cache-dir -r requirements.strict.txt
+            echo "✅ All dependencies installed successfully from requirements.strict.txt"
+        else
+            # Fall back to installing packages directly
+            echo "⚠️ requirements.strict.txt not found, installing individually..."
+            
+            # Core web and WebSocket packages
+            pip install --no-cache-dir flask==3.1.0
+            pip install --no-cache-dir flask-sqlalchemy==3.1.1
+            pip install --no-cache-dir flask-sock==0.7.0
+            pip install --no-cache-dir gevent==23.9.1
+            pip install --no-cache-dir gevent-websocket==0.10.1
+            pip install --no-cache-dir gunicorn==23.0.0
+            pip install --no-cache-dir websockets==13.1
+            
+            # Database and cache
+            pip install --no-cache-dir psycopg2-binary==2.9.9
+            pip install --no-cache-dir sqlalchemy==2.0.38
+            pip install --no-cache-dir redis==5.2.1
+            
+            # API packages
+            pip install --no-cache-dir openai==1.77.0
+            pip install --no-cache-dir twilio==9.4.6
+            pip install --no-cache-dir stripe==11.6.0
+            
+            # HTTP and networking
+            pip install --no-cache-dir aiohttp==3.11.13
+            pip install --no-cache-dir httpx==0.28.1
+            
+            # Async processing
+            pip install --no-cache-dir celery==5.4.0
+            
+            # Audio processing
+            pip install --no-cache-dir ffmpeg-python==0.2.0
+        fi
+    }
 else
-    # Fall back to installing packages directly
-    echo "⚠️ requirements.strict.txt not found, installing individually..."
-    
-    # Core web and WebSocket packages
-    pip install --no-cache-dir flask==3.1.0
-    pip install --no-cache-dir flask-sqlalchemy==3.1.1
-    pip install --no-cache-dir flask-sock==0.7.0
-    pip install --no-cache-dir gevent==23.9.1
-    pip install --no-cache-dir gevent-websocket==0.10.1
-    pip install --no-cache-dir gunicorn==23.0.0
-    pip install --no-cache-dir websockets==13.1
-    
-    # Database and cache
-    pip install --no-cache-dir psycopg2-binary==2.9.9
-    pip install --no-cache-dir sqlalchemy==2.0.38
-    pip install --no-cache-dir redis==5.2.1
-    
-    # API packages
-    pip install --no-cache-dir openai==1.42.0
-    pip install --no-cache-dir twilio==9.4.6
-    pip install --no-cache-dir stripe==11.6.0
-    
-    # HTTP and networking
-    pip install --no-cache-dir aiohttp==3.11.13
-    pip install --no-cache-dir httpx==0.28.1
-    
-    # Async processing
-    pip install --no-cache-dir celery==5.4.0
-    
-    # Audio processing
-    pip install --no-cache-dir ffmpeg-python==0.2.0
-    pip install --no-cache-dir pydub==0.25.1
+    # No installation script, use traditional approach
+    echo "Installing all required dependencies with exact versions..."
+    if [ -f "requirements.strict.txt" ]; then
+        # Install everything from strict requirements
+        pip install --no-cache-dir -r requirements.strict.txt
+        echo "✅ All dependencies installed successfully from requirements.strict.txt"
+    else
+        # Fall back to installing packages directly
+        echo "⚠️ requirements.strict.txt not found, installing individually..."
+        
+        # Core web and WebSocket packages
+        pip install --no-cache-dir flask==3.1.0
+        pip install --no-cache-dir flask-sqlalchemy==3.1.1
+        pip install --no-cache-dir flask-sock==0.7.0
+        pip install --no-cache-dir gevent==23.9.1
+        pip install --no-cache-dir gevent-websocket==0.10.1
+        pip install --no-cache-dir gunicorn==23.0.0
+        pip install --no-cache-dir websockets==13.1
+        
+        # Database and cache
+        pip install --no-cache-dir psycopg2-binary==2.9.9
+        pip install --no-cache-dir sqlalchemy==2.0.38
+        pip install --no-cache-dir redis==5.2.1
+        
+        # API packages
+        pip install --no-cache-dir openai==1.77.0
+        pip install --no-cache-dir twilio==9.4.6
+        pip install --no-cache-dir stripe==11.6.0
+        
+        # HTTP and networking
+        pip install --no-cache-dir aiohttp==3.11.13
+        pip install --no-cache-dir httpx==0.28.1
+        
+        # Async processing
+        pip install --no-cache-dir celery==5.4.0
+        
+        # Audio processing
+        pip install --no-cache-dir ffmpeg-python==0.2.0
+    fi
 fi
 
 # Try to install PyAudio directly with system dependencies
 echo "Installing PyAudio..."
 pip install --no-cache-dir pyaudio==0.2.14 || {
     echo "⚠️ PyAudio installation failed - continuing anyway as this is not critical"
+    # Try alternative installation methods
+    if command -v apt-get > /dev/null; then
+        echo "Trying to install system dependencies for PyAudio..."
+        apt-get update && apt-get install -y --no-install-recommends \
+            portaudio19-dev \
+            libportaudio2 \
+            libportaudiocpp0 \
+            python3-dev
+        pip install --no-cache-dir pyaudio==0.2.14 || echo "⚠️ PyAudio installation still failed after installing system dependencies"
+    fi
 }
 
 # Install OpenAI Realtime client
