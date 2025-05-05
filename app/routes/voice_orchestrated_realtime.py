@@ -483,7 +483,7 @@ def receive_call():
         
         # Use secure WebSockets (wss://) when in production/staging or HTTPS request
         protocol = "wss" if (is_prod_or_staging or is_https_request) else "ws"
-        ws_url = f"{protocol}://{host}/ws/media"
+        ws_url = f"{protocol}://{host}/ws/voice/media"  # Updated to match the new WebSocket route
         logger.info(f"WebSocket URL for Media Streams: {ws_url} (Environment: {os.environ.get('FLASK_ENV', 'unknown')}, is_prod_or_staging: {is_prod_or_staging}, is_https_request: {is_https_request})")
         
         # Initialize TwiML response with Media Streams
@@ -547,20 +547,21 @@ def receive_call():
         except:
             pass
 
-@sock.route("/ws/media")
+@sock.route("/ws/voice/media")  # Changed route to avoid conflict with /ws/media in realtime.py
 async def media_stream(ws):
     """
     WebSocket endpoint for Twilio Media Streams API integration with OpenAI Realtime.
     Handles real-time audio from Twilio phone calls with OpenAI's Realtime API.
     """
-    # Create a file handler for this specific session to ensure logs are preserved
-    session_id = str(uuid.uuid4())
-    log_dir = os.path.join(os.getcwd(), 'logs')
-    if not os.path.exists(log_dir):
-        try:
-            os.makedirs(log_dir)
-        except:
-            pass  # If we can't create the dir, we'll fallback to default logging
+    try:
+        # Create a file handler for this specific session to ensure logs are preserved
+        session_id = str(uuid.uuid4())
+        log_dir = os.path.join(os.getcwd(), 'logs')
+        if not os.path.exists(log_dir):
+            try:
+                os.makedirs(log_dir)
+            except:
+                pass  # If we can't create the dir, we'll fallback to default logging
     
     # Set up session-specific logging
     try:
@@ -1199,8 +1200,19 @@ async def media_stream(ws):
         logger.error(f"[MEDIA_STREAM] ❌ Unhandled error in media stream: {str(e)}")
         logger.error(f"[MEDIA_STREAM] Unhandled error trace: {traceback.format_exc()}")
         
+        # Try to send error to client
         try:
-            log_connection_summary(f"unhandled_error: {str(e)}")
+            await ws.send(json.dumps({
+                "event": "error",
+                "text": f"System error: {str(e)}",
+                "timestamp": time.time()
+            }))
+            
+            # Try to log connection summary
+            if 'log_connection_summary' in locals():
+                log_connection_summary(f"unhandled_error: {str(e)}")
+                
+            # Try to close WebSocket with error code
             await ws.close(code=1011, reason=f"Internal error: {str(e)}")
         except:
             pass
