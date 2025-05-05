@@ -174,6 +174,9 @@ def init_voice_routes(flask_app):
             logger.info(f"Existing WebSocket routes: {existing_routes}")
             logger.info(f"Existing WebSocket functions: {existing_funcs}")
             
+            # Import enhanced logging - moved outside the conditional to avoid reference errors
+            from app.routes.voice.utils.websocket_logging import websocket_handler
+            
             # Use global flag to check if routes were already registered
             global _websocket_routes_registered
             
@@ -184,9 +187,6 @@ def init_voice_routes(flask_app):
             if _websocket_routes_registered or "/ws/voice/media" in existing_routes or "media_stream_ws" in existing_funcs:
                 logger.info("WebSocket routes already registered, skipping registration")
             else:
-                # Import enhanced logging
-                from app.routes.voice.utils.websocket_logging import websocket_handler
-                
                 @sock.route("/ws/voice/media")
                 @websocket_handler
                 async def media_stream_ws(ws):
@@ -214,6 +214,7 @@ def init_voice_routes(flask_app):
                 _websocket_routes_registered = True
             
             # Also provide a debug WebSocket endpoint
+            # websocket_handler is already imported above
             if "/ws/voice/debug" not in existing_routes and "debug_websocket" not in existing_funcs:
                 @sock.route("/ws/voice/debug")
                 @websocket_handler

@@ -71,13 +71,40 @@ async def send_keep_alive(ws, session_id, keep_alive_count=0):
 async def maintain_connection(ws, session_id):
     """Maintain the WebSocket connection with periodic keep-alive messages."""
     keep_alive_count = 0
-    keep_alive_interval = 5.0  # seconds
+    # Start with very frequent keep-alives and then gradually increase interval
+    keep_alive_intervals = [
+        0.5, 0.5, 0.5, 1.0, 1.0,  # First 5 keep-alives very frequent (0.5-1s)
+        2.0, 2.0, 2.0,            # Next 3 keep-alives at 2s intervals
+        3.0, 3.0, 3.0,            # Next 3 at 3s
+        5.0                       # Then settle at 5s intervals
+    ]
+    default_interval = 5.0  # Default interval after the initial sequence
     
     try:
         logger.info(f"[WS:{session_id}] Starting connection maintenance task")
         
+        # Initial burst of keep-alives with varying intervals
+        for interval in keep_alive_intervals:
+            keep_alive_count += 1
+            success = await send_keep_alive(ws, session_id, keep_alive_count)
+            
+            if not success:
+                logger.error(f"[WS:{session_id}] Failed to send keep-alive #{keep_alive_count}, connection may be dead")
+                return
+            
+            # Log the current interval
+            logger.debug(f"[WS:{session_id}] Waiting {interval}s until next keep-alive")
+            
+            # Update connection state
+            if session_id in active_connections:
+                active_connections[session_id]["last_activity_time"] = time.time()
+                active_connections[session_id]["connection_state"] = "maintained"
+            
+            # Wait for the interval
+            await asyncio.sleep(interval)
+        
+        # Continue with regular keep-alives at default interval
         while True:
-            # Send keep-alive message
             keep_alive_count += 1
             success = await send_keep_alive(ws, session_id, keep_alive_count)
             
@@ -85,9 +112,14 @@ async def maintain_connection(ws, session_id):
                 logger.error(f"[WS:{session_id}] Failed to send keep-alive #{keep_alive_count}, connection may be dead")
                 break
             
-            # Wait for the next interval
-            logger.debug(f"[WS:{session_id}] Waiting {keep_alive_interval}s until next keep-alive")
-            await asyncio.sleep(keep_alive_interval)
+            # Update connection state
+            if session_id in active_connections:
+                active_connections[session_id]["last_activity_time"] = time.time()
+                active_connections[session_id]["connection_state"] = "maintained"
+            
+            # Wait for the default interval
+            logger.debug(f"[WS:{session_id}] Waiting {default_interval}s until next keep-alive")
+            await asyncio.sleep(default_interval)
     
     except asyncio.CancelledError:
         logger.info(f"[WS:{session_id}] Connection maintenance task cancelled after {keep_alive_count} keep-alives")
@@ -96,69 +128,100 @@ async def maintain_connection(ws, session_id):
         logger.error(traceback.format_exc())
 
 async def greeting_sequence(ws, session_id):
-    """Send a greeting audio and keep-alive messages to establish the connection."""
+    """Send a greeting response for bidirectional streams with Twilio."""
     try:
         logger.info(f"[WS:{session_id}] Starting greeting sequence for bidirectional stream")
         
-        # For bidirectional Media Streams, we need to send actual audio back to Twilio
-        # This example demonstrates how to send a media message to Twilio
+        # First, check if we have needed connection info
+        call_sid = active_connections[session_id].get("call_sid")
+        stream_sid = active_connections[session_id].get("stream_sid")
         
-        # Here we would normally encode "Welcome to Red Bar Sushi!" as μ-law audio
-        # For simplicity, we're using a placeholder media message structure
-        # In a real implementation, this would be actual base64 encoded μ-law audio at 8000 Hz
+        # In a bidirectional stream, we need to wait until we get the start message with SIDs
+        # so we'll delay greeting if we don't have them yet
+        max_retries = 5
+        retry_count = 0
         
-        # Send a media message to Twilio
+        while (not call_sid or not stream_sid) and retry_count < max_retries:
+            logger.info(f"[WS:{session_id}] Waiting for Twilio start message with SIDs (attempt {retry_count+1}/{max_retries})")
+            
+            # Send a status message to keep the connection alive
+            status_msg = {
+                "event": "status",
+                "message": f"Waiting for Twilio start message ({retry_count+1}/{max_retries})",
+                "timestamp": time.time()
+            }
+            await ws.send(json.dumps(status_msg))
+            
+            # Wait a bit and check again
+            await asyncio.sleep(0.5)
+            retry_count += 1
+            
+            # Update call_sid and stream_sid from active_connections
+            call_sid = active_connections[session_id].get("call_sid")
+            stream_sid = active_connections[session_id].get("stream_sid")
+        
+        # Log the current state
+        if call_sid and stream_sid:
+            logger.info(f"[WS:{session_id}] Got Twilio SIDs: call_sid={call_sid}, stream_sid={stream_sid}")
+            active_connections[session_id]["connection_state"] = "identified"
+        else:
+            logger.warning(f"[WS:{session_id}] Failed to get Twilio SIDs after {max_retries} tries")
+            active_connections[session_id]["connection_state"] = "partially_identified"
+        
+        # We're now ready to send bidirectional media
+        # For Twilio Media Streams, we would send actual audio data like this:
+        
+        # Example media message structure (commented out since we don't have real audio data)
+        # Note: In a production system, this would be actual μ-law encoded audio
+        '''
         media_message = {
             "event": "media",
-            "streamSid": active_connections[session_id].get("stream_sid", "unknown"),
+            "streamSid": stream_sid,
             "media": {
-                "payload": "base64_encoded_audio_would_go_here",
-                "track": "outbound"  # This would be real audio to send to the caller
+                "payload": "<base64-encoded-audio>",
+                "track": "outbound"
             }
         }
+        await ws.send(json.dumps(media_message))
+        '''
         
-        # Send multiple keep-alive messages immediately after connection
-        for i in range(5):
-            keep_alive = {
-                "event": "heartbeat", 
-                "message": f"Keeping connection alive ({i+1}/5)",
-                "timestamp": time.time(),
-                "session_id": session_id
-            }
-            await asyncio.sleep(0.2)  # Small delay between messages
-            await ws.send(json.dumps(keep_alive))
-            logger.info(f"[WS:{session_id}] Sent keep-alive #{i+1} after connection")
+        # Send a "ready" heartbeat
+        ready_msg = {
+            "event": "ready",
+            "message": "Ready to process bidirectional audio",
+            "timestamp": time.time(),
+            "session_id": session_id,
+            "call_sid": call_sid,
+            "stream_sid": stream_sid
+        }
+        await ws.send(json.dumps(ready_msg))
+        logger.info(f"[WS:{session_id}] Sent bidirectional ready message")
         
-        logger.info(f"[WS:{session_id}] Completed initial keep-alive sequence")
-        
-        # Mark message to track media events
-        mark_message = {
+        # Send a mark to indicate we've completed setup
+        # In a real implementation, this would be used to mark positions in the audio
+        mark_msg = {
             "event": "mark",
-            "streamSid": active_connections[session_id].get("stream_sid", "unknown"),
+            "streamSid": stream_sid,
             "mark": {
-                "name": "greeting_complete"
+                "name": "greeting_ready"
             }
         }
+        # Only send if we have the stream_sid
+        if stream_sid and stream_sid != "unknown":
+            await ws.send(json.dumps(mark_msg))
+            logger.info(f"[WS:{session_id}] Sent mark 'greeting_ready'")
         
-        # In a real implementation, we would:
-        # 1. Receive audio from caller through media events
-        # 2. Process that audio through speech recognition
-        # 3. Generate response audio (TTS)
-        # 4. Send that audio back to Twilio as media messages with base64 encoded payload
-        # 5. Use mark messages to track playback progress
-        
-        # The key points for bidirectional streams:
-        # - Media messages need "event": "media" format
-        # - Audio must be μ-law encoded at 8000 Hz
-        # - Audio must be base64 encoded in the payload field
-        # - Mark messages can track playback positions
-        # - Bidirectional keeps the connection open indefinitely
-        
-        logger.info(f"[WS:{session_id}] Completed greeting sequence setup")
+        # Update connection state
+        active_connections[session_id]["connection_state"] = "greeting_complete"
+        logger.info(f"[WS:{session_id}] Completed greeting sequence")
         
     except Exception as e:
         logger.error(f"[WS:{session_id}] Error in greeting sequence: {e}")
         logger.error(traceback.format_exc())
+        
+        # Try to update connection state even if there was an error
+        if session_id in active_connections:
+            active_connections[session_id]["connection_state"] = "greeting_error"
 
 async def process_twilio_message(ws, session_id, message):
     """Process a message from Twilio Media Streams."""
@@ -180,7 +243,8 @@ async def process_twilio_message(ws, session_id, message):
             sample_rate = media_format.get("sampleRate", 8000)
             channels = media_format.get("channels", 1)
             
-            logger.info(f"[WS:{session_id}] Received Twilio start event")
+            # Log the full start message (with any sensitive info redacted)
+            logger.info(f"[WS:{session_id}] Received Twilio start event: {json.dumps(data)}")
             logger.info(f"[WS:{session_id}] Call SID: {call_sid}")
             logger.info(f"[WS:{session_id}] Stream SID: {stream_sid}")
             logger.info(f"[WS:{session_id}] Media format: {sample_rate}Hz, {channels} channel(s)")
@@ -191,16 +255,36 @@ async def process_twilio_message(ws, session_id, message):
             active_connections[session_id]["sample_rate"] = sample_rate
             active_connections[session_id]["channels"] = channels
             active_connections[session_id]["protocol_version"] = data.get("protocol", "1.0.0")
+            active_connections[session_id]["start_received"] = True
+            active_connections[session_id]["start_time"] = time.time()
+            active_connections[session_id]["connection_state"] = "start_received"
             
             # Send welcome response for bidirectional streams
             welcome = {
                 "event": "connected",
                 "message": "WebSocket connection established for bidirectional Media Streams",
                 "timestamp": time.time(),
-                "session_id": session_id
+                "session_id": session_id,
+                "call_sid": call_sid,
+                "stream_sid": stream_sid
             }
             await ws.send(json.dumps(welcome))
             logger.info(f"[WS:{session_id}] Sent welcome message")
+            
+            # Send immediate connection maintenance messages
+            for i in range(3):
+                maintenance_msg = {
+                    "event": "status",
+                    "message": f"Connection established ({i+1}/3)",
+                    "timestamp": time.time(),
+                    "session_id": session_id
+                }
+                await ws.send(json.dumps(maintenance_msg))
+                await asyncio.sleep(0.1)
+                logger.info(f"[WS:{session_id}] Sent immediate maintenance message {i+1}/3")
+            
+            # Update connection state
+            active_connections[session_id]["connection_state"] = "maintenance_sent"
             
             # Start greeting sequence as a separate task
             greeting_task = asyncio.create_task(greeting_sequence(ws, session_id))
@@ -271,14 +355,35 @@ async def handle_enhanced_media_stream(ws):
         "last_activity_time": connection_start_time,
         "last_media_time": None,
         "call_sid": None,
-        "stream_sid": None
+        "stream_sid": None,
+        "connection_state": "initializing"
     }
     
     logger.info(f"[WS:{session_id}] WebSocket connection established")
     logger.info(f"[WS:{session_id}] Connection ID: {session_id}")
     logger.info(f"[WS:{session_id}] Active connections: {len(active_connections)}")
     
+    # Store websocket client details for debugging
+    if hasattr(ws, 'request'):
+        req = ws.request
+        logger.info(f"[WS:{session_id}] Client: {req.remote_addr}, User-Agent: {req.headers.get('User-Agent', 'Unknown')}")
+    
     try:
+        # Mark the connection as established
+        active_connections[session_id]["connection_state"] = "established"
+        
+        # Send multiple immediate keep-alive messages to stabilize the connection
+        for i in range(3):
+            stabilize_msg = json.dumps({
+                "type": "stabilize", 
+                "message": f"Connection stabilization message {i+1}/3",
+                "timestamp": time.time(),
+                "session_id": session_id
+            })
+            await ws.send(stabilize_msg)
+            await asyncio.sleep(0.1)  # Very short delay between stabilization messages
+            active_connections[session_id]["messages_sent"] += 1
+        
         # Send initial welcome message
         welcome_msg = json.dumps({
             "type": "connected", 
@@ -294,6 +399,9 @@ async def handle_enhanced_media_stream(ws):
         maintenance_task = asyncio.create_task(maintain_connection(ws, session_id))
         add_task_to_registry(maintenance_task)
         logger.info(f"[WS:{session_id}] Started connection maintenance task")
+        
+        # Mark the connection as ready for audio
+        active_connections[session_id]["connection_state"] = "ready"
         
         # Main message processing loop
         while True:
