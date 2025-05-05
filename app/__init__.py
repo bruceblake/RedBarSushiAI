@@ -360,12 +360,20 @@ def create_app(test_config=None):
             try:
                 from app.routes.voice import init_voice_routes
                 app_logger.info("Using REFACTORED realtime voice implementation")
-                init_voice_routes(app)
-                # Only register these as fallbacks since the refactored version is primary
+                
+                # Try to initialize the refactored voice routes
+                try:
+                    init_voice_routes(app)
+                    app_logger.info("Successfully initialized refactored voice routes")
+                except Exception as route_error:
+                    app_logger.error(f"Error during refactored voice route initialization: {route_error}")
+                    app_logger.info("Continuing with fallbacks despite initialization error")
+                
+                # Register fallbacks regardless - they'll still work even if refactored fails
                 app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')  # Orchestrated as fallback
                 app.register_blueprint(voice_bp, url_prefix='/voice_standard')  # Standard as fallback
             except ImportError as e:
-                app_logger.error(f"Error initializing refactored voice routes: {e}")
+                app_logger.error(f"Error importing refactored voice routes: {e}")
                 # Fall back to original implementation
                 app_logger.info("Falling back to ORIGINAL realtime voice implementation")
                 app.register_blueprint(realtime_voice_bp)
