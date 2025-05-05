@@ -730,83 +730,83 @@ async def media_stream(ws):
                                         logger.info(f"[MEDIA_STREAM] Received Twilio event: {event_type}")
                                         logger.debug(f"[MEDIA_STREAM] Full event data: {data}")
                                 
-                                # Keep track of all control messages
-                                if event_type != "media":
-                                    twilio_messages.append(data)
-                                
-                                # Handle specific event types
-                                if event_type == "start":
-                                    logger.info(f"[MEDIA_STREAM] Media stream started: {data}")
-                                    # Log media format for debugging
-                                    if "start" in data:
-                                        media_format = data["start"].get("mediaFormat", {})
-                                        logger.info(f"[MEDIA_STREAM] Media format: {media_format}")
+                                    # Keep track of all control messages
+                                    if event_type != "media":
+                                        twilio_messages.append(data)
                                     
-                                    # Initialize FSM state
-                                    logger.info("[MEDIA_STREAM] Setting initial FSM state: GREETING")
-                                    fsm_orchestrator.set_state(session_id, FSMState.GREETING)
+                                    # Handle specific event types
+                                    if event_type == "start":
+                                        logger.info(f"[MEDIA_STREAM] Media stream started: {data}")
+                                        # Log media format for debugging
+                                        if "start" in data:
+                                            media_format = data["start"].get("mediaFormat", {})
+                                            logger.info(f"[MEDIA_STREAM] Media format: {media_format}")
+                                        
+                                        # Initialize FSM state
+                                        logger.info("[MEDIA_STREAM] Setting initial FSM state: GREETING")
+                                        fsm_orchestrator.set_state(session_id, FSMState.GREETING)
+                                        
+                                        # Initialize other state tracking
+                                        logger.info("[MEDIA_STREAM] Registering slots for customer data")
+                                        slot_store.register_slot(session_id, "customer_name", required=True)
+                                        slot_store.register_slot(session_id, "order_type", required=True)
                                     
-                                    # Initialize other state tracking
-                                    logger.info("[MEDIA_STREAM] Registering slots for customer data")
-                                    slot_store.register_slot(session_id, "customer_name", required=True)
-                                    slot_store.register_slot(session_id, "order_type", required=True)
-                                    
-                                elif event_type == "stop":
-                                    logger.info(f"[MEDIA_STREAM] Media stream stopped: {data}")
-                                    logger.info("[MEDIA_STREAM] Twilio requested stream stop")
-                                    break
-                                    
-                                elif event_type == "media":
-                                    # Process media chunk
-                                    payload = data.get("media", {}).get("payload")
-                                    if payload:
-                                        try:
-                                            # Decode base64 audio
-                                            audio_chunk = base64.b64decode(payload)
-                                            chunk_size = len(audio_chunk)
-                                            metrics["audio_chunks_received"] += 1
-                                            
-                                            # Track audio stats
-                                            now = time.time()
-                                            if audio_stats["first_chunk_time"] is None:
-                                                audio_stats["first_chunk_time"] = now
-                                            audio_stats["last_chunk_time"] = now
-                                            audio_stats["min_chunk_size"] = min(audio_stats["min_chunk_size"], chunk_size)
-                                            audio_stats["max_chunk_size"] = max(audio_stats["max_chunk_size"], chunk_size)
-                                            audio_stats["total_audio_size"] += chunk_size
-                                            audio_stats["chunk_sizes"].append(chunk_size)
-                                            
-                                            # Add to queue for processing
-                                            await incoming_audio_queue.put(audio_chunk)
-                                            
-                                            # Log audio stats periodically
-                                            if metrics["audio_chunks_received"] % 100 == 0:
-                                                # Calculate average chunk size from the last 100 chunks
-                                                recent_chunks = audio_stats["chunk_sizes"][-100:]
-                                                avg_chunk_size = sum(recent_chunks) / len(recent_chunks)
+                                    elif event_type == "stop":
+                                        logger.info(f"[MEDIA_STREAM] Media stream stopped: {data}")
+                                        logger.info("[MEDIA_STREAM] Twilio requested stream stop")
+                                        break
+                                        
+                                    elif event_type == "media":
+                                        # Process media chunk
+                                        payload = data.get("media", {}).get("payload")
+                                        if payload:
+                                            try:
+                                                # Decode base64 audio
+                                                audio_chunk = base64.b64decode(payload)
+                                                chunk_size = len(audio_chunk)
+                                                metrics["audio_chunks_received"] += 1
                                                 
-                                                # Calculate audio rate
-                                                audio_duration = audio_stats["last_chunk_time"] - audio_stats["first_chunk_time"]
-                                                if audio_duration > 0:
-                                                    chunks_per_second = metrics["audio_chunks_received"] / audio_duration
-                                                    bytes_per_second = audio_stats["total_audio_size"] / audio_duration
+                                                # Track audio stats
+                                                now = time.time()
+                                                if audio_stats["first_chunk_time"] is None:
+                                                    audio_stats["first_chunk_time"] = now
+                                                audio_stats["last_chunk_time"] = now
+                                                audio_stats["min_chunk_size"] = min(audio_stats["min_chunk_size"], chunk_size)
+                                                audio_stats["max_chunk_size"] = max(audio_stats["max_chunk_size"], chunk_size)
+                                                audio_stats["total_audio_size"] += chunk_size
+                                                audio_stats["chunk_sizes"].append(chunk_size)
+                                                
+                                                # Add to queue for processing
+                                                await incoming_audio_queue.put(audio_chunk)
+                                                
+                                                # Log audio stats periodically
+                                                if metrics["audio_chunks_received"] % 100 == 0:
+                                                    # Calculate average chunk size from the last 100 chunks
+                                                    recent_chunks = audio_stats["chunk_sizes"][-100:]
+                                                    avg_chunk_size = sum(recent_chunks) / len(recent_chunks)
                                                     
-                                                    logger.info(f"[MEDIA_STREAM] Audio stats: {metrics['audio_chunks_received']} chunks, " 
-                                                                f"avg size: {avg_chunk_size:.1f} bytes, "
-                                                                f"rate: {chunks_per_second:.1f} chunks/sec, "
-                                                                f"{bytes_per_second:.1f} bytes/sec")
-                                        except Exception as decode_error:
-                                            logger.error(f"[MEDIA_STREAM] Error decoding audio: {decode_error}")
-                                    else:
-                                        logger.warning("[MEDIA_STREAM] Received media event with empty payload")
+                                                    # Calculate audio rate
+                                                    audio_duration = audio_stats["last_chunk_time"] - audio_stats["first_chunk_time"]
+                                                    if audio_duration > 0:
+                                                        chunks_per_second = metrics["audio_chunks_received"] / audio_duration
+                                                        bytes_per_second = audio_stats["total_audio_size"] / audio_duration
+                                                        
+                                                        logger.info(f"[MEDIA_STREAM] Audio stats: {metrics['audio_chunks_received']} chunks, " 
+                                                                    f"avg size: {avg_chunk_size:.1f} bytes, "
+                                                                    f"rate: {chunks_per_second:.1f} chunks/sec, "
+                                                                    f"{bytes_per_second:.1f} bytes/sec")
+                                            except Exception as decode_error:
+                                                logger.error(f"[MEDIA_STREAM] Error decoding audio: {decode_error}")
+                                        else:
+                                            logger.warning("[MEDIA_STREAM] Received media event with empty payload")
                                     
-                                elif event_type == "mark":
-                                    # Handle mark events (Twilio control events)
-                                    logger.info(f"[MEDIA_STREAM] Mark event: {data}")
+                                    elif event_type == "mark":
+                                        # Handle mark events (Twilio control events)
+                                        logger.info(f"[MEDIA_STREAM] Mark event: {data}")
                                     
-                            except json.JSONDecodeError as e:
-                                logger.warning(f"[MEDIA_STREAM] Failed to parse JSON message: {e}")
-                                logger.warning(f"[MEDIA_STREAM] Message content (truncated): {message[:100]}")
+                                except json.JSONDecodeError as e:
+                                    logger.warning(f"[MEDIA_STREAM] Failed to parse JSON message: {e}")
+                                    logger.warning(f"[MEDIA_STREAM] Message content (truncated): {message[:100]}")
                             
                             elif isinstance(message, bytes):
                                 # Handle raw audio data
@@ -844,20 +844,20 @@ async def media_stream(ws):
                                 break
                             # Otherwise continue waiting
                             continue
-                        
-                    except Exception as message_error:
-                        logger.error(f"[MEDIA_STREAM] Error processing Twilio message: {message_error}")
-                        logger.error(f"[MEDIA_STREAM] Message error trace: {traceback.format_exc()}")
+                            
+                except Exception as message_error:
+                    logger.error(f"[MEDIA_STREAM] Error processing Twilio message: {message_error}")
+                    logger.error(f"[MEDIA_STREAM] Message error trace: {traceback.format_exc()}")
                 
                 logger.info(f"[MEDIA_STREAM] Twilio message processing task completed after processing {message_count} messages")
-                
-            except Exception as e:
-                logger.error(f"[MEDIA_STREAM] Error in Twilio message processing task: {str(e)}")
-                logger.error(f"[MEDIA_STREAM] Twilio task error trace: {traceback.format_exc()}")
-        
+            
             # Start processing Twilio messages
             logger.info("[MEDIA_STREAM] Starting Twilio message processing task")
-            twilio_task = asyncio.create_task(process_twilio_messages())
+            try:
+                twilio_task = asyncio.create_task(process_twilio_messages())
+            except Exception as task_error:
+                logger.error(f"[MEDIA_STREAM] Error creating Twilio task: {str(task_error)}")
+                logger.error(f"[MEDIA_STREAM] Task creation error trace: {traceback.format_exc()}")
             
             # Track if we've sent an initial greeting
             greeting_sent = False
@@ -882,28 +882,30 @@ async def media_stream(ws):
                                 
                                 yield audio_chunk
                             
-                        except asyncio.TimeoutError:
-                            # Check if we should exit due to no audio
-                            logger.warning("[MEDIA_STREAM] No audio received for 30 seconds in generator")
+                            except asyncio.TimeoutError:
+                                # Check if we should exit due to no audio
+                                logger.warning("[MEDIA_STREAM] No audio received for 30 seconds in generator")
+                                
+                                # Only exit if Twilio task is also done
+                                if twilio_task.done():
+                                    logger.warning("[MEDIA_STREAM] Exiting audio generator due to inactivity and Twilio task completion")
+                                    break
+                                # Otherwise keep waiting
+                                continue
                             
-                            # Only exit if Twilio task is also done
-                            if twilio_task.done():
-                                logger.warning("[MEDIA_STREAM] Exiting audio generator due to inactivity and Twilio task completion")
-                                break
-                            # Otherwise keep waiting
-                            continue
-                        
-                        except Exception as chunk_error:
-                            logger.error(f"[MEDIA_STREAM] Error getting audio chunk: {chunk_error}")
-                            logger.error(traceback.format_exc())
-                            # Continue trying to get more chunks
-                            continue
-                            
-                except Exception as gen_error:
-                    logger.error(f"[MEDIA_STREAM] Audio generator error: {gen_error}")
-                    logger.error(traceback.format_exc())
-                finally:
-                    logger.info(f"[MEDIA_STREAM] Audio generator exiting after yielding {chunks_yielded} chunks")
+                            except Exception as chunk_error:
+                                logger.error(f"[MEDIA_STREAM] Error getting audio chunk: {chunk_error}")
+                                logger.error(traceback.format_exc())
+                                # Continue trying to get more chunks
+                                continue
+                    except Exception as gen_error:
+                        logger.error(f"[MEDIA_STREAM] Audio generator error: {gen_error}")
+                        logger.error(traceback.format_exc())
+                    finally:
+                        logger.info(f"[MEDIA_STREAM] Audio generator exiting after yielding {chunks_yielded} chunks")
+            except Exception as setup_error:
+                logger.error(f"[MEDIA_STREAM] Error setting up audio generator: {setup_error}")
+                logger.error(traceback.format_exc())
             
             # Process the media stream
             logger.info("[MEDIA_STREAM] Starting Realtime media stream processing")
@@ -912,258 +914,262 @@ async def media_stream(ws):
             event_counts = {}
             processed_events = 0
             
-            async for event in realtime_processor.process_media_stream(audio_generator(), session_id):
-                # Update metrics
-                metrics["events_processed"] += 1
-                processed_events += 1
-                metrics["last_activity_time"] = time.time()
+            try:
+                async for event in realtime_processor.process_media_stream(audio_generator(), session_id):
+                    # Update metrics
+                    metrics["events_processed"] += 1
+                    processed_events += 1
+                    metrics["last_activity_time"] = time.time()
                 
-                # Handle different event types
-                event_type = event.get("type", "")
-                event_counts[event_type] = event_counts.get(event_type, 0) + 1
-                
-                # Log event with appropriate level of detail
-                if processed_events <= 5 or processed_events % 50 == 0:
-                    logger.info(f"[MEDIA_STREAM] Event {processed_events}: type={event_type}")
+                    # Handle different event types
+                    event_type = event.get("type", "")
+                    event_counts[event_type] = event_counts.get(event_type, 0) + 1
                     
-                # Record the event for debugging
-                ws_events.append({
-                    "time": time.time(),
-                    "type": event_type,
-                    "event_count": processed_events
-                })
-                
-                # Log event counts periodically
-                if processed_events % 50 == 0:
-                    logger.info(f"[MEDIA_STREAM] Processed {processed_events} events, counts by type: {event_counts}")
-                
-                # Handle specific event types
-                if event_type == "transcript_complete":
-                    # Process complete transcript with frontline agent
-                    transcript = event.get("text", "")
-                    if transcript:
-                        metrics["transcripts_processed"] += 1
-                        logger.info(f"[MEDIA_STREAM] Processing transcript #{metrics['transcripts_processed']}: {transcript}")
+                    # Log event with appropriate level of detail
+                    if processed_events <= 5 or processed_events % 50 == 0:
+                        logger.info(f"[MEDIA_STREAM] Event {processed_events}: type={event_type}")
                         
-                        # Process with orchestrated agent
+                    # Record the event for debugging
+                    ws_events.append({
+                        "time": time.time(),
+                        "type": event_type,
+                        "event_count": processed_events
+                    })
+                    
+                    # Log event counts periodically
+                    if processed_events % 50 == 0:
+                        logger.info(f"[MEDIA_STREAM] Processed {processed_events} events, counts by type: {event_counts}")
+                
+                    # Handle specific event types
+                    if event_type == "transcript_complete":
+                        # Process complete transcript with frontline agent
+                        transcript = event.get("text", "")
+                        if transcript:
+                            metrics["transcripts_processed"] += 1
+                            logger.info(f"[MEDIA_STREAM] Processing transcript #{metrics['transcripts_processed']}: {transcript}")
+                            
+                            # Process with orchestrated agent
+                            try:
+                                logger.info(f"[MEDIA_STREAM] Sending transcript to frontline agent")
+                                start_time = time.time()
+                                agent_response = frontline.process_voice_input(session_id, transcript)
+                                processing_time = time.time() - start_time
+                                logger.info(f"[MEDIA_STREAM] ✅ Agent processed transcript in {processing_time:.2f}s")
+                                logger.info(f"[MEDIA_STREAM] Agent response: {agent_response}")
+                                
+                                # Send transcript to client
+                                await ws.send(json.dumps({
+                                    "event": "transcript",
+                                    "transcript": transcript,
+                                    "timestamp": time.time()
+                                }))
+                                metrics["events_sent"] += 1
+                                
+                                # Send agent response to client
+                                await ws.send(json.dumps({
+                                    "event": "message",
+                                    "text": agent_response,
+                                    "timestamp": time.time()
+                                }))
+                                metrics["events_sent"] += 1
+                                
+                                # Generate TTS audio from response
+                                logger.info("[MEDIA_STREAM] Sending agent response as TTS audio")
+                                await ws.send(json.dumps({
+                                    "event": "media",
+                                    "streamSid": session_id,
+                                    "media": {
+                                        "payload": base64.b64encode(agent_response.encode('utf-8')).decode('utf-8')
+                                    }
+                                }))
+                                metrics["events_sent"] += 1
+                                
+                            except Exception as agent_error:
+                                logger.error(f"[MEDIA_STREAM] ❌ Error processing transcript with agent: {agent_error}")
+                                logger.error(f"[MEDIA_STREAM] Agent error trace: {traceback.format_exc()}")
+                                
+                                # Send error to client
+                                await ws.send(json.dumps({
+                                    "event": "error",
+                                    "text": f"Error processing your input: {str(agent_error)}",
+                                    "timestamp": time.time()
+                                }))
+                                metrics["events_sent"] += 1
+                        else:
+                            logger.warning("[MEDIA_STREAM] Received empty transcript_complete event")
+                
+                    elif event_type == "tool_call":
+                        # Handle tool calls from the model
+                        metrics["tool_calls"] += 1
+                        tool_name = event.get("name", "")
+                        tool_arguments = event.get("arguments", {})
+                        tool_id = event.get("id", "")
+                        
+                        logger.info(f"[MEDIA_STREAM] Tool call #{metrics['tool_calls']}: {tool_name}")
+                        logger.debug(f"[MEDIA_STREAM] Tool arguments: {tool_arguments}")
+                        
+                        # Execute tool with frontline agent through registry
                         try:
-                            logger.info(f"[MEDIA_STREAM] Sending transcript to frontline agent")
-                            start_time = time.time()
-                            agent_response = frontline.process_voice_input(session_id, transcript)
-                            processing_time = time.time() - start_time
-                            logger.info(f"[MEDIA_STREAM] ✅ Agent processed transcript in {processing_time:.2f}s")
-                            logger.info(f"[MEDIA_STREAM] Agent response: {agent_response}")
-                            
-                            # Send transcript to client
-                            await ws.send(json.dumps({
-                                "event": "transcript",
-                                "transcript": transcript,
-                                "timestamp": time.time()
-                            }))
-                            metrics["events_sent"] += 1
-                            
-                            # Send agent response to client
-                            await ws.send(json.dumps({
-                                "event": "message",
-                                "text": agent_response,
-                                "timestamp": time.time()
-                            }))
-                            metrics["events_sent"] += 1
-                            
-                            # Generate TTS audio from response
-                            logger.info("[MEDIA_STREAM] Sending agent response as TTS audio")
-                            await ws.send(json.dumps({
-                                "event": "media",
-                                "streamSid": session_id,
-                                "media": {
-                                    "payload": base64.b64encode(agent_response.encode('utf-8')).decode('utf-8')
-                                }
-                            }))
-                            metrics["events_sent"] += 1
-                            
-                        except Exception as agent_error:
-                            logger.error(f"[MEDIA_STREAM] ❌ Error processing transcript with agent: {agent_error}")
-                            logger.error(f"[MEDIA_STREAM] Agent error trace: {traceback.format_exc()}")
+                            if tool_registry and tool_name in tool_registry.tools:
+                                logger.info(f"[MEDIA_STREAM] Executing tool {tool_name} via registry")
+                                start_time = time.time()
+                                
+                                tool_result = tool_registry.execute_tool(
+                                    tool_name, 
+                                    tool_arguments, 
+                                    session_id=session_id
+                                )
+                                
+                                execution_time = time.time() - start_time
+                                logger.info(f"[MEDIA_STREAM] ✅ Tool {tool_name} executed in {execution_time:.2f}s")
+                                logger.debug(f"[MEDIA_STREAM] Tool result: {tool_result}")
+                                
+                                # Send tool result back to WebSocket
+                                await ws.send(json.dumps({
+                                    "event": "tool_result",
+                                    "name": tool_name,
+                                    "result": tool_result,
+                                    "timestamp": time.time()
+                                }))
+                                metrics["events_sent"] += 1
+                            else:
+                                logger.warning(f"[MEDIA_STREAM] Tool {tool_name} not found in registry")
+                        except Exception as tool_error:
+                            logger.error(f"[MEDIA_STREAM] ❌ Error executing tool {tool_name}: {tool_error}")
+                            logger.error(f"[MEDIA_STREAM] Tool error trace: {traceback.format_exc()}")
                             
                             # Send error to client
                             await ws.send(json.dumps({
                                 "event": "error",
-                                "text": f"Error processing your input: {str(agent_error)}",
+                                "text": f"Error executing tool {tool_name}: {str(tool_error)}",
                                 "timestamp": time.time()
                             }))
                             metrics["events_sent"] += 1
-                    else:
-                        logger.warning("[MEDIA_STREAM] Received empty transcript_complete event")
                 
-                elif event_type == "tool_call":
-                    # Handle tool calls from the model
-                    metrics["tool_calls"] += 1
-                    tool_name = event.get("name", "")
-                    tool_arguments = event.get("arguments", {})
-                    tool_id = event.get("id", "")
-                    
-                    logger.info(f"[MEDIA_STREAM] Tool call #{metrics['tool_calls']}: {tool_name}")
-                    logger.debug(f"[MEDIA_STREAM] Tool arguments: {tool_arguments}")
-                    
-                    # Execute tool with frontline agent through registry
-                    try:
-                        if tool_registry and tool_name in tool_registry.tools:
-                            logger.info(f"[MEDIA_STREAM] Executing tool {tool_name} via registry")
-                            start_time = time.time()
-                            
-                            tool_result = tool_registry.execute_tool(
-                                tool_name, 
-                                tool_arguments, 
-                                session_id=session_id
-                            )
-                            
-                            execution_time = time.time() - start_time
-                            logger.info(f"[MEDIA_STREAM] ✅ Tool {tool_name} executed in {execution_time:.2f}s")
-                            logger.debug(f"[MEDIA_STREAM] Tool result: {tool_result}")
-                            
-                            # Send tool result back to WebSocket
-                            await ws.send(json.dumps({
-                                "event": "tool_result",
-                                "name": tool_name,
-                                "result": tool_result,
-                                "timestamp": time.time()
-                            }))
-                            metrics["events_sent"] += 1
-                        else:
-                            logger.warning(f"[MEDIA_STREAM] Tool {tool_name} not found in registry")
-                    except Exception as tool_error:
-                        logger.error(f"[MEDIA_STREAM] ❌ Error executing tool {tool_name}: {tool_error}")
-                        logger.error(f"[MEDIA_STREAM] Tool error trace: {traceback.format_exc()}")
+                    elif event_type == "silence_detected":
+                        # Handle silence detection
+                        metrics["silence_events"] += 1
+                        logger.info(f"[MEDIA_STREAM] Silence detected (event #{metrics['silence_events']})")
                         
-                        # Send error to client
+                        try:
+                            # Get current FSM state
+                            current_state = fsm_orchestrator.get_current_state(session_id)
+                            logger.info(f"[MEDIA_STREAM] Current FSM state: {current_state}")
+                            
+                            # Generate appropriate response based on state
+                            if not greeting_sent:
+                                # Send initial greeting if none sent yet
+                                logger.info("[MEDIA_STREAM] Sending initial greeting")
+                                greeting = "Welcome to Red Bar Sushi. How can I help you today?"
+                                
+                                # Send greeting to client
+                                await ws.send(json.dumps({
+                                    "event": "message",
+                                    "text": greeting,
+                                    "timestamp": time.time()
+                                }))
+                                metrics["events_sent"] += 1
+                                
+                                # Convert greeting to audio (base64 for now)
+                                await ws.send(json.dumps({
+                                    "event": "media",
+                                    "streamSid": session_id,
+                                    "media": {
+                                        "payload": base64.b64encode(greeting.encode('utf-8')).decode('utf-8')
+                                    }
+                                }))
+                                metrics["events_sent"] += 1
+                                
+                                greeting_sent = True
+                                logger.info("[MEDIA_STREAM] ✅ Initial greeting sent")
+                            elif current_state == FSMState.GREETING:
+                                # In greeting state, prompt for name
+                                logger.info("[MEDIA_STREAM] In GREETING state, prompting for name")
+                                prompt = "Could you please tell me your name?"
+                                
+                                # Send prompt to client
+                                await ws.send(json.dumps({
+                                    "event": "message",
+                                    "text": prompt,
+                                    "timestamp": time.time()
+                                }))
+                                metrics["events_sent"] += 1
+                                
+                                # Convert prompt to audio (base64 for now)
+                                await ws.send(json.dumps({
+                                    "event": "media",
+                                    "streamSid": session_id,
+                                    "media": {
+                                        "payload": base64.b64encode(prompt.encode('utf-8')).decode('utf-8')
+                                    }
+                                }))
+                                metrics["events_sent"] += 1
+                                logger.info("[MEDIA_STREAM] ✅ Name prompt sent")
+                            else:
+                                # Generic prompt based on state
+                                logger.info(f"[MEDIA_STREAM] In state {current_state}, sending generic prompt")
+                                prompt = "Is there anything else I can help you with?"
+                                
+                                # Send prompt to client
+                                await ws.send(json.dumps({
+                                    "event": "message",
+                                    "text": prompt,
+                                    "timestamp": time.time()
+                                }))
+                                metrics["events_sent"] += 1
+                                
+                                # Convert prompt to audio (base64 for now)
+                                await ws.send(json.dumps({
+                                    "event": "media",
+                                    "streamSid": session_id,
+                                    "media": {
+                                        "payload": base64.b64encode(prompt.encode('utf-8')).decode('utf-8')
+                                    }
+                                }))
+                                metrics["events_sent"] += 1
+                                logger.info("[MEDIA_STREAM] ✅ Generic prompt sent")
+                        except Exception as silence_error:
+                            logger.error(f"[MEDIA_STREAM] ❌ Error processing silence event: {silence_error}")
+                            logger.error(f"[MEDIA_STREAM] Silence error trace: {traceback.format_exc()}")
+                
+                    elif event_type == "audio":
+                        # Handle audio data for TTS response
+                        audio_data = event.get("data", "")
+                        if audio_data:
+                            logger.debug(f"[MEDIA_STREAM] Received TTS audio data ({len(audio_data)} chars)")
+                            try:
+                                # Forward audio to Twilio
+                                await ws.send(json.dumps({
+                                    "event": "media",
+                                    "streamSid": session_id,
+                                    "media": {
+                                        "payload": audio_data
+                                    }
+                                }))
+                                metrics["events_sent"] += 1
+                            except Exception as audio_error:
+                                logger.error(f"[MEDIA_STREAM] ❌ Error sending audio data: {audio_error}")
+                        else:
+                            logger.warning("[MEDIA_STREAM] Received empty audio data")
+                            
+                    elif event_type == "error":
+                        # Handle error events
+                        error_msg = event.get("error", "Unknown error")
+                        logger.error(f"[MEDIA_STREAM] Received error event: {error_msg}")
+                        
+                        # Forward error to client
                         await ws.send(json.dumps({
                             "event": "error",
-                            "text": f"Error executing tool {tool_name}: {str(tool_error)}",
+                            "text": error_msg,
                             "timestamp": time.time()
                         }))
                         metrics["events_sent"] += 1
-                
-                elif event_type == "silence_detected":
-                    # Handle silence detection
-                    metrics["silence_events"] += 1
-                    logger.info(f"[MEDIA_STREAM] Silence detected (event #{metrics['silence_events']})")
-                    
-                    try:
-                        # Get current FSM state
-                        current_state = fsm_orchestrator.get_current_state(session_id)
-                        logger.info(f"[MEDIA_STREAM] Current FSM state: {current_state}")
-                        
-                        # Generate appropriate response based on state
-                        if not greeting_sent:
-                            # Send initial greeting if none sent yet
-                            logger.info("[MEDIA_STREAM] Sending initial greeting")
-                            greeting = "Welcome to Red Bar Sushi. How can I help you today?"
-                            
-                            # Send greeting to client
-                            await ws.send(json.dumps({
-                                "event": "message",
-                                "text": greeting,
-                                "timestamp": time.time()
-                            }))
-                            metrics["events_sent"] += 1
-                            
-                            # Convert greeting to audio (base64 for now)
-                            await ws.send(json.dumps({
-                                "event": "media",
-                                "streamSid": session_id,
-                                "media": {
-                                    "payload": base64.b64encode(greeting.encode('utf-8')).decode('utf-8')
-                                }
-                            }))
-                            metrics["events_sent"] += 1
-                            
-                            greeting_sent = True
-                            logger.info("[MEDIA_STREAM] ✅ Initial greeting sent")
-                        elif current_state == FSMState.GREETING:
-                            # In greeting state, prompt for name
-                            logger.info("[MEDIA_STREAM] In GREETING state, prompting for name")
-                            prompt = "Could you please tell me your name?"
-                            
-                            # Send prompt to client
-                            await ws.send(json.dumps({
-                                "event": "message",
-                                "text": prompt,
-                                "timestamp": time.time()
-                            }))
-                            metrics["events_sent"] += 1
-                            
-                            # Convert prompt to audio (base64 for now)
-                            await ws.send(json.dumps({
-                                "event": "media",
-                                "streamSid": session_id,
-                                "media": {
-                                    "payload": base64.b64encode(prompt.encode('utf-8')).decode('utf-8')
-                                }
-                            }))
-                            metrics["events_sent"] += 1
-                            logger.info("[MEDIA_STREAM] ✅ Name prompt sent")
-                        else:
-                            # Generic prompt based on state
-                            logger.info(f"[MEDIA_STREAM] In state {current_state}, sending generic prompt")
-                            prompt = "Is there anything else I can help you with?"
-                            
-                            # Send prompt to client
-                            await ws.send(json.dumps({
-                                "event": "message",
-                                "text": prompt,
-                                "timestamp": time.time()
-                            }))
-                            metrics["events_sent"] += 1
-                            
-                            # Convert prompt to audio (base64 for now)
-                            await ws.send(json.dumps({
-                                "event": "media",
-                                "streamSid": session_id,
-                                "media": {
-                                    "payload": base64.b64encode(prompt.encode('utf-8')).decode('utf-8')
-                                }
-                            }))
-                            metrics["events_sent"] += 1
-                            logger.info("[MEDIA_STREAM] ✅ Generic prompt sent")
-                    except Exception as silence_error:
-                        logger.error(f"[MEDIA_STREAM] ❌ Error processing silence event: {silence_error}")
-                        logger.error(f"[MEDIA_STREAM] Silence error trace: {traceback.format_exc()}")
-                
-                elif event_type == "audio":
-                    # Handle audio data for TTS response
-                    audio_data = event.get("data", "")
-                    if audio_data:
-                        logger.debug(f"[MEDIA_STREAM] Received TTS audio data ({len(audio_data)} chars)")
-                        try:
-                            # Forward audio to Twilio
-                            await ws.send(json.dumps({
-                                "event": "media",
-                                "streamSid": session_id,
-                                "media": {
-                                    "payload": audio_data
-                                }
-                            }))
-                            metrics["events_sent"] += 1
-                        except Exception as audio_error:
-                            logger.error(f"[MEDIA_STREAM] ❌ Error sending audio data: {audio_error}")
-                    else:
-                        logger.warning("[MEDIA_STREAM] Received empty audio data")
-                        
-                elif event_type == "error":
-                    # Handle error events
-                    error_msg = event.get("error", "Unknown error")
-                    logger.error(f"[MEDIA_STREAM] Received error event: {error_msg}")
-                    
-                    # Forward error to client
-                    await ws.send(json.dumps({
-                        "event": "error",
-                        "text": error_msg,
-                        "timestamp": time.time()
-                    }))
-                    metrics["events_sent"] += 1
             
-            logger.info(f"[MEDIA_STREAM] Media stream processing complete after {processed_events} events")
-            logger.info(f"[MEDIA_STREAM] Event counts by type: {event_counts}")
+                logger.info(f"[MEDIA_STREAM] Media stream processing complete after {processed_events} events")
+                logger.info(f"[MEDIA_STREAM] Event counts by type: {event_counts}")
+            except Exception as stream_error:
+                logger.error(f"[MEDIA_STREAM] Error in media stream processing loop: {str(stream_error)}")
+                logger.error(f"[MEDIA_STREAM] Stream loop error trace: {traceback.format_exc()}")
         
         except Exception as e:
             logger.error(f"[MEDIA_STREAM] ❌ Error in media stream processing: {str(e)}")
