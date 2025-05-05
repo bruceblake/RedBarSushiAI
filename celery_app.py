@@ -129,3 +129,11 @@ def make_celery(app):
 
 # Initialize the Celery object with the Flask app
 celery = make_celery(application)
+
+# Initialize the celery instance in tasks.py to avoid circular imports
+try:
+    import tasks
+    tasks.init_celery(celery)
+except (ImportError, AttributeError) as e:
+    print(f"Warning: Could not initialize tasks with celery instance: {e}")
+    # The tasks module will try to import celery directly

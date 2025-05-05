@@ -12,7 +12,8 @@ from datetime import datetime
 from flask import request, session, Response, jsonify
 from twilio.twiml.voice_response import VoiceResponse
 
-from app.routes.order import order_bp
+# Import blueprint reference directly to avoid circular imports
+from app.routes.order.__init__ import order_bp
 from app.utils.order_utils import (
     user_said_yes,
     user_said_no,
@@ -25,18 +26,18 @@ from app.config import DELIVERECT_API_URL, BASE_URL
 from app import db
 from app.models import Order
 
+# Configure logger
+logger = logging.getLogger(__name__)
+
 # Try to import tasks module for status updates
 try:
     from tasks import send_order_status_update_task
 except ImportError:
-    # Create a dummy task for testing
+    # Create a dummy function that will be replaced when tasks are properly loaded
     def send_order_status_update_task(*args, **kwargs):
-        logger.warning(
-            "Could not import send_order_status_update_task from tasks module. Will try again when needed."
-        )
-
-# Configure logger
-logger = logging.getLogger(__name__)
+        # This function will be replaced with the real one when the app is fully initialized
+        logger.warning("Using dummy send_order_status_update_task - tasks module not yet available")
+        return None
 
 @order_bp.route("/confirm_order_from_initial", methods=["POST"])
 def confirm_order_from_initial():

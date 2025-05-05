@@ -11,7 +11,8 @@ from flask import request, session, Response, jsonify
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.twiml.messaging_response import MessagingResponse
 
-from app.routes.order import order_bp
+# Import blueprint reference directly to avoid circular imports
+from app.routes.order.__init__ import order_bp
 from app.utils.helpers import log_info, commit_with_retry
 from app import db, twilio_client
 from app.models import ContactRequest

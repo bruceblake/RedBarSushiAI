@@ -113,6 +113,19 @@ export OPENAI_STREAMING=1            # Enable streaming for standard OpenAI API
 export NODE_TLS_REJECT_UNAUTHORIZED=0 # Allow self-signed certificates in dev environments
 export PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
 
+# Set default environment variables if not provided
+if [ -z "$REDIS_URL" ]; then
+    echo "REDIS_URL not set. Using default value."
+    export REDIS_URL="redis://localhost:6379/0"
+    export CELERY_BROKER_URL="$REDIS_URL"
+    export CELERY_RESULT_BACKEND="$REDIS_URL"
+fi
+
+if [ -z "$FLASK_APP" ]; then
+    echo "FLASK_APP not set. Using default value."
+    export FLASK_APP="run.py"
+fi
+
 # Install required packages
 echo "Installing or upgrading required dependencies..."
 pip install --no-cache-dir websockets==13.1 

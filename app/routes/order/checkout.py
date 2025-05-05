@@ -14,7 +14,8 @@ from flask import request, session, Response, url_for, redirect, jsonify
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.twiml.messaging_response import MessagingResponse
 
-from app.routes.order import order_bp
+# Import blueprint reference directly to avoid circular imports
+from app.routes.order.__init__ import order_bp
 from app.utils.order_utils import mark_unavailable_items, build_order_description, validate_modifiers
 from app.utils.deliverect import (
     build_deliverect_order, 
@@ -27,6 +28,9 @@ from app.config import DELIVERECT_API_URL, BASE_URL
 from app import db, twilio_client
 from app.models import Order
 
+# Configure logger
+logger = logging.getLogger(__name__)
+
 # Try to import tasks module for status updates
 try:
     from tasks import send_order_status_update_task
@@ -36,9 +40,6 @@ except ImportError:
         logger.warning(
             "Could not import send_order_status_update_task from tasks module. Will try again when needed."
         )
-
-# Configure logger
-logger = logging.getLogger(__name__)
 
 @order_bp.route("/process_order_checkout", methods=["GET", "POST"])
 def process_order_checkout():

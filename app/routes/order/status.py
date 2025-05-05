@@ -11,12 +11,17 @@ from flask import request, session, Response, jsonify
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.twiml.messaging_response import MessagingResponse
 
-from app.routes.order import order_bp
+# Import blueprint reference directly to avoid circular imports
+# This assumes order_bp is defined in __init__.py
+from app.routes.order.__init__ import order_bp
 from app.utils.helpers import log_info, commit_with_retry
 from app.utils.deliverect import get_order_status
 from app.config import BASE_URL
 from app import db, twilio_client
 from app.models import Order
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Try to import tasks module for status updates
 try:
@@ -28,12 +33,23 @@ except ImportError:
             "Could not import send_order_status_update_task from tasks module. Will try again when needed."
         )
 
-# Configure logger
-logger = logging.getLogger(__name__)
-
 # Global variable to track the channel status
 # 0: registered, 1: active, 2: inactive
+# This value is imported and used by app.routes.voice and other modules
+# Any changes to this value should be done through the functions defined below
 channel_status = 1
+
+def set_channel_status(status):
+    """
+    Update the channel status.
+    
+    Args:
+        status: New status value (0: registered, 1: active, 2: inactive)
+    """
+    global channel_status
+    channel_status = status
+    logger.info(f"Channel status updated to {status}")
+    return channel_status
 
 @order_bp.route("/check_order_status", methods=["POST"])
 def check_order_status():
@@ -286,9 +302,17 @@ def send_status_notification(order):
 
 # Export all functions and variables
 __all__ = [
+    # Variables
     'channel_status',
+    
+    # Status management functions
+    'set_channel_status',
+    
+    # API routes
     'check_order_status', 
-    'update_order_status', 
+    'update_order_status',
+    
+    # Helper functions 
     'get_status_text', 
     'send_status_notification'
 ]

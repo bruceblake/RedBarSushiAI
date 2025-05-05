@@ -8,7 +8,8 @@ import logging
 from flask import request, session, Response
 from twilio.twiml.voice_response import VoiceResponse
 
-from app.routes.order import order_bp
+# Import blueprint reference directly to avoid circular imports
+from app.routes.order.__init__ import order_bp
 from app.utils.order_utils import user_said_yes, user_said_no, dtmf_yes_no
 
 # Configure logger

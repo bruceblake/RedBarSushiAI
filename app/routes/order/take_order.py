@@ -8,7 +8,8 @@ import logging
 from flask import request, session, Response
 from twilio.twiml.voice_response import VoiceResponse
 
-from app.routes.order import order_bp
+# Import blueprint reference directly to avoid circular imports
+from app.routes.order.__init__ import order_bp
 from app.utils.menu_utils_db import load_menu_data
 from app.utils.agent_utils import analyze_user_input, OrderParsingAgent
 from app.utils.order_utils import build_order_description, calculate_bill_amount, mark_unavailable_items

@@ -41,8 +41,21 @@ def format_phone_display(phone_number):
     return f"({digits_only[:3]}) {digits_only[3:6]}-{digits_only[6:]}"
 
 
-# Import celery instance after it's fully defined
-from celery_app import celery
+# Import celery instance differently to avoid circular imports
+# Define a placeholder that will be filled later
+celery = None
+
+def init_celery(celery_instance):
+    """Initialize the celery instance. Called from celery_app.py"""
+    global celery
+    celery = celery_instance
+    
+# The actual import will happen after the app is fully initialized
+try:
+    from celery_app import celery
+except ImportError:
+    # Will be initialized later by init_celery
+    pass
 
 
 # Memory profiling decorator for tasks

@@ -24,7 +24,8 @@ escalation_bp = Blueprint("escalation", __name__, url_prefix="/escalation")
 # Twilio validation
 def validate_twilio_request(f):
     """Validate that the request actually came from Twilio"""
-    def decorated_function(*args, **kwargs):
+    # Use unique name for the decorated function to avoid conflicts
+    def validate_twilio_request_wrapper(*args, **kwargs):
         # Get the request values
         twilio_signature = request.headers.get('X-Twilio-Signature', '')
         url = request.url
@@ -47,7 +48,11 @@ def validate_twilio_request(f):
             logger.warning(f"Invalid Twilio signature: {twilio_signature}")
             return Response("Invalid Twilio signature", status=403)
     
-    return decorated_function
+    # Update wrapper function's name and docstring
+    validate_twilio_request_wrapper.__name__ = f.__name__ + '_validated'
+    validate_twilio_request_wrapper.__doc__ = f.__doc__
+    
+    return validate_twilio_request_wrapper
 
 @escalation_bp.route("/handle_dial_status", methods=["POST"])
 @validate_twilio_request

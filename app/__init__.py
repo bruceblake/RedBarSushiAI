@@ -300,8 +300,20 @@ def create_app(test_config=None):
     
     # Import voice implementations
     from app.config import VOICE_HANDLER
-    from app.routes.voice import voice_bp
-    from app.routes.voice_orchestrated import orchestrated_voice_bp
+    from flask import Blueprint
+    
+    # Import voice blueprints with try/except to handle potential circular imports
+    try:
+        from app.routes.voice import voice_bp
+    except ImportError as e:
+        logger.error(f"Error importing voice_bp: {e}")
+        voice_bp = Blueprint('voice', __name__)  # Create a dummy blueprint
+
+    try:
+        from app.routes.voice_orchestrated import orchestrated_voice_bp
+    except ImportError as e:
+        logger.error(f"Error importing orchestrated_voice_bp: {e}")
+        orchestrated_voice_bp = Blueprint('orchestrated_voice', __name__)  # Create a dummy blueprint
     
     # Register non-voice routes
     app.register_blueprint(menu_bp)  # Menu routes
