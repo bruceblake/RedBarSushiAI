@@ -87,9 +87,80 @@ def check_route_registration():
         logger.error(f"Error checking route registration: {e}")
         return [("Route registration check", f"❌ Error: {e}")]
 
-def check_keep_alive_strategy():
-    """Check if the enhanced keep-alive strategy is implemented."""
+def check_enhanced_stream_handler():
+    """Check if the enhanced WebSocket stream handler is implemented."""
     try:
+        filepath = "app/routes/voice/realtime/enhanced_stream_handler.py"
+        with open(filepath, "r") as f:
+            content = f.read()
+        
+        # Check for key enhanced features
+        task_registry = "# Global task registry to prevent garbage collection"
+        multiple_keep_alives = "# Send multiple keep-alive messages immediately after greeting"
+        follow_up_sequence = "# Wait a bit, then send follow-up prompt"
+        connection_maintenance = "async def maintain_connection(ws, session_id):"
+        track_active_connections = "active_connections[session_id]"
+        proper_logging = 'logger.info(f"[WS:{session_id}]'
+        
+        results = []
+        if task_registry in content:
+            results.append(("Task registry for garbage collection", "✅ Found"))
+        else:
+            results.append(("Task registry for garbage collection", "❌ Missing"))
+        
+        if multiple_keep_alives in content:
+            results.append(("Multiple sequential keep-alives", "✅ Found"))
+        else:
+            results.append(("Multiple sequential keep-alives", "❌ Missing"))
+        
+        if follow_up_sequence in content:
+            results.append(("Follow-up prompt sequence", "✅ Found"))
+        else:
+            results.append(("Follow-up prompt sequence", "❌ Missing"))
+        
+        if connection_maintenance in content:
+            results.append(("Connection maintenance task", "✅ Found"))
+        else:
+            results.append(("Connection maintenance task", "❌ Missing"))
+        
+        if track_active_connections in content:
+            results.append(("Active connection tracking", "✅ Found"))
+        else:
+            results.append(("Active connection tracking", "❌ Missing"))
+        
+        if proper_logging in content:
+            results.append(("Session-aware logging", "✅ Found"))
+        else:
+            results.append(("Session-aware logging", "❌ Missing"))
+        
+        # Check if __init__.py is using the enhanced handler
+        init_filepath = "app/routes/voice/__init__.py"
+        with open(init_filepath, "r") as f:
+            init_content = f.read()
+            
+        if "from app.routes.voice.realtime.enhanced_stream_handler import handle_enhanced_media_stream" in init_content:
+            results.append(("Init importing enhanced handler", "✅ Found"))
+        else:
+            results.append(("Init importing enhanced handler", "❌ Missing"))
+        
+        if "await handle_enhanced_media_stream(ws)" in init_content:
+            results.append(("Init using enhanced handler", "✅ Found"))
+        else:
+            results.append(("Init using enhanced handler", "❌ Missing"))
+        
+        return results
+    except Exception as e:
+        logger.error(f"Error checking enhanced stream handler: {e}")
+        return [("Enhanced stream handler check", f"❌ Error: {e}")]
+
+def check_keep_alive_strategy():
+    """Check if the enhanced keep-alive strategy is implemented (legacy check)."""
+    try:
+        # First check if the enhanced stream handler exists, if so, that's better
+        if os.path.exists("app/routes/voice/realtime/enhanced_stream_handler.py"):
+            return [("Keep-alive strategy", "✅ Upgraded to enhanced stream handler")]
+            
+        # Fall back to checking the old handlers.py
         filepath = "app/routes/voice/handlers.py"
         with open(filepath, "r") as f:
             content = f.read()
@@ -127,38 +198,59 @@ def check_keep_alive_strategy():
         logger.error(f"Error checking keep-alive strategy: {e}")
         return [("Keep-alive strategy check", f"❌ Error: {e}")]
 
-def check_twilio_twiml():
-    """Check if the TwiML generation has been enhanced with pauses."""
+def check_improved_twiml():
+    """Check if the improved TwiML generator with bidirectional stream is implemented."""
     try:
-        filepath = "app/routes/voice/twilio/twiml.py"
+        filepath = "app/routes/voice/twilio/improved_twiml.py"
         with open(filepath, "r") as f:
             content = f.read()
         
-        # Check for pauses in the TwiML
-        first_pause = 'response.pause(length=1)'
-        second_pause = 'response.pause(length=0.5)'
-        track_naming = 'track="inbound_track", name="inbound_stream"'
+        # Check for bidirectional streaming in the TwiML
+        bidirectional_stream = 'track="both_tracks"'
+        single_stream_config = 'start.stream('
+        proper_greeting = 'Welcome to {environment_name} Red Bar Sushi AI'
+        pause_before_stream = 'response.pause(length=1)'
         
         results = []
-        if first_pause in content:
-            results.append(("Initial 1-second pause", "✅ Found"))
+        if bidirectional_stream in content:
+            results.append(("Bidirectional track config", "✅ Found"))
         else:
-            results.append(("Initial 1-second pause", "❌ Missing"))
+            results.append(("Bidirectional track config", "❌ Missing"))
         
-        if second_pause in content:
-            results.append(("Second 0.5-second pause", "✅ Found"))
+        if single_stream_config in content:
+            results.append(("Single stream configuration", "✅ Found"))
         else:
-            results.append(("Second 0.5-second pause", "❌ Missing"))
+            results.append(("Single stream configuration", "❌ Missing"))
         
-        if track_naming in content:
-            results.append(("Named stream tracks", "✅ Found"))
+        if proper_greeting in content:
+            results.append(("Environment-aware greeting", "✅ Found"))
         else:
-            results.append(("Named stream tracks", "❌ Missing"))
+            results.append(("Environment-aware greeting", "❌ Missing"))
+        
+        if pause_before_stream in content:
+            results.append(("Pause before streaming", "✅ Found"))
+        else:
+            results.append(("Pause before streaming", "❌ Missing"))
+        
+        # Check if routes.py is using the new generator
+        routes_filepath = "app/routes/voice/routes.py"
+        with open(routes_filepath, "r") as f:
+            routes_content = f.read()
+            
+        if "generate_optimized_media_streams_twiml" in routes_content:
+            results.append(("Routes using optimized TwiML", "✅ Found"))
+        else:
+            results.append(("Routes using optimized TwiML", "❌ Missing"))
+        
+        if "improved_twiml" in routes_content:
+            results.append(("Routes importing improved_twiml", "✅ Found"))
+        else:
+            results.append(("Routes importing improved_twiml", "❌ Missing"))
         
         return results
     except Exception as e:
-        logger.error(f"Error checking TwiML generation: {e}")
-        return [("TwiML generation check", f"❌ Error: {e}")]
+        logger.error(f"Error checking improved TwiML: {e}")
+        return [("Improved TwiML check", f"❌ Error: {e}")]
 
 async def test_websocket_connection(url, timeout=5.0):
     """Test WebSocket connection stability with proper timeout handling."""
@@ -262,10 +354,25 @@ def main():
     for desc, result in keep_alive_results:
         logger.info(f"  {desc}: {result}")
     
-    # Check TwiML generation
-    logger.info("\nChecking TwiML generation...")
-    twiml_results = check_twilio_twiml()
-    for desc, result in twiml_results:
+    # Check original TwiML generation (legacy check)
+    if os.path.exists("app/routes/voice/twilio/twiml.py"):
+        logger.info("\nChecking original TwiML generation (legacy)...")
+        twiml_results = check_twilio_twiml()
+        for desc, result in twiml_results:
+            logger.info(f"  {desc}: {result}")
+    else:
+        twiml_results = [("Original TwiML", "⚠️ File not found (may be renamed)")]
+        
+    # Check improved TwiML generation
+    logger.info("\nChecking improved TwiML generation...")
+    improved_twiml_results = check_improved_twiml()
+    for desc, result in improved_twiml_results:
+        logger.info(f"  {desc}: {result}")
+    
+    # Check enhanced stream handler
+    logger.info("\nChecking enhanced stream handler...")
+    enhanced_handler_results = check_enhanced_stream_handler()
+    for desc, result in enhanced_handler_results:
         logger.info(f"  {desc}: {result}")
     
     # Test WebSocket connection if requested
@@ -284,7 +391,7 @@ def main():
     duration = time.time() - start_time
     
     # Count the results
-    all_results = procfile_results + route_results + keep_alive_results + twiml_results
+    all_results = procfile_results + route_results + keep_alive_results + improved_twiml_results + enhanced_handler_results
     success_count = sum(1 for _, result in all_results if "✅" in result)
     failure_count = sum(1 for _, result in all_results if "❌" in result)
     

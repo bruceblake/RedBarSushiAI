@@ -11,7 +11,7 @@ import os
 from flask import request, Response
 
 from app.routes.voice.blueprints import realtime_voice_bp, voice_debug_bp
-from app.routes.voice.twilio.twiml import generate_media_streams_twiml, get_environment_name, get_host_for_ws
+from app.routes.voice.twilio.improved_twiml import generate_optimized_media_streams_twiml, get_environment_name, get_host_for_ws
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -80,11 +80,11 @@ def receive_call():
         # Get host for WebSocket connections
         host = get_host_for_ws(request)
         
-        # Generate TwiML response
-        twiml = generate_media_streams_twiml(call_sid, host, environment_name)
+        # Generate optimized TwiML response with bidirectional stream
+        twiml = generate_optimized_media_streams_twiml(call_sid, host, environment_name)
         
         # Log timing and return response
-        logger.info(f"TwiML response generated for call {call_sid}")
+        logger.info(f"Optimized TwiML response generated for call {call_sid}")
         
         # Remove the handlers to prevent logging to this file for other requests
         if 'call_file_handler' in locals():
