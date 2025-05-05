@@ -712,23 +712,23 @@ async def media_stream(ws):
                         try:
                             message = await asyncio.wait_for(ws.receive(), timeout=30.0)
                             message_count += 1
-                        metrics["last_activity_time"] = time.time()
-                        
-                        # Handle different message types from Twilio
-                        if isinstance(message, str):
-                            try:
-                                data = json.loads(message)
-                                event_type = data.get("event", "unknown")
-                                
-                                # Log the received message with appropriate detail level
-                                if event_type == "media":
-                                    # For media events, just log that we received one to reduce noise
-                                    if message_count % 20 == 0:  # Log only every 20th media message
-                                        logger.debug(f"[MEDIA_STREAM] Received media event #{message_count}")
-                                else:
-                                    # For non-media events, log the full event
-                                    logger.info(f"[MEDIA_STREAM] Received Twilio event: {event_type}")
-                                    logger.debug(f"[MEDIA_STREAM] Full event data: {data}")
+                            metrics["last_activity_time"] = time.time()
+                            
+                            # Handle different message types from Twilio
+                            if isinstance(message, str):
+                                try:
+                                    data = json.loads(message)
+                                    event_type = data.get("event", "unknown")
+                                    
+                                    # Log the received message with appropriate detail level
+                                    if event_type == "media":
+                                        # For media events, just log that we received one to reduce noise
+                                        if message_count % 20 == 0:  # Log only every 20th media message
+                                            logger.debug(f"[MEDIA_STREAM] Received media event #{message_count}")
+                                    else:
+                                        # For non-media events, log the full event
+                                        logger.info(f"[MEDIA_STREAM] Received Twilio event: {event_type}")
+                                        logger.debug(f"[MEDIA_STREAM] Full event data: {data}")
                                 
                                 # Keep track of all control messages
                                 if event_type != "media":
@@ -807,42 +807,43 @@ async def media_stream(ws):
                             except json.JSONDecodeError as e:
                                 logger.warning(f"[MEDIA_STREAM] Failed to parse JSON message: {e}")
                                 logger.warning(f"[MEDIA_STREAM] Message content (truncated): {message[:100]}")
-                        elif isinstance(message, bytes):
-                            # Handle raw audio data
-                            chunk_size = len(message)
-                            metrics["audio_chunks_received"] += 1
                             
-                            # Update audio stats
-                            now = time.time()
-                            if audio_stats["first_chunk_time"] is None:
-                                audio_stats["first_chunk_time"] = now
-                            audio_stats["last_chunk_time"] = now
-                            audio_stats["min_chunk_size"] = min(audio_stats["min_chunk_size"], chunk_size)
-                            audio_stats["max_chunk_size"] = max(audio_stats["max_chunk_size"], chunk_size)
-                            audio_stats["total_audio_size"] += chunk_size
-                            audio_stats["chunk_sizes"].append(chunk_size)
+                            elif isinstance(message, bytes):
+                                # Handle raw audio data
+                                chunk_size = len(message)
+                                metrics["audio_chunks_received"] += 1
+                                
+                                # Update audio stats
+                                now = time.time()
+                                if audio_stats["first_chunk_time"] is None:
+                                    audio_stats["first_chunk_time"] = now
+                                audio_stats["last_chunk_time"] = now
+                                audio_stats["min_chunk_size"] = min(audio_stats["min_chunk_size"], chunk_size)
+                                audio_stats["max_chunk_size"] = max(audio_stats["max_chunk_size"], chunk_size)
+                                audio_stats["total_audio_size"] += chunk_size
+                                audio_stats["chunk_sizes"].append(chunk_size)
+                                
+                                # Add to queue for processing
+                                await incoming_audio_queue.put(message)
+                                
+                                # Log periodically to avoid flooding 
+                                if metrics["audio_chunks_received"] % 100 == 0:
+                                    logger.debug(f"[MEDIA_STREAM] Processed {metrics['audio_chunks_received']} raw audio chunks")
+                            else:
+                                # Unknown message type
+                                logger.warning(f"[MEDIA_STREAM] Received unknown message type: {type(message)}")
                             
-                            # Add to queue for processing
-                            await incoming_audio_queue.put(message)
+                        except asyncio.TimeoutError:
+                            # No messages for 30 seconds
+                            elapsed = time.time() - metrics["last_activity_time"]
+                            logger.warning(f"[MEDIA_STREAM] No Twilio messages received for {elapsed:.1f} seconds")
                             
-                            # Log periodically to avoid flooding 
-                            if metrics["audio_chunks_received"] % 100 == 0:
-                                logger.debug(f"[MEDIA_STREAM] Processed {metrics['audio_chunks_received']} raw audio chunks")
-                        else:
-                            # Unknown message type
-                            logger.warning(f"[MEDIA_STREAM] Received unknown message type: {type(message)}")
-                            
-                    except asyncio.TimeoutError:
-                        # No messages for 30 seconds
-                        elapsed = time.time() - metrics["last_activity_time"]
-                        logger.warning(f"[MEDIA_STREAM] No Twilio messages received for {elapsed:.1f} seconds")
-                        
-                        # Check if we should exit due to inactivity
-                        if elapsed > 60:  # Exit after 60 seconds of no activity
-                            logger.warning("[MEDIA_STREAM] Exiting due to inactivity (60+ seconds)")
-                            break
-                        # Otherwise continue waiting
-                        continue
+                            # Check if we should exit due to inactivity
+                            if elapsed > 60:  # Exit after 60 seconds of no activity
+                                logger.warning("[MEDIA_STREAM] Exiting due to inactivity (60+ seconds)")
+                                break
+                            # Otherwise continue waiting
+                            continue
                         
                     except Exception as message_error:
                         logger.error(f"[MEDIA_STREAM] Error processing Twilio message: {message_error}")
@@ -867,19 +868,19 @@ async def media_stream(ws):
                 async def audio_generator():
                     logger.info("[MEDIA_STREAM] Audio generator started")
                     chunks_yielded = 0
-                
-                try:
-                    while True:
-                        try:
-                            # Use a timeout to prevent blocking forever
-                            audio_chunk = await asyncio.wait_for(incoming_audio_queue.get(), timeout=30.0)
-                            chunks_yielded += 1
-                            
-                            # Log progress periodically
-                            if chunks_yielded % 100 == 0:
-                                logger.debug(f"[MEDIA_STREAM] Audio generator yielded {chunks_yielded} chunks")
+                    
+                    try:
+                        while True:
+                            try:
+                                # Use a timeout to prevent blocking forever
+                                audio_chunk = await asyncio.wait_for(incoming_audio_queue.get(), timeout=30.0)
+                                chunks_yielded += 1
                                 
-                            yield audio_chunk
+                                # Log progress periodically
+                                if chunks_yielded % 100 == 0:
+                                    logger.debug(f"[MEDIA_STREAM] Audio generator yielded {chunks_yielded} chunks")
+                                
+                                yield audio_chunk
                             
                         except asyncio.TimeoutError:
                             # Check if we should exit due to no audio
