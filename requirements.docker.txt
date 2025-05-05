@@ -95,3 +95,5 @@ python-socketio==5.8.0
 eventlet>=0.35.2,<0.40.0
 gevent==23.9.1
 gevent-websocket==0.10.1
+numpy>=1.24.0
+scipy>=1.10.0

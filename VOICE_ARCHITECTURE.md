@@ -1,13 +1,13 @@
 # Voice System Architecture
 
-RedBarSushiAI offers two different voice handling implementations, with the orchestrated approach providing advanced features and architecture.
+RedBarSushiAI offers three different voice handling implementations, with the Realtime API approach providing the most advanced features and architecture.
 
 ## Voice Handler Configuration
 
 The active voice handler can be configured using the `VOICE_HANDLER` environment variable:
 
 ```bash
-# Options: "standard", "orchestrated"
+# Options: "standard", "orchestrated", "realtime"
 VOICE_HANDLER=orchestrated  # Default
 ```
 
@@ -24,7 +24,7 @@ The original implementation using direct OpenAI API calls.
 
 ## 2. Orchestrated Voice Handler (`voice_orchestrated.py`)
 
-The most advanced implementation with multi-agent orchestration.
+Advanced implementation with multi-agent orchestration using Twilio's `<Gather>` for audio processing.
 
 **Key Features:**
 - Multi-agent architecture with specialized agents
@@ -33,7 +33,21 @@ The most advanced implementation with multi-agent orchestration.
 - Background escalation for complex scenarios
 - Automated guardrails and validation
 
-**Route:** Root URL when configured as primary (recommended)
+**Route:** Root URL when configured as primary
+
+## 3. Realtime Voice Handler (`voice_orchestrated_realtime.py`)
+
+The most advanced implementation using OpenAI's Realtime API with Twilio Media Streams.
+
+**Key Features:**
+- Direct WebSocket integration with OpenAI's Realtime API
+- Streaming audio processing with sub-300ms latency
+- VAD-driven conversation flow instead of turn-based
+- Continuous bidirectional audio streaming
+- Tool-based agent integration for specialized tasks
+- All orchestrated agent capabilities with WebSocket events
+
+**Route:** Root URL when `VOICE_HANDLER=realtime` (recommended for production)
 
 ## Architecture Diagram
 

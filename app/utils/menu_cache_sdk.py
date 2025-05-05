@@ -37,7 +37,7 @@ class MenuCache:
             self.setup_pubsub()
     
     def initialize_redis(self):
-        """Initialize the Redis connection."""
+        """Initialize the Redis connection with robust fallback handling."""
         try:
             # Try multiple approaches to get a Redis client
             
@@ -52,29 +52,46 @@ class MenuCache:
             except Exception as e:
                 logger.warning(f"Failed to get Redis client from agents_sdk: {str(e)}")
             
-            # Approach 2: Try direct Redis initialization
+            # Approach 2: Direct Redis initialization with improved connection handling
             try:
-                # Try to get Redis URL from environment variables
-                redis_url = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL")
+                # Always prioritize REDIS_URL from environment variables
+                redis_url = os.environ.get("REDIS_URL")
                 
-                # If no Redis URL found, try default URLs for development and Docker environments
-                if not redis_url:
-                    logger.warning("No Redis URL found in environment variables, trying defaults")
-                    # Try known Redis URLs in order of likelihood
-                    for url in [
-                        "redis://redis:6379/0",  # Docker Compose service name
-                        "redis://localhost:6379/0",  # Local development
-                        "redis://127.0.0.1:6379/0"   # Alternative local format
-                    ]:
-                        try:
-                            # Test the connection with a 1-second timeout
-                            test_client = redis.Redis.from_url(url, socket_timeout=1.0)
-                            test_client.ping()
-                            redis_url = url
-                            logger.info(f"Successfully connected to Redis at {url}")
-                            break
-                        except Exception:
-                            continue
+                if redis_url:
+                    logger.info(f"Using Redis URL from environment variable: {redis_url}")
+                else:
+                    # Fall back to CELERY_BROKER_URL if REDIS_URL not set
+                    redis_url = os.environ.get("CELERY_BROKER_URL")
+                    if redis_url:
+                        logger.info(f"Falling back to CELERY_BROKER_URL: {redis_url}")
+                    
+                    # Check for Render environment
+                    is_render = os.environ.get("RENDER", "").lower() == "true" or os.environ.get("RENDER_SERVICE_ID")
+                    if is_render and not redis_url:
+                        logger.warning("Running in Render environment but no Redis URL provided in environment variables!")
+                    
+                    # If no Redis URL found, try default URLs for development and Docker environments
+                    if not redis_url:
+                        logger.warning("No Redis URL found in environment variables, trying defaults")
+                        # Try known Redis URLs in order of likelihood
+                        for url in [
+                            "redis://redis:6379/0",  # Docker Compose service name
+                            "redis://localhost:6379/0",  # Local development
+                            "redis://127.0.0.1:6379/0"   # Alternative local format
+                        ]:
+                            try:
+                                # Test the connection with a 1-second timeout
+                                test_client = redis.Redis.from_url(url, socket_timeout=1.0)
+                                test_client.ping()
+                                redis_url = url
+                                logger.info(f"Successfully connected to Redis at {url}")
+                                break
+                            except Exception:
+                                continue
+                
+                # Ensure the URL has the proper redis:// prefix
+                if redis_url and not redis_url.startswith("redis://"):
+                    redis_url = f"redis://{redis_url}"
                 
                 # If we have a Redis URL, use it
                 if redis_url:

@@ -16,7 +16,7 @@ APP_SECRET_KEY = os.getenv("APP_SECRET_KEY", "bd0acf5c060feaa576051293a661a49a")
 # ------------------------------
 # Voice Handling Configuration
 # ------------------------------
-# Options: "standard", "orchestrated"
+# Options: "standard", "orchestrated", "realtime"
 VOICE_HANDLER = os.getenv("VOICE_HANDLER", "orchestrated")
 
 # ------------------------------

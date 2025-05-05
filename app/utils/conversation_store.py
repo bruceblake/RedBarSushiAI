@@ -23,6 +23,7 @@ class ConversationStore:
         """Initialize the conversation store with Redis connection."""
         self.redis_client = None
         self.initialized = False
+        self.memory_store = {}  # Initialize memory store for fallback
         self._initialize_redis()
 
     def _initialize_redis(self):
@@ -30,33 +31,32 @@ class ConversationStore:
         try:
             import redis
 
-            # Check for Render environment first
-            is_render = os.environ.get("RENDER", "").lower() == "true" or os.environ.get("RENDER_SERVICE_ID")
+            # Always prioritize REDIS_URL from environment variables
+            redis_url = os.environ.get("REDIS_URL")
             
-            if is_render:
-                # Use Render-specific Redis host
-                redis_host = "red-ceqpb6rf1sgc739ut8e0"
-                redis_port = 6379
-                redis_db = 0
-                redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
-                logger.info(f"Using Render-specific Redis URL: {redis_url}")
-                
-                # Update environment variables for other components to use
-                os.environ["REDIS_URL"] = redis_url
-                os.environ["CELERY_BROKER_URL"] = f"redis://{redis_host}:{redis_port}/1"
-                os.environ["CELERY_RESULT_BACKEND"] = f"redis://{redis_host}:{redis_port}/1"
+            if redis_url:
+                logger.info(f"Using Redis URL from environment variable: {redis_url}")
             else:
-                # Get Redis URL from environment or use default
+                # Fallback to CELERY_BROKER_URL if REDIS_URL not set
                 redis_url = os.environ.get("CELERY_BROKER_URL", "")
-                if not redis_url:
-                    # Try alternative environment variables
-                    redis_url = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL") or "redis://localhost:6379/0"
-                
-                # For Docker environment
-                if os.environ.get("DOCKER") and "localhost" in redis_url:
-                    redis_url = redis_url.replace("localhost", "redis")
+                if redis_url:
+                    logger.info(f"Falling back to CELERY_BROKER_URL: {redis_url}")
+                else:
+                    # Check for Render environment
+                    is_render = os.environ.get("RENDER", "").lower() == "true" or os.environ.get("RENDER_SERVICE_ID")
+                    if is_render:
+                        logger.warning("Running in Render environment but no Redis URL provided!")
+                    
+                    # Final fallback to localhost
+                    redis_url = "redis://localhost:6379/0"
+                    logger.info(f"No Redis URL found in environment, using localhost: {redis_url}")
+            
+            # For Docker environment
+            if os.environ.get("DOCKER") and "localhost" in redis_url:
+                redis_url = redis_url.replace("localhost", "redis")
+                logger.info(f"Docker environment detected, using Redis URL: {redis_url}")
 
-            # Fix malformed Redis URLs that might be coming from Render
+            # Fix malformed Redis URLs
             if ":" in redis_url and not redis_url.startswith("redis://"):
                 if redis_url.count(":") == 1 and "/" in redis_url:
                     # Format appears to be hostname:port/db
@@ -69,35 +69,65 @@ class ConversationStore:
                         db_num = 0
                     # Reconstruct proper Redis URL
                     redis_url = f"redis://{host}:{port}/{db_num}"
+                    logger.info(f"Fixed malformed Redis URL format to: {redis_url}")
                 else:
                     # Just prefix with redis://
                     redis_url = f"redis://{redis_url}"
+                    logger.info(f"Added redis:// prefix to URL: {redis_url}")
 
             # Ensure the URL has the proper redis:// prefix
             if not redis_url.startswith("redis://"):
                 redis_url = f"redis://{redis_url}"
+                logger.info(f"Added redis:// prefix to URL: {redis_url}")
 
             logger.info(f"Connecting to Redis at: {redis_url}")
-            self.redis_client = redis.from_url(redis_url, socket_timeout=2.0)
+            self.redis_client = redis.from_url(
+                redis_url, 
+                socket_timeout=2.0, 
+                socket_connect_timeout=2.0,
+                retry_on_timeout=True
+            )
 
             # Test the connection
-            self.redis_client.ping()
-            logger.info("Successfully connected to Redis")
-            self.initialized = True
+            ping_result = self.redis_client.ping()
+            if ping_result:
+                logger.info("✅ Successfully connected to Redis for conversation store")
+                
+                # Store the working URL back to environment for other components
+                os.environ["REDIS_URL"] = redis_url
+                self.initialized = True
+            else:
+                logger.warning("Redis ping returned False - possible connection issues")
+                self.initialized = False
+                raise Exception("Redis ping failed")
 
         except ImportError:
             logger.warning(
                 "Redis package not installed, using in-memory fallback for conversation store"
             )
             self.redis_client = None
-            self.memory_store = {}
             self.initialized = True
 
         except Exception as e:
             logger.error(f"Failed to initialize Redis connection: {str(e)}")
+            
+            # Try localhost as last resort if this might be a DNS issue
+            if "Name or service not known" in str(e) or "cannot resolve" in str(e).lower():
+                try:
+                    logger.info("Attempting to connect to Redis on localhost")
+                    self.redis_client = redis.Redis(host='localhost', port=6379, db=0, socket_timeout=2.0)
+                    ping_result = self.redis_client.ping()
+                    if ping_result:
+                        logger.info("✅ Successfully connected to Redis on localhost")
+                        # Store the working URL back to environment
+                        os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+                        self.initialized = True
+                        return
+                except Exception as local_error:
+                    logger.error(f"Failed to connect to Redis on localhost: {str(local_error)}")
+            
             logger.info("Using in-memory fallback for conversation store")
             self.redis_client = None
-            self.memory_store = {}
             self.initialized = True
 
     def get_conversation(self, session_id: str) -> Dict[str, Any]:

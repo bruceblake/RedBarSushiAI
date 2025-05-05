@@ -121,18 +121,45 @@ else:
     agents_client = None
     logger.error("No OpenAI API key available; Agents SDK features will not work")
 
-# Redis configuration - reuse from conversation_store
-REDIS_URL = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL") or "redis://localhost:6379/0"
+# Redis configuration with improved connection handling
 REDIS_TTL = 7200  # 2 hours, matching conversation_store
 
-# Initialize Redis
+# Initialize Redis with robust connection handling
 def get_redis_client():
-    """Get or initialize the Redis client."""
+    """Get or initialize the Redis client with robust fallback handling."""
     if not hasattr(g, 'redis_client'):
         try:
-            g.redis_client = Redis.from_url(REDIS_URL, socket_timeout=2.0)
+            # Always prioritize REDIS_URL from environment variables
+            redis_url = os.environ.get("REDIS_URL")
+            
+            if redis_url:
+                logger.info(f"Using Redis URL from environment variable: {redis_url}")
+            else:
+                # Fall back to CELERY_BROKER_URL if REDIS_URL not set
+                redis_url = os.environ.get("CELERY_BROKER_URL")
+                if redis_url:
+                    logger.info(f"Falling back to CELERY_BROKER_URL: {redis_url}")
+                
+                # Check for Render environment
+                is_render = os.environ.get("RENDER", "").lower() == "true" or os.environ.get("RENDER_SERVICE_ID")
+                if is_render and not redis_url:
+                    logger.warning("Running in Render environment but no Redis URL provided in environment variables!")
+                
+                # Final fallback to localhost
+                if not redis_url:
+                    redis_url = "redis://localhost:6379/0"
+                    logger.info(f"No Redis URL found in environment, using localhost: {redis_url}")
+            
+            # Ensure the URL has the proper redis:// prefix
+            if not redis_url.startswith("redis://"):
+                redis_url = f"redis://{redis_url}"
+                
+            # Initialize Redis client with timeout
+            g.redis_client = Redis.from_url(redis_url, socket_timeout=2.0)
+            
             # Test connection
             g.redis_client.ping()
+            logger.info("Successfully connected to Redis")
         except Exception as e:
             logger.error(f"Failed to initialize Redis connection: {str(e)}")
             g.redis_client = None

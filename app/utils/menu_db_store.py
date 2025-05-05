@@ -74,27 +74,21 @@ class MenuDBStore:
             except:
                 pass
 
-            # Check for Render environment first
-            is_render = os.environ.get("RENDER", "").lower() == "true" or os.environ.get("RENDER_SERVICE_ID")
+            # Always prioritize REDIS_URL from environment variables
+            redis_url = os.environ.get("REDIS_URL")
             
-            if is_render:
-                # Use Render-specific Redis host
-                redis_host = "red-ceqpb6rf1sgc739ut8e0"
-                redis_port = 6379
-                redis_db = 0
-                redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
-                logger.info(f"Using Render-specific Redis URL: {redis_url}")
-                
-                # Update environment variables for other components to use
-                os.environ["REDIS_URL"] = redis_url
-                os.environ["CELERY_BROKER_URL"] = f"redis://{redis_host}:{redis_port}/1"
-                os.environ["CELERY_RESULT_BACKEND"] = f"redis://{redis_host}:{redis_port}/1"
+            if redis_url:
+                logger.info(f"Using Redis URL from environment variable: {redis_url}")
             else:
-                # Fall back to environment variables
-                if not redis_url:
-                    redis_url = os.environ.get("REDIS_URL") or os.environ.get(
-                        "CELERY_BROKER_URL"
-                    )
+                # Fall back to CELERY_BROKER_URL if REDIS_URL not set
+                redis_url = os.environ.get("CELERY_BROKER_URL")
+                if redis_url:
+                    logger.info(f"Falling back to CELERY_BROKER_URL: {redis_url}")
+                    
+                # Check for Render environment
+                is_render = os.environ.get("RENDER", "").lower() == "true" or os.environ.get("RENDER_SERVICE_ID")
+                if is_render and not redis_url:
+                    logger.warning("Running in Render environment but no Redis URL provided in environment variables!")
 
                 # Default if nothing is set
                 if not redis_url:

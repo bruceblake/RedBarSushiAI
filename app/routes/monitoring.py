@@ -100,17 +100,26 @@ def health():
         }
         health_info["status"] = "degraded"
 
-    # Check Redis if we're using it
-    redis_url = os.environ.get("CELERY_BROKER_URL") or os.environ.get("REDIS_URL")
+    # Check Redis with improved connection handling
+    # Always prioritize REDIS_URL over CELERY_BROKER_URL
+    redis_url = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL")
     if redis_url:
         try:
             import redis
 
+            # Ensure the URL has the proper redis:// prefix
+            if not redis_url.startswith("redis://"):
+                redis_url = f"redis://{redis_url}"
+                
             r = redis.from_url(redis_url, socket_timeout=2.0)
             r.ping()
+            
+            # Make a safe URL for logging by hiding hostname/credentials
+            safe_url = redis_url.replace(redis_url.split("@")[-1] if "@" in redis_url else redis_url, "*****")
+            
             health_info["components"]["redis"] = {
                 "status": "ok",
-                "message": "Connected to Redis"
+                "message": f"Connected to Redis at {safe_url}"
             }
         except Exception as e:
             health_info["components"]["redis"] = {

@@ -590,7 +590,13 @@ class SlotStore:
                                                phase="SLOT")
                         
                         return parsed_value
+                    except json.JSONDecodeError as json_err:
+                        log_orchestration_event("warning", f"Error decoding JSON for slot '{slot_name}': {str(json_err)}", 
+                                              {"raw_value": str(value)[:100]},
+                                              call_sid=call_sid,
+                                              phase="SLOT")
                 
+                # If we get here, the value was None or failed to parse
                 log_orchestration_event("debug", f"Slot '{slot_name}' not found in Redis", 
                                        {},
                                        call_sid=call_sid,
@@ -1837,35 +1843,40 @@ def initialize_orchestrators(agent_graph=None, slot_store=None, fsm_orchestrator
                               {"is_render": is_render},
                               phase="INIT")
         
-        if is_render:
-            # Use Render-specific Redis host
-            redis_host = "red-ceqpb6rf1sgc739ut8e0"
-            redis_port = 6379
-            redis_db = 0
-            redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
-            
-            log_orchestration_event("info", f"Using Render-specific Redis URL: {redis_url}", 
-                                  {"redis_host": redis_host, 
-                                   "redis_port": redis_port, 
-                                   "redis_db": redis_db},
+        # Always use REDIS_URL from environment variables first
+        redis_url = os.environ.get("REDIS_URL")
+        
+        if redis_url:
+            log_orchestration_event("info", f"Using Redis URL from environment variable: {redis_url}", 
+                                  {"source": "environment_variable", "redis_url": redis_url},
                                   phase="INIT")
             
-            # Update environment variables for other components to use
-            os.environ["REDIS_URL"] = redis_url
-            os.environ["CELERY_BROKER_URL"] = f"redis://{redis_host}:{redis_port}/1"
-            os.environ["CELERY_RESULT_BACKEND"] = f"redis://{redis_host}:{redis_port}/1"
+            # If CELERY URLs aren't set, derive them from REDIS_URL
+            if not os.environ.get("CELERY_BROKER_URL"):
+                # Extract base Redis URL without DB number
+                redis_base = redis_url.rsplit('/', 1)[0] if '/' in redis_url else redis_url
+                celery_url = f"{redis_base}/1"
+                os.environ["CELERY_BROKER_URL"] = celery_url
+                os.environ["CELERY_RESULT_BACKEND"] = celery_url
+                log_orchestration_event("debug", "Set CELERY_BROKER_URL and CELERY_RESULT_BACKEND based on REDIS_URL", 
+                                      {"CELERY_BROKER_URL": celery_url},
+                                      phase="INIT")
+        elif is_render:
+            # Fallback for Render environment if REDIS_URL is not set
+            log_orchestration_event("warning", "REDIS_URL not set in environment but running in Render - check deployment configuration", 
+                                   {"is_render": is_render},
+                                   phase="INIT")
             
-            log_orchestration_event("debug", "Updated environment variables with Render-specific Redis URLs", 
-                                  {"REDIS_URL": redis_url,
-                                   "CELERY_BROKER_URL": f"redis://{redis_host}:{redis_port}/1",
-                                   "CELERY_RESULT_BACKEND": f"redis://{redis_host}:{redis_port}/1"},
+            # Try to construct URL from default Render Redis settings as fallback
+            redis_url = os.environ.get("CELERY_BROKER_URL") or "redis://localhost:6379/0"
+            log_orchestration_event("info", f"Falling back to derived Redis URL: {redis_url}", 
+                                  {"source": "fallback", "redis_url": redis_url},
                                   phase="INIT")
         else:
-            # Use standard Redis URL from environment variables
-            redis_url = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL")
-            
-            log_orchestration_event("debug", f"Using standard Redis URL from environment: {redis_url}", 
-                                  {"redis_url": redis_url},
+            # Standard environment - use default Redis URL if available
+            redis_url = os.environ.get("CELERY_BROKER_URL") or "redis://localhost:6379/0"
+            log_orchestration_event("info", f"Using standard Redis URL: {redis_url}", 
+                                  {"source": "fallback", "redis_url": redis_url},
                                   phase="INIT")
         
         if redis_url:
@@ -1884,7 +1895,14 @@ def initialize_orchestrators(agent_graph=None, slot_store=None, fsm_orchestrator
                                   phase="INIT")
             
             try:
-                redis_client = Redis.from_url(redis_url, socket_timeout=connection_timeout)
+                # Use socket_connect_timeout for initial connection
+                redis_client = Redis.from_url(
+                    redis_url, 
+                    socket_timeout=connection_timeout,
+                    socket_connect_timeout=connection_timeout,
+                    retry_on_timeout=True
+                )
+                
                 # Test the connection with ping
                 ping_start = time.time()
                 ping_result = redis_client.ping()
@@ -1893,6 +1911,9 @@ def initialize_orchestrators(agent_graph=None, slot_store=None, fsm_orchestrator
                 log_orchestration_event("info", f"Successfully connected to Redis and received ping response in {ping_elapsed:.3f}s", 
                                       {"ping_response": ping_result, "ping_time_ms": ping_elapsed * 1000},
                                       phase="INIT")
+                
+                # Successfully connected - ensure the URL is available to other components
+                os.environ["REDIS_URL"] = redis_url
             except Exception as redis_ex:
                 # Detailed Redis connection error handling
                 error_details = {
@@ -1903,7 +1924,31 @@ def initialize_orchestrators(agent_graph=None, slot_store=None, fsm_orchestrator
                 log_orchestration_event("error", f"Redis connection error: {str(redis_ex)}", 
                                       error_details,
                                       phase="INIT")
-                redis_client = None
+                
+                # Try one more time with different options if this might be a DNS issue
+                if "Name or service not known" in str(redis_ex) or "cannot resolve" in str(redis_ex).lower():
+                    log_orchestration_event("warning", "Possible DNS issue with Redis hostname - trying localhost fallback", 
+                                          {"original_url": redis_url},
+                                          phase="INIT")
+                    try:
+                        # Try localhost fallback
+                        fallback_url = "redis://localhost:6379/0"
+                        redis_client = Redis.from_url(
+                            fallback_url, 
+                            socket_timeout=connection_timeout,
+                            socket_connect_timeout=connection_timeout
+                        )
+                        ping_result = redis_client.ping()
+                        log_orchestration_event("info", "Successfully connected to Redis using localhost fallback", 
+                                              {"fallback_url": fallback_url},
+                                              phase="INIT")
+                    except Exception as fallback_ex:
+                        log_orchestration_event("error", f"Redis fallback connection also failed: {str(fallback_ex)}", 
+                                              {"fallback_error": str(fallback_ex)},
+                                              phase="INIT")
+                        redis_client = None
+                else:
+                    redis_client = None
         else:
             log_orchestration_event("warning", "No Redis URL found in environment variables", 
                                   {"env_vars": {k: v for k, v in os.environ.items() if 'REDIS' in k}},

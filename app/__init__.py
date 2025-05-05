@@ -318,6 +318,12 @@ def create_app(test_config=None):
         logger.error(f"Error importing orchestrated_voice_bp: {e}")
         orchestrated_voice_bp = Blueprint('orchestrated_voice', __name__)  # Create a dummy blueprint
     
+    try:
+        from app.routes.voice_orchestrated_realtime import realtime_voice_bp
+    except ImportError as e:
+        logger.error(f"Error importing realtime_voice_bp: {e}")
+        realtime_voice_bp = Blueprint('voice_orchestrated_realtime', __name__)  # Create a dummy blueprint
+    
     # Register non-voice routes
     app.register_blueprint(menu_bp)  # Menu routes
     app.register_blueprint(order_bp)  # Order routes
@@ -330,15 +336,24 @@ def create_app(test_config=None):
     # Register the appropriate voice handler based on configuration
     app_logger = logging.getLogger(__name__)
     app_logger.info(f"Configuring voice handler: {VOICE_HANDLER}")
-    if VOICE_HANDLER == "orchestrated":
+    
+    if VOICE_HANDLER == "realtime":
+        # Use the Realtime API implementation as primary handler
+        app.register_blueprint(realtime_voice_bp)
+        app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')  # Orchestrated as fallback
+        app.register_blueprint(voice_bp, url_prefix='/voice_standard')  # Standard as fallback
+        app_logger.info("Voice handler set to REALTIME (OpenAI Realtime API with WebSockets)")
+    elif VOICE_HANDLER == "orchestrated":
         # Use the advanced orchestrated implementation as primary handler
         app.register_blueprint(orchestrated_voice_bp)
+        app.register_blueprint(realtime_voice_bp, url_prefix='/voice_realtime')  # Realtime as alternative
         app.register_blueprint(voice_bp, url_prefix='/voice_standard')  # Standard as fallback
         app_logger.info("Voice handler set to ORCHESTRATED (multi-agent with handoffs, FSM, etc.)")
     else:
         # Use the standard implementation as primary handler
         app.register_blueprint(voice_bp)
         app.register_blueprint(orchestrated_voice_bp, url_prefix='/voice_orchestrated')  # Orchestrated as alternative
+        app.register_blueprint(realtime_voice_bp, url_prefix='/voice_realtime')  # Realtime as alternative
         app_logger.info("Voice handler set to STANDARD (original implementation)")
 
     # Configure optimized logging
@@ -524,14 +539,20 @@ def create_app(test_config=None):
                 pass
 
         # Check Redis if we're using it
-        redis_url = os.environ.get("CELERY_BROKER_URL")
+        # Prioritize REDIS_URL over CELERY_BROKER_URL
+        redis_url = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL")
         if redis_url:
             try:
                 import redis
 
+                # Ensure the URL has the proper redis:// prefix
+                if not redis_url.startswith("redis://"):
+                    redis_url = f"redis://{redis_url}"
+                    
                 r = redis.from_url(redis_url, socket_timeout=2.0)
                 r.ping()
                 health_info["checks"]["redis"] = "ok"
+                health_info["checks"]["redis_url"] = redis_url.replace(redis_url.split("@")[-1] if "@" in redis_url else redis_url, "*****")  # Hide actual hostname/credentials
             except Exception as e:
                 health_info["checks"]["redis"] = f"error: {str(e)}"
                 # Redis issues shouldn't mark the whole system as down
