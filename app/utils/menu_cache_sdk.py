@@ -39,12 +39,23 @@ class MenuCache:
     def initialize_redis(self):
         """Initialize the Redis connection."""
         try:
-            self.redis_client = get_redis_client()
-            self.initialized = self.redis_client is not None
-            if self.initialized:
+            # Try to get Redis client from agents_sdk
+            try:
+                self.redis_client = get_redis_client()
+            except Exception as e:
+                # Fallback to direct Redis initialization if get_redis_client fails
+                logger.warning(f"Failed to get Redis client from agents_sdk: {str(e)}, trying direct initialization")
+                redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+                self.redis_client = redis.Redis.from_url(redis_url, socket_timeout=2.0)
+                
+            # Test the connection
+            if self.redis_client:
+                self.redis_client.ping()
+                self.initialized = True
                 logger.info("Redis menu cache initialized successfully")
             else:
                 logger.warning("Redis client not available, menu cache will be disabled")
+                self.initialized = False
         except Exception as e:
             logger.error(f"Error initializing Redis menu cache: {str(e)}")
             self.initialized = False
@@ -650,3 +661,43 @@ def with_menu_cache(ttl: int = DEFAULT_MENU_TTL):
 
 # Singleton instance for easy import
 menu_cache = MenuCache()
+
+# Helper functions to simplify agent SDK usage
+
+def get_menu_item_by_plu(plu: str) -> Optional[Dict[str, Any]]:
+    """
+    Get a menu item by its PLU.
+    
+    Args:
+        plu: The PLU of the menu item
+        
+    Returns:
+        Menu item data if found, None otherwise
+    """
+    # First try to get from cache
+    item = menu_cache.get_menu_item(plu)
+    
+    if item:
+        return item
+    
+    # If not in cache, we would normally fetch from DB
+    # For now, return None to indicate item not found
+    return None
+
+def get_menu_item_availability(plu: str) -> bool:
+    """
+    Check if a menu item is available.
+    
+    Args:
+        plu: The PLU of the menu item
+        
+    Returns:
+        True if the item is available, False otherwise
+    """
+    item = get_menu_item_by_plu(plu)
+    
+    if not item:
+        return False
+    
+    # Check if the item is marked as available
+    return item.get('available', False)

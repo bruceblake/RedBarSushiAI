@@ -30,6 +30,9 @@ from flask import current_app, g
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Get Redis URL from environment variables
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
 # Ensure OpenAI API key is available
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
