@@ -1,29 +1,38 @@
-# app/utils/deliverect.py
-# This file has been refactored into a module structure.
-# It now serves as a compatibility layer to maintain backward compatibility.
+# app/utils/deliverect/__init__.py
+"""
+Deliverect API integration module.
 
-# Re-export all functions from the new modular structure
-from app.utils.deliverect import (
-    # Authentication
+This package provides functionality for integrating with the Deliverect API
+for restaurant menu data synchronization and order management.
+"""
+
+# Authentication
+from app.utils.deliverect.auth import (
     get_deliverect_access_token,
     get_deliverect_headers,
-    
-    # Menu processing
+)
+
+# Menu processing
+from app.utils.deliverect.menu import (
     process_deliverect_menu,
-    
-    # Order management
+)
+
+# Order management
+from app.utils.deliverect.orders import (
     build_deliverect_order,
     send_order_to_deliverect,
     get_order_status,
     process_order_status_update,
-    
-    # Location management
+)
+
+# Location management
+from app.utils.deliverect.locations import (
     register_new_location,
     update_location_status,
     get_location_webhook_urls,
 )
 
-# Export all symbols
+# Make sure to maintain the same API as the original module
 __all__ = [
     "get_deliverect_access_token",
     "get_deliverect_headers",

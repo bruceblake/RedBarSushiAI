@@ -39,29 +39,71 @@ class MenuCache:
     def initialize_redis(self):
         """Initialize the Redis connection."""
         try:
-            # Try to get Redis client from agents_sdk
+            # Try multiple approaches to get a Redis client
+            
+            # Approach 1: Using agents_sdk module (may fail outside app context)
             try:
                 self.redis_client = get_redis_client()
+                if self.redis_client:
+                    self.redis_client.ping()
+                    self.initialized = True
+                    logger.info("Redis menu cache initialized successfully using agents_sdk client")
+                    return
             except Exception as e:
-                # Fallback to direct Redis initialization if get_redis_client fails
-                logger.warning(f"Failed to get Redis client from agents_sdk: {str(e)}, trying direct initialization")
-                redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-                self.redis_client = redis.Redis.from_url(redis_url, socket_timeout=2.0)
+                logger.warning(f"Failed to get Redis client from agents_sdk: {str(e)}")
+            
+            # Approach 2: Try direct Redis initialization
+            try:
+                # Try to get Redis URL from environment variables
+                redis_url = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL")
                 
-            # Test the connection
-            if self.redis_client:
-                self.redis_client.ping()
-                self.initialized = True
-                logger.info("Redis menu cache initialized successfully")
-            else:
-                logger.warning("Redis client not available, menu cache will be disabled")
-                self.initialized = False
+                # If no Redis URL found, try default URLs for development and Docker environments
+                if not redis_url:
+                    logger.warning("No Redis URL found in environment variables, trying defaults")
+                    # Try known Redis URLs in order of likelihood
+                    for url in [
+                        "redis://redis:6379/0",  # Docker Compose service name
+                        "redis://localhost:6379/0",  # Local development
+                        "redis://127.0.0.1:6379/0"   # Alternative local format
+                    ]:
+                        try:
+                            # Test the connection with a 1-second timeout
+                            test_client = redis.Redis.from_url(url, socket_timeout=1.0)
+                            test_client.ping()
+                            redis_url = url
+                            logger.info(f"Successfully connected to Redis at {url}")
+                            break
+                        except Exception:
+                            continue
+                
+                # If we have a Redis URL, use it
+                if redis_url:
+                    self.redis_client = redis.Redis.from_url(redis_url, socket_timeout=2.0)
+                    self.redis_client.ping()
+                    self.initialized = True
+                    logger.info(f"Redis menu cache initialized successfully with URL: {redis_url}")
+                    return
+            except Exception as e:
+                logger.warning(f"Failed to initialize Redis with direct connection: {str(e)}")
+            
+            # If all approaches failed, disable the cache
+            logger.warning("All Redis connection approaches failed, menu cache will be disabled")
+            self.redis_client = None
+            self.initialized = False
+            
         except Exception as e:
             logger.error(f"Error initializing Redis menu cache: {str(e)}")
+            self.redis_client = None
             self.initialized = False
     
     def setup_pubsub(self):
         """Set up a Redis PubSub subscription for menu updates."""
+        # Skip if Redis client isn't available
+        if not self.redis_client or not self.initialized:
+            self.pubsub = None
+            logger.warning("Redis client not available, skipping PubSub setup")
+            return
+            
         try:
             self.pubsub = self.redis_client.pubsub()
             self.pubsub.subscribe(MENU_UPDATE_CHANNEL)
@@ -73,6 +115,16 @@ class MenuCache:
         except Exception as e:
             logger.error(f"Error setting up Redis PubSub: {str(e)}")
             self.pubsub = None
+            
+        # Verify the subscription worked
+        if self.pubsub:
+            try:
+                # Process any pending messages (including the subscription confirmation)
+                self.pubsub.get_message(timeout=0.01)
+                logger.info("PubSub setup confirmed")
+            except Exception as e:
+                logger.warning(f"Error processing initial PubSub messages: {str(e)}")
+                # This isn't critical, we can still proceed
     
     def check_for_updates(self):
         """Check if there are any pending cache invalidation messages."""
