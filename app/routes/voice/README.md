@@ -1,12 +1,12 @@
-# Voice Routes Refactoring
+# Voice System Architecture
 
-This directory contains the refactored voice integration for RedBarSushiAI. The refactoring breaks down the large `voice_orchestrated_realtime.py` file into a more modular and maintainable structure.
+This directory contains the voice integration for RedBarSushiAI. The architecture is modular with clear separation of concerns, ensuring maintainability and performance.
 
 ## Directory Structure
 
 ```
 app/routes/voice/
-├── __init__.py                  # Package initialization and WebSocket routes
+├── __init__.py                  # Package initialization and component registry
 ├── blueprints.py                # Blueprint definitions
 ├── main.py                      # Main integration point
 ├── routes.py                    # HTTP route definitions
@@ -25,31 +25,35 @@ app/routes/voice/
 │   └── twiml.py                 # TwiML generation
 └── utils/                       # Voice-specific utilities
     ├── __init__.py              # Utility exports
-    ├── tools_registry.py        # Tool registration
+    ├── tools_registry.py        # Tool registration and execution
     └── vad.py                   # Voice activity detection configuration
 ```
 
-## Integration with Existing Code
+## Integration with Main App
 
-For backward compatibility, the `app/routes/voice_refactored.py` file exports the same blueprint as the original `voice_orchestrated_realtime.py` file with the name `realtime_voice_bp`. This allows existing code to continue referencing the same blueprint.
+The `app/routes/voice.py` file serves as the entry point for integration with the Flask application. It exports the `realtime_voice_bp` blueprint and the `init_voice_system` function.
 
-## Main Improvements
+## Key Features
 
-1. **Modularity**: Functionality is broken down into logical components
-2. **Maintainability**: Each file has a single responsibility
-3. **File Size**: No file exceeds 500 lines as required
-4. **Error Handling**: Enhanced error handling and diagnostics
-5. **Code Organization**: Clearer separation of concerns
+1. **Component Registry**: Global registry for sharing components between modules
+2. **WebSocket Handling**: Real-time audio processing with Twilio Media Streams
+3. **Agent Orchestration**: Multi-agent architecture with specialized roles
+4. **Tool Registry**: Centralized registration and execution of OpenAI tools
+5. **TwiML Generation**: Dynamic TwiML generation for Twilio responses
+6. **VAD Configuration**: Configurable voice activity detection settings
 
 ## Usage
 
-To use the refactored voice system, update your app initialization to include:
+To use the voice system in a Flask application:
 
 ```python
-from app.routes.voice_refactored import init_voice_system, realtime_voice_bp
+from app.routes.voice import init_voice_system, realtime_voice_bp
 
 # Initialize the voice system
 init_voice_system(app)
+
+# Register the blueprint
+app.register_blueprint(realtime_voice_bp)
 ```
 
 ## WebSocket Endpoints

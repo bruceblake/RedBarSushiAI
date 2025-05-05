@@ -2,7 +2,7 @@
 Main module for voice routes and integration with Flask.
 
 This module provides integration points for the voice routes in the RedBarSushiAI 
-application, ensuring backward compatibility with existing code.
+application, implementing real-time audio processing with orchestrated agents.
 """
 
 import logging
@@ -65,12 +65,12 @@ def initialize_voice_routes(app):
         "tool_registry": tool_registry is not None
     }
 
-def get_original_voice_bp():
+def get_voice_bp():
     """
-    Get the original voice blueprint for backward compatibility.
+    Get the voice blueprint.
     
     Returns:
-        The voice_orchestrated_realtime blueprint
+        The voice realtime blueprint
     """
     from app.routes.voice.blueprints import realtime_voice_bp
     return realtime_voice_bp

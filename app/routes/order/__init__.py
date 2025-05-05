@@ -49,8 +49,6 @@ __all__ = [
     # Contact functions
     'request_callback',
     
-    # Fallback functions
-    'handle_fallback'
 ]
 
 # After defining blueprints and variables, import all the submodules
@@ -59,7 +57,6 @@ from app.routes.order.utils import *
 from app.routes.order.take_order import *
 from app.routes.order.confirmation import *
 from app.routes.order.modification import *
-from app.routes.order.fallbacks import *
 from app.routes.order.checkout import *
 from app.routes.order.status import *
 from app.routes.order.contact import *

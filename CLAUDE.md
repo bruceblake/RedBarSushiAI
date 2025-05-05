@@ -46,7 +46,7 @@ The system uses PostgreSQL for data persistence with these key models that mirro
 
 ### Voice Architecture
 
-Voice interactions are managed through an orchestrated multi-agent architecture with real-time audio processing:
+Voice interactions are managed through an orchestrated multi-agent architecture with real-time audio processing. The system has been refactored into a modular structure for improved maintainability:
 
 ```
 ┌───────────────────────────┐
@@ -71,15 +71,24 @@ Voice interactions are managed through an orchestrated multi-agent architecture 
 └────────────┘  └─────────┘  └───────────┘
 ```
 
-1. **Orchestrated Voice Implementation** (`app/routes/voice_orchestrated.py`):
+1. **Refactored Voice Implementation** (`app/routes/voice/` directory):
 
+   - Modular, maintainable architecture (no file exceeds 500 lines)
    - Real-time audio processing via WebSockets
    - Multi-agent architecture with specialized roles
    - Finite State Machine (FSM) for conversation flow
    - Manages agent handoffs and escalations
    - Handles audio streaming and VAD events
 
-2. **Agent Roles**:
+2. **Key Components**:
+
+   - **Stream Handler** (`app/routes/voice/realtime/stream_handler.py`): Main WebSocket handler
+   - **Event Handlers** (`app/routes/voice/handlers/`): Specialized handlers for different event types
+   - **TwiML Generation** (`app/routes/voice/twilio/twiml.py`): Generates TwiML for Twilio
+   - **Tools Registry** (`app/routes/voice/utils/tools_registry.py`): Manages tool registration and execution
+   - **VAD Configuration** (`app/routes/voice/utils/vad.py`): Voice Activity Detection settings
+
+3. **Agent Roles**:
 
    - **Frontline Agent**: Manages overall call flow and delegates to specialists
    - **Menu Agent**: Handles menu inquiries and availability
@@ -88,7 +97,7 @@ Voice interactions are managed through an orchestrated multi-agent architecture 
    - **Guardrail Agent**: Enforces constraints and business rules
    - **Escalation Agent**: Manages handoff to human staff when needed
 
-3. **Silence & VAD Handling**:
+4. **Silence & VAD Handling**:
    - Phase-specific timeouts based on conversation context
    - Voice Activity Detection with adaptive timeouts
    - Progressive fallbacks with configurable retry limits
@@ -333,8 +342,8 @@ app/
 │   ├── order.py            # Order processing
 │   ├── order_ai.py         # AI-powered order resolution
 │   ├── realtime.py         # Real-time audio endpoints
-│   ├── voice.py            # Basic voice handler
-│   └── voice_orchestrated.py  # Orchestrated voice implementation
+│   ├── voice.py            # Voice system entry point
+│   └── voice/              # Modular voice implementation components
 └── utils/                  # Shared utilities
     ├── agent_orchestration.py  # Orchestration components
     ├── conversation_store.py   # Session state management

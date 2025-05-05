@@ -10,12 +10,19 @@ import sys
 import time
 import os
 import json
-import psutil
 import traceback
 import socket
 import asyncio
 import base64
 from datetime import datetime
+
+# Try to import psutil, but handle gracefully if it's not available
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    logging.warning("psutil module is not available. Some diagnostic features will be limited.")
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -65,18 +72,21 @@ def check_x11_environment():
                 x11_status["errors"].append(f"X11 connection error: {str(e)}")
                 x11_status["recommendations"].append("Check if X server is running or use headless mode")
                 
-        # Check if Xvfb is running
-        try:
-            xvfb_processes = [p for p in psutil.process_iter(['name']) if p.info['name'] == 'Xvfb']
-            if xvfb_processes:
-                x11_status["xvfb_running"] = True
-                x11_status["xvfb_count"] = len(xvfb_processes)
-            else:
-                x11_status["xvfb_running"] = False
-                if not x11_status["headless_mode"] and not x11_status["is_configured"]:
-                    x11_status["recommendations"].append("Start Xvfb server (Xvfb :1 -screen 0 1024x768x24 &)")
-        except:
-            x11_status["xvfb_check_failed"] = True
+        # Check if Xvfb is running (requires psutil)
+        if PSUTIL_AVAILABLE:
+            try:
+                xvfb_processes = [p for p in psutil.process_iter(['name']) if p.info['name'] == 'Xvfb']
+                if xvfb_processes:
+                    x11_status["xvfb_running"] = True
+                    x11_status["xvfb_count"] = len(xvfb_processes)
+                else:
+                    x11_status["xvfb_running"] = False
+                    if not x11_status["headless_mode"] and not x11_status["is_configured"]:
+                        x11_status["recommendations"].append("Start Xvfb server (Xvfb :1 -screen 0 1024x768x24 &)")
+            except:
+                x11_status["xvfb_check_failed"] = True
+        else:
+            x11_status["xvfb_check"] = "unavailable (psutil not installed)"
             
         # Log the status
         logger.critical(f"X11 Environment Check: {json.dumps(x11_status, indent=2)}")
@@ -245,36 +255,43 @@ def log_system_status(session_id="unknown", context="general"):
         logger.critical(f"[SYSTEM_STATUS:{session_id}] ========== System Status ({context}) ==========")
         logger.critical(f"[SYSTEM_STATUS:{session_id}] Timestamp: {datetime.now().isoformat()}")
         
-        # Process info
-        process = psutil.Process()
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Process ID: {process.pid}")
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Process name: {process.name()}")
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Process uptime: {time.time() - process.create_time():.1f}s")
-        
-        # CPU info
-        cpu_percent = process.cpu_percent(interval=1.0)
-        system_cpu_percent = psutil.cpu_percent(interval=0.5)
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Process CPU: {cpu_percent:.1f}%")
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] System CPU: {system_cpu_percent:.1f}%")
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] CPU count: {psutil.cpu_count(logical=True)}")
-        
-        # Memory info
-        memory_info = process.memory_info()
-        system_memory = psutil.virtual_memory()
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Process memory: {memory_info.rss / (1024*1024):.1f} MB (RSS)")
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] System memory: {system_memory.used / (1024*1024*1024):.1f} GB used of {system_memory.total / (1024*1024*1024):.1f} GB")
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Memory percent: {system_memory.percent:.1f}%")
-        
-        # Disk info
-        disk = psutil.disk_usage('/')
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Disk usage: {disk.used / (1024*1024*1024):.1f} GB used of {disk.total / (1024*1024*1024):.1f} GB ({disk.percent:.1f}%)")
-        
-        # Network info
-        net_connections = process.connections()
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Network connections: {len(net_connections)}")
-        
-        # Thread info
-        logger.critical(f"[SYSTEM_STATUS:{session_id}] Thread count: {process.num_threads()}")
+        if not PSUTIL_AVAILABLE:
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Limited system status available (psutil not installed)")
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Install psutil for detailed system diagnostics")
+            
+            # Log basic information that doesn't require psutil
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process ID: {os.getpid()}")
+        else:
+            # Process info
+            process = psutil.Process()
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process ID: {process.pid}")
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process name: {process.name()}")
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process uptime: {time.time() - process.create_time():.1f}s")
+            
+            # CPU info
+            cpu_percent = process.cpu_percent(interval=1.0)
+            system_cpu_percent = psutil.cpu_percent(interval=0.5)
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process CPU: {cpu_percent:.1f}%")
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] System CPU: {system_cpu_percent:.1f}%")
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] CPU count: {psutil.cpu_count(logical=True)}")
+            
+            # Memory info
+            memory_info = process.memory_info()
+            system_memory = psutil.virtual_memory()
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Process memory: {memory_info.rss / (1024*1024):.1f} MB (RSS)")
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] System memory: {system_memory.used / (1024*1024*1024):.1f} GB used of {system_memory.total / (1024*1024*1024):.1f} GB")
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Memory percent: {system_memory.percent:.1f}%")
+            
+            # Disk info
+            disk = psutil.disk_usage('/')
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Disk usage: {disk.used / (1024*1024*1024):.1f} GB used of {disk.total / (1024*1024*1024):.1f} GB ({disk.percent:.1f}%)")
+            
+            # Network info
+            net_connections = process.connections()
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Network connections: {len(net_connections)}")
+            
+            # Thread info
+            logger.critical(f"[SYSTEM_STATUS:{session_id}] Thread count: {process.num_threads()}")
         
         # Asyncio task info
         try:

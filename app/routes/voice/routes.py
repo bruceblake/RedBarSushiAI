@@ -156,7 +156,7 @@ def health_check():
         # Compile the response
         return {
             "status": "ok" if agent_status == "initialized" and realtime_status == "available" else "error",
-            "service": "voice_orchestrated_realtime",
+            "service": "voice_realtime",
             "agents": agent_status,
             "realtime": realtime_status,
             "realtime_fallback": is_fallback,
@@ -166,6 +166,6 @@ def health_check():
     except Exception as e:
         return {
             "status": "error",
-            "service": "voice_orchestrated_realtime",
+            "service": "voice_realtime",
             "error": str(e)
         }

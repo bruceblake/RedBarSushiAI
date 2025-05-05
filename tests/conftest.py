@@ -196,11 +196,11 @@ def mock_agents():
     mock_escalator = MagicMock()
     
     # Patch the agents and orchestrators
-    with patch('app.routes.voice_orchestrated_realtime.init_agents', return_value=mock_frontline), \
-         patch('app.routes.voice_orchestrated_realtime.fsm_orchestrator', mock_fsm), \
-         patch('app.routes.voice_orchestrated_realtime.slot_store', mock_slots), \
-         patch('app.routes.voice_orchestrated_realtime.agent_graph', mock_graph), \
-         patch('app.routes.voice_orchestrated_realtime.model_escalator', mock_escalator):
+    with patch('app.routes.voice.__init__.realtime_voice_bp', mock_frontline), \
+         patch('app.routes.voice.main.fsm_orchestrator', mock_fsm), \
+         patch('app.routes.voice.main.slot_store', mock_slots), \
+         patch('app.routes.voice.main.agent_graph', mock_graph), \
+         patch('app.routes.voice.main.model_escalator', mock_escalator):
         
         yield {
             "frontline": mock_frontline,

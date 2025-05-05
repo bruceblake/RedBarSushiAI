@@ -9,7 +9,7 @@ a more organized structure.
 from flask import Blueprint
 
 # Create the primary blueprint for realtime voice
-realtime_voice_bp = Blueprint("voice_refactored_realtime", __name__)
+realtime_voice_bp = Blueprint("voice_realtime", __name__)
 
 # Define additional blueprints if needed
 voice_debug_bp = Blueprint("voice_debug", __name__)

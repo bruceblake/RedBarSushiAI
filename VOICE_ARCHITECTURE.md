@@ -1,43 +1,19 @@
 # Voice System Architecture
 
-RedBarSushiAI offers three different voice handling implementations, with the Realtime API approach providing the most advanced features and architecture.
+RedBarSushiAI implements a modular, real-time voice system using OpenAI's Realtime API with Twilio Media Streams.
 
 ## Voice Handler Configuration
 
-The active voice handler can be configured using the `VOICE_HANDLER` environment variable:
+The voice handler can be configured using the `VOICE_HANDLER` environment variable:
 
 ```bash
-# Options: "standard", "orchestrated", "realtime"
-VOICE_HANDLER=orchestrated  # Default
+# Current implementation only supports "realtime"
+VOICE_HANDLER=realtime
 ```
 
-## 1. Standard Voice Handler (`voice.py`)
+## Voice System Implementation (`app/routes/voice/`)
 
-The original implementation using direct OpenAI API calls.
-
-**Key Features:**
-- Basic voice handling with Twilio TwiML
-- Manual conversation state tracking
-- Simple intent recognition
-
-**Route:** Root URL when configured as primary
-
-## 2. Orchestrated Voice Handler (`voice_orchestrated.py`)
-
-Advanced implementation with multi-agent orchestration using Twilio's `<Gather>` for audio processing.
-
-**Key Features:**
-- Multi-agent architecture with specialized agents
-- Sequential handoffs between agents
-- State-machine slot filling for structured conversations
-- Background escalation for complex scenarios
-- Automated guardrails and validation
-
-**Route:** Root URL when configured as primary
-
-## 3. Realtime Voice Handler (`voice_orchestrated_realtime.py`)
-
-The most advanced implementation using OpenAI's Realtime API with Twilio Media Streams.
+The voice system is implemented using a modular architecture that separates concerns into specialized components.
 
 **Key Features:**
 - Direct WebSocket integration with OpenAI's Realtime API
@@ -45,9 +21,10 @@ The most advanced implementation using OpenAI's Realtime API with Twilio Media S
 - VAD-driven conversation flow instead of turn-based
 - Continuous bidirectional audio streaming
 - Tool-based agent integration for specialized tasks
-- All orchestrated agent capabilities with WebSocket events
+- Multi-agent orchestration with specialized roles
+- Global component registry for sharing state
 
-**Route:** Root URL when `VOICE_HANDLER=realtime` (recommended for production)
+**Route:** Root URL
 
 ## Architecture Diagram
 

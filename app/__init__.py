@@ -326,31 +326,31 @@ def create_app(test_config=None):
     
     if VOICE_HANDLER == "realtime":
         # Use the Realtime API implementation
-        # Try to use the refactored version first, fall back to original if needed
-        use_refactored = os.environ.get("USE_REFACTORED_VOICE", "true").lower() in ("true", "1", "yes")
+        # Configure voice system
+        use_voice = os.environ.get("USE_VOICE", "true").lower() in ("true", "1", "yes")
         
-        # Always use the refactored implementation as the only implementation
+        # Use the voice implementation
         try:
-            from app.routes.voice_refactored import init_voice_system, realtime_voice_bp
-            app_logger.info("Using REFACTORED realtime voice implementation")
+            from app.routes.voice import init_voice_system, realtime_voice_bp
+            app_logger.info("Using OpenAI Realtime API with WebSockets for voice")
             
-            # Initialize the refactored voice system
+            # Initialize the voice system
             try:
                 init_result = init_voice_system(app)
-                app_logger.info(f"Successfully initialized refactored voice system: {init_result}")
+                app_logger.info(f"Successfully initialized voice system: {init_result}")
             except Exception as route_error:
-                app_logger.error(f"Error during refactored voice system initialization: {route_error}")
+                app_logger.error(f"Error during voice system initialization: {route_error}")
                 app_logger.error(f"Initialization error details: {traceback.format_exc()}")
                 raise RuntimeError(f"Failed to initialize voice system: {route_error}")
             
             # Register the blueprint at root level
             app.register_blueprint(realtime_voice_bp)
-            app_logger.info("Registered refactored voice blueprint at root level")
+            app_logger.info("Registered voice blueprint at root level")
             
         except Exception as e:
             app_logger.error(f"Fatal error initializing voice system: {e}")
             app_logger.error(f"Error details: {traceback.format_exc()}")
-            # This is a critical error - we no longer have fallbacks
+            # This is a critical error
             raise RuntimeError(f"Failed to initialize voice system: {e}")
             
         app_logger.info("Voice handler set to REALTIME (OpenAI Realtime API with WebSockets)")

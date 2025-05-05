@@ -146,7 +146,7 @@ class TestRealtimeVoiceFlow:
         health_data = response.json()
         assert "status" in health_data
         assert "service" in health_data
-        assert health_data["service"] == "voice_orchestrated_realtime"
+        assert health_data["service"] == "voice_realtime"
         
         # Check that the realtime component is present
         assert "realtime" in health_data
