@@ -1049,17 +1049,17 @@ async def media_stream(ws):
             # Process Twilio Media Streams messages
             async def process_twilio_messages():
                 try:
-        logger.info(f"[MEDIA_STREAM] Starting Twilio message processor")
-        twilio_start_time = time.time()
-        message_count = 0
-        
-        # Save the time of key events for diagnostic purposes
-        diagnostic_events = {
-            "first_audio_received": None,
-            "first_transcript_received": None,
-            "greeting_sent": None
-        }
-        
+                    logger.info(f"[MEDIA_STREAM] Starting Twilio message processor")
+                    twilio_start_time = time.time()
+                    message_count = 0
+                    
+                    # Save the time of key events for diagnostic purposes
+                    diagnostic_events = {
+                        "first_audio_received": None,
+                        "first_transcript_received": None,
+                        "greeting_sent": None
+                    }
+                
                     message_count = 0
                     logger.info("[MEDIA_STREAM] Starting Twilio message processing task")
                     
@@ -1151,23 +1151,23 @@ async def media_stream(ws):
                                                                     f"rate: {chunks_per_second:.1f} chunks/sec, "
                                                                     f"{bytes_per_second:.1f} bytes/sec")
                                             
-        # Count this message
-        message_count += 1
-        
-        # Track key diagnostic events
-        if message.get("event") == "media" and diagnostic_events["first_audio_received"] is None:
-            diagnostic_events["first_audio_received"] = time.time() - twilio_start_time
-            logger.info(f"[MEDIA_STREAM] First audio received after {diagnostic_events['first_audio_received']:.3f}s")
-            
-        if message.get("event") == "transcript" and diagnostic_events["first_transcript_received"] is None:
-            diagnostic_events["first_transcript_received"] = time.time() - twilio_start_time
-            logger.info(f"[MEDIA_STREAM] First transcript received after {diagnostic_events['first_transcript_received']:.3f}s")
-        
-        # Periodically log status
-        if message_count % 20 == 0:
-            elapsed = time.time() - twilio_start_time
-            rate = message_count / elapsed if elapsed > 0 else 0
-            logger.info(f"[MEDIA_STREAM] Twilio message stats: {message_count} messages, {elapsed:.1f}s, {rate:.1f} msg/sec")
+                                            # Count this message
+                                            message_count += 1
+                                            
+                                            # Track key diagnostic events
+                                            if message.get("event") == "media" and diagnostic_events["first_audio_received"] is None:
+                                                diagnostic_events["first_audio_received"] = time.time() - twilio_start_time
+                                                logger.info(f"[MEDIA_STREAM] First audio received after {diagnostic_events['first_audio_received']:.3f}s")
+                                                
+                                            if message.get("event") == "transcript" and diagnostic_events["first_transcript_received"] is None:
+                                                diagnostic_events["first_transcript_received"] = time.time() - twilio_start_time
+                                                logger.info(f"[MEDIA_STREAM] First transcript received after {diagnostic_events['first_transcript_received']:.3f}s")
+                                            
+                                            # Periodically log status
+                                            if message_count % 20 == 0:
+                                                elapsed = time.time() - twilio_start_time
+                                                rate = message_count / elapsed if elapsed > 0 else 0
+                                                logger.info(f"[MEDIA_STREAM] Twilio message stats: {message_count} messages, {elapsed:.1f}s, {rate:.1f} msg/sec")
         except Exception as decode_error:
                                                 logger.error(f"[MEDIA_STREAM] Error decoding audio: {decode_error}")
                                         else:
@@ -1545,9 +1545,9 @@ async def media_stream(ws):
                 logger.error(f"[MEDIA_STREAM] Stream loop error trace: {traceback.format_exc()}")
         
         except Exception as e:
-            logger.error(f"[MEDIA_STREAM] ❌ Error in media stream processing:
+            logger.error(f"[MEDIA_STREAM] ❌ Error in media stream processing: {str(e)}")
             # Output diagnostic information on error
-            diagnostics_output("error" if "session_id" not in locals() else session_id, "exception") {str(e)}")
+            diagnostics_output("error" if "session_id" not in locals() else session_id, "exception")
             logger.error(f"[MEDIA_STREAM] Processing error trace: {traceback.format_exc()}")
             
             # Try to send error to client
