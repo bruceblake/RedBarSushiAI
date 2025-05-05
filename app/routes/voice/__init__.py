@@ -42,11 +42,12 @@ def init_voice_routes(flask_app):
     import app.routes.voice.routes
     
     # Now register the blueprints with routes already attached
-    # Register the voice routes at both the root level (for /webhook/voice) and with a prefix
-    # This ensures that the webhook endpoint is accessible at the standard path Twilio expects
-    flask_app.register_blueprint(realtime_voice_bp)  # For /webhook/voice
-    flask_app.register_blueprint(realtime_voice_bp, url_prefix="/voice/realtime", name="voice_realtime_prefixed")
+    # Note: The realtime_voice_bp will be registered at the root level in app/__init__.py
+    # Here we only register the debug blueprint
     flask_app.register_blueprint(voice_debug_bp, url_prefix="/voice/debug")
+    
+    # Log routes registered
+    logger.info("Initialized voice routes with debug blueprint")
     
     # Register WebSocket routes - only if we have a valid Flask app
     if hasattr(flask_app, 'config'):  # Simple check for Flask app-like object
