@@ -685,33 +685,33 @@ async def media_stream(ws):
                 }))
                 log_connection_summary("agent_initialization_failed")
                 return
-        
-        # Store messages from Twilio
-        twilio_messages = []
-        
-        # Store audio data from Twilio in a queue
-        incoming_audio_queue = asyncio.Queue()
-        
-        # Track detailed stats about audio chunks
-        audio_stats = {
-            "first_chunk_time": None,
-            "last_chunk_time": None,
-            "min_chunk_size": float('inf'),
-            "max_chunk_size": 0,
-            "total_audio_size": 0,
-            "chunk_sizes": []
-        }
-        
-        # Process Twilio Media Streams messages
-        async def process_twilio_messages():
-            try:
-                message_count = 0
-                logger.info("[MEDIA_STREAM] Starting Twilio message processing task")
-                
-                while True:
-                    try:
-                        message = await asyncio.wait_for(ws.receive(), timeout=30.0)
-                        message_count += 1
+            
+            # Store messages from Twilio
+            twilio_messages = []
+            
+            # Store audio data from Twilio in a queue
+            incoming_audio_queue = asyncio.Queue()
+            
+            # Track detailed stats about audio chunks
+            audio_stats = {
+                "first_chunk_time": None,
+                "last_chunk_time": None,
+                "min_chunk_size": float('inf'),
+                "max_chunk_size": 0,
+                "total_audio_size": 0,
+                "chunk_sizes": []
+            }
+            
+            # Process Twilio Media Streams messages
+            async def process_twilio_messages():
+                try:
+                    message_count = 0
+                    logger.info("[MEDIA_STREAM] Starting Twilio message processing task")
+                    
+                    while True:
+                        try:
+                            message = await asyncio.wait_for(ws.receive(), timeout=30.0)
+                            message_count += 1
                         metrics["last_activity_time"] = time.time()
                         
                         # Handle different message types from Twilio
@@ -854,19 +854,19 @@ async def media_stream(ws):
                 logger.error(f"[MEDIA_STREAM] Error in Twilio message processing task: {str(e)}")
                 logger.error(f"[MEDIA_STREAM] Twilio task error trace: {traceback.format_exc()}")
         
-        # Start processing Twilio messages
-        logger.info("[MEDIA_STREAM] Starting Twilio message processing task")
-        twilio_task = asyncio.create_task(process_twilio_messages())
-        
-        # Track if we've sent an initial greeting
-        greeting_sent = False
-        
-        # Process incoming audio with Realtime API
-        try:
-            logger.info("[MEDIA_STREAM] Setting up audio generator for Realtime API")
-            async def audio_generator():
-                logger.info("[MEDIA_STREAM] Audio generator started")
-                chunks_yielded = 0
+            # Start processing Twilio messages
+            logger.info("[MEDIA_STREAM] Starting Twilio message processing task")
+            twilio_task = asyncio.create_task(process_twilio_messages())
+            
+            # Track if we've sent an initial greeting
+            greeting_sent = False
+            
+            # Process incoming audio with Realtime API
+            try:
+                logger.info("[MEDIA_STREAM] Setting up audio generator for Realtime API")
+                async def audio_generator():
+                    logger.info("[MEDIA_STREAM] Audio generator started")
+                    chunks_yielded = 0
                 
                 try:
                     while True:
