@@ -33,19 +33,39 @@ COPY requirements.txt requirements.prod.txt requirements.docker.txt requirements
 # Install base Python packages with retries and timeouts
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel 
 
-# Install the minimal requirements needed for WebSocket-based Realtime integration
-# This ensures we have the core dependencies properly resolved
-RUN pip install --no-cache-dir -r requirements_minimal.txt
-
-# For completeness, try to install the full requirements, but we already have the core deps
-# We use --no-deps to avoid conflicts with our minimal requirements
-RUN if [ -f "requirements.docker.txt" ]; then \
-        pip install --no-cache-dir --no-deps -r requirements.docker.txt || true; \
+# Try to install the full requirements first
+RUN set -e; \
+    if [ -f "requirements.docker.txt" ]; then \
+        echo "Attempting to install Docker-specific requirements..."; \
+        if pip install --no-cache-dir -r requirements.docker.txt; then \
+            echo "✅ Successfully installed Docker requirements"; \
+        else \
+            echo "❌ Failed to install Docker requirements. Falling back to minimal requirements."; \
+            pip install --no-cache-dir -r requirements_minimal.txt; \
+            echo "⚠️ Only minimal WebSocket requirements installed. Some functionality may not work."; \
+        fi; \
     elif [ -f "requirements.prod.txt" ]; then \
-        pip install --no-cache-dir --no-deps -r requirements.prod.txt || true; \
+        echo "Attempting to install production requirements..."; \
+        if pip install --no-cache-dir -r requirements.prod.txt; then \
+            echo "✅ Successfully installed production requirements"; \
+        else \
+            echo "❌ Failed to install production requirements. Falling back to minimal requirements."; \
+            pip install --no-cache-dir -r requirements_minimal.txt; \
+            echo "⚠️ Only minimal WebSocket requirements installed. Some functionality may not work."; \
+        fi; \
     else \
-        pip install --no-cache-dir --no-deps -r requirements.txt || true; \
-    fi
+        echo "Attempting to install standard requirements..."; \
+        if pip install --no-cache-dir -r requirements.txt; then \
+            echo "✅ Successfully installed standard requirements"; \
+        else \
+            echo "❌ Failed to install standard requirements. Falling back to minimal requirements."; \
+            pip install --no-cache-dir -r requirements_minimal.txt; \
+            echo "⚠️ Only minimal WebSocket requirements installed. Some functionality may not work."; \
+        fi; \
+    fi;
+
+# Ensure the critical WebSocket packages are installed
+RUN pip install --no-cache-dir --upgrade flask-sock==0.7.0 gevent-websocket==0.10.1
 
 # Dependencies are already installed in previous step
 
