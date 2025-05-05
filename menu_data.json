@@ -1,0 +1,529 @@
+{
+  "categories": {
+    "sushi_rolls": {
+      "_id": "sushi_rolls",
+      "name": "Sushi Rolls",
+      "posCategoryId": "SR100",
+      "subProducts": ["california_roll", "spicy_tuna_roll", "dragon_roll", "rainbow_roll"]
+    },
+    "appetizers": {
+      "_id": "appetizers",
+      "name": "Appetizers",
+      "posCategoryId": "AP100",
+      "subProducts": ["miso_soup", "edamame", "gyoza", "tempura"]
+    },
+    "beverages": {
+      "_id": "beverages",
+      "name": "Beverages",
+      "posCategoryId": "BV100",
+      "subProducts": ["japanese_beer", "sake", "green_tea", "soda"]
+    }
+  },
+  "products": {
+    "california_roll": {
+      "_id": "california_roll",
+      "name": "California Roll",
+      "description": "Crab, avocado, and cucumber wrapped in seaweed and rice",
+      "price": 750,
+      "plu": "CALI-ROLL",
+      "productType": "menuItem",
+      "subProducts": ["size_variant", "protein_variant"]
+    },
+    "spicy_tuna_roll": {
+      "_id": "spicy_tuna_roll",
+      "name": "Spicy Tuna Roll",
+      "description": "Fresh tuna with spicy mayo and cucumber",
+      "price": 850,
+      "plu": "SPICY-TUNA",
+      "productType": "menuItem",
+      "subProducts": ["spicy_level", "size_variant"]
+    },
+    "dragon_roll": {
+      "_id": "dragon_roll",
+      "name": "Dragon Roll",
+      "description": "Eel and cucumber inside, avocado on top",
+      "price": 1200,
+      "plu": "DRAGON-ROLL",
+      "productType": "menuItem",
+      "subProducts": ["size_variant"]
+    },
+    "rainbow_roll": {
+      "_id": "rainbow_roll",
+      "name": "Rainbow Roll",
+      "description": "California roll topped with assorted sashimi",
+      "price": 1300,
+      "plu": "RAINBOW-ROLL",
+      "productType": "menuItem",
+      "subProducts": ["size_variant"]
+    },
+    "miso_soup": {
+      "_id": "miso_soup",
+      "name": "Miso Soup",
+      "description": "Traditional Japanese soup with tofu and green onions",
+      "price": 300,
+      "plu": "MISO-SOUP",
+      "productType": "menuItem",
+      "subProducts": ["tempTofu"]
+    },
+    "edamame": {
+      "_id": "edamame",
+      "name": "Edamame",
+      "description": "Steamed soybeans sprinkled with sea salt",
+      "price": 450,
+      "plu": "EDAMAME",
+      "productType": "menuItem",
+      "subProducts": ["edamame_options"]
+    },
+    "gyoza": {
+      "_id": "gyoza",
+      "name": "Gyoza",
+      "description": "Pan-fried dumplings filled with pork and vegetables",
+      "price": 650,
+      "plu": "GYOZA",
+      "productType": "menuItem",
+      "subProducts": ["protein_variant", "cooking_style"]
+    },
+    "tempura": {
+      "_id": "tempura",
+      "name": "Tempura",
+      "description": "Lightly battered and deep-fried vegetables and shrimp",
+      "price": 800,
+      "plu": "TEMPURA",
+      "productType": "menuItem",
+      "subProducts": ["tempura_options"]
+    },
+    "japanese_beer": {
+      "_id": "japanese_beer",
+      "name": "Japanese Beer",
+      "description": "Imported Japanese beer",
+      "price": 600,
+      "plu": "BEER",
+      "productType": "menuItem",
+      "subProducts": ["beer_options"]
+    },
+    "sake": {
+      "_id": "sake",
+      "name": "Sake",
+      "description": "Traditional Japanese rice wine",
+      "price": 900,
+      "plu": "SAKE",
+      "productType": "menuItem",
+      "subProducts": ["sake_options"]
+    },
+    "green_tea": {
+      "_id": "green_tea",
+      "name": "Green Tea",
+      "description": "Traditional Japanese green tea",
+      "price": 300,
+      "plu": "GREEN-TEA",
+      "productType": "menuItem",
+      "subProducts": []
+    },
+    "soda": {
+      "_id": "soda",
+      "name": "Soda",
+      "description": "Assorted soft drinks",
+      "price": 250,
+      "plu": "SODA",
+      "productType": "menuItem",
+      "subProducts": ["soda_options"]
+    }
+  },
+  "modifierGroups": {
+    "size_variant": {
+      "_id": "size_variant",
+      "name": "Size",
+      "plu": "SIZE",
+      "min": 0,
+      "max": 1,
+      "multiMax": 1,
+      "isVariantGroup": true,
+      "subProducts": ["small_size", "regular_size", "large_size"]
+    },
+    "protein_variant": {
+      "_id": "protein_variant",
+      "name": "Protein Option",
+      "plu": "PROTEIN",
+      "min": 0,
+      "max": 1,
+      "multiMax": 1,
+      "isVariantGroup": false,
+      "subProducts": ["real_crab", "imitation_crab", "tofu"]
+    },
+    "spicy_level": {
+      "_id": "spicy_level",
+      "name": "Spiciness Level",
+      "plu": "SPICY",
+      "min": 0,
+      "max": 1,
+      "multiMax": 1,
+      "isVariantGroup": false,
+      "subProducts": ["mild", "medium", "hot", "extra_hot"]
+    },
+    "tempTofu": {
+      "_id": "tempTofu",
+      "name": "Add Tofu",
+      "plu": "ADD-TOFU",
+      "min": 0,
+      "max": 1,
+      "multiMax": 1,
+      "isVariantGroup": false,
+      "subProducts": ["extra_tofu"]
+    },
+    "edamame_options": {
+      "_id": "edamame_options",
+      "name": "Edamame Options",
+      "plu": "EDA-OPT",
+      "min": 0,
+      "max": 2,
+      "multiMax": 1,
+      "isVariantGroup": false,
+      "subProducts": ["garlic", "spicy"]
+    },
+    "cooking_style": {
+      "_id": "cooking_style",
+      "name": "Cooking Style",
+      "plu": "COOK",
+      "min": 0,
+      "max": 1,
+      "multiMax": 1,
+      "isVariantGroup": false,
+      "subProducts": ["fried", "steamed"]
+    },
+    "tempura_options": {
+      "_id": "tempura_options",
+      "name": "Tempura Options",
+      "plu": "TEMP-OPT",
+      "min": 0,
+      "max": 2,
+      "multiMax": 1,
+      "isVariantGroup": false,
+      "subProducts": ["vegetable_only", "shrimp_only", "mixed"]
+    },
+    "beer_options": {
+      "_id": "beer_options",
+      "name": "Beer Options",
+      "plu": "BEER-OPT",
+      "min": 0,
+      "max": 1,
+      "multiMax": 1,
+      "isVariantGroup": true,
+      "subProducts": ["asahi", "sapporo", "kirin"]
+    },
+    "sake_options": {
+      "_id": "sake_options",
+      "name": "Sake Options",
+      "plu": "SAKE-OPT",
+      "min": 0,
+      "max": 1,
+      "multiMax": 1,
+      "isVariantGroup": true,
+      "subProducts": ["hot", "cold", "premium"]
+    },
+    "soda_options": {
+      "_id": "soda_options",
+      "name": "Soda Options",
+      "plu": "SODA-OPT",
+      "min": 0,
+      "max": 1,
+      "multiMax": 1,
+      "isVariantGroup": true,
+      "subProducts": ["cola", "diet_cola", "lemon_lime", "ginger_ale"]
+    }
+  },
+  "modifiers": {
+    "small_size": {
+      "_id": "small_size",
+      "name": "Small (4 pieces)",
+      "price": -200,
+      "plu": "SMALL",
+      "parentId": "size_variant"
+    },
+    "regular_size": {
+      "_id": "regular_size",
+      "name": "Regular (6 pieces)",
+      "price": 0,
+      "plu": "REG",
+      "parentId": "size_variant"
+    },
+    "large_size": {
+      "_id": "large_size",
+      "name": "Large (8 pieces)",
+      "price": 300,
+      "plu": "LARGE",
+      "parentId": "size_variant"
+    },
+    "real_crab": {
+      "_id": "real_crab",
+      "name": "Real Crab",
+      "price": 250,
+      "plu": "REAL-CRAB",
+      "parentId": "protein_variant"
+    },
+    "imitation_crab": {
+      "_id": "imitation_crab",
+      "name": "Imitation Crab",
+      "price": 0,
+      "plu": "IMI-CRAB",
+      "parentId": "protein_variant"
+    },
+    "tofu": {
+      "_id": "tofu",
+      "name": "Tofu",
+      "price": 0,
+      "plu": "TOFU",
+      "parentId": "protein_variant"
+    },
+    "mild": {
+      "_id": "mild",
+      "name": "Mild",
+      "price": 0,
+      "plu": "MILD",
+      "parentId": "spicy_level"
+    },
+    "medium": {
+      "_id": "medium",
+      "name": "Medium",
+      "price": 0,
+      "plu": "MEDIUM",
+      "parentId": "spicy_level"
+    },
+    "hot": {
+      "_id": "hot",
+      "name": "Hot",
+      "price": 0,
+      "plu": "HOT",
+      "parentId": "spicy_level"
+    },
+    "extra_hot": {
+      "_id": "extra_hot",
+      "name": "Extra Hot",
+      "price": 0,
+      "plu": "XHOT",
+      "parentId": "spicy_level"
+    },
+    "extra_tofu": {
+      "_id": "extra_tofu",
+      "name": "Extra Tofu",
+      "price": 100,
+      "plu": "XTOFU",
+      "parentId": "tempTofu"
+    },
+    "garlic": {
+      "_id": "garlic",
+      "name": "Garlic",
+      "price": 50,
+      "plu": "GARLIC",
+      "parentId": "edamame_options"
+    },
+    "spicy": {
+      "_id": "spicy",
+      "name": "Spicy",
+      "price": 50,
+      "plu": "SPICY",
+      "parentId": "edamame_options"
+    },
+    "fried": {
+      "_id": "fried",
+      "name": "Fried",
+      "price": 0,
+      "plu": "FRIED",
+      "parentId": "cooking_style"
+    },
+    "steamed": {
+      "_id": "steamed",
+      "name": "Steamed",
+      "price": 0,
+      "plu": "STEAMED",
+      "parentId": "cooking_style"
+    },
+    "vegetable_only": {
+      "_id": "vegetable_only",
+      "name": "Vegetable Only",
+      "price": -150,
+      "plu": "VEG-ONLY",
+      "parentId": "tempura_options"
+    },
+    "shrimp_only": {
+      "_id": "shrimp_only",
+      "name": "Shrimp Only",
+      "price": 200,
+      "plu": "SHRIMP-ONLY",
+      "parentId": "tempura_options"
+    },
+    "mixed": {
+      "_id": "mixed",
+      "name": "Mixed",
+      "price": 0,
+      "plu": "MIXED",
+      "parentId": "tempura_options"
+    },
+    "asahi": {
+      "_id": "asahi",
+      "name": "Asahi",
+      "price": 0,
+      "plu": "ASAHI",
+      "parentId": "beer_options"
+    },
+    "sapporo": {
+      "_id": "sapporo",
+      "name": "Sapporo",
+      "price": 0,
+      "plu": "SAPPORO",
+      "parentId": "beer_options"
+    },
+    "kirin": {
+      "_id": "kirin",
+      "name": "Kirin",
+      "price": 0,
+      "plu": "KIRIN",
+      "parentId": "beer_options"
+    },
+    "hot_sake": {
+      "_id": "hot",
+      "name": "Hot",
+      "price": 0,
+      "plu": "HOT-SAKE",
+      "parentId": "sake_options"
+    },
+    "cold_sake": {
+      "_id": "cold",
+      "name": "Cold",
+      "price": 100,
+      "plu": "COLD-SAKE",
+      "parentId": "sake_options"
+    },
+    "premium_sake": {
+      "_id": "premium",
+      "name": "Premium",
+      "price": 300,
+      "plu": "PREMIUM-SAKE",
+      "parentId": "sake_options"
+    },
+    "cola": {
+      "_id": "cola",
+      "name": "Cola",
+      "price": 0,
+      "plu": "COLA",
+      "parentId": "soda_options"
+    },
+    "diet_cola": {
+      "_id": "diet_cola",
+      "name": "Diet Cola",
+      "price": 0,
+      "plu": "DIET-COLA",
+      "parentId": "soda_options"
+    },
+    "lemon_lime": {
+      "_id": "lemon_lime",
+      "name": "Lemon Lime",
+      "price": 0,
+      "plu": "LEMON-LIME",
+      "parentId": "soda_options"
+    },
+    "ginger_ale": {
+      "_id": "ginger_ale",
+      "name": "Ginger Ale",
+      "price": 0,
+      "plu": "GINGER-ALE",
+      "parentId": "soda_options"
+    }
+  },
+  "menuNameVariants": [
+    {
+      "variant_phrase": "california roll",
+      "canonical_name": "California Roll",
+      "target_plu": "CALI-ROLL"
+    },
+    {
+      "variant_phrase": "cali roll",
+      "canonical_name": "California Roll",
+      "target_plu": "CALI-ROLL"
+    },
+    {
+      "variant_phrase": "spicy tuna",
+      "canonical_name": "Spicy Tuna Roll",
+      "target_plu": "SPICY-TUNA"
+    },
+    {
+      "variant_phrase": "spicy tuna roll",
+      "canonical_name": "Spicy Tuna Roll",
+      "target_plu": "SPICY-TUNA"
+    },
+    {
+      "variant_phrase": "dragon roll",
+      "canonical_name": "Dragon Roll",
+      "target_plu": "DRAGON-ROLL"
+    },
+    {
+      "variant_phrase": "rainbow roll",
+      "canonical_name": "Rainbow Roll",
+      "target_plu": "RAINBOW-ROLL"
+    },
+    {
+      "variant_phrase": "miso",
+      "canonical_name": "Miso Soup",
+      "target_plu": "MISO-SOUP"
+    },
+    {
+      "variant_phrase": "miso soup",
+      "canonical_name": "Miso Soup",
+      "target_plu": "MISO-SOUP"
+    },
+    {
+      "variant_phrase": "edamame",
+      "canonical_name": "Edamame",
+      "target_plu": "EDAMAME"
+    },
+    {
+      "variant_phrase": "gyoza",
+      "canonical_name": "Gyoza",
+      "target_plu": "GYOZA"
+    },
+    {
+      "variant_phrase": "dumplings",
+      "canonical_name": "Gyoza",
+      "target_plu": "GYOZA"
+    },
+    {
+      "variant_phrase": "tempura",
+      "canonical_name": "Tempura",
+      "target_plu": "TEMPURA"
+    },
+    {
+      "variant_phrase": "beer",
+      "canonical_name": "Japanese Beer",
+      "target_plu": "BEER"
+    },
+    {
+      "variant_phrase": "japanese beer",
+      "canonical_name": "Japanese Beer",
+      "target_plu": "BEER"
+    },
+    {
+      "variant_phrase": "sake",
+      "canonical_name": "Sake",
+      "target_plu": "SAKE"
+    },
+    {
+      "variant_phrase": "green tea",
+      "canonical_name": "Green Tea",
+      "target_plu": "GREEN-TEA"
+    },
+    {
+      "variant_phrase": "tea",
+      "canonical_name": "Green Tea",
+      "target_plu": "GREEN-TEA"
+    },
+    {
+      "variant_phrase": "soda",
+      "canonical_name": "Soda",
+      "target_plu": "SODA"
+    },
+    {
+      "variant_phrase": "soft drink",
+      "canonical_name": "Soda",
+      "target_plu": "SODA"
+    }
+  ]
+}

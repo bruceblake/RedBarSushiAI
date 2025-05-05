@@ -10,12 +10,21 @@ The MCP server will:
 3. Report test results and failures
 4. Attempt to fix issues automatically when tests fail
 
+## Available MCP Servers
+
+There are three main MCP servers available for testing RedBarSushiAI:
+
+1. **Basic Refactor Test Server** (`/mcp/refactor_test_server.py`): Tests refactored code with basic checks
+2. **Docker Test Server** (`/mcp/docker_test_server.py`): Tests the application in a full Docker environment that closely resembles the Render staging environment
+3. **Simple MCP Server** (`/mcp/simple_mcp_server.py`): A standalone JSON-RPC 2.0 implementation for testing with real Docker containers without SDK dependencies
+
 ## Prerequisites
 
 - Access to Render dashboard for RedBarSushiAI staging environment
 - GitHub repository access for code changes
 - API access tokens for necessary services
 - A server/VM to host the MCP orchestrator
+- Docker and Docker Compose (for Docker-based testing)
 
 ## Step 1: Server Setup
 
@@ -290,449 +299,186 @@ class TestRunner:
                 }
 ```
 
-## Step 5: Result Analyzer and Fix Generator
+## Step 5: Using the Docker-based MCP Server
 
-The result analyzer will identify patterns in test failures. The fix generator will create patches for common issues:
+The Docker-based MCP server provides a comprehensive testing environment that mirrors the Render staging environment. This allows you to test your code with real databases and services.
 
-```python
-class ResultAnalyzer:
-    def __init__(self, config):
-        self.config = config
-        
-    def analyze_test_results(self, results):
-        """Analyze test results and identify common issues"""
-        issues = []
-        
-        for test in results.get("tests", []):
-            if not test["success"]:
-                issue = self._identify_issue(test)
-                if issue:
-                    issues.append(issue)
-        
-        return issues
-    
-    def _identify_issue(self, test):
-        """Identify the issue based on test failure"""
-        error_text = ""
-        if test.get("error"):
-            error_text = test["error"].get("text", "")
-        elif test.get("failure"):
-            error_text = test["failure"].get("text", "")
-        
-        # Check for common patterns
-        if "ConnectionError" in error_text or "Connection refused" in error_text:
-            return {
-                "type": "connection_error",
-                "test": test["name"],
-                "description": "API connection error - possible service outage",
-                "severity": "high"
-            }
-        elif "Timeout" in error_text:
-            return {
-                "type": "timeout",
-                "test": test["name"],
-                "description": "API response timeout - possible performance issue",
-                "severity": "medium"
-            }
-        elif "AssertionError" in error_text:
-            # Extract assertion details
-            return {
-                "type": "assertion_error",
-                "test": test["name"],
-                "description": "Test assertion failed - data validation issue",
-                "severity": "medium"
-            }
-        
-        return {
-            "type": "unknown",
-            "test": test["name"],
-            "description": "Unknown error",
-            "severity": "low"
-        }
-
-
-class FixGenerator:
-    def __init__(self, config):
-        self.config = config
-        
-    def generate_fix(self, issue):
-        """Generate a fix for the identified issue"""
-        if issue["type"] == "connection_error":
-            return self._fix_connection_error(issue)
-        elif issue["type"] == "timeout":
-            return self._fix_timeout(issue)
-        elif issue["type"] == "assertion_error":
-            return self._fix_assertion_error(issue)
-        
-        return None
-    
-    def _fix_connection_error(self, issue):
-        """Generate a fix for connection errors"""
-        # Check Render service status
-        # Restart service if needed
-        # Return fix details
-        pass
-    
-    def _fix_timeout(self, issue):
-        """Generate a fix for timeout issues"""
-        # Could involve scaling up resources on Render
-        pass
-    
-    def _fix_assertion_error(self, issue):
-        """Generate a fix for assertion errors"""
-        # More complex - requires analysis of the exact assertion
-        pass
-```
-
-## Step 6: MCP CLI Tool
-
-Create a CLI tool for manual execution of tests and fixes:
-
-```python
-import click
-import logging
-from mcp.config import Config
-from mcp.test_runner import TestRunner
-from mcp.result_analyzer import ResultAnalyzer
-from mcp.fix_generator import FixGenerator
-
-@click.group()
-@click.option('--debug/--no-debug', default=False, help='Enable debug logging')
-def cli(debug):
-    """RedBarSushiAI MCP Tool"""
-    log_level = logging.DEBUG if debug else logging.INFO
-    logging.basicConfig(level=log_level)
-    
-
-@cli.command()
-@click.option('--test', '-t', multiple=True, help='Specific test to run')
-def run_tests(test):
-    """Run E2E tests on the staging environment"""
-    config = Config()
-    runner = TestRunner(config)
-    
-    click.echo("Running tests...")
-    results = runner.run_tests(specific_tests=list(test) if test else None)
-    
-    # Display results summary
-    click.echo(f"\nTest Results:")
-    click.echo(f"  Total: {results['summary']['total']}")
-    click.echo(f"  Passed: {results['summary']['passed']}")
-    click.echo(f"  Failed: {results['summary']['failed']}")
-    click.echo(f"  Pass Rate: {results['summary']['pass_rate'] * 100:.2f}%")
-    
-    # Show details for failed tests
-    if results['summary']['failed'] > 0:
-        click.echo("\nFailed Tests:")
-        for test in results['tests']:
-            if not test['success']:
-                click.echo(f"  - {test['name']} ({test['classname']})")
-                if test.get('error'):
-                    click.echo(f"    Error: {test['error']['message']}")
-                if test.get('failure'):
-                    click.echo(f"    Failure: {test['failure']['message']}")
-
-
-@cli.command()
-@click.option('--test', '-t', multiple=True, help='Specific test to run')
-@click.option('--auto-fix/--no-auto-fix', default=False, help='Attempt to auto-fix issues')
-def analyze(test, auto_fix):
-    """Run tests, analyze results, and optionally fix issues"""
-    config = Config()
-    runner = TestRunner(config)
-    analyzer = ResultAnalyzer(config)
-    
-    click.echo("Running tests...")
-    results = runner.run_tests(specific_tests=list(test) if test else None)
-    
-    click.echo("\nAnalyzing results...")
-    issues = analyzer.analyze_test_results(results)
-    
-    click.echo(f"\nIdentified {len(issues)} issues:")
-    for i, issue in enumerate(issues):
-        click.echo(f"{i+1}. {issue['type']} - {issue['description']} (Severity: {issue['severity']})")
-        click.echo(f"   Test: {issue['test']}")
-    
-    if auto_fix and issues:
-        click.echo("\nAttempting to fix issues...")
-        fix_generator = FixGenerator(config)
-        for issue in issues:
-            fix = fix_generator.generate_fix(issue)
-            if fix:
-                click.echo(f"Applied fix for issue: {issue['type']}")
-            else:
-                click.echo(f"No automatic fix available for issue: {issue['type']}")
-
-
-if __name__ == '__main__':
-    cli()
-```
-
-## Step 7: GitHub Integration for Fixes
-
-For automated fix generation and PR creation, implement a GitHub client:
-
-```python
-from github import Github
-import os
-import tempfile
-import subprocess
-from pathlib import Path
-
-class GitHubClient:
-    def __init__(self, config):
-        self.config = config
-        self.token = config.GITHUB_TOKEN
-        self.repo_name = config.GITHUB_REPO
-        self.base_branch = config.GITHUB_BASE_BRANCH
-        self.g = Github(self.token)
-        self.repo = self.g.get_repo(self.repo_name)
-        
-    def create_pull_request(self, fixes, title, description):
-        """Create a pull request with the generated fixes"""
-        # Create a unique branch name
-        branch_name = f"mcp-fixes-{int(time.time())}"
-        
-        with tempfile.TemporaryDirectory() as temp_dir:
-            work_dir = Path(temp_dir)
-            
-            # Clone the repository
-            subprocess.check_call([
-                "git", "clone", 
-                f"https://{self.token}@github.com/{self.repo_name}.git",
-                str(work_dir)
-            ])
-            
-            # Create a new branch
-            subprocess.check_call(["git", "checkout", "-b", branch_name], cwd=work_dir)
-            
-            # Apply fixes
-            for fix in fixes:
-                file_path = work_dir / fix["file_path"]
-                with open(file_path, "w") as f:
-                    f.write(fix["content"])
-                
-                # Stage the file
-                subprocess.check_call(["git", "add", fix["file_path"]], cwd=work_dir)
-            
-            # Commit the changes
-            subprocess.check_call([
-                "git", "commit", "-m", f"Auto-fix: {title}"
-            ], cwd=work_dir)
-            
-            # Push the branch
-            subprocess.check_call([
-                "git", "push", "origin", branch_name
-            ], cwd=work_dir)
-            
-            # Create the pull request
-            pr = self.repo.create_pull(
-                title=title,
-                body=description,
-                head=branch_name,
-                base=self.base_branch
-            )
-            
-            return {
-                "success": True,
-                "pr_number": pr.number,
-                "pr_url": pr.html_url
-            }
-```
-
-## Step 8: Running as a Service
-
-### Create a systemd service file for automatic startup:
-
-```ini
-[Unit]
-Description=RedBarSushiAI MCP Service
-After=network.target postgresql.service redis-server.service
-
-[Service]
-User=mcp
-Group=mcp
-WorkingDirectory=/opt/redbarsushi-mcp
-ExecStart=/opt/redbarsushi-mcp/.venv/bin/python -m mcp.app
-Restart=on-failure
-Environment=MCP_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### Setup as Docker Compose
-
-```yaml
-version: '3'
-
-services:
-  mcp-service:
-    build: .
-    container_name: redbarsushi-mcp
-    volumes:
-      - ./data:/app/data
-    ports:
-      - "8080:8080"
-    environment:
-      - MCP_ENV=production
-    env_file:
-      - .env
-    restart: unless-stopped
-    depends_on:
-      - mcp-db
-      - mcp-redis
-      
-  mcp-db:
-    image: postgres:14-alpine
-    container_name: redbarsushi-mcp-db
-    environment:
-      - POSTGRES_USER=mcp
-      - POSTGRES_PASSWORD=secure_password
-      - POSTGRES_DB=mcp_testing
-    volumes:
-      - mcp-db-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-    
-  mcp-redis:
-    image: redis:alpine
-    container_name: redbarsushi-mcp-redis
-    volumes:
-      - mcp-redis-data:/data
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
-
-volumes:
-  mcp-db-data:
-  mcp-redis-data:
-```
-
-## Step 9: Scheduling and Monitoring
-
-### Configure automatic test runs:
-
-```python
-import schedule
-import time
-import logging
-from mcp.test_runner import TestRunner
-from mcp.result_analyzer import ResultAnalyzer
-from mcp.fix_generator import FixGenerator
-from mcp.github_client import GitHubClient
-from mcp.slack_client import SlackClient
-from mcp.config import Config
-
-logger = logging.getLogger(__name__)
-
-def run_test_job():
-    """Run tests, analyze results, and fix issues if necessary"""
-    logger.info("Starting scheduled test run")
-    
-    config = Config()
-    runner = TestRunner(config)
-    analyzer = ResultAnalyzer(config)
-    fix_generator = FixGenerator(config)
-    github_client = GitHubClient(config)
-    slack_client = SlackClient(config)
-    
-    # Run the tests
-    results = runner.run_tests()
-    logger.info(f"Tests completed with {results['summary']['failed']} failures")
-    
-    # Send notification of test results
-    slack_client.send_message(f"RedBarSushiAI E2E Tests: {results['summary']['passed']}/{results['summary']['total']} tests passed")
-    
-    # If tests failed, analyze and fix
-    if results['summary']['failed'] > 0:
-        issues = analyzer.analyze_test_results(results)
-        logger.info(f"Identified {len(issues)} issues")
-        
-        # Generate fixes
-        fixes = []
-        for issue in issues:
-            fix = fix_generator.generate_fix(issue)
-            if fix:
-                fixes.append(fix)
-        
-        # If fixes were generated, create a PR
-        if fixes:
-            logger.info(f"Creating PR with {len(fixes)} fixes")
-            pr_result = github_client.create_pull_request(
-                fixes=fixes,
-                title=f"Auto-fix: Fix {len(fixes)} E2E test issues",
-                description=f"Automatically generated fixes for E2E test failures.\n\nIssues fixed:\n" + 
-                            "\n".join([f"- {issue['type']}: {issue['description']}" for issue in issues])
-            )
-            
-            # Notify about PR
-            if pr_result["success"]:
-                slack_client.send_message(f"Created PR #{pr_result['pr_number']} with automatic fixes: {pr_result['pr_url']}")
-            else:
-                slack_client.send_message(f"Failed to create PR for automatic fixes")
-        else:
-            slack_client.send_message(f"No automatic fixes available for the {len(issues)} identified issues")
-    
-# Setup schedule - run tests every 3 hours
-schedule.every(3).hours.do(run_test_job)
-
-# Also run at specific times
-schedule.every().day.at("06:00").do(run_test_job)
-schedule.every().day.at("18:00").do(run_test_job)
-
-def start_scheduler():
-    """Start the scheduler loop"""
-    logger.info("Starting scheduler")
-    
-    # Run once at startup
-    run_test_job()
-    
-    # Then follow the schedule
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
-```
-
-## Step 10: Usage Instructions
-
-### Running the MCP Service
+### Setting Up the Docker MCP Server
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/redbarsushi-mcp.git
-cd redbarsushi-mcp
-
-# Copy and edit the environment file
-cp .env.example .env
-nano .env  # Edit with your specific configuration
-
-# Start with Docker Compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
+# Run the Docker setup script
+./mcp/setup_docker_mcp.sh
 ```
 
-### Manual Test Execution
+This will:
+1. Create a Python virtual environment for the MCP server
+2. Install the required packages
+3. Make the MCP server executable
+4. Register the MCP server with Claude
+
+### Running the Docker MCP Server
 
 ```bash
-# Using the CLI tool
-python -m mcp.cli run-tests
-
-# Run specific tests
-python -m mcp.cli run-tests --test test_complete_order_flow.py::test_complete_order_workflow
-
-# Run tests with analysis
-python -m mcp.cli analyze
-
-# Run tests with auto-fix
-python -m mcp.cli analyze --auto-fix
+# Start the Docker MCP server
+./mcp/run_docker_mcp.sh
 ```
+
+### Testing with the Docker MCP Server
+
+Once the server is running, you can use it from Claude with the following commands:
+
+```
+# Check Docker environment status
+/mcp redbarsushi-docker-test check_docker_status
+
+# Set up Docker environment
+/mcp redbarsushi-docker-test setup_docker_env project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+
+# Run import tests in Docker
+/mcp redbarsushi-docker-test run_docker_test project_path="/home/proxyie/MySoftware/RedBarSushiAI" test_type="imports"
+
+# Run database tests in Docker
+/mcp redbarsushi-docker-test run_docker_test project_path="/home/proxyie/MySoftware/RedBarSushiAI" test_type="database"
+
+# Run Redis tests in Docker
+/mcp redbarsushi-docker-test run_docker_test project_path="/home/proxyie/MySoftware/RedBarSushiAI" test_type="redis"
+
+# Run Flask blueprint tests in Docker
+/mcp redbarsushi-docker-test run_docker_test project_path="/home/proxyie/MySoftware/RedBarSushiAI" test_type="flask"
+
+# Run end-to-end tests in Docker
+/mcp redbarsushi-docker-test run_docker_test project_path="/home/proxyie/MySoftware/RedBarSushiAI" test_type="e2e"
+
+# Run menu utility tests in Docker
+/mcp redbarsushi-docker-test run_docker_test project_path="/home/proxyie/MySoftware/RedBarSushiAI" test_type="menu"
+
+# Run agent utility tests in Docker
+/mcp redbarsushi-docker-test run_docker_test project_path="/home/proxyie/MySoftware/RedBarSushiAI" test_type="agents"
+
+# Run all tests (most comprehensive)
+/mcp redbarsushi-docker-test run_docker_test project_path="/home/proxyie/MySoftware/RedBarSushiAI" test_type="all"
+
+# View PostgreSQL logs
+/mcp redbarsushi-docker-test view_postgres_logs project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+
+# View Redis logs
+/mcp redbarsushi-docker-test view_redis_logs project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+
+# View application logs
+/mcp redbarsushi-docker-test view_app_logs project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+
+# Clean up Docker environment when done
+/mcp redbarsushi-docker-test cleanup_docker_env project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+```
+
+## Step 6: Using the Basic Refactor Test Server
+
+For simpler testing needs, you can use the basic refactor test server:
+
+### Setting Up the Basic Test Server
+
+```bash
+# Run the setup script
+./mcp/setup.sh
+```
+
+### Testing with the Basic Test Server
+
+```
+# Test imports only (fastest test)
+/mcp redbarsushi-test test_imports project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+
+# Test Flask blueprint registration
+/mcp redbarsushi-test test_flask project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+
+# Test database connectivity
+/mcp redbarsushi-test test_database project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+
+# Test Redis connectivity
+/mcp redbarsushi-test test_redis project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+
+# Run all tests (most comprehensive)
+/mcp redbarsushi-test test_all project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+```
+
+## Step 7: Using the Simple MCP Server
+
+The Simple MCP Server is a standalone implementation that uses JSON-RPC 2.0 protocol directly without SDK dependencies. It provides comprehensive testing capabilities using real Docker containers for PostgreSQL and Redis.
+
+### Setting Up the Simple MCP Server
+
+```bash
+# Run the Simple MCP startup script
+./start_redbarsushi_mcp.sh
+```
+
+This script will:
+1. Update the Claude configuration to use the server
+2. Kill any existing MCP server processes
+3. Start the server in the background
+4. Register it with Claude as "redbarsushi-test"
+
+### Testing with the Simple MCP Server
+
+After starting the server, you can use Claude with these commands:
+
+```
+# Check if the server is connected
+/mcp
+
+# Check Docker environment status
+/mcp check_docker_status
+
+# Set up Docker environment
+/mcp setup_docker_env project_path="/home/proxyie/MySoftware/RedBarSushiAI"
+
+# Run basic connectivity tests
+/mcp run_test test_type="basic"
+
+# Run database schema and operations tests
+/mcp run_test test_type="database"
+
+# Run Redis cache operations tests
+/mcp run_test test_type="redis"
+
+# Run menu system tests
+/mcp run_test test_type="menu"
+
+# Run order system tests
+/mcp run_test test_type="order"
+
+# Run full menu integration tests
+/mcp run_test test_type="full_menu"
+
+# Run full order integration tests
+/mcp run_test test_type="full_order"
+
+# Run all tests (most comprehensive)
+/mcp run_test test_type="all"
+
+# Clean up Docker environment when done
+/mcp cleanup_docker_env
+```
+
+## Troubleshooting
+
+If you encounter any issues:
+
+1. Make sure Docker is running (for Docker testing)
+2. Check that the MCP servers are registered correctly with Claude
+3. Verify that the project path is correct
+4. Look at the logs for detailed error messages
+5. Run `docker ps` to see if containers are running properly
+6. Run `docker-compose logs` to see detailed container logs
+
+For Simple MCP Server issues:
+
+1. Check the log file at `mcp_server.log`
+2. Kill any existing server process with `pkill -f "python.*mcp/simple_mcp_server.py"`
+3. Restart the server with `./start_redbarsushi_mcp.sh`
+
+If the tests fail, fix the issues in your refactored code and try again.
 
 ## Conclusion
 
-This MCP server setup will enable continuous testing of the RedBarSushiAI staging environment. By automatically identifying and fixing common issues, it reduces the manual maintenance burden and helps ensure the system remains stable and functional.
-
-The approach is modular, allowing for easy extension with additional test types or fix strategies as the system evolves.
+This MCP server setup will enable comprehensive testing of the RedBarSushiAI application in an environment that closely resembles the Render staging environment. By leveraging Docker, you can test your code with real databases and services, ensuring that it will work correctly when deployed.

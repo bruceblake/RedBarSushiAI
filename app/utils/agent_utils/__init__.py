@@ -3,6 +3,12 @@ Agent utility functions for handling OpenAI Agents integration.
 This module provides the core functionality for our AI agents.
 """
 
+# Import required modules
+import os
+
+# Export OpenAI API key from environment
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+
 # Import components from submodules
 from app.utils.agent_utils.logging import log_openai_request, log_openai_response
 from app.utils.agent_utils.menu import find_menu_item_by_name, get_menu_items, SushiMenuTool
@@ -19,6 +25,9 @@ from app.utils.agent_utils.tools import (
 
 # Export all components
 __all__ = [
+    # Environment variables
+    'OPENAI_API_KEY',
+    
     # Logging utilities
     'log_openai_request',
     'log_openai_response',

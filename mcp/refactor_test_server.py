@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 MCP Server for testing refactored RedBarSushiAI code.
 This server provides tools to test the refactored code in a Docker environment
