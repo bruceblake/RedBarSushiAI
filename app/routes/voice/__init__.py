@@ -30,12 +30,13 @@ def init_voice_routes(app):
     """
     logger.info("Initializing voice routes")
     
-    # Register all voice-related blueprints
+    # First import routes module to register route handlers with the blueprints
+    # IMPORTANT: This must be done BEFORE registering the blueprints with the app
+    import app.routes.voice.routes
+    
+    # Now register the blueprints with routes already attached
     app.register_blueprint(realtime_voice_bp, url_prefix="/voice/realtime")
     app.register_blueprint(voice_debug_bp, url_prefix="/voice/debug")
-    
-    # Import routes to register them with the blueprints
-    import app.routes.voice.routes
     
     # Register WebSocket routes
     from app import sock
