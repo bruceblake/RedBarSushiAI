@@ -172,7 +172,6 @@ def init_voice_routes(flask_app):
             
             # Import enhanced logging and handler early to avoid scope issues
             from app.routes.voice.utils.websocket_logging import websocket_handler
-            from app.routes.voice.realtime.enhanced_stream_handler import handle_enhanced_media_stream
             
             # Only register WebSocket routes if we haven't already
             # Improve route registration check to properly handle Flask-Sock
@@ -203,7 +202,7 @@ def init_voice_routes(flask_app):
                 @sock.route("/ws/voice/media")
                 @websocket_handler
                 async def media_stream_ws(ws):
-                    """WebSocket endpoint for Twilio Media Streams API with enhanced connection handling."""
+                    """WebSocket endpoint for Twilio Media Streams API with robust connection handling."""
                     # Log connection information with appropriate log level
                     logger.info(f"[MEDIA_STREAM] WebSocket connection established to /ws/voice/media")
                     logger.info(f"[MEDIA_STREAM] Connection ID: {getattr(ws, '_log_id', 'unknown')}")
@@ -218,10 +217,11 @@ def init_voice_routes(flask_app):
                         logger.info(f"[MEDIA_STREAM] User-Agent: {user_agent}")
                         logger.info(f"[MEDIA_STREAM] Is Twilio: {is_twilio}")
                     
-                    # Use the enhanced stream handler for robust connection management
-                    await handle_enhanced_media_stream(ws)
+                    # Use the robust stream handler for advanced connection resilience
+                    from app.routes.voice.realtime.robust_stream_handler import handle_robust_media_stream
+                    await handle_robust_media_stream(ws)
                 
-                logger.info("Registered /ws/voice/media WebSocket route with improved connection handling")
+                logger.info("Registered /ws/voice/media WebSocket route with robust connection handling")
                 
                 # Set the global flag to prevent duplicate registration
                 _websocket_routes_registered = True

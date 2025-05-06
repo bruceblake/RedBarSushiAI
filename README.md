@@ -11,12 +11,16 @@
 ---
 
 ## 🚀 Features
-- Voice-based ordering (Twilio integration)
-- Menu inquiries & recommendations
-- Order validation & processing (Deliverect integration)
-- Multi-location support
-- Real-time order status & SMS confirmations
-- WebSocket-based audio processing
+- **Voice-based ordering** using OpenAI Realtime API and Twilio Media Streams
+- **Menu inquiries & recommendations** with semantic search capabilities
+- **Order validation & processing** with Deliverect POS integration
+- **Multi-location support** for restaurant chains
+- **Real-time order status & SMS confirmations**
+- **WebSocket-based bidirectional audio processing**
+- **Multi-agent architecture** with specialized roles
+- **Database-backed menu and order management**
+- **Progressive fallback mechanisms** for resilience
+- **Detailed logging and monitoring**
 
 ---
 
@@ -25,7 +29,7 @@
 ### Prerequisites
 - Python 3.11+
 - PostgreSQL
-- Redis (for Celery)
+- Redis (for Celery and caching)
 - OpenAI API key
 - Twilio account
 - Deliverect API credentials
@@ -79,6 +83,29 @@
   FLASK_DEBUG=1 FLASK_APP=run.py flask run
   ```
 
+### Twilio Webhook Configuration
+
+For phone calls to be properly routed to your voice system, configure your Twilio phone number with these webhook settings:
+
+1. In Twilio Console, go to **Phone Numbers** → **Manage** → **Active Numbers**
+2. Select your phone number
+3. Under **Voice & Fax** configuration:
+   - **A Call Comes In**: Set to Webhook
+   - **URL**: `https://[your-domain]/voice`
+   - **HTTP Method**: POST
+
+Alternatively, you can use any of these equivalent webhook endpoints:
+- `https://[your-domain]/voice`
+- `https://[your-domain]/webhook/voice`
+- `https://[your-domain]/` (root path)
+
+### Voice Debugging
+
+To diagnose voice system issues, these endpoints are available:
+- `https://[your-domain]/routes-debug` - List all registered routes
+- `https://[your-domain]/voice/debug/health` - Check voice system health
+- `https://[your-domain]/healthcheck` - Overall system health check
+
 ---
 
 ## 🧪 Testing
@@ -90,6 +117,10 @@
 - Run a specific test:
   ```sh
   pytest tests/test_file.py::test_function
+  ```
+- Run voice flow tests:
+  ```sh
+  VOICE_HANDLER=orchestrated pytest tests/e2e/test_orchestrated_voice_flow.py
   ```
 - Run tests in CI mode (without external API dependencies):
   ```sh
@@ -128,6 +159,16 @@
   docker run -p 8080:8080 -e DOCKER_CONTAINER=true redbarsushiai
   ```
 
+### Headless Mode Configuration
+
+For Docker and production environments, the system is configured to run in headless mode:
+
+```bash
+# Required environment variables
+FORCE_HEADLESS=true
+OPENAI_REALTIME_NO_DISPLAY=1
+```
+
 ---
 
 ## 🚦 CI/CD Pipeline
@@ -139,9 +180,77 @@
 
 ---
 
-## 📁 Menu Data
+## 📁 System Architecture
 
-The system uses PostgreSQL as the primary menu data storage and `menu_data.json` as a backup file. The database is automatically initialized with menu data from this file if empty.
+### Database Architecture
+
+The system uses PostgreSQL for data persistence with these key models:
+
+1. **Menu Models** (`app/models/menu.py`):
+   - `MenuCategory`: Categories of menu items
+   - `MenuItem`: Individual menu items with PLUs
+   - `MenuModifier`: Modifiers like "Extra cheese" with price changes
+   - `MenuModifierGroup`: Groups of modifiers with selection rules
+   - `MenuNameVariant`: Maps natural language to specific PLUs
+
+2. **Order Models** (`app/models/order.py`):
+   - `Order`: Order details including customer info and status
+   - `OrderItem`: Links orders to menu items with quantities
+   - `OrderItemModifier`: Stores modifiers applied to order items
+
+### Voice Architecture
+
+Voice interactions use a multi-agent architecture with real-time audio processing:
+
+```
+┌───────────────────────────┐
+│ OpenAI Realtime Session   │
+│  • ASR & partial transcripts   │
+│  • VAD-driven events           │
+│  • Tool_call & tool_response   │
+│  • TTS audio chunks            │
+└─┬───────────────────────────┬─┘
+  │ tool_call(name, args)     │ audio(TTS)
+  ▼                            ▼
+┌──────────┐             ┌─────────────┐
+│ Frontline│─handoff─▶   │ Fulfillment │
+│ Voice    │  or tool    │ Agent       │
+│ Agent     ◀─tool───    └─────────────┘
+└─┬────────┘
+  │ tool calls
+  ▼
+┌────────────┐  ┌─────────┐  ┌───────────┐
+│ Menu Agent │  │ Cart    │  │ Guardrail │
+│            │  │ Agent   │  │ Agent     │
+└────────────┘  └─────────┘  └───────────┘
+```
+
+Key components:
+- **WebSocket Server**: Handles real-time audio streaming
+- **Voice Activity Detection**: Manages silence detection and timeouts
+- **Bidirectional Streaming**: Uses `<Connect><Stream>` for Twilio MediaStreams
+- **Multi-Agent System**: Specialized agents for different tasks
+- **State Machine**: Controls conversation flow between phases
+
+### Recent Enhancements
+
+#### WebSocket Connection Stability
+- Aggressive keep-alive message strategy (200ms-3s intervals)
+- Enhanced connection stabilization during critical phases
+- Improved greeting sequence with recovery mechanisms
+- Better error handling and reconnection logic
+
+#### Route Registration
+- Fixed route conflicts with separate registration flags
+- Added `/voice` and multiple equivalent webhook paths
+- Created diagnostic endpoint at `/routes-debug`
+- Improved error handling for route registration
+
+#### System Resilience
+- Progressive fallback chains for all critical services
+- Redis → Database → Memory cache fallback pathway
+- Connection state tracking with recovery actions
+- Comprehensive error logging for diagnostics
 
 ---
 
@@ -150,39 +259,42 @@ The system uses PostgreSQL as the primary menu data storage and `menu_data.json`
 ### System Workflow
 
 1. **Customer Call**: Customer calls the Red Bar Sushi phone number (Twilio).
-2. **Voice Interaction**: Twilio forwards the call to the Flask backend, which uses OpenAI for speech recognition and intent parsing.
-3. **Menu & Order**: The backend uses the PostgreSQL database (with Redis caching) to answer menu questions and take orders.
-4. **Order Validation**: Orders are validated and processed via Deliverect API.
-5. **Order Status**: Real-time order status is provided via SMS (Twilio) and WebSocket audio updates.
-6. **Multi-location**: System supports multiple restaurant locations.
+2. **Voice Interaction**: Twilio connects to the WebSocket endpoint and streams audio bidirectionally.
+3. **Speech Processing**: OpenAI Realtime API processes streaming audio and generates responses.
+4. **Agent Orchestration**: The Frontline agent delegates to specialized agents based on intent.
+5. **Menu & Order**: The system uses the database (with Redis caching) to answer questions and take orders.
+6. **Order Validation**: Orders are validated and processed via Deliverect API.
+7. **Order Status**: Real-time order status is provided via SMS (Twilio) and WebSocket audio updates.
 
 **Data Flow:**
-- Customer → Twilio → Flask API → OpenAI/Deliverect → Customer (via SMS/voice)
+- Customer → Twilio → WebSocket → OpenAI Realtime API → Specialized Agents → Deliverect → Customer
 
-### CI/CD & Deployment Workflow
+### State Machine Workflow
 
-1. **Push/PR to GitHub**: Code pushed to `development`, `staging`, or `main` branches triggers GitHub Actions workflows.
-2. **CI Pipeline**:
-   - Runs tests (pytest)
-   - Lints code
-   - Checks security
-3. **CD Pipeline**:
-   - Deploys to **staging** on push to `staging`
-   - Deploys to **production** on push to `main`
-   - Uses Render for hosting and deployment
-4. **Secrets & Env Vars**: Managed via GitHub Secrets and `.env` files.
+The conversation follows a finite state machine with these states:
 
-**External Services:**
-- **Twilio**: Voice/SMS communication
-- **OpenAI**: Natural language processing
-- **Deliverect**: Order management
-- **Render**: Hosting & deployment
+1. **GREETING**: Initial greeting and get customer name
+2. **MAIN_MENU**: Present main options (order, menu questions, etc.)
+3. **MENU_INQUIRY**: Handle menu questions
+4. **ORDERING**: Take order details 
+5. **ITEM_CLARIFICATION**: Resolve ambiguous items
+6. **VALIDATION**: Validate order against constraints
+7. **CONFIRMATION**: Confirm order details
+8. **PAYMENT**: Handle payment details
+9. **FULFILLMENT**: Process order with Deliverect
+10. **FOLLOW_UP**: Post-order interaction
+11. **STAFF_HANDOFF**: Escalation to human staff
+12. **COMPLETION**: End the conversation
 
 ---
 
 ## 📚 Documentation
-- [docs/README.md](docs/README.md) — Project documentation index
-- [.env.example](.env.example) — Environment variables reference
+
+- [CLAUDE.md](CLAUDE.md) — Comprehensive project documentation
+- [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md) — Voice system architecture
+- [CONVERSATION_STORE.md](CONVERSATION_STORE.md) — Conversation state management
+- [SILENCE_HANDLING.md](SILENCE_HANDLING.md) — Voice activity detection and silence handling
+- [ADVANCED_AGENTIC_PATTERNS.md](ADVANCED_AGENTIC_PATTERNS.md) — Agent orchestration patterns
 
 ---
 
@@ -193,6 +305,7 @@ Pull requests are welcome! Please:
 - Write tests for new features
 - Follow the existing code style
 - Open a PR to `development` or `staging`
+- Files should not exceed 500 lines of code
 
 ---
 
@@ -206,22 +319,7 @@ For issues, open a GitHub issue or contact the maintainer.
 
 Proprietary - All Rights Reserved
 
-### Running the Application
-
-#### Start the Flask server:
-```
-python run.py
-```
-
-#### Start Celery worker (in a separate terminal):
-```
-celery -A celery_app worker --loglevel=INFO
-```
-
-#### Run with debug:
-```
-FLASK_DEBUG=1 FLASK_APP=run.py flask run
-```
+---
 
 ## Development Workflow
 
@@ -247,37 +345,6 @@ git push -u origin feature/my-new-feature
 # Create a PR to staging branch when ready
 ```
 
-### CI/CD Pipeline
-
-Our CI/CD pipeline automatically:
-
-1. Runs tests on every push and PR
-2. Checks code quality and security
-3. Deploys to staging environment from staging branch
-4. Deploys to production environment from main branch
-
-## Testing
-
-Run tests with:
-```
-pytest
-```
-
-Run a specific test:
-```
-pytest tests/test_file.py::test_function
-```
-
-## Docker Deployment
-
-```bash
-# Build the Docker image
-docker build -t redbarsushiai .
-
-# Run the container
-docker run -p 8080:8080 -e DOCKER_CONTAINER=true redbarsushiai
-```
-
 ## Deployment
 
 The application is deployed on Render with separate environments:
@@ -285,61 +352,58 @@ The application is deployed on Render with separate environments:
 - Production: https://redbarsushi-web.onrender.com
 - Staging: https://redbarsushi-staging.onrender.com
 
-To deploy:
-1. Create a PR to the staging branch
-2. After review and testing, PR to main
-3. GitHub Actions will handle the deployment
-
 ### Render WebSocket Configuration
 
-For the WebSocket-based real-time voice system, Render requires a specific configuration:
+For the WebSocket-based real-time voice system, Render requires this configuration:
 
 ```bash
 # In Procfile (used by Render)
 web: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 'run:app'
 ```
 
-#### Required packages:
-- flask-sock - WebSocket support for Flask
-- gevent-websocket - WebSocket worker for Gunicorn
-- gunicorn - WSGI server
+### Twilio Media Streams Configuration
 
-No X11 server or psutil package is required for the WebSocket-based Realtime integration on Render.
+For Twilio Media Streams, TwiML configuration uses Connect/Stream for bidirectional streaming:
 
-#### Key Environment Variables:
-- `FORCE_HEADLESS=true` - Ensures the app runs in headless mode
-
-## Location Management
-
-To work with locations:
-
-```bash
-# List all registered locations
-python manage_locations.py list --url https://redbarsushi-staging.onrender.com
-
-# Register a new location
-python manage_locations.py register new-location-id "New Location Name" --url https://redbarsushi-staging.onrender.com
-
-# Get information about a location
-python manage_locations.py info location-id --url https://redbarsushi-staging.onrender.com
-
-# Test webhooks for a location
-python manage_locations.py test-webhooks location-id --url https://redbarsushi-staging.onrender.com
+```xml
+<Response>
+    <Say>Welcome to Red Bar Sushi!</Say>
+    <Connect>
+        <Stream url="wss://your-domain/ws/voice/media" name="redbarsushi_stream" />
+    </Connect>
+</Response>
 ```
 
 ## Environment Variables
 
-See `.env.example` for all required environment variables.
+Key environment variables include:
 
-## Documentation
+```
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/redbarsushi
 
-Additional documentation:
+# Redis
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/1
 
-- [Deliverect Integration](DELIVERECT_INTEGRATION.md)
-- [Environment Variables](ENVIRONMENT_VARS.md)
-- [Migration Guide](MIGRATION_GUIDE.md)
-- [Real-time Audio Processing](REALTIME_AUDIO.md)
+# OpenAI
+OPENAI_API_KEY=sk-...
 
-## License
+# Twilio
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_PHONE_NUMBER=+1...
 
-Proprietary - All Rights Reserved
+# Deliverect
+DELIVERECT_CHANNEL_NAME=redbarsushi
+DELIVERECT_API_KEY=...
+DELIVERECT_BASE_URL=https://api.staging.deliverect.com
+
+# Application Settings
+FLASK_APP=run.py
+FLASK_ENV=development  # or production
+VOICE_HANDLER=realtime
+FORCE_HEADLESS=true
+```
+
+See `.env.example` for a complete list.
