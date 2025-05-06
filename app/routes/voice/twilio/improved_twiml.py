@@ -102,5 +102,18 @@ def get_host_for_ws(request):
         logger.info(f"[WEBSOCKET_HOST] Using RENDER_EXTERNAL_HOSTNAME: {render_external_hostname}")
         return render_external_hostname
     
+    # For staging environment, we know the exact hostname
+    if os.environ.get("IS_STAGING") or os.environ.get("FLASK_ENV") == "staging":
+        staging_hostname = "redbarsushiai-staging.onrender.com"
+        logger.info(f"[WEBSOCKET_HOST] Using hardcoded staging hostname: {staging_hostname}")
+        return staging_hostname
+    
+    # For production, also hardcode to ensure we don't get mismatches
+    if os.environ.get("FLASK_ENV") == "production":
+        production_hostname = "redbarsushi-web.onrender.com"
+        logger.info(f"[WEBSOCKET_HOST] Using hardcoded production hostname: {production_hostname}")
+        return production_hostname
+    
     # Otherwise use the host from the request
+    logger.info(f"[WEBSOCKET_HOST] Using request host: {host}")
     return host

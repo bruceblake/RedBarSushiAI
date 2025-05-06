@@ -335,6 +335,7 @@ def create_app(test_config=None):
         # Use the voice implementation
         try:
             from app.routes.voice import init_voice_system, realtime_voice_bp
+            from app.routes.voice.twilio.improved_twiml import generate_optimized_media_streams_twiml, get_environment_name, get_host_for_ws
             app_logger.info("Using OpenAI Realtime API with WebSockets for voice")
             
             # Initialize the voice system
@@ -342,14 +343,39 @@ def create_app(test_config=None):
                 init_result = init_voice_system(app)
                 app_logger.info(f"Successfully initialized voice system: {init_result}")
                 
-                # Only register the blueprint if it wasn't already registered
-                is_already_initialized = init_result.get("already_initialized", False)
-                if not is_already_initialized:
-                    # Register the blueprint at root level
-                    app.register_blueprint(realtime_voice_bp, url_prefix='')
-                    app_logger.info("Registered voice blueprint at root level")
-                else:
-                    app_logger.info("Voice blueprint already registered, skipping")
+                # ALWAYS register the blueprint to ensure routes are available
+                # Force re-registration of the blueprint at root level
+                # This fixes issues with 404 errors on voice routes
+                app.register_blueprint(realtime_voice_bp, url_prefix='')
+                app_logger.info("Registered voice blueprint at root level")
+                
+                # Ensure the blueprint is registered with no prefix to handle root-level routes
+                try:
+                    # Explicitly register critical routes again at root level
+                    for rule in realtime_voice_bp.deferred_functions:
+                        rule(app)
+                    app_logger.info("Applied blueprint route registrations directly to app")
+                except Exception as deferred_error:
+                    app_logger.warning(f"Could not apply deferred functions: {deferred_error}")
+                
+                # CRITICAL FIX: Add direct route handlers to ensure Twilio can reach the webhook endpoints
+                # These are backup routes that directly call the same handler as the blueprint routes
+                @app.route("/webhook/voice", methods=["GET", "POST"])
+                def direct_webhook_voice():
+                    """Direct route handler for /webhook/voice to handle Twilio calls."""
+                    app_logger.info("Twilio call received on direct /webhook/voice route")
+                    from app.routes.voice.routes import receive_call
+                    return receive_call()
+                
+                @app.route("/voice", methods=["GET", "POST"])
+                def direct_voice():
+                    """Direct route handler for /voice to handle Twilio calls."""
+                    app_logger.info("Twilio call received on direct /voice route")
+                    from app.routes.voice.routes import receive_call
+                    return receive_call()
+                
+                app_logger.info("Added direct route handlers for Twilio webhooks")
+                
             except Exception as route_error:
                 app_logger.error(f"Error during voice system initialization: {route_error}")
                 app_logger.error(f"Initialization error details: {traceback.format_exc()}")

@@ -58,16 +58,27 @@ def receive_call():
         logger.error(f"Failed to set up call-specific logging: {log_error}")
     
     try:
-        # Log extensive details about the request to diagnose routing issues
+        # Immediately log that the endpoint was accessed successfully
+        logger.critical(f"***** WEBHOOK ENDPOINT ACCESSED SUCCESSFULLY: {request.path} *****")
         logger.info("==== INCOMING REALTIME CALL DETAILS ====")
         logger.info(f"Call SID: {call_sid}")
         logger.info(f"Request came from: {request.remote_addr}")
         logger.info(f"User agent: {request.user_agent}")
         logger.info(f"Host header: {request.host}")
         logger.info(f"URL: {request.url}")
+        logger.info(f"Path: {request.path}")
         logger.info(f"Request method: {request.method}")
+        logger.info(f"Route: {request.endpoint}")
+        logger.info(f"Blueprint: {request.blueprint}")
         logger.info(f"Environment: {os.environ.get('FLASK_ENV', 'undefined')}")
         logger.info(f"Current working directory: {os.getcwd()}")
+        
+        # Log all request headers for debugging
+        logger.info("Full request headers:")
+        for header, value in request.headers.items():
+            # Skip sensitive headers
+            if header.lower() not in ("authorization", "cookie", "x-auth-token"):
+                logger.info(f"  - {header}: {value}")
         
         # Log all request values for debugging
         logger.info("Full request values:")
@@ -80,9 +91,13 @@ def receive_call():
         
         # Get host for WebSocket connections
         host = get_host_for_ws(request)
+        logger.info(f"Using host for WebSocket: {host}")
         
         # Generate optimized TwiML response with bidirectional stream
         twiml = generate_optimized_media_streams_twiml(call_sid, host, environment_name)
+        
+        # Log TwiML generated
+        logger.info(f"Generated TwiML: {twiml[:500]}...")
         
         # Log timing and return response
         logger.info(f"Optimized TwiML response generated for call {call_sid}")
@@ -93,19 +108,27 @@ def receive_call():
         if 'calls_file_handler' in locals():
             logger.removeHandler(calls_file_handler)
             
+        # Log success before returning
+        logger.critical(f"***** SUCCESSFULLY RETURNING TWIML FOR CALL {call_sid} *****")
         return Response(twiml, mimetype="text/xml")
         
     except Exception as e:
+        # Log the full error with traceback
+        logger.critical(f"***** ERROR HANDLING INCOMING CALL *****")
         logger.error(f"Error handling incoming call: {str(e)}")
-        logger.error(f"Error traceback: {e}")
+        logger.error(f"Error class: {e.__class__.__name__}")
+        logger.error(f"Error traceback: {traceback.format_exc()}")
         
         # Try to generate an error response
         try:
             from twilio.twiml.voice_response import VoiceResponse
             error_response = VoiceResponse()
             error_response.say("We're sorry, but an error occurred while processing your call. Please try again later.")
-            return Response(str(error_response), mimetype="text/xml")
-        except:
+            error_twiml = str(error_response)
+            logger.info(f"Generated error TwiML: {error_twiml}")
+            return Response(error_twiml, mimetype="text/xml")
+        except Exception as fallback_error:
+            logger.critical(f"Failed to generate error TwiML: {fallback_error}")
             return Response("Error processing call", status=500)
             
     finally:
