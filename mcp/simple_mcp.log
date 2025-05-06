@@ -1,0 +1,83 @@
+2025-05-05 23:07:16,377 - simple_mcp - INFO - Starting MCP server on port 4242
+ * Serving Flask app 'simple_mcp_server' (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+2025-05-05 23:07:16,379 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 23:07:16,379 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 23:07:19,270 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:07:19,270 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:07:19,271 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:07:19,271 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:07:19,271 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:07:19] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:07:19,271 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:07:19] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:07:19,277 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:07:19,277 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:07:19,277 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:07:19] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:07:19,282 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:07:19] "GET /health HTTP/1.1" 200 -
+2025-05-05 23:10:01,068 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:10:01,069 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:10:01,069 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:10:01] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:10:09,256 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:10:09,256 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:10:09,256 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:10:09] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:20:37,363 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:20:37,364 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:20:37,364 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:20:37] "GET /mcp HTTP/1.1" 200 -
+. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:4243
+ * Running on http://172.30.139.206:4243
+2025-05-05 23:20:16,991 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-05-05 23:20:37,363 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:20:37,364 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:20:37,364 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:20:37] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:20:40,859 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:20:40,860 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:20:40,860 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:20:40] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:20:46,878 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:20:46,878 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:20:46,878 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:20:46] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:20:47,987 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:20:47,987 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:20:47,987 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:20:47] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:24:02,588 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:24:02,588 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:24:02,588 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:24:02] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:24:05,587 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:24:05] "GET /health HTTP/1.1" 200 -
+2025-05-05 23:24:06,219 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:24:06,220 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:24:06,220 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:24:06] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:24:07,669 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:24:07,670 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:24:07,670 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:24:07] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:24:21,389 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:24:21,389 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:24:21,389 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:24:21] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:26:35,992 - simple_mcp - INFO - Starting MCP server on port 4243
+2025-05-05 23:26:35,994 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:4243
+ * Running on http://172.30.139.206:4243
+2025-05-05 23:26:35,994 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-05-05 23:26:36,196 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:26:36,196 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:26:36,196 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:26:36] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:28:39,520 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:28:39,520 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:28:39,520 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:28:39] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:31:03,137 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:31:03] "GET /health HTTP/1.1" 200 -
+2025-05-05 23:36:12,588 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:36:12,589 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:36:12,589 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:36:12] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:52:00,679 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:52:00,697 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:52:00,701 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:52:00] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:52:57,199 - simple_mcp - DEBUG - SSE connection established
+2025-05-05 23:52:57,200 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-05 23:52:57,200 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:52:57] "GET /mcp HTTP/1.1" 200 -
+2025-05-06 00:00:31,715 - simple_mcp - DEBUG - SSE connection established
+2025-05-06 00:00:31,719 - simple_mcp - DEBUG - Starting SSE stream
+2025-05-06 00:00:31,720 - werkzeug - INFO - 127.0.0.1 - - [06/May/2025 00:00:31] "GET /mcp HTTP/1.1" 200 -

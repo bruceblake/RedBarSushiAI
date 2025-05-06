@@ -1,0 +1,203 @@
+version: '3.8'
+
+services:
+  # Web application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: redbarsushi_web_staging
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=staging
+      - FLASK_DEBUG=0
+      - USE_XVFB=true
+      - DATABASE_URL=postgresql://redbarsushi_staging_db_user:${POSTGRES_PASSWORD:-staging_password}@postgres:5432/redbarsushi_staging_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_REALTIME_NO_DISPLAY=1
+      - FORCE_HEADLESS=true
+      - DELIVERECT_BASE_URL=${DELIVERECT_BASE_URL:-https://api.staging.deliverect.com}
+      - DELIVERECT_API_KEY=${DELIVERECT_API_KEY}
+      - DELIVERECT_CHANNEL_NAME=${DELIVERECT_CHANNEL_NAME:-redbarsushi}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - VOICE_HANDLER=orchestrated
+      - LOG_LEVEL=INFO
+      - DEBUGGING=false
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - redbarsushi-staging-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Celery worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: redbarsushi_worker_staging
+    command: celery -A celery_app worker --loglevel=INFO --concurrency=4
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=staging
+      - USE_XVFB=true
+      - DATABASE_URL=postgresql://redbarsushi_staging_db_user:${POSTGRES_PASSWORD:-staging_password}@postgres:5432/redbarsushi_staging_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_REALTIME_NO_DISPLAY=1
+      - FORCE_HEADLESS=true
+      - DELIVERECT_BASE_URL=${DELIVERECT_BASE_URL:-https://api.staging.deliverect.com}
+      - DELIVERECT_API_KEY=${DELIVERECT_API_KEY}
+      - DELIVERECT_CHANNEL_NAME=${DELIVERECT_CHANNEL_NAME:-redbarsushi}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - LOG_LEVEL=INFO
+    depends_on:
+      - web
+      - redis
+      - postgres
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - redbarsushi-staging-network
+
+  # MCP server for local testing
+  mcp-server:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile.mcp
+    container_name: redbarsushi_mcp_staging
+    ports:
+      - "${MCP_PORT:-4000}:4000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://redbarsushi_staging_db_user:${POSTGRES_PASSWORD:-staging_password}@postgres:5432/redbarsushi_staging_db
+      - MCP_PROTOCOL_VERSION=2024-11-05
+      - CONTAINER_MODE=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./mcp:/app/mcp
+      - ./logs:/app/logs
+    networks:
+      - redbarsushi-staging-network
+    restart: unless-stopped
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:14
+    container_name: redbarsushi_postgres_staging
+    environment:
+      - POSTGRES_USER=redbarsushi_staging_db_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-staging_password}
+      - POSTGRES_DB=redbarsushi_staging_db
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-staging-data:/var/lib/postgresql/data
+      - ./mcp/db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U redbarsushi_staging_db_user -d redbarsushi_staging_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - redbarsushi-staging-network
+    restart: unless-stopped
+
+  # Redis cache and message broker
+  redis:
+    image: redis:6
+    container_name: redbarsushi_redis_staging
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-staging-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - redbarsushi-staging-network
+    restart: unless-stopped
+
+  # Monitoring tools - Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.37.0
+    container_name: redbarsushi_prometheus_staging
+    volumes:
+      - ./tests/e2e/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-staging-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - web
+    networks:
+      - redbarsushi-staging-network
+    restart: unless-stopped
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:9.0.0
+    container_name: redbarsushi_grafana_staging
+    volumes:
+      - ./tests/e2e/config/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./tests/e2e/config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafana-staging-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-staging_grafana}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - redbarsushi-staging-network
+    restart: unless-stopped
+
+networks:
+  redbarsushi-staging-network:
+    driver: bridge
+
+volumes:
+  postgres-staging-data:
+  redis-staging-data:
+  prometheus-staging-data:
+  grafana-staging-data:

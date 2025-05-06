@@ -1,0 +1,287 @@
+2025-05-05 21:23:26,428 - mcp_server - WARNING - Database connection error: No module named 'psycopg2'
+2025-05-05 21:23:26,428 - mcp_server - WARNING - Running without database support
+2025-05-05 21:23:26,429 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 21:23:26,430 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 21:23:26,430 - mcp_server - INFO - Starting MCP stdio server
+2025-05-05 21:23:26,431 - mcp_server - INFO - End of stdin, exiting
+2025-05-05 21:23:31,625 - mcp_server - WARNING - Database connection error: No module named 'psycopg2'
+2025-05-05 21:23:31,625 - mcp_server - WARNING - Running without database support
+2025-05-05 21:23:31,626 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 21:23:31,626 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 21:23:31,626 - mcp_server - INFO - Starting MCP stdio server
+2025-05-05 21:23:31,627 - mcp_server - INFO - End of stdin, exiting
+2025-05-05 21:23:53,803 - mcp_server - WARNING - Database connection error: No module named 'psycopg2'
+2025-05-05 21:23:53,803 - mcp_server - WARNING - Running without database support
+2025-05-05 21:23:53,804 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 21:23:53,804 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 21:23:53,804 - mcp_server - INFO - Starting MCP stdio server
+2025-05-05 21:23:53,805 - mcp_server - INFO - End of stdin, exiting
+2025-05-05 21:24:22,797 - mcp_server - WARNING - Database connection error: No module named 'psycopg2'
+2025-05-05 21:24:22,798 - mcp_server - WARNING - Running without database support
+2025-05-05 21:24:22,798 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 21:24:22,799 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 21:24:22,799 - mcp_server - INFO - Skipping stdio server as requested by environment variable
+2025-05-05 21:24:22,800 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 21:24:22,800 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 21:24:37,214 - mcp_server - ERROR - Redis health check failed
+Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 611, in connect
+    sock = self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect(error)
+    )
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/retry.py", line 46, in call_with_retry
+    return do()
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 612, in <lambda>
+    lambda: self._connect(), lambda error: self.disconnect(error)
+            ~~~~~~~~~~~~~^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 645, in _connect
+    for res in socket.getaddrinfo(
+               ~~~~~~~~~~~~~~~~~~^
+        self.host, self.port, self.socket_type, socket.SOCK_STREAM
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "/usr/lib/python3.13/socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/enhanced_mcp_server.py", line 523, in health_check
+    redis_client.ping()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/commands/core.py", line 1132, in ping
+    return self.execute_command("PING", **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/client.py", line 1235, in execute_command
+    conn = self.connection or pool.get_connection(command_name, **options)
+                              ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 1387, in get_connection
+    connection.connect()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 617, in connect
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error -3 connecting to redis:6379. Temporary failure in name resolution.
+2025-05-05 21:24:37,217 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 21:24:37] "GET /health HTTP/1.1" 200 -
+2025-05-05 21:28:00,164 - mcp_server - ERROR - Redis health check failed
+Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 611, in connect
+    sock = self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect(error)
+    )
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/retry.py", line 46, in call_with_retry
+    return do()
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 612, in <lambda>
+    lambda: self._connect(), lambda error: self.disconnect(error)
+            ~~~~~~~~~~~~~^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 645, in _connect
+    for res in socket.getaddrinfo(
+               ~~~~~~~~~~~~~~~~~~^
+        self.host, self.port, self.socket_type, socket.SOCK_STREAM
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "/usr/lib/python3.13/socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/enhanced_mcp_server.py", line 523, in health_check
+    redis_client.ping()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/commands/core.py", line 1132, in ping
+    return self.execute_command("PING", **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/client.py", line 1235, in execute_command
+    conn = self.connection or pool.get_connection(command_name, **options)
+                              ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 1387, in get_connection
+    connection.connect()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 617, in connect
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error -3 connecting to redis:6379. Temporary failure in name resolution.
+2025-05-05 21:28:00,165 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 21:28:00] "GET /health HTTP/1.1" 200 -
+2025-05-05 21:28:15,273 - mcp_server - WARNING - Database connection error: No module named 'psycopg2'
+2025-05-05 21:28:15,273 - mcp_server - WARNING - Running without database support
+2025-05-05 21:28:15,274 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 21:28:15,274 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 21:28:15,274 - mcp_server - INFO - Skipping stdio server as requested by environment variable
+2025-05-05 21:28:15,275 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 21:28:15,275 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 21:28:36,193 - mcp_server - ERROR - Redis health check failed
+Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 611, in connect
+    sock = self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect(error)
+    )
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/retry.py", line 46, in call_with_retry
+    return do()
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 612, in <lambda>
+    lambda: self._connect(), lambda error: self.disconnect(error)
+            ~~~~~~~~~~~~~^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 645, in _connect
+    for res in socket.getaddrinfo(
+               ~~~~~~~~~~~~~~~~~~^
+        self.host, self.port, self.socket_type, socket.SOCK_STREAM
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "/usr/lib/python3.13/socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/enhanced_mcp_server.py", line 523, in health_check
+    redis_client.ping()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/commands/core.py", line 1132, in ping
+    return self.execute_command("PING", **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/client.py", line 1235, in execute_command
+    conn = self.connection or pool.get_connection(command_name, **options)
+                              ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 1387, in get_connection
+    connection.connect()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp/venv/lib/python3.13/site-packages/redis/connection.py", line 617, in connect
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error -3 connecting to redis:6379. Temporary failure in name resolution.
+2025-05-05 21:28:36,195 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 21:28:36] "GET /health HTTP/1.1" 200 -
+2025-05-05 21:45:32,108 - mcp_server - WARNING - Database connection error: No module named 'psycopg2'
+2025-05-05 21:45:32,108 - mcp_server - WARNING - Running without database support
+2025-05-05 21:45:32,109 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 21:45:32,109 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 21:45:32,109 - mcp_server - INFO - Skipping stdio server as requested by environment variable
+2025-05-05 21:45:32,111 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 21:45:32,111 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 21:45:41,360 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 21:45:41] "GET /health HTTP/1.1" 200 -
+2025-05-05 21:45:58,483 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 21:45:58,483 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 21:45:58,483 - mcp_server - INFO - Skipping stdio server as requested by environment variable
+2025-05-05 21:45:58,484 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 21:45:58,485 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 21:46:07,285 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 21:46:07] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:00:27,856 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:00:27] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:00:43,758 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 22:00:43,758 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 22:00:43,758 - mcp_server - INFO - Skipping stdio server as requested by environment variable
+2025-05-05 22:00:43,759 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 22:00:43,759 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 22:00:45,608 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:00:45] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:00:49,304 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:00:49] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:02:31,984 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:02:31] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:02:55,876 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:02:55] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:03:01,368 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:03:01] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:06:30,812 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:06:30] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:07:36,780 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:07:36] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:10:43,986 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 22:10:43,987 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 22:10:43,987 - mcp_server - INFO - Skipping stdio server as requested by environment variable
+2025-05-05 22:10:43,988 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 22:10:43,988 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 22:10:45,833 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:10:45] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:10:46,597 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:10:46] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:10:54,799 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:10:54] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:11:41,023 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:11:41] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:13:43,161 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 22:13:43,162 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 22:13:43,162 - mcp_server - INFO - Starting MCP stdio server
+2025-05-05 22:13:43,163 - mcp_server - INFO - End of stdin, exiting
+2025-05-05 22:17:51,018 - mcp_server - INFO - Starting Flask server as main process (container mode)
+2025-05-05 22:17:51,018 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 22:17:51,020 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 22:17:51,020 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 22:17:51,850 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:17:51] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:17:55,864 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:17:55] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:17:55,867 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:17:55] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:24:42,265 - mcp_server - INFO - Starting Flask server as main process (container mode)
+2025-05-05 22:24:42,265 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 22:24:42,266 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 22:24:42,266 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 22:24:42,553 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:24:42] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:24:47,114 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:24:47] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:24:47,117 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:24:47] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:24:54,869 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:24:54] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:25:04,376 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:25:04] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:30:20,117 - mcp_server - INFO - Starting Flask server as main process (container mode)
+2025-05-05 22:30:20,117 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 22:30:20,118 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 22:30:20,118 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 22:30:22,687 - mcp_server - DEBUG - SSE connection established
+2025-05-05 22:30:22,688 - mcp_server - DEBUG - Starting SSE stream
+2025-05-05 22:30:22,688 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:30:22] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:30:22,690 - mcp_server - DEBUG - SSE connection established
+2025-05-05 22:30:22,690 - mcp_server - DEBUG - Starting SSE stream
+2025-05-05 22:30:22,690 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:30:22] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:30:24,945 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:30:24] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:30:24,948 - mcp_server - DEBUG - SSE connection established
+2025-05-05 22:30:24,948 - mcp_server - DEBUG - Starting SSE stream
+2025-05-05 22:30:24,949 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:30:24] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:30:26,949 - mcp_server - DEBUG - Received POST request: {'jsonrpc': '2.0', 'id': 'test-init', 'method': 'initialize', 'params': {'protocolVersion': '2024-11-05', 'capabilities': {}, 'clientInfo': {'name': 'test-client', 'version': '1.0.0'}}}
+2025-05-05 22:30:26,950 - asyncio - DEBUG - Using selector: EpollSelector
+2025-05-05 22:30:26,950 - mcp_server - INFO - Received initialize request: protocol=2024-11-05, capabilities={}, client={'name': 'test-client', 'version': '1.0.0'}
+2025-05-05 22:30:26,950 - mcp_server - INFO - Sending initialize response: {'protocolVersion': '2024-11-05', 'capabilities': {'tools': {'listChanged': True}, 'logging': {}}, 'serverInfo': {'name': 'RedBarSushiAI Enhanced MCP Server', 'version': '1.0.0'}}
+2025-05-05 22:30:26,950 - mcp_server - DEBUG - Sending response: {'jsonrpc': '2.0', 'id': 'test-init', 'result': {'protocolVersion': '2024-11-05', 'capabilities': {'tools': {'listChanged': True}, 'logging': {}}, 'serverInfo': {'name': 'RedBarSushiAI Enhanced MCP Server', 'version': '1.0.0'}}}
+2025-05-05 22:30:26,950 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:30:26] "POST /mcp HTTP/1.1" 200 -
+2025-05-05 22:30:41,416 - mcp_server - DEBUG - SSE connection established
+2025-05-05 22:30:41,416 - mcp_server - DEBUG - Starting SSE stream
+2025-05-05 22:30:41,416 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:30:41] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:30:47,184 - mcp_server - DEBUG - SSE connection established
+2025-05-05 22:30:47,184 - mcp_server - DEBUG - Starting SSE stream
+2025-05-05 22:30:47,184 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:30:47] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:32:34,993 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:32:34] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:55:50,066 - mcp_server - INFO - Starting in dual mode with both Flask and stdio
+2025-05-05 22:55:50,067 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 22:55:50,067 - mcp_server - INFO - Skipping stdio server as requested by environment variable
+2025-05-05 22:55:50,068 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 22:55:50,068 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 22:55:51,868 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:55:51] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:55:51,914 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:55:51] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:56:03,109 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:56:03] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:56:11,711 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:56:11] "GET /health HTTP/1.1" 200 -
+2025-05-05 22:57:05,819 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:57:05] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:58:02,035 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:58:02] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 22:59:03,481 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 22:59:03] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:01:08,950 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:01:08] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:01:09,819 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:01:09] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:03:06,003 - mcp_server - INFO - Starting Flask server as main process (container mode)
+2025-05-05 23:03:06,003 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 23:03:06,004 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 23:03:06,004 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 23:03:08,009 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:03:08] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:03:08,009 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:03:08] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:03:36,402 - mcp_server - INFO - Starting Flask server as main process (container mode)
+2025-05-05 23:03:36,402 - mcp_server - INFO - Starting Flask server on 0.0.0.0:4242
+2025-05-05 23:03:36,403 - werkzeug - WARNING -  * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+2025-05-05 23:03:36,403 - werkzeug - INFO -  * Running on http://172.30.139.206:4242/ (Press CTRL+C to quit)
+2025-05-05 23:03:39,244 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:03:39] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:03:39,252 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:03:39] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:03:41,255 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:03:41] "GET /health HTTP/1.1" 200 -
+2025-05-05 23:04:30,805 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:04:30] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:04:43,799 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:04:43] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:04:50,678 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:04:50] "GET /mcp HTTP/1.1" 200 -
+2025-05-05 23:04:58,937 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:04:58] "GET /health HTTP/1.1" 200 -
+2025-05-05 23:04:58,977 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:04:58] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-05-05 23:05:02,762 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:05:02] "[33mGET / HTTP/1.1[0m" 404 -
+2025-05-05 23:05:05,280 - werkzeug - INFO - 127.0.0.1 - - [05/May/2025 23:05:05] "GET /mcp HTTP/1.1" 200 -

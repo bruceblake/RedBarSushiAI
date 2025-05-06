@@ -1,103 +1,80 @@
 #!/bin/bash
 
-# Fix MCP server configuration in .claude.json
-# This script updates the Claude configuration to point to the Docker test server
-
-# Set up colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-echo -e "${YELLOW}====================================${NC}"
-echo -e "${YELLOW}   FIXING MCP SERVER CONFIG        ${NC}"
-echo -e "${YELLOW}====================================${NC}"
-
-# Get the absolute path to the server script
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-DOCKER_SERVER_PATH=$(realpath "${PROJECT_DIR}/mcp/docker_test_server.py")
-
-echo -e "${YELLOW}Docker server path: ${DOCKER_SERVER_PATH}${NC}"
-
-# Make the server scripts executable
-chmod +x "$DOCKER_SERVER_PATH"
-
-# Create and set up a virtual environment if it doesn't exist
-VENV_DIR="${PROJECT_DIR}/mcp/venv"
-if [ ! -d "$VENV_DIR" ]; then
-    echo -e "${YELLOW}Creating virtual environment...${NC}"
-    python3 -m venv "$VENV_DIR"
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Failed to create virtual environment.${NC}"
-        exit 1
-    fi
-fi
-
-# Activate the virtual environment and install MCP
-echo -e "${YELLOW}Activating virtual environment and installing MCP SDK...${NC}"
-source "${VENV_DIR}/bin/activate"
-pip install "mcp[cli]"
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Failed to install MCP SDK.${NC}"
-    deactivate
-    exit 1
-else
-    echo -e "${GREEN}MCP SDK installed successfully.${NC}"
-fi
-
-# Update .claude.json file to use the Python script directly
-CONFIG_FILE="$HOME/.claude.json"
-
-echo -e "${YELLOW}Updating Claude configuration at ${CONFIG_FILE}${NC}"
-
-# Check if file exists and is valid JSON
-if [ -f "$CONFIG_FILE" ] && jq empty "$CONFIG_FILE" 2>/dev/null; then
-    echo -e "${YELLOW}Updating existing configuration file...${NC}"
-    
-    # Create a temporary file with the updated MCP servers
-    TMP_FILE=$(mktemp)
-    
-    # Extract the project path from the config file
-    PROJECT_PATH="/home/proxyie/MySoftware/RedBarSushiAI"
-    
-    # Update the MCP server configuration for redbarsushi-test to use the Python script directly
-    jq --arg docker_path "$DOCKER_SERVER_PATH" --arg project_path "$PROJECT_PATH" '
-    .projects[$project_path].mcpServers."redbarsushi-test".command = $docker_path
-    ' "$CONFIG_FILE" > "$TMP_FILE"
-    
-    # Check if jq command succeeded
-    if [ $? -eq 0 ]; then
-        mv "$TMP_FILE" "$CONFIG_FILE"
-        echo -e "${GREEN}MCP server configuration updated successfully!${NC}"
-    else
-        echo -e "${RED}Failed to update configuration file.${NC}"
-        rm "$TMP_FILE"
-        deactivate
-        exit 1
-    fi
-else
-    echo -e "${RED}Configuration file not found or not valid JSON.${NC}"
-    deactivate
-    exit 1
-fi
+# Script to fix MCP server configuration for RedBarSushiAI
+echo "===== RedBarSushiAI MCP Server Setup ====="
 
 # Kill any existing MCP server processes
-echo -e "${YELLOW}Killing any existing MCP server processes...${NC}"
-pkill -f "python.*docker_test_server.py" 2>/dev/null || true
+pkill -f "python.*enhanced_mcp_server.py" || true
+echo "✅ Cleaned up any running MCP server processes"
 
-# Start the MCP server with the virtual environment
-echo -e "${YELLOW}Starting MCP server...${NC}"
-nohup "${VENV_DIR}/bin/python" "$DOCKER_SERVER_PATH" > "${PROJECT_DIR}/mcp_server.log" 2>&1 &
+# Update MCP server URLs
+cd /home/proxyie/MySoftware/RedBarSushiAI/mcp
+
+# Set environment variables
+MCP_PORT=4242
+SKIP_STDIO=1
+export MCP_PORT SKIP_STDIO
+
+# Fix URLs in enhanced_mcp_server.py
+sed -i 's|REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")|REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")|g' enhanced_mcp_server.py
+sed -i 's|DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@postgres:5432/redbarsushi")|DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/redbarsushi")|g' enhanced_mcp_server.py
+echo "✅ Updated connection URLs in enhanced_mcp_server.py"
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Install required packages
+pip install flask==2.0.1 werkzeug==2.0.1 redis==4.3.4 sqlalchemy==1.4.40 psycopg2-binary
+echo "✅ Installed required Python packages"
+
+# Update Claude configuration
+CONFIG_FILE="$HOME/.claude.json"
+MCP_NAME="redbarsushi-mcp"
+MCP_URL="http://127.0.0.1:$MCP_PORT/mcp"
+
+# Create a backup of the current config
+cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
+echo "✅ Created backup of Claude configuration at ${CONFIG_FILE}.bak"
+
+# Update the MCP server configuration using jq - update both mcpServers and servers entries
+jq --arg mcp_name "$MCP_NAME" \
+   --arg mcp_url "$MCP_URL" \
+   '.mcpServers[$mcp_name] = {"url": $mcp_url, "type": "sse"} | .servers[$mcp_name] = {"url": $mcp_url, "type": "sse"}' \
+   "$CONFIG_FILE" > "${CONFIG_FILE}.tmp"
+
+# Check if jq command succeeded
+if [ $? -ne 0 ]; then
+    echo "❌ Error: Failed to update MCP server configuration"
+    exit 1
+fi
+
+# Replace the original file with the updated one
+mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+echo "✅ Updated MCP server '$MCP_NAME' with URL '$MCP_URL' in Claude configuration"
+
+# Start the MCP server in the background
+echo "🚀 Starting MCP server on port $MCP_PORT..."
+nohup python enhanced_mcp_server.py > enhanced_mcp.log 2>&1 &
 SERVER_PID=$!
-echo -e "${GREEN}MCP server started with PID ${SERVER_PID}${NC}"
-echo -e "${YELLOW}Check the log file at ${PROJECT_DIR}/mcp_server.log for any errors${NC}"
 
-# Deactivate the virtual environment
-deactivate
+# Wait for server to start
+sleep 2
 
-echo -e "${GREEN}Fix complete!${NC}"
-echo -e "${YELLOW}You can now use the MCP server with:${NC}"
-echo -e "  /mcp redbarsushi-test setup_docker_env project_path=\"${PROJECT_DIR}\""
-echo -e "  /mcp redbarsushi-test run_docker_test project_path=\"${PROJECT_DIR}\" test_type=\"imports\""
-echo -e "  /mcp redbarsushi-test check_docker_status"
-echo -e "${YELLOW}Restart Claude to apply the changes${NC}"
+# Check if the server started successfully
+if ps -p $SERVER_PID > /dev/null; then
+    echo "✅ MCP server started successfully with PID $SERVER_PID"
+else
+    echo "❌ Error: MCP server failed to start. Check the log at mcp/enhanced_mcp.log"
+    exit 1
+fi
+
+# Verify server health
+echo "🔍 Checking server health..."
+HEALTH_CHECK=$(curl -s http://127.0.0.1:$MCP_PORT/health)
+echo "Server health: $HEALTH_CHECK"
+
+echo ""
+echo "========= SETUP COMPLETE ========="
+echo "You can check server health with: curl http://127.0.0.1:$MCP_PORT/health"
+echo "Restart Claude Code to apply the changes"
+echo "===================================="
