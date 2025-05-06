@@ -1,0 +1,30 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    build-essential \
+    postgresql-client \
+    redis-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy MCP server code
+COPY . .
+
+# Make scripts executable
+RUN chmod +x entrypoint.sh
+
+# Create data directory
+RUN mkdir -p /data
+
+# HTTP port for MCP server
+EXPOSE 4000
+
+# Startup command
+ENTRYPOINT ["/app/entrypoint.sh"]
