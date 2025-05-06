@@ -6,6 +6,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    libpq-dev \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements file
@@ -15,21 +17,24 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY redbarsushi_mcp.py .
-COPY redbarsushi_mcp/ ./redbarsushi_mcp/
+COPY src/ ./src/
+
+# Create log directory
+RUN mkdir -p /app/logs
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV HOST=0.0.0.0
-ENV PORT=4000
+ENV PORT=4244
 ENV TRANSPORT=sse
 ENV CONTAINER_MODE=1
+ENV LOG_DIR=/app/logs
 
 # Expose the port
-EXPOSE 4000
+EXPOSE 4244
 
 # Health check
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 CMD curl -f http://localhost:4000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 CMD curl -f http://localhost:4244/sse || exit 1
 
 # Run the server
-CMD ["python", "redbarsushi_mcp.py"]
+CMD ["python", "src/redbarsushi_mcp.py"]

@@ -1,0 +1,66 @@
+2025-05-06 00:08:25,581 - redbarsushi_mcp - INFO - Starting MCP server on 0.0.0.0:8050
+INFO:     Started server process [1783]
+INFO:     Waiting for application startup.
+INFO:     ASGI 'lifespan' protocol appears unsupported.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8050 (Press CTRL+C to quit)
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp_venv/lib/python3.13/site-packages/uvicorn/protocols/http/h11_impl.py", line 403, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp_venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp_venv/lib/python3.13/site-packages/uvicorn/middleware/asgi2.py", line 14, in __call__
+    instance = self.app(scope)
+TypeError: 'FastMCP' object is not callable
+INFO:     127.0.0.1:34036 - "GET / HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp_venv/lib/python3.13/site-packages/uvicorn/protocols/http/h11_impl.py", line 403, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp_venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/proxyie/MySoftware/RedBarSushiAI/mcp_venv/lib/python3.13/site-packages/uvicorn/middleware/asgi2.py", line 14, in __call__
+    instance = self.app(scope)
+TypeError: 'FastMCP' object is not callable
+INFO:     127.0.0.1:34040 - "GET /favicon.ico HTTP/1.1" 500 Internal Server Error
+2025-05-06 01:12:38,701 - redbarsushi_mcp - INFO - Docker client initialized successfully
+2025-05-06 01:12:38,715 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:4243
+2025-05-06 01:12:38,715 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-05-06 01:12:38,716 - werkzeug - INFO -  * Restarting with stat
+2025-05-06 01:12:38,895 - redbarsushi_mcp - INFO - Docker client initialized successfully
+2025-05-06 01:12:38,900 - werkzeug - WARNING -  * Debugger is active!
+2025-05-06 01:12:38,900 - werkzeug - INFO -  * Debugger PIN: 475-379-392
+2025-05-06 01:12:59,967 - werkzeug - INFO - 127.0.0.1 - - [06/May/2025 01:12:59] "GET /mcp HTTP/1.1" 200 -
+2025-05-06 01:26:29,257 - werkzeug - INFO -  * Detected change in '/home/proxyie/MySoftware/RedBarSushiAI/mcp/redbarsushi_mcp.py', reloading
+2025-05-06 01:26:29,305 - werkzeug - INFO -  * Restarting with stat
+2025-05-06 01:26:29,809 - redbarsushi_mcp - INFO - Docker client initialized successfully
+2025-05-06 01:26:29,816 - redbarsushi_mcp - INFO - Starting RedBarSushi MCP Server
+2025-05-06 01:28:20,871 - redbarsushi_mcp - INFO - Docker client initialized successfully
+2025-05-06 01:28:20,876 - redbarsushi_mcp - INFO - Starting RedBarSushi MCP Server
+2025-05-06 01:28:32,690 - redbarsushi_mcp - INFO - Docker client initialized successfully
+2025-05-06 01:28:32,695 - redbarsushi_mcp - INFO - Starting RedBarSushi MCP Server
+2025-05-06 01:28:32,699 - redbarsushi_mcp - WARNING - Redis connection failed: Error 111 connecting to localhost:16379. Connection refused.
+2025-05-06 01:28:32,725 - redbarsushi_mcp - WARNING - Database connection failed: (psycopg2.OperationalError) connection to server at "localhost" (127.0.0.1), port 15432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+(Background on this error at: https://sqlalche.me/e/14/e3q8)
+2025-05-06 01:30:11,142 - redbarsushi_mcp - INFO - Docker client initialized successfully
+2025-05-06 01:30:11,148 - redbarsushi_mcp - INFO - Starting RedBarSushi MCP Server with sse transport
+2025-05-06 01:32:40,410 - redbarsushi_mcp - INFO - Docker client initialized successfully
+2025-05-06 01:32:40,414 - redbarsushi_mcp - INFO - Starting RedBarSushi MCP Server with sse transport on 127.0.0.1:4243
+2025-05-06 01:33:01,852 - redbarsushi_mcp - INFO - Docker client initialized successfully
+2025-05-06 01:33:01,857 - redbarsushi_mcp - INFO - Starting RedBarSushi MCP Server with sse transport on 127.0.0.1:4243

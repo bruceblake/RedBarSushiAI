@@ -3,16 +3,16 @@
 
 # Set up variables
 PROJECT_PATH="/home/proxyie/MySoftware/RedBarSushiAI"
-MCP_SERVER_PATH="${PROJECT_PATH}/mcp/basic_mcp_server.py"
+MCP_SERVER_PATH="${PROJECT_PATH}/mcp/src/redbarsushi_mcp.py"
 CONFIG_FILE="$HOME/.claude.json"
-MCP_NAME="redbarsushi-test"
+MCP_NAME="redbarsushi-mcp"
 
-# Make sure simple_mcp_server.py is executable
+# Make sure redbarsushi_mcp.py is executable
 chmod +x ${MCP_SERVER_PATH}
 
 # Kill any existing MCP server processes
 echo "Killing any existing MCP server processes..."
-pkill -f "python.*mcp/simple_mcp_server.py" || true
+pkill -f "python.*mcp/src/redbarsushi_mcp.py" || true
 
 # Check if Docker is running
 if ! docker ps > /dev/null 2>&1; then
@@ -26,7 +26,7 @@ echo "Updating MCP server configuration..."
 TMP_FILE=$(mktemp)
 
 # Update the MCP server configuration
-jq --arg server_path "$MCP_SERVER_PATH" --arg project_path "$PROJECT_PATH" '.projects[$project_path].mcpServers."redbarsushi-test".command = $server_path' "$CONFIG_FILE" > "$TMP_FILE"
+jq --arg server_path "$MCP_SERVER_PATH" --arg project_path "$PROJECT_PATH" '.projects[$project_path].mcpServers."redbarsushi-mcp".command = $server_path' "$CONFIG_FILE" > "$TMP_FILE"
 
 # Check if the jq command succeeded
 if [ $? -ne 0 ]; then
@@ -38,9 +38,9 @@ fi
 # Move the temporary file to the original file
 mv "$TMP_FILE" "$CONFIG_FILE"
 
-# Start the MCP server
-echo "Starting MCP server..."
-nohup python3 ${MCP_SERVER_PATH} > ${PROJECT_PATH}/mcp_server.log 2>&1 &
+# Start the MCP server with SSE transport
+echo "Starting MCP server with SSE transport..."
+PORT=4244 TRANSPORT=sse nohup ${PROJECT_PATH}/mcp_venv/bin/python ${MCP_SERVER_PATH} > ${PROJECT_PATH}/mcp_server.log 2>&1 &
 PID=$!
 
 # Wait a moment to see if the server stays up
@@ -65,4 +65,4 @@ echo "  /mcp run_test test_type=\"full_order\""
 echo "  /mcp run_test test_type=\"all\""
 echo ""
 echo "To stop the MCP server:"
-echo "  pkill -f \"python.*mcp/simple_mcp_server.py\""
+echo "  pkill -f \"python.*mcp/src/redbarsushi_mcp.py\""
