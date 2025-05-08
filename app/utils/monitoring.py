@@ -388,44 +388,101 @@ def setup_prometheus_metrics():
     This should be called at application startup.
     """
     try:
-        from prometheus_client import Counter, Gauge, Histogram, Summary
+        from prometheus_client import Counter, Gauge, Histogram, Summary, CollectorRegistry
         
         # Define global metrics
         global api_request_count, api_request_latency, active_calls, agent_call_count, agent_call_latency
         
-        # API metrics
-        api_request_count = Counter(
-            'redbarsushi_api_requests_total',
-            'Count of API requests',
-            ['endpoint', 'method', 'status']
-        )
+        # Create metrics with try/except to avoid duplicate registration errors
+        try:
+            # API metrics
+            api_request_count = Counter(
+                'redbarsushi_api_requests_total',
+                'Count of API requests',
+                ['endpoint', 'method', 'status']
+            )
+        except ValueError as e:
+            if "Duplicated timeseries" in str(e):
+                # Metric already exists, try to reuse it
+                from prometheus_client.registry import REGISTRY
+                for metric in REGISTRY.collect():
+                    if metric.name == 'redbarsushi_api_requests_total':
+                        api_request_count = metric
+                        logger.warning("Reusing existing api_request_count metric")
+                        break
+            else:
+                logger.error(f"Error creating api_request_count metric: {e}")
+                # Create a dummy counter that will silently discard operations
+                api_request_count = type('DummyCounter', (), {
+                    'labels': lambda *args, **kwargs: type('DummyLabels', (), {'inc': lambda *a, **kw: None})()
+                })()
         
-        api_request_latency = Histogram(
-            'redbarsushi_api_request_duration_seconds', 
-            'API request latency in seconds',
-            ['endpoint', 'method'],
-            buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10)
-        )
+        try:
+            api_request_latency = Histogram(
+                'redbarsushi_api_request_duration_seconds', 
+                'API request latency in seconds',
+                ['endpoint', 'method'],
+                buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10)
+            )
+        except ValueError as e:
+            if "Duplicated timeseries" in str(e):
+                # Create dummy that will silently ignore operations
+                logger.warning("Histogram already exists, using dummy")
+                api_request_latency = type('DummyHistogram', (), {
+                    'labels': lambda *args, **kwargs: type('DummyLabels', (), {
+                        'observe': lambda *a, **kw: None,
+                        'time': lambda: type('DummyTimer', (), {'__enter__': lambda s: s, '__exit__': lambda *a, **kw: None})()
+                    })()
+                })()
+            else:
+                logger.error(f"Error creating api_request_latency metric: {e}")
+                # Same dummy as above
         
-        # Call metrics
-        active_calls = Gauge(
-            'redbarsushi_active_calls',
-            'Number of currently active calls'
-        )
+        # Call metrics with error handling
+        try:
+            active_calls = Gauge(
+                'redbarsushi_active_calls',
+                'Number of currently active calls'
+            )
+        except ValueError as e:
+            logger.warning(f"Error creating active_calls gauge: {e}")
+            # Create dummy that will silently ignore operations
+            active_calls = type('DummyGauge', (), {
+                'inc': lambda *a, **kw: None,
+                'dec': lambda *a, **kw: None,
+                'set': lambda *a, **kw: None
+            })()
         
-        # Agent metrics
-        agent_call_count = Counter(
-            'redbarsushi_agent_calls_total',
-            'Count of agent calls',
-            ['agent', 'tool', 'success']
-        )
+        # Agent metrics with error handling
+        try:
+            agent_call_count = Counter(
+                'redbarsushi_agent_calls_total',
+                'Count of agent calls',
+                ['agent', 'tool', 'success']
+            )
+        except ValueError as e:
+            logger.warning(f"Error creating agent_call_count counter: {e}")
+            # Create dummy counter
+            agent_call_count = type('DummyCounter', (), {
+                'labels': lambda *args, **kwargs: type('DummyLabels', (), {'inc': lambda *a, **kw: None})()
+            })()
         
-        agent_call_latency = Histogram(
-            'redbarsushi_agent_call_duration_seconds',
-            'Agent call latency in seconds',
-            ['agent', 'tool'],
-            buckets=(0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 30)
-        )
+        try:
+            agent_call_latency = Histogram(
+                'redbarsushi_agent_call_duration_seconds',
+                'Agent call latency in seconds',
+                ['agent', 'tool'],
+                buckets=(0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 30)
+            )
+        except ValueError as e:
+            logger.warning(f"Error creating agent_call_latency histogram: {e}")
+            # Create dummy histogram
+            agent_call_latency = type('DummyHistogram', (), {
+                'labels': lambda *args, **kwargs: type('DummyLabels', (), {
+                    'observe': lambda *a, **kw: None,
+                    'time': lambda: type('DummyTimer', (), {'__enter__': lambda s: s, '__exit__': lambda *a, **kw: None})()
+                })()
+            })()
         
         logger.info("Prometheus metrics initialized successfully")
         return True

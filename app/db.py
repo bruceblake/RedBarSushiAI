@@ -13,6 +13,7 @@ from app import db as _db
 from flask import current_app, has_app_context
 import logging
 from typing import Optional, Any
+from sqlalchemy.dialects.postgresql import JSONB as PostgresJSONB
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -29,7 +30,8 @@ DateTime = _db.DateTime
 Float = _db.Float
 ForeignKey = _db.ForeignKey
 Table = _db.Table
-JSONB = _db.JSONB
+# Import JSONB directly from sqlalchemy.dialects.postgresql
+JSONB = PostgresJSONB
 
 # Re-export init_app function
 init_app = _db.init_app

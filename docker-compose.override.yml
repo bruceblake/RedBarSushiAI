@@ -1,0 +1,16 @@
+services:
+  app:
+    environment:
+      - OPENAI_API_KEY=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
+      - TWILIO_ACCOUNT_SID=ACb8391ed8d92871d85180ca9adea481b6
+      - TWILIO_AUTH_TOKEN=8bbdc0c60316d163ee36c58af5f35154
+      - TWILIO_PHONE_NUMBER=+17036467799
+      - DELIVERECT_CHANNEL_NAME=redbarsushi
+      - DELIVERECT_API_KEY=your_deliverect_api_key_here
+      - DELIVERECT_BASE_URL=https://api.staging.deliverect.com
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - LOG_LEVEL=DEBUG
+      - VOICE_HANDLER=realtime
+      - FORCE_HEADLESS=true
+      - IS_STAGING=true

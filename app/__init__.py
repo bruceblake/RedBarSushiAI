@@ -616,7 +616,12 @@ def create_app(test_config=None):
     # Add database connection cleanup to prevent memory leaks
     @app.teardown_appcontext
     def cleanup_db_resources(exception=None):
-        if hasattr(db, 'session'):
-            db.session.close()
+        # Use get_session() instead of accessing the descriptor directly
+        session = db.get_session() if hasattr(db, 'get_session') else None
+        if session is not None:
+            session.close()
+        # Alternatively, use the teardown handler that SQLAlchemy already provides
+        if hasattr(db, 'remove'):
+            db.remove()
 
     return app

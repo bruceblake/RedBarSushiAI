@@ -8,10 +8,15 @@ import uuid
 import base64
 import traceback
 import time
-from typing import Dict, Any, Optional, AsyncGenerator
+from typing import Dict, Any, Optional, AsyncGenerator, Generator
 
 # Import WebSocket libraries
 import websockets
+
+# Import gevent for sync implementation
+import gevent
+from gevent.queue import Queue, Empty
+from gevent.event import Event
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -770,8 +775,295 @@ class RealtimeAudioProcessor:
             logger.error(traceback.format_exc())
             return False
 
+# Add a synchronous version of the processor
+class SyncRealtimeAudioProcessor:
+    """Synchronous wrapper for RealtimeAudioProcessor using gevent."""
+    
+    def __init__(self):
+        """Initialize the synchronous processor."""
+        self.api_key = OPENAI_API_KEY
+        self.openai_client = True  # Simple flag for health check
+    
+    def process_realtime_session_sync(self, session_id, audio_generator, content_type="audio/mulaw"):
+        """
+        Process a real-time session with streaming audio synchronously using gevent.
+        
+        Args:
+            session_id: The session ID
+            audio_generator: Generator yielding audio chunks
+            content_type: Audio content type (usually mulaw for Twilio)
+            
+        Yields:
+            Dict containing events from the Realtime session
+        """
+        import websocket  # gevent-compatible websocket-client library
+        
+        logger.info(f"==== STARTING SYNC REALTIME SESSION - SESSION ID: {session_id} ====")
+        
+        # Create WebSocket connection
+        ws_url = f"wss://api.openai.com/v1/realtime"
+        
+        # Configure session
+        session_config = {
+            "type": "session.update",
+            "session": {
+                "model": "gpt-4o-realtime-preview-2024-10-01",
+                "instructions": "You are an AI assistant for Red Bar Sushi restaurant. Help customers with their orders and questions.",
+                "voice": "shimmer",
+                "input_audio_format": "g711_ulaw" if "mulaw" in content_type or "ulaw" in content_type else "pcm16",
+                "output_audio_format": "g711_ulaw" if "mulaw" in content_type or "ulaw" in content_type else "pcm16",
+                "sample_rate_hz": 8000 if "mulaw" in content_type or "ulaw" in content_type else 16000,
+                "modalities": ["text", "audio"],
+                "audio_output_enabled": True,
+                "turn_detection": {
+                    "type": "server_vad",
+                    "enabled": True
+                }
+            }
+        }
+        
+        # Create WebSocket connection
+        try:
+            # Setup connection
+            ws = websocket.create_connection(
+                ws_url,
+                header=[
+                    f"Authorization: Bearer {self.api_key}",
+                    "OpenAI-Beta: realtime=v1",
+                    "Content-Type: application/json"
+                ]
+            )
+            
+            # Send session config
+            ws.send(json.dumps(session_config))
+            logger.info(f"Connected to OpenAI and sent session config")
+            
+            # Create a queue for events
+            event_queue = Queue()
+            
+            # Create a stop event
+            stop_event = Event()
+            
+            # Create a greenlet to receive events from OpenAI
+            def receive_events():
+                while not stop_event.is_set():
+                    try:
+                        message = ws.recv()
+                        if message:
+                            event = json.loads(message)
+                            event_queue.put(event)
+                    except websocket.WebSocketConnectionClosedException:
+                        logger.error("WebSocket connection closed")
+                        stop_event.set()
+                        break
+                    except Exception as e:
+                        logger.error(f"Error receiving events: {e}")
+                        gevent.sleep(0.1)
+            
+            # Create a greenlet to send audio chunks
+            def send_audio_chunks():
+                chunks_sent = 0
+                
+                try:
+                    for chunk in audio_generator:
+                        if stop_event.is_set():
+                            break
+                            
+                        if isinstance(chunk, bytes):
+                            # Encode as base64
+                            base64_audio = base64.b64encode(chunk).decode("utf-8")
+                            
+                            # Send to the Realtime API
+                            ws.send(json.dumps({
+                                "type": "input_audio_buffer.append",
+                                "audio": base64_audio
+                            }))
+                            
+                            chunks_sent += 1
+                            
+                            # Log progress
+                            if chunks_sent % 10 == 0:
+                                logger.debug(f"Sent {chunks_sent} audio chunks")
+                        
+                        # Small sleep to avoid overwhelming the socket
+                        gevent.sleep(0.01)
+                    
+                    # Signal end of audio
+                    if not stop_event.is_set():
+                        ws.send(json.dumps({"type": "input_audio_buffer.finalize"}))
+                        logger.info(f"Finalized audio buffer after sending {chunks_sent} chunks")
+                except Exception as e:
+                    logger.error(f"Error sending audio chunks: {e}")
+                    logger.error(traceback.format_exc())
+                    stop_event.set()
+            
+            # Start the event receiver greenlet
+            receiver = gevent.spawn(receive_events)
+            
+            # Start the audio sender greenlet
+            sender = gevent.spawn(send_audio_chunks)
+            
+            # Process events
+            try:
+                while not stop_event.is_set():
+                    try:
+                        event = event_queue.get(timeout=1)
+                        
+                        # Event filtering logic (similar to async version)
+                        event_type = event.get("type", "")
+                        
+                        # Transform event for client (simplified)
+                        transformed_event = None
+                        
+                        if event_type == "response.audio_transcript.delta":
+                            transformed_event = {
+                                "type": "transcript",
+                                "text": event.get("delta", ""),
+                                "final": False,
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "response.audio_transcript.done":
+                            transformed_event = {
+                                "type": "transcript_complete",
+                                "text": event.get("text", ""),
+                                "final": True,
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "response.text.delta":
+                            transformed_event = {
+                                "type": "message",
+                                "text": event.get("delta", ""),
+                                "complete": False,
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "response.text.done":
+                            transformed_event = {
+                                "type": "message_complete",
+                                "text": event.get("text", ""),
+                                "complete": True,
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "response.audio.delta":
+                            transformed_event = {
+                                "type": "audio",
+                                "data": event.get("delta", ""),
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "response.audio.done":
+                            transformed_event = {
+                                "type": "audio_complete",
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "tool_call":
+                            transformed_event = {
+                                "type": "tool_call",
+                                "name": event.get("name", ""),
+                                "arguments": event.get("arguments", {}),
+                                "id": event.get("id", ""),
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "speech.started":
+                            transformed_event = {
+                                "type": "speech_started",
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "speech.finished":
+                            transformed_event = {
+                                "type": "speech_finished",
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "silence_detected":
+                            transformed_event = {
+                                "type": "silence_detected",
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type == "error" or "error" in event:
+                            error_msg = event.get("message", event.get("error", "Unknown error"))
+                            logger.error(f"Error event: {error_msg}")
+                            transformed_event = {
+                                "type": "error",
+                                "error": error_msg,
+                                "timestamp": time.time()
+                            }
+                        
+                        elif event_type in ["session.success", "session.created", "session.stopped", "rate_limits.updated"]:
+                            # Log but don't yield these event types
+                            logger.info(f"Received event: {event_type}")
+                        
+                        # Yield the transformed event
+                        if transformed_event:
+                            yield transformed_event
+                    
+                    except Empty:
+                        # No events in queue, check if sender is done
+                        if not sender.alive:
+                            logger.info("Audio sender completed, checking for final events")
+                            # Give a bit more time for final events
+                            try:
+                                for _ in range(10):
+                                    if not event_queue.empty():
+                                        break
+                                    gevent.sleep(0.5)
+                                else:
+                                    logger.info("No more events after waiting, stopping")
+                                    break
+                            except:
+                                break
+                    
+                    except Exception as e:
+                        logger.error(f"Error processing events: {e}")
+                        logger.error(traceback.format_exc())
+                        yield {
+                            "type": "error",
+                            "error": f"Error processing events: {str(e)}",
+                            "timestamp": time.time()
+                        }
+                        gevent.sleep(0.1)
+            
+            finally:
+                # Signal stop
+                stop_event.set()
+                
+                # Clean up
+                if receiver and not receiver.dead:
+                    gevent.kill(receiver)
+                
+                if sender and not sender.dead:
+                    gevent.kill(sender)
+                
+                # Close WebSocket connection
+                try:
+                    ws.close()
+                    logger.info("WebSocket connection closed")
+                except:
+                    pass
+        
+        except Exception as e:
+            logger.error(f"Error in process_realtime_session_sync: {e}")
+            logger.error(traceback.format_exc())
+            yield {
+                "type": "error",
+                "error": f"Error in realtime session: {str(e)}",
+                "timestamp": time.time()
+            }
+        
+        logger.info(f"==== SYNC REALTIME SESSION COMPLETE - SESSION ID: {session_id} ====")
+
 # Create a global instance of the processor
 realtime_processor = RealtimeAudioProcessor()
+
+# Create a global instance of the sync processor
+sync_realtime_processor = SyncRealtimeAudioProcessor()
 
 # Function to create a processor (kept for backward compatibility)
 def get_realtime_processor():

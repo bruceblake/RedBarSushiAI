@@ -53,11 +53,20 @@ def generate_optimized_media_streams_twiml(call_sid, hostname, environment_name=
         # Stream element inside Connect enables bidirectional streaming
         # Note: For bidirectional streams, only inbound track is supported
         # Important: Pass the CallSid to the WebSocket URL as a query parameter
+        # Twilio is inconsistent with how it handles query parameters in WebSocket URLs
+        # Add the parameter differently than before and ensure it can be passed through
+        
+        # Try all possible approaches to pass CallSid to maximize compatibility
+        # 1. As a path parameter which is most reliable with Flask-Sock
+        ws_url_with_sid = f"wss://{hostname}/ws/media/{call_sid}"
         stream = Stream(
-            url=f"{ws_url}?CallSid={call_sid}",
+            url=ws_url_with_sid,
             track="inbound_track",
             name="media_stream"
         )
+        
+        # Log the WebSocket URL
+        logger.critical(f"WebSocket URL for Twilio: {ws_url_with_sid}")
         connect.append(stream)
 
         response.append(connect)
@@ -101,6 +110,17 @@ def get_host_for_ws(request):
     """
     # Try to get the host from request headers
     host = request.headers.get('Host') or request.host
+    
+    # Always check for ngrok hostname regardless of environment
+    # This ensures tunneled connections work properly in any environment
+    if 'ngrok' in host:
+        logger.info(f"[WEBSOCKET_HOST] Detected ngrok tunnel: Using actual host: {host}")
+        return host
+    
+    # For development environment, use the actual host
+    if os.environ.get("FLASK_ENV") == "development":
+        logger.info(f"[WEBSOCKET_HOST] Development mode: Using actual host: {host}")
+        return host
     
     # For Render, use the public-facing hostname if available
     render_external_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME")

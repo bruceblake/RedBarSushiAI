@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 """
-WSGI entry point for the RedBarSushiAI project.
-This file is used by Render and other WSGI-compatible servers.
+WSGI and ASGI entry point for the RedBarSushiAI project.
+This file is used by Render and other WSGI/ASGI-compatible servers.
 """
+
+# Apply gevent monkey patching BEFORE any imports to ensure all standard library calls are patched
+try:
+    import gevent.monkey
+    gevent.monkey.patch_all()
+    print("Applied gevent monkey patching")
+except ImportError:
+    print("Gevent not installed, WebSocket functionality will be limited")
+
+# Continue with standard imports after patching
 import os
 import logging
 import sys
@@ -30,13 +40,20 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
 )
 
-# Create application instance
+# Create application instance AFTER gevent monkey patching
 from app import create_app
 
 application = create_app()
 
 # For compatibility with different WSGI servers
 app = application
+
+# We're using gevent directly with Flask-Sock as per Flask-Sock docs
+# No need for ASGI compatibility layer since we're using WSGI with gevent
+logging.info("Using gevent worker with Flask-Sock for WebSocket support")
+
+# Export the Flask app directly for Gunicorn with gevent worker
+__all__ = ['app', 'application']
 
 if __name__ == "__main__":
     # This will only run when directly executing this file (not via WSGI server)

@@ -4,11 +4,61 @@ These models are used to store menu data in a relational database.
 """
 
 import json
+import logging
 from datetime import datetime
 from app import db
 from app.models.base import TimestampMixin
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import event, inspect, Text
 from sqlalchemy.ext.mutable import MutableDict
+
+# Set up logger
+logger = logging.getLogger(__name__)
+
+# Safely import JSONB with fallback
+try:
+    from sqlalchemy.dialects.postgresql import JSONB
+    logger.info("Imported JSONB directly from sqlalchemy.dialects.postgresql")
+except ImportError:
+    # If JSONB is not available, use our helper
+    try:
+        from app.utils.db_helpers import get_jsonb_type
+        JSONB = get_jsonb_type()
+        logger.info(f"Using JSONB from db_helpers: {JSONB.__name__}")
+    except ImportError:
+        # Ultimate fallback
+        logger.warning("Failed to import JSONB, using Text as fallback")
+        JSONB = Text
+
+# Default to JSON text storage
+USE_JSONB = False
+
+# Function to determine if we're using PostgreSQL
+def is_postgresql():
+    try:
+        # Try to determine if we're using PostgreSQL
+        dialect = db.engine.dialect.name
+        return dialect == 'postgresql'
+    except Exception as e:
+        logger.warning(f"Could not determine database dialect: {e}")
+        return False
+
+# Create a JSONB property function
+def get_jsonb_column():
+    """Get the appropriate column type based on database dialect"""
+    if is_postgresql():
+        logger.info("Using PostgreSQL JSONB for properties column")
+        return MutableDict.as_mutable(JSONB)
+    else:
+        logger.info("Using Text for properties column (non-PostgreSQL database)")
+        return Text
+
+# Function to get the appropriate default value
+def get_default_value():
+    """Get the appropriate default value based on database dialect"""
+    if is_postgresql():
+        return dict
+    else:
+        return lambda: '{}'
 
 
 class MenuItem(db.Model, TimestampMixin):
@@ -37,7 +87,7 @@ class MenuItem(db.Model, TimestampMixin):
     # Snooze time settings
     snooze_start = db.Column(db.DateTime, nullable=True)
     snooze_end = db.Column(db.DateTime, nullable=True)
-    snooze_until = db.Column(db.DateTime, nullable=True)
+    snoozed_until = db.Column(db.DateTime, nullable=True)
 
     # Metadata is now provided by TimestampMixin
 
@@ -45,15 +95,11 @@ class MenuItem(db.Model, TimestampMixin):
     location_id = db.Column(db.String(36), nullable=True)
 
     # Store additional properties as JSON
-    # Use JSONB if PostgreSQL, otherwise fallback to JSON text storage
-    try:
-        # For PostgreSQL
-        properties = db.Column(
-            MutableDict.as_mutable(JSONB), nullable=True, default=dict()
-        )
-    except:
-        # For SQLite or other databases without JSONB
-        properties = db.Column(db.Text, nullable=True)
+    properties = db.Column(
+        get_jsonb_column(),
+        nullable=True,
+        default=get_default_value()
+    )
 
     # One-to-many relationship with modifier groups
     modifier_groups = db.relationship(
@@ -82,23 +128,27 @@ class MenuItem(db.Model, TimestampMixin):
 
         # Add properties from JSON field
         if self.properties:
-            if isinstance(self.properties, str):
-                try:
+            try:
+                # Handle string or dict properties correctly
+                if isinstance(self.properties, str):
                     props = json.loads(self.properties)
                     result.update(props)
-                except:
-                    pass
-            else:
-                # Already a dict
-                result.update(self.properties)
+                elif isinstance(self.properties, dict):
+                    # Already a dict (JSONB)
+                    result.update(self.properties)
+                else:
+                    # Log for debugging
+                    logger.warning(f"Unhandled properties type: {type(self.properties)}")
+            except Exception as e:
+                logger.error(f"Error processing properties in to_dict: {e}")
 
         # Format dates if present
         if self.snooze_start:
             result["snoozeStart"] = self.snooze_start.isoformat()
         if self.snooze_end:
             result["snoozeEnd"] = self.snooze_end.isoformat()
-        if self.snooze_until:
-            result["snoozeUntil"] = self.snooze_until.isoformat()
+        if self.snoozed_until:
+            result["snoozeUntil"] = self.snoozed_until.isoformat()
 
         return result
 
@@ -153,7 +203,7 @@ class MenuItem(db.Model, TimestampMixin):
         snooze_until = data.get("snoozeUntil")
         if snooze_until:
             try:
-                item.snooze_until = datetime.fromisoformat(
+                item.snoozed_until = datetime.fromisoformat(
                     snooze_until.replace("Z", "+00:00")
                 )
             except:
@@ -183,20 +233,12 @@ class MenuItem(db.Model, TimestampMixin):
             ]:
                 properties[key] = value
 
-        # If we have PostgreSQL with JSONB
-        try:
-            if (
-                hasattr(cls, "properties")
-                and hasattr(getattr(cls, "properties"), "type")
-                and hasattr(getattr(cls, "properties").type, "python_type")
-                and getattr(cls, "properties").type.python_type == dict
-            ):
-                item.properties = properties
-            else:
-                # Fallback to JSON text for other databases
-                item.properties = json.dumps(properties)
-        except (AttributeError, TypeError):
-            # If any attribute checks fail, just use JSON as fallback
+        # Set properties based on database dialect
+        if is_postgresql():
+            # Use dict directly for JSONB
+            item.properties = properties
+        else:
+            # Use JSON string for text column
             item.properties = json.dumps(properties)
 
         return item
@@ -217,6 +259,7 @@ class MenuModifier(db.Model, TimestampMixin):
 
     # Status flags
     available = db.Column(db.Boolean, default=True)
+    snoozed_until = db.Column(db.DateTime, nullable=True)
 
     # Metadata is now provided by TimestampMixin
 
@@ -224,14 +267,11 @@ class MenuModifier(db.Model, TimestampMixin):
     location_id = db.Column(db.String(36), nullable=True)
 
     # Store additional properties as JSON
-    try:
-        # For PostgreSQL
-        properties = db.Column(
-            MutableDict.as_mutable(JSONB), nullable=True, default=dict()
-        )
-    except:
-        # For SQLite or other databases without JSONB
-        properties = db.Column(db.Text, nullable=True)
+    properties = db.Column(
+        get_jsonb_column(),
+        nullable=True,
+        default=get_default_value()
+    )
 
     def __repr__(self):
         return f"<MenuModifier {self.name}>"
@@ -245,18 +285,26 @@ class MenuModifier(db.Model, TimestampMixin):
             "price": self.price,
             "available": self.available,
         }
+        
+        # Format dates if present
+        if self.snoozed_until:
+            result["snoozeUntil"] = self.snoozed_until.isoformat()
 
         # Add properties from JSON field
         if self.properties:
-            if isinstance(self.properties, str):
-                try:
+            try:
+                # Handle string or dict properties correctly
+                if isinstance(self.properties, str):
                     props = json.loads(self.properties)
                     result.update(props)
-                except:
-                    pass
-            else:
-                # Already a dict
-                result.update(self.properties)
+                elif isinstance(self.properties, dict):
+                    # Already a dict (JSONB)
+                    result.update(self.properties)
+                else:
+                    # Log for debugging
+                    logger.warning(f"Unhandled properties type: {type(self.properties)}")
+            except Exception as e:
+                logger.error(f"Error processing properties in to_dict: {e}")
 
         return result
 
@@ -281,6 +329,16 @@ class MenuModifier(db.Model, TimestampMixin):
             available=data.get("available", True),
             location_id=data.get("location_id"),
         )
+        
+        # Process date fields
+        snooze_until = data.get("snoozeUntil")
+        if snooze_until:
+            try:
+                modifier.snoozed_until = datetime.fromisoformat(
+                    snooze_until.replace("Z", "+00:00")
+                )
+            except:
+                pass
 
         # Store additional properties
         properties = {}
@@ -293,23 +351,16 @@ class MenuModifier(db.Model, TimestampMixin):
                 "available",
                 "location_id",
                 "id",
+                "snoozeUntil",
             ]:
                 properties[key] = value
 
-        # If we have PostgreSQL with JSONB
-        try:
-            if (
-                hasattr(cls, "properties")
-                and hasattr(getattr(cls, "properties"), "type")
-                and hasattr(getattr(cls, "properties").type, "python_type")
-                and getattr(cls, "properties").type.python_type == dict
-            ):
-                modifier.properties = properties
-            else:
-                # Fallback to JSON text for other databases
-                modifier.properties = json.dumps(properties)
-        except (AttributeError, TypeError):
-            # If any attribute checks fail, just use JSON as fallback
+        # Set properties based on database dialect
+        if is_postgresql():
+            # Use dict directly for JSONB
+            modifier.properties = properties
+        else:
+            # Use JSON string for text column
             modifier.properties = json.dumps(properties)
 
         return modifier
@@ -341,14 +392,11 @@ class MenuModifierGroup(db.Model, TimestampMixin):
     location_id = db.Column(db.String(36), nullable=True)
 
     # Store additional properties as JSON
-    try:
-        # For PostgreSQL
-        properties = db.Column(
-            MutableDict.as_mutable(JSONB), nullable=True, default=dict()
-        )
-    except:
-        # For SQLite or other databases without JSONB
-        properties = db.Column(db.Text, nullable=True)
+    properties = db.Column(
+        get_jsonb_column(),
+        nullable=True,
+        default=get_default_value()
+    )
 
     # Many-to-many relationship with modifiers
     modifiers = db.relationship(
@@ -373,15 +421,19 @@ class MenuModifierGroup(db.Model, TimestampMixin):
 
         # Add properties from JSON field
         if self.properties:
-            if isinstance(self.properties, str):
-                try:
+            try:
+                # Handle string or dict properties correctly
+                if isinstance(self.properties, str):
                     props = json.loads(self.properties)
                     result.update(props)
-                except:
-                    pass
-            else:
-                # Already a dict
-                result.update(self.properties)
+                elif isinstance(self.properties, dict):
+                    # Already a dict (JSONB)
+                    result.update(self.properties)
+                else:
+                    # Log for debugging
+                    logger.warning(f"Unhandled properties type: {type(self.properties)}")
+            except Exception as e:
+                logger.error(f"Error processing properties in to_dict: {e}")
 
         return result
 
@@ -426,20 +478,12 @@ class MenuModifierGroup(db.Model, TimestampMixin):
             ]:
                 properties[key] = value
 
-        # If we have PostgreSQL with JSONB
-        try:
-            if (
-                hasattr(cls, "properties")
-                and hasattr(getattr(cls, "properties"), "type")
-                and hasattr(getattr(cls, "properties").type, "python_type")
-                and getattr(cls, "properties").type.python_type == dict
-            ):
-                group.properties = properties
-            else:
-                # Fallback to JSON text for other databases
-                group.properties = json.dumps(properties)
-        except (AttributeError, TypeError):
-            # If any attribute checks fail, just use JSON as fallback
+        # Set properties based on database dialect
+        if is_postgresql():
+            # Use dict directly for JSONB
+            group.properties = properties
+        else:
+            # Use JSON string for text column
             group.properties = json.dumps(properties)
 
         return group

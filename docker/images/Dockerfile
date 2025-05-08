@@ -77,8 +77,8 @@ RUN set -e; \
         fi; \
     fi;
 
-# Ensure the critical WebSocket packages are installed
-RUN pip install --no-cache-dir --upgrade flask-sock==0.7.0 gevent-websocket==0.10.1 pyaudio==0.2.14
+# Ensure the critical WebSocket and ASGI packages are installed
+RUN pip install --no-cache-dir --upgrade flask-sock==0.7.0 uvicorn==0.34.0 websocket-client==1.7.0 pyaudio==0.2.14
 
 # Dependencies are already installed in previous step
 
@@ -118,5 +118,5 @@ EXPOSE 8080
 # Use our entrypoint script
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
-# Use gevent-websocket worker for WebSocket support
-CMD ["gunicorn", "-k", "geventwebsocket.gunicorn.workers.GeventWebSocketWorker", "-w", "2", "--bind", "0.0.0.0:8080", "--timeout", "120", "--log-level", "info"]
+# Use gevent worker for WebSocket support (required by Flask-Sock)
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-k", "gevent", "-w", "4", "--worker-connections", "1000", "--bind", "0.0.0.0:8080", "--timeout", "120", "--log-level", "info", "wsgi:app"]
