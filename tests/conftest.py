@@ -7,6 +7,7 @@ import pytest
 import os
 import json
 import asyncio
+import requests
 from unittest.mock import patch, MagicMock, AsyncMock
 
 # Set testing environment variables
@@ -14,6 +15,138 @@ os.environ["TESTING"] = "True"
 os.environ["FLASK_ENV"] = "testing"
 os.environ["NO_X11"] = "1"  # Disable X11 requirement for headless testing
 os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"  # Disable display for OpenAI Realtime
+
+# MCP server endpoint configuration
+MCP_PORT = os.environ.get("MCP_PORT", "4244")
+
+# Different MCP URLs depending on the context
+# 1. If running on host machine
+HOST_MCP_URL = f"http://localhost:{MCP_PORT}/sse"
+# 2. If running inside container in same Docker network
+CONTAINER_MCP_URL = f"http://redbarsushi_mcp:{MCP_PORT}/sse"
+# 3. If running in arbitrary container that needs to call back to host
+HOST_DOCKER_INTERNAL_MCP_URL = f"http://host.docker.internal:{MCP_PORT}/sse"
+
+# Detect environment to determine which URL to use
+# If we're running inside a container, we should use CONTAINER_MCP_URL
+in_container = os.environ.get("RUNNING_IN_CONTAINER", "false").lower() == "true"
+
+if in_container:
+    # Use container-to-container address if we're in a container
+    MCP_URL = CONTAINER_MCP_URL
+    print(f"Running inside container, using MCP URL: {MCP_URL}")
+else:
+    # Use localhost if we're on the host
+    MCP_URL = HOST_MCP_URL
+    print(f"Running on host, using MCP URL: {MCP_URL}")
+
+# Use MCP_WORKING_URL if set (this is set by test_mcp_connectivity.py when it finds a working URL)
+if "MCP_WORKING_URL" in os.environ:
+    MCP_URL = f"{os.environ['MCP_WORKING_URL']}/sse"
+    print(f"Using previously verified working MCP URL: {MCP_URL}")
+
+# Helper function to invoke MCP tools
+def mcp_call(method, params=None):
+    """Call an MCP tool via the SSE API"""
+    # Prepare the tool call payload
+    tool_call = {
+        "name": method,
+        "arguments": params or {}
+    }
+    
+    # Convert to query parameter
+    import urllib.parse
+    encoded_tool_call = urllib.parse.quote(json.dumps(tool_call))
+    
+    # Build URL with tool call
+    sse_url = f"{MCP_URL}?tool_call={encoded_tool_call}"
+    
+    try:
+        # Make request with streaming
+        response = requests.get(sse_url, stream=True, timeout=15)
+        response.raise_for_status()
+        
+        # Process SSE events
+        result = None
+        
+        for line in response.iter_lines():
+            if not line:
+                continue
+                
+            line_str = line.decode('utf-8')
+            if line_str.startswith("data: "):
+                data_str = line_str[6:]  # Remove "data: " prefix
+                try:
+                    data = json.loads(data_str)
+                    if data.get("type") == "tool_result":
+                        result = data.get("result")
+                        break
+                except json.JSONDecodeError:
+                    pass
+        
+        # Close connection
+        response.close()
+        
+        if result:
+            return result
+        else:
+            return {"error": "No tool result received"}
+    
+    except Exception as e:
+        # If primary URL fails, try fallback URLs
+        print(f"Error connecting to primary MCP URL {sse_url}: {e}")
+        
+        # Try alternative URLs if the primary one fails
+        alt_urls = []
+        if MCP_URL != HOST_MCP_URL:
+            alt_urls.append(HOST_MCP_URL)
+        if MCP_URL != CONTAINER_MCP_URL:
+            alt_urls.append(CONTAINER_MCP_URL)
+        if MCP_URL != HOST_DOCKER_INTERNAL_MCP_URL:
+            alt_urls.append(HOST_DOCKER_INTERNAL_MCP_URL)
+        
+        for base_url in alt_urls:
+            try:
+                alt_sse_url = f"{base_url}?tool_call={encoded_tool_call}"
+                print(f"Trying alternative MCP URL: {alt_sse_url}")
+                
+                alt_response = requests.get(alt_sse_url, stream=True, timeout=5)
+                alt_response.raise_for_status()
+                
+                # Process SSE events
+                alt_result = None
+                
+                for line in alt_response.iter_lines():
+                    if not line:
+                        continue
+                        
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith("data: "):
+                        data_str = line_str[6:]  # Remove "data: " prefix
+                        try:
+                            data = json.loads(data_str)
+                            if data.get("type") == "tool_result":
+                                alt_result = data.get("result")
+                                break
+                        except json.JSONDecodeError:
+                            pass
+                
+                # Close connection
+                alt_response.close()
+                
+                if alt_result:
+                    # Remember this working URL for future calls
+                    global MCP_URL
+                    MCP_URL = base_url
+                    os.environ["MCP_WORKING_URL"] = base_url
+                    print(f"Switching to working MCP URL: {base_url}")
+                    return alt_result
+            except Exception as alt_e:
+                print(f"Alternative URL {base_url} also failed: {alt_e}")
+                continue
+        
+        # If all URLs failed, return the original error
+        return {"error": f"Error connecting to MCP: {str(e)}", "status": "error"}
 
 
 # Define test markers
@@ -376,3 +509,60 @@ class FSMState:
     FOLLOW_UP = "FOLLOW_UP"
     STAFF_HANDOFF = "STAFF_HANDOFF"
     COMPLETION = "COMPLETION"
+
+
+#######################
+# MCP Tool Fixtures
+#######################
+
+@pytest.fixture(scope="session")
+def mcp_ping():
+    """MCP ping fixture"""
+    return lambda: mcp_call("ping")
+
+@pytest.fixture(scope="session")
+def http_get():
+    """MCP http_get fixture"""
+    return lambda path, **kw: mcp_call("http_get", {"path": path, **kw})
+
+@pytest.fixture(scope="session")
+def http_post():
+    """MCP http_post fixture"""
+    return lambda path, **kw: mcp_call("http_post", {"path": path, **kw})
+
+@pytest.fixture(scope="session")
+def invoke_route():
+    """MCP invoke_route fixture"""
+    return lambda method, path, **kw: mcp_call("invoke_route", {"method": method, "path": path, **kw})
+
+@pytest.fixture(scope="session")
+def ws_echo():
+    """MCP ws_echo fixture"""
+    return lambda path="/api/ws/echo", message="ping": mcp_call("ws_echo", {"path": path, "message": message})
+
+@pytest.fixture(scope="session")
+def ws_script():
+    """MCP ws_script fixture"""
+    return lambda path, script_name: mcp_call("ws_script", {"path": path, "script_name": script_name})
+
+@pytest.fixture(scope="session")
+def route_map():
+    """MCP route_map fixture"""
+    return lambda: mcp_call("route_map")
+
+@pytest.fixture(scope="session")
+def flask_config():
+    """MCP flask_config fixture"""
+    return lambda key=None: mcp_call("flask_config", {"key": key} if key else {})
+
+@pytest.fixture(scope="session")
+def redis_get():
+    """MCP redis_get fixture"""
+    return lambda key: mcp_call("redis_get", {"key": key})
+
+@pytest.fixture(scope="session")
+def sql_query():
+    """MCP sql fixture"""
+    return lambda query: mcp_call("sql", {"query": query})
+
+# Add fixtures for additional MCP tools as needed

@@ -8,7 +8,7 @@ simplified bidirectional stream approach.
 
 import logging
 import os
-from twilio.twiml.voice_response import VoiceResponse, Start, Stream
+from twilio.twiml.voice_response import VoiceResponse, Start, Stream, Connect
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -32,8 +32,9 @@ def generate_optimized_media_streams_twiml(call_sid, hostname, environment_name=
         
         # Make sure we're using a proper hostname with no trailing slash
         hostname = hostname.rstrip('/')
-        ws_url = f"wss://{hostname}/ws/voice/media"
-        logger.debug(f"[TWIML:{call_sid}] Streaming via {ws_url}")
+        # Use the registered and enhanced /ws/media endpoint instead of /ws/voice/media
+        ws_url = f"wss://{hostname}/ws/media"
+        logger.debug(f"[TWIML:{call_sid}] Streaming via {ws_url} (using enhanced media handler)")
         
         # Create the TwiML response
         response = VoiceResponse()
@@ -48,13 +49,18 @@ def generate_optimized_media_streams_twiml(call_sid, hostname, environment_name=
         
         # Connect is required for bidirectional streaming
         # Important: This blocks all subsequent TwiML until the WebSocket disconnects
-        connect = response.connect()
+        connect = Connect()
         # Stream element inside Connect enables bidirectional streaming
         # Note: For bidirectional streams, only inbound track is supported
-        connect.stream(
-            url=ws_url,
-            name="redbarsushi_stream"
+        # Important: Pass the CallSid to the WebSocket URL as a query parameter
+        stream = Stream(
+            url=f"{ws_url}?CallSid={call_sid}",
+            track="inbound_track",
+            name="media_stream"
         )
+        connect.append(stream)
+
+        response.append(connect)
         
         # Log the complete TwiML for debugging
         twiml_str = str(response)

@@ -1,9 +1,0 @@
-2025-05-06 01:37:58,634 - redbarsushi_mcp - INFO - Docker client initialized successfully
-2025-05-06 01:37:58,639 - redbarsushi_mcp - INFO - Starting RedBarSushi MCP Server with sse transport on 127.0.0.1:4243
-2025-05-06 01:39:23,886 - redbarsushi_mcp - INFO - Docker client initialized successfully
-2025-05-06 01:39:23,891 - redbarsushi_mcp - INFO - Starting RedBarSushi MCP Server with sse transport on 127.0.0.1:4244
-2025-05-06 01:42:05,582 - redbarsushi_mcp - WARNING - Redis connection failed: Error 111 connecting to localhost:16379. Connection refused.
-2025-05-06 01:42:05,609 - redbarsushi_mcp - WARNING - Database connection failed: (psycopg2.OperationalError) connection to server at "localhost" (127.0.0.1), port 15432 failed: Connection refused
-	Is the server running on that host and accepting TCP/IP connections?
-
-(Background on this error at: https://sqlalche.me/e/14/e3q8)

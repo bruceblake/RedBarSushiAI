@@ -150,23 +150,58 @@ To diagnose voice system issues, these endpoints are available:
 
 ## 🐳 Docker
 
-- Build the Docker image:
-  ```sh
-  docker build -t redbarsushiai .
-  ```
-- Run the container:
-  ```sh
-  docker run -p 8080:8080 -e DOCKER_CONTAINER=true redbarsushiai
-  ```
+The easiest way to get started with RedBarSushiAI is using Docker Compose, which sets up the entire environment including PostgreSQL and Redis.
+
+### Quick Docker Start
+
+```sh
+# Start the application with Docker
+./start_docker.sh
+
+# Check the health of the Docker containers
+./check_docker_health.sh
+```
+
+### Docker Compose Commands
+
+```sh
+# Start all services in the background
+docker-compose up -d
+
+# Stop all services but keep volumes
+docker-compose down
+
+# Rebuild and restart if you make changes
+docker-compose up -d --build
+
+# View logs from all services
+docker-compose logs -f
+```
+
+### Troubleshooting Docker
+
+If you encounter database connection issues:
+
+```sh
+# Run the database connection fix script
+python fix_db_connection.py
+
+# Reset the entire environment (will delete all data)
+docker-compose down -v
+docker-compose up -d
+```
+
+See [DOCKER_USAGE.md](DOCKER_USAGE.md) for comprehensive Docker documentation.
 
 ### Headless Mode Configuration
 
 For Docker and production environments, the system is configured to run in headless mode:
 
 ```bash
-# Required environment variables
+# Required environment variables (already set in docker-compose.yml)
 FORCE_HEADLESS=true
 OPENAI_REALTIME_NO_DISPLAY=1
+CONTAINER_MODE=1
 ```
 
 ---
@@ -291,10 +326,9 @@ The conversation follows a finite state machine with these states:
 ## 📚 Documentation
 
 - [CLAUDE.md](CLAUDE.md) — Comprehensive project documentation
-- [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md) — Voice system architecture
 - [CONVERSATION_STORE.md](CONVERSATION_STORE.md) — Conversation state management
-- [SILENCE_HANDLING.md](SILENCE_HANDLING.md) — Voice activity detection and silence handling
 - [ADVANCED_AGENTIC_PATTERNS.md](ADVANCED_AGENTIC_PATTERNS.md) — Agent orchestration patterns
+- [README-WEBSOCKET.md](README-WEBSOCKET.md) — WebSocket implementation details
 
 ---
 

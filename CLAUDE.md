@@ -1294,3 +1294,68 @@ def find_ai_match(item_name, context=None):
 - PLU identifiers are critical for mapping between system and Deliverect
 - The system maintains parallel data structures in PostgreSQL that mirror Deliverect's menu format
 - Order status polling is used instead of webhooks for integration with Deliverect
+
+## Testing and Debugging
+
+The RedBarSushi project includes several testing tools and scripts for debugging:
+
+### Infrastructure Testing Tools
+- `tests/test_basic_healthcheck.py`: Tests basic health check endpoints
+- `tests/test_container_health.py`: Tests container health status
+- `tests/test_imports.py`: Validates all necessary imports work correctly
+
+### WebSocket Testing Tools
+- `tests/e2e/test_websocket_connection_resilience.py`: Tests WebSocket connection stability
+- `tests/e2e/test_websocket_and_voice.py`: Tests integration between WebSockets and voice features
+- `tests/e2e/webhook/test_voice_entry.py`: Tests webhook entry points for voice calls
+
+### WebSocket Test Scripts
+The system includes WebSocket test scripts in the `tests/ws_scripts/` directory:
+
+- `echo.py`: Tests basic WebSocket connectivity
+- `greeting.py`: Tests voice call flow by sending audio frames and receiving greeting responses
+
+### Running Tests
+
+The system uses pytest for testing:
+
+```bash
+# Run all tests
+pytest
+
+# Run websocket-specific tests
+pytest tests/e2e/test_websocket_*.py
+
+# Run voice flow tests
+VOICE_HANDLER=realtime pytest tests/e2e/test_realtime_voice_flow.py
+```
+
+### Monitoring Endpoints
+
+The system provides several monitoring endpoints:
+
+- `/healthcheck`: Overall system health
+- `/voice/debug/health`: Voice system health and status
+- `/routes-debug`: List of all registered routes for debugging
+- `/environment`: Detailed environment information
+
+### Diagnostic Scripts
+
+Various scripts are available in the `tests` directory that can help diagnose issues:
+
+- `tests/test_basic_healthcheck.py`: Tests system health
+- `tests/test_container_health.py`: Checks container health in Docker environments
+- `tests/test_imports.py`: Verifies all imports work properly
+
+### Debugging WebSockets
+
+When debugging WebSocket connections:
+
+1. Check connection logs in `logs/websocket/*.log`
+2. Verify handlers are registered correctly in `app/routes/voice/__init__.py`
+3. Test basic connectivity with `tests/ws_scripts/echo.py`
+4. Verify Twilio webhook integration using the `/routes-debug` endpoint
+
+### Utility Tools
+- `uuid_generator()`: Generate a v4 UUID for testing.
+- `time_now(tz: str = "UTC")`: Get the current time in a specific timezone.

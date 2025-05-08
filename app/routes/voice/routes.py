@@ -29,12 +29,23 @@ def receive_call():
     """
     # Create a log file for this specific call
     call_sid = request.values.get("CallSid", str(uuid.uuid4()))
+    
+    # Create a logs directory with proper permissions if it doesn't exist
     log_dir = os.path.join(os.getcwd(), 'logs')
     if not os.path.exists(log_dir):
         try:
-            os.makedirs(log_dir)
-        except:
-            pass  # If we can't create the dir, we'll fallback to default logging
+            os.makedirs(log_dir, exist_ok=True)
+            logger.critical(f"Created logs directory at {log_dir}")
+        except Exception as dir_error:
+            logger.critical(f"Failed to create logs directory: {dir_error}")
+            # Use /tmp as fallback
+            log_dir = '/tmp'
+            logger.critical(f"Using fallback log directory: {log_dir}")
+    
+    # Ensure the log directory is writable
+    if not os.access(log_dir, os.W_OK):
+        logger.critical(f"Log directory {log_dir} is not writable, using /tmp instead")
+        log_dir = '/tmp'
     
     # Set up call-specific logging
     try:

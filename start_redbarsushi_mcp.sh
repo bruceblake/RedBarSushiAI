@@ -38,9 +38,24 @@ fi
 # Move the temporary file to the original file
 mv "$TMP_FILE" "$CONFIG_FILE"
 
+# Environment variables for Docker containers
+export REDIS_HOST=localhost
+export REDIS_PORT=6379
+export POSTGRES_HOST=localhost
+export POSTGRES_PORT=5432
+export POSTGRES_DB=redbarsushi_staging_db
+export POSTGRES_USER=redbarsushi_staging_db_user
+export POSTGRES_PASSWORD=testing_password
+export APP_URL=http://localhost:8080
+
 # Start the MCP server with SSE transport
 echo "Starting MCP server with SSE transport..."
-PORT=4244 TRANSPORT=sse nohup ${PROJECT_PATH}/mcp_venv/bin/python ${MCP_SERVER_PATH} > ${PROJECT_PATH}/mcp_server.log 2>&1 &
+PORT=4244 TRANSPORT=sse \
+REDIS_HOST=$REDIS_HOST REDIS_PORT=$REDIS_PORT \
+POSTGRES_HOST=$POSTGRES_HOST POSTGRES_PORT=$POSTGRES_PORT \
+POSTGRES_DB=$POSTGRES_DB POSTGRES_USER=$POSTGRES_USER POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+APP_URL=$APP_URL ALLOW_MUTATIONS=true \
+nohup ${PROJECT_PATH}/mcp_venv/bin/python ${MCP_SERVER_PATH} > ${PROJECT_PATH}/mcp_server.log 2>&1 &
 PID=$!
 
 # Wait a moment to see if the server stays up
@@ -58,11 +73,10 @@ echo "To test the MCP server, use Claude with commands like:"
 echo "  /mcp check_docker_status"
 echo "  /mcp setup_docker_env project_path=\"${PROJECT_PATH}\""
 echo "  /mcp run_test test_type=\"basic\""
-echo "  /mcp run_test test_type=\"menu\""
-echo "  /mcp run_test test_type=\"order\""
-echo "  /mcp run_test test_type=\"full_menu\""
-echo "  /mcp run_test test_type=\"full_order\""
-echo "  /mcp run_test test_type=\"all\""
+echo "  /mcp service_health"
+echo ""
+echo "To use the Docker environment instead:"
+echo "  ${PROJECT_PATH}/run_docker_mcp_env.sh"
 echo ""
 echo "To stop the MCP server:"
 echo "  pkill -f \"python.*mcp/src/redbarsushi_mcp.py\""

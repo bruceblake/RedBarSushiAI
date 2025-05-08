@@ -196,27 +196,23 @@ def init_voice_routes(flask_app):
             global _websocket_routes_registered, _debug_websocket_registered
             
             # Media stream WebSocket route
+            # IMPORTANT: We now use the /ws/media endpoint in app/routes/realtime.py instead
+            # This calls the same handle_robust_media_stream function, but avoids registration issues
+            logger.info("Using /ws/media endpoint from realtime.py instead of registering /ws/voice/media")
+            logger.info("This ensures reliable route registration while maintaining all advanced features")
+            
+            # Setting flag to true to prevent any future registration attempts
+            _websocket_routes_registered = True
+            
+            # NOTE: The following code is kept as reference but commented out
+            # The functionality has been moved to app/routes/realtime.py:/ws/media
+            """
             if _websocket_routes_registered or "/ws/voice/media" in existing_routes or "media_stream_ws" in existing_funcs:
                 logger.info("WebSocket routes already registered, skipping registration")
             else:
                 @sock.route("/ws/voice/media")
                 @websocket_handler
                 async def media_stream_ws(ws):
-                    """WebSocket endpoint for Twilio Media Streams API with robust connection handling."""
-                    # Log connection information with appropriate log level
-                    logger.info(f"[MEDIA_STREAM] WebSocket connection established to /ws/voice/media")
-                    logger.info(f"[MEDIA_STREAM] Connection ID: {getattr(ws, '_log_id', 'unknown')}")
-                    
-                    # Get request info if available
-                    if hasattr(ws, 'request') and hasattr(ws.request, 'headers'):
-                        headers = ws.request.headers
-                        logger.debug(f"[MEDIA_STREAM] Headers: {headers}")
-                        # Check if this is a Twilio connection
-                        user_agent = headers.get('User-Agent', '')
-                        is_twilio = 'twilio' in user_agent.lower()
-                        logger.info(f"[MEDIA_STREAM] User-Agent: {user_agent}")
-                        logger.info(f"[MEDIA_STREAM] Is Twilio: {is_twilio}")
-                    
                     # Use the robust stream handler for advanced connection resilience
                     from app.routes.voice.realtime.robust_stream_handler import handle_robust_media_stream
                     await handle_robust_media_stream(ws)
@@ -225,6 +221,7 @@ def init_voice_routes(flask_app):
                 
                 # Set the global flag to prevent duplicate registration
                 _websocket_routes_registered = True
+            """
             
             # Debug WebSocket route - separate flag for this route
             if _debug_websocket_registered or "/ws/voice/debug" in existing_routes or "debug_websocket" in existing_funcs:

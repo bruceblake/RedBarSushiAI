@@ -64,6 +64,10 @@ async def handle_robust_media_stream(ws, session_id=None):
     """
     Enhanced WebSocket handler for Twilio Media Streams with robust connection management.
     
+    This handler is now called by the /ws/media endpoint in app/routes/realtime.py
+    rather than being directly registered at /ws/voice/media. This ensures reliable
+    route registration while maintaining all advanced features.
+    
     Args:
         ws: The WebSocket connection object
         session_id: Optional session ID (if None, a new one will be generated)

@@ -133,7 +133,8 @@ async def test_websockets_library(url):
 
 async def main():
     """Main entry point."""
-    url = "wss://redbarsushiai-staging.onrender.com/ws/voice/media"
+    # Default to local WebSocket endpoint with the correct path
+    url = "ws://localhost:8080/ws/media"
     if len(sys.argv) > 1:
         url = sys.argv[1]
     

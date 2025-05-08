@@ -777,3 +777,8 @@ realtime_processor = RealtimeAudioProcessor()
 def get_realtime_processor():
     """Get a RealtimeAudioProcessor instance."""
     return realtime_processor
+
+# Function to get the OpenAI API key
+def get_openai_key():
+    """Get the OpenAI API key."""
+    return OPENAI_API_KEY

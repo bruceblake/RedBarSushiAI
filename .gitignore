@@ -32,3 +32,10 @@ config.py
 redbar_menu_data.json
 
 **/.claude/settings.local.json
+
+# Added by targeted cleanup
+*.log
+logs/
+*_backup_*/
+.env.*
+archive/
