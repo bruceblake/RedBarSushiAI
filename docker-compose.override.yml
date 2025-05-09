@@ -14,3 +14,5 @@ services:
       - VOICE_HANDLER=realtime
       - FORCE_HEADLESS=true
       - IS_STAGING=true
+      - OPENAI_REALTIME_VAD_SILENCE_MS=1000
+    command: ["gunicorn", "-k", "gevent", "-w", "4", "--bind", "0.0.0.0:8080", "--timeout", "120", "--log-level", "debug", "wsgi:app"]

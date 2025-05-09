@@ -37,9 +37,12 @@ def is_postgresql():
     try:
         # Try to determine if we're using PostgreSQL
         dialect = db.engine.dialect.name
-        return dialect == 'postgresql'
+        is_pg = dialect == 'postgresql'
+        logger.info(f"Database dialect: {dialect}, using PostgreSQL: {is_pg}")
+        return is_pg
     except Exception as e:
         logger.warning(f"Could not determine database dialect: {e}")
+        # Safe default - assume we're not using PostgreSQL
         return False
 
 # Create a JSONB property function
@@ -59,6 +62,110 @@ def get_default_value():
         return dict
     else:
         return lambda: '{}'
+        
+# Helper function to safely process properties
+def sanitize_properties(props):
+    """
+    Sanitize properties to ensure they are JSON-serializable.
+    Handles common serialization issues like datetime objects.
+    
+    Args:
+        props: The properties object to sanitize (dict, string, or None)
+        
+    Returns:
+        Either a dict (for JSONB) or a JSON string (for Text)
+    """
+    # If None, return empty dict/string based on dialect
+    if props is None:
+        if is_postgresql():
+            return {}
+        else:
+            return '{}'
+            
+    # If string, ensure it's valid JSON
+    if isinstance(props, str):
+        try:
+            # Validate by parsing
+            json.loads(props)
+            # For Text column, return the validated string
+            if not is_postgresql():
+                return props
+            # For JSONB, convert to dict
+            return json.loads(props)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid JSON string in properties: {e}")
+            # Return empty value based on dialect
+            if is_postgresql():
+                return {}
+            else:
+                return '{}'
+    
+    # If dict, ensure all values are serializable
+    if isinstance(props, dict):
+        try:
+            # Create a sanitized copy for handling problematic types
+            sanitized = {}
+            
+            # Process each key/value to handle common problematic types
+            for k, v in props.items():
+                # Handle datetime objects
+                if isinstance(v, datetime):
+                    sanitized[k] = v.isoformat()
+                    logger.debug(f"Sanitized datetime property {k} to ISO format")
+                # Check for nested dicts that might need sanitization
+                elif isinstance(v, dict):
+                    # Recursively sanitize nested dicts
+                    sanitized[k] = sanitize_properties(v)
+                # Handle nested lists that might contain problematic types
+                elif isinstance(v, list):
+                    # Process each item in the list
+                    sanitized_list = []
+                    for item in v:
+                        if isinstance(item, datetime):
+                            sanitized_list.append(item.isoformat())
+                        elif isinstance(item, dict):
+                            sanitized_list.append(sanitize_properties(item))
+                        else:
+                            sanitized_list.append(item)
+                    sanitized[k] = sanitized_list
+                else:
+                    # Keep the original value
+                    sanitized[k] = v
+            
+            # Test serialization of the sanitized dict
+            json_str = json.dumps(sanitized)
+            
+            # For Text column, return the JSON string
+            if not is_postgresql():
+                return json_str
+            # For JSONB, return the sanitized dict
+            return sanitized
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Failed to sanitize properties dict: {e}")
+            # Create a more aggressive sanitized version
+            fallback_sanitized = {}
+            for k, v in props.items():
+                try:
+                    # Test if this specific key/value is serializable
+                    json.dumps({k: v})
+                    fallback_sanitized[k] = v
+                except (TypeError, ValueError):
+                    # Convert any problematic value to string
+                    fallback_sanitized[k] = str(v)
+                    logger.debug(f"Converted property {k} to string for serialization")
+            
+            # Return based on dialect
+            if is_postgresql():
+                return fallback_sanitized
+            else:
+                return json.dumps(fallback_sanitized)
+    
+    # For any other type, convert to string and return appropriate format
+    logger.warning(f"Properties has unexpected type: {type(props)}")
+    if is_postgresql():
+        return {}
+    else:
+        return '{}'
 
 
 class MenuItem(db.Model, TimestampMixin):
@@ -87,7 +194,19 @@ class MenuItem(db.Model, TimestampMixin):
     # Snooze time settings
     snooze_start = db.Column(db.DateTime, nullable=True)
     snooze_end = db.Column(db.DateTime, nullable=True)
-    snoozed_until = db.Column(db.DateTime, nullable=True)
+    snoozed_until = db.Column(db.DateTime, nullable=True)  # The actual database column name
+    
+    # Property to handle camelCase API format (snoozeUntil) mapped to snake_case DB column (snoozed_until)
+    @property
+    def snooze_until(self):
+        """Get the snooze_until value, mapped to snoozed_until database column."""
+        return self.snoozed_until
+        
+    @snooze_until.setter
+    def snooze_until(self, value):
+        """Set the snooze_until value, mapped to snoozed_until database column."""
+        self.snoozed_until = value
+        logger.debug(f"Set snoozed_until to {value} via snooze_until property")
 
     # Metadata is now provided by TimestampMixin
 
@@ -141,6 +260,15 @@ class MenuItem(db.Model, TimestampMixin):
                     logger.warning(f"Unhandled properties type: {type(self.properties)}")
             except Exception as e:
                 logger.error(f"Error processing properties in to_dict: {e}")
+                # Try to recover using sanitization
+                try:
+                    sanitized = sanitize_properties(self.properties)
+                    if isinstance(sanitized, dict):
+                        result.update(sanitized)
+                    elif isinstance(sanitized, str):
+                        result.update(json.loads(sanitized))
+                except Exception as e2:
+                    logger.error(f"Failed to recover properties using sanitization: {e2}")
 
         # Format dates if present
         if self.snooze_start:
@@ -148,7 +276,10 @@ class MenuItem(db.Model, TimestampMixin):
         if self.snooze_end:
             result["snoozeEnd"] = self.snooze_end.isoformat()
         if self.snoozed_until:
+            # Include both snoozeUntil (camelCase for API) and snoozedUntil (matches DB column)
             result["snoozeUntil"] = self.snoozed_until.isoformat()
+            result["snoozedUntil"] = self.snoozed_until.isoformat()
+            logger.debug(f"Added both snoozeUntil and snoozedUntil to API response for {self.name}")
 
         return result
 
@@ -200,13 +331,16 @@ class MenuItem(db.Model, TimestampMixin):
             except:
                 pass
 
-        snooze_until = data.get("snoozeUntil")
+        # Check for either snoozeUntil (camelCase) or snoozedUntil (DB column name)
+        snooze_until = data.get("snoozeUntil") or data.get("snoozedUntil")
         if snooze_until:
             try:
                 item.snoozed_until = datetime.fromisoformat(
                     snooze_until.replace("Z", "+00:00")
                 )
-            except:
+                logger.info(f"Set snoozed_until to {item.snoozed_until} from input value {snooze_until}")
+            except Exception as e:
+                logger.error(f"Failed to parse snooze_until datetime: {e}, value was: {snooze_until}")
                 pass
 
         # Store additional properties
@@ -233,13 +367,19 @@ class MenuItem(db.Model, TimestampMixin):
             ]:
                 properties[key] = value
 
-        # Set properties based on database dialect
-        if is_postgresql():
-            # Use dict directly for JSONB
-            item.properties = properties
-        else:
-            # Use JSON string for text column
-            item.properties = json.dumps(properties)
+        # Sanitize and set properties
+        try:
+            # Safely process properties to ensure it's JSON-serializable
+            sanitized_properties = sanitize_properties(properties)
+            item.properties = sanitized_properties
+            logger.debug(f"Properties for item {data.get('name')} successfully sanitized")
+        except Exception as e:
+            logger.error(f"Error sanitizing properties for item {data.get('name')}: {e}")
+            # Fallback to empty properties
+            if is_postgresql():
+                item.properties = {}
+            else:
+                item.properties = '{}'
 
         return item
 
@@ -305,6 +445,15 @@ class MenuModifier(db.Model, TimestampMixin):
                     logger.warning(f"Unhandled properties type: {type(self.properties)}")
             except Exception as e:
                 logger.error(f"Error processing properties in to_dict: {e}")
+                # Try to recover using sanitization
+                try:
+                    sanitized = sanitize_properties(self.properties)
+                    if isinstance(sanitized, dict):
+                        result.update(sanitized)
+                    elif isinstance(sanitized, str):
+                        result.update(json.loads(sanitized))
+                except Exception as e2:
+                    logger.error(f"Failed to recover properties using sanitization: {e2}")
 
         return result
 
@@ -355,13 +504,19 @@ class MenuModifier(db.Model, TimestampMixin):
             ]:
                 properties[key] = value
 
-        # Set properties based on database dialect
-        if is_postgresql():
-            # Use dict directly for JSONB
-            modifier.properties = properties
-        else:
-            # Use JSON string for text column
-            modifier.properties = json.dumps(properties)
+        # Sanitize and set properties
+        try:
+            # Safely process properties to ensure it's JSON-serializable
+            sanitized_properties = sanitize_properties(properties)
+            modifier.properties = sanitized_properties
+            logger.debug(f"Properties for modifier {data.get('name')} successfully sanitized")
+        except Exception as e:
+            logger.error(f"Error sanitizing properties for modifier {data.get('name')}: {e}")
+            # Fallback to empty properties
+            if is_postgresql():
+                modifier.properties = {}
+            else:
+                modifier.properties = '{}'
 
         return modifier
 
@@ -434,6 +589,15 @@ class MenuModifierGroup(db.Model, TimestampMixin):
                     logger.warning(f"Unhandled properties type: {type(self.properties)}")
             except Exception as e:
                 logger.error(f"Error processing properties in to_dict: {e}")
+                # Try to recover using sanitization
+                try:
+                    sanitized = sanitize_properties(self.properties)
+                    if isinstance(sanitized, dict):
+                        result.update(sanitized)
+                    elif isinstance(sanitized, str):
+                        result.update(json.loads(sanitized))
+                except Exception as e2:
+                    logger.error(f"Failed to recover properties using sanitization: {e2}")
 
         return result
 
@@ -478,13 +642,19 @@ class MenuModifierGroup(db.Model, TimestampMixin):
             ]:
                 properties[key] = value
 
-        # Set properties based on database dialect
-        if is_postgresql():
-            # Use dict directly for JSONB
-            group.properties = properties
-        else:
-            # Use JSON string for text column
-            group.properties = json.dumps(properties)
+        # Sanitize and set properties
+        try:
+            # Safely process properties to ensure it's JSON-serializable
+            sanitized_properties = sanitize_properties(properties)
+            group.properties = sanitized_properties
+            logger.debug(f"Properties for group {data.get('name')} successfully sanitized")
+        except Exception as e:
+            logger.error(f"Error sanitizing properties for group {data.get('name')}: {e}")
+            # Fallback to empty properties
+            if is_postgresql():
+                group.properties = {}
+            else:
+                group.properties = '{}'
 
         return group
 

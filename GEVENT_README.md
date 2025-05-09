@@ -90,6 +90,70 @@ For connecting to OpenAI's Realtime API, we now use a synchronous approach with 
 4. **Stability**: Fewer moving parts means fewer potential points of failure.
 5. **Compatibility**: Works with the broader Flask ecosystem that expects WSGI.
 
+## Enhanced Interruption Handling
+
+The system has been optimized for real-time interruption handling using strategic gevent.sleep() calls:
+
+### Understanding Cooperative Multitasking
+
+In gevent's cooperative multitasking model, each greenlet must explicitly yield control to allow other greenlets to run. This is done using `gevent.sleep()` calls strategically placed throughout the code:
+
+```python
+# Basic yielding pattern - yields control to other greenlets
+gevent.sleep(0)  # Zero time sleep just yields control
+gevent.sleep(0.001)  # Short sleep for frequent yielding
+gevent.sleep(0.01)  # Longer sleep for less frequent points
+```
+
+### Strategic Yielding for Interruption Handling
+
+Our enhanced WebSocket implementation uses carefully tuned sleep durations to optimize the balance between throughput and interruption responsiveness:
+
+1. **Differentiated Yielding by Packet Type**:
+   ```python
+   # Different sleep durations based on packet type
+   if is_speech:
+       # For speech packets (potential interruptions), use longer sleep
+       # to ensure interrupt detection greenlets get CPU time
+       gevent.sleep(0.003)  # Slightly longer sleep for speech packets
+   else:
+       # For silence packets, use shorter sleep as they're less critical
+       gevent.sleep(0.001)  # Shorter sleep for silence packets
+   ```
+
+2. **Extra Yielding During Audio Playback**:
+   ```python
+   # Regular yielding after every audio chunk
+   gevent.sleep(0.002)
+   
+   # Extra yielding every 10 chunks for better responsiveness
+   if process_openai_responses_and_interact_sync._audio_chunk_count % 10 == 0:
+       # Longer yield every 10 chunks
+       gevent.sleep(0.005)
+   ```
+
+3. **Balanced Queue Processing**:
+   ```python
+   # Non-blocking queue get with timeout
+   try:
+       data = message_queue.get(timeout=0.1)
+       # Process data...
+   except gevent.queue.Empty:
+       # Handle empty queue - yields control while waiting
+       continue
+   ```
+
+### Performance Impact
+
+These strategic yields ensure that:
+
+1. **Interruption Detection**: Speech detection events can be processed promptly
+2. **Audio Continuity**: Audio processing maintains real-time performance
+3. **CPU Utilization**: The application uses CPU efficiently without busy-waiting
+4. **Responsiveness**: The system remains responsive to user interruptions
+
+The exact sleep durations have been fine-tuned based on real-world testing. The values balance the need for responsiveness with the overhead of context switching between greenlets.
+
 ## Debugging WebSocket Issues
 
 If WebSocket connections still fail, check:

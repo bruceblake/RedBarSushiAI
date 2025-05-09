@@ -196,6 +196,9 @@ def init_database():
     """
     Initialize the database for menu storage with robust connection handling.
     This function should be called on application startup.
+    
+    Note: Menu data migration from file to database has been removed.
+    Menu data must now be loaded directly into the database by other means.
     """
     # Check if we should initialize the database
     should_init = current_app.config.get("INITIALIZE_MENU_DATABASE", True)
@@ -228,99 +231,6 @@ def init_database():
         current_app.config["MENU_BACKEND"] = "file"
         logger.info("Falling back to file-based menu storage due to database error")
         return
-
-    # Function to migrate menu data if needed
-    def _migrate_menu_data_if_needed():
-        try:
-            # Check if we should migrate existing data
-            should_migrate = current_app.config.get("MIGRATE_MENU_DATA", True)
-            if not should_migrate:
-                logger.info("Skipping menu data migration as configured")
-                return True
-
-            # Import here to avoid circular imports
-            from app.models.menu import MenuItem
-
-            # Use a dedicated function for checking item count to ensure clean session scope
-            def get_menu_item_count():
-                # Ensure we have a fresh session
-                fresh_session()
-
-                try:
-                    # Create a new session for this operation
-                    with db.session() as session:
-                        with session.connection() as conn:
-                            result = conn.execute(
-                                text("SELECT COUNT(*) FROM menu_items")
-                            )
-                            return result.scalar()
-                except Exception as e:
-                    logger.error(f"Error checking menu item count: {e}", exc_info=True)
-                    return None
-
-            # Get current item count with a fresh session
-            item_count = get_menu_item_count()
-
-            # Check if we got a valid response
-            if item_count is None:
-                logger.error("Failed to check menu item count - connection issue")
-                return False
-
-            if item_count == 0:
-                # No menu items in database, migrate from file
-                logger.info("No menu items found in database, migrating from file...")
-
-                try:
-                    # Import migration module
-                    from app.utils.menu_migration import migrate_menu_to_database
-
-                    # Find menu file
-                    from app.utils.menu_utils import find_menu_file_path, MENU_FILE_PATH
-
-                    menu_file = find_menu_file_path() or MENU_FILE_PATH
-
-                    # Check if file exists
-                    if os.path.exists(menu_file):
-                        logger.info(
-                            f"Migrating menu data from {menu_file} to database..."
-                        )
-
-                        # Ensure we have a fresh session before migration
-                        fresh_session()
-
-                        result = migrate_menu_to_database(
-                            file_path=menu_file, force=True
-                        )
-
-                        if result.get("success"):
-                            logger.info(
-                                f"Successfully migrated menu data: {result.get('items_count')} items"
-                            )
-                            return True
-                        else:
-                            logger.error(
-                                f"Failed to migrate menu data: {result.get('error')}"
-                            )
-                            return False
-                    else:
-                        logger.warning(
-                            f"Menu file not found at {menu_file} - cannot migrate data"
-                        )
-                        return False
-                except Exception as e:
-                    logger.error(f"Error migrating menu data: {e}", exc_info=True)
-                    return False
-            else:
-                logger.info(
-                    f"Found {item_count} menu items in database, skipping migration"
-                )
-                return True
-        except Exception as e:
-            logger.error(f"Error in menu data migration: {e}", exc_info=True)
-            return False
-
-    # Migrate menu data with retry logic
-    migration_result = execute_with_retry(_migrate_menu_data_if_needed)
 
     # Verify final connection state
     connection_valid = execute_with_retry(verify_connection)

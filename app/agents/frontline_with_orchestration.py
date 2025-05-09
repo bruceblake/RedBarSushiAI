@@ -939,7 +939,7 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
                 return "I'm sorry, I'm having trouble processing your request."
 
     @trace_call(call_sid="dynamic")
-    def process_voice_input(self, call_sid: str, user_input: str) -> str:
+    def process_voice_input(self, call_sid: str, user_input: str, context: dict = None) -> str:
         """
         Process voice input from a caller.
         Integrates with the FSM for authentication and orchestration for agent handoffs.
@@ -947,11 +947,15 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
         Args:
             call_sid: The Twilio call SID
             user_input: The user's input text
+            context: Optional context data from WebSocket handler
             
         Returns:
             The agent's response
         """
         start_time = time.time()
+        
+        # Enhanced logging for debugging
+        logger.info(f"[{call_sid}] VOICE INPUT RECEIVED: '{user_input}'")
         
         # Log the voice call input event
         log_voice_call_event(
@@ -971,11 +975,18 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
         
         # Check if we're in authentication flow
         current_state = self.fsm_orchestrator.get_current_state(call_sid)
+        logger.info(f"[{call_sid}] Current FSM state: {current_state}")
+        
+        # Log all slots for debugging
+        all_slots = self.slot_store.get_all_slots(call_sid)
+        logger.info(f"[{call_sid}] Current slots: {json.dumps(all_slots)}")
+        
         if current_state not in [FSMState.INITIAL, FSMState.AUTHENTICATED]:
-            logger.info(f"Call {call_sid} is in authentication flow, state: {current_state.value}")
+            logger.info(f"[{call_sid}] Authentication flow active, state: {current_state.value}")
             
             # Process the input through the FSM orchestrator
             fsm_result = self.fsm_orchestrator.process_user_input(call_sid, user_input)
+            logger.info(f"[{call_sid}] FSM result: {json.dumps(fsm_result)}")
             
             # Use the prompt for response
             response = fsm_result["user_prompt"]
@@ -985,10 +996,13 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
             
             # If authentication is now complete, mark it in state
             if fsm_result["state"] == FSMState.AUTHENTICATED.value:
+                logger.info(f"[{call_sid}] Authentication completed, transitioning state")
                 self.slot_store.set_slot(call_sid, "authenticated", True)
                 
                 # After authentication, continue with the original intent
                 original_intent = self.slot_store.get_slot(call_sid, "last_intent")
+                logger.info(f"[{call_sid}] Resuming original intent: {original_intent}")
+                
                 if original_intent == "place_order":
                     response += " Now, let's continue with your order. What would you like to order?"
                 
@@ -996,6 +1010,10 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
         else:
             # If authenticated or not in authentication flow, process normally
             try:
+                # Determine user intent from input (simple keyword matching for demonstration)
+                intent = self._determine_intent(user_input)
+                logger.info(f"[{call_sid}] Determined intent: {intent}")
+                
                 # Check if we need to escalate based on previous confidence check
                 needs_escalation = self.slot_store.get_slot(call_sid, "needs_escalation")
                 
@@ -1005,7 +1023,7 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
                     current_model = self.agent_graph.nodes.get(current_agent_name, {}).get("model", self.model)
                     escalation_model = self.model_escalator.get_escalation_model(current_model)
                     
-                    logger.info(f"Escalating model from {current_model} to {escalation_model} for call {call_sid}")
+                    logger.info(f"[{call_sid}] Escalating model from {current_model} to {escalation_model}")
                     
                     # Process with escalated model
                     response = self.process_message(call_sid, user_input, model_override=escalation_model)
@@ -1013,7 +1031,34 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
                     # Clear the escalation flag after handling
                     self.slot_store.set_slot(call_sid, "needs_escalation", False)
                 else:
+                    # Check if we need to transition based on intent
+                    if intent and intent != "general":
+                        # Update state to indicate the detected intent
+                        self.slot_store.set_slot(call_sid, "last_intent", intent)
+                        logger.info(f"[{call_sid}] Set last_intent to: {intent}")
+                        
+                        # Create a state object for the agent graph
+                        state = {
+                            "slots": self.slot_store.get_all_slots(call_sid),
+                            "tool_results": {
+                                "intent_classifier": {
+                                    "intent": intent,
+                                    "confidence": 0.8
+                                }
+                            }
+                        }
+                        
+                        # Check if we should transition based on intent
+                        current_agent_name = self.current_agent.get(call_sid, "Frontline")
+                        next_agent = self.agent_graph.get_next_agent(current_agent_name, state)
+                        logger.info(f"[{call_sid}] Agent graph suggests next agent: {next_agent}")
+                        
+                        if next_agent != current_agent_name:
+                            logger.info(f"[{call_sid}] Agent transition: {current_agent_name} → {next_agent}")
+                            self.current_agent[call_sid] = next_agent
+                    
                     # Process normally with current model
+                    logger.info(f"[{call_sid}] Processing with agent model: {self.model}")
                     response = self.process_message(call_sid, user_input)
                 
                 success = True
@@ -1023,7 +1068,7 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
                     response = "I'm sorry, I didn't catch that. Could you please repeat?"
                     success = False
             except Exception as e:
-                logger.error(f"Error processing voice input: {str(e)}")
+                logger.error(f"[{call_sid}] Error processing voice input: {str(e)}", exc_info=True)
                 response = "I'm having trouble understanding. Let me connect you with a team member."
                 success = False
         
@@ -1032,6 +1077,9 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
         
         # Calculate processing time
         duration_ms = (time.time() - start_time) * 1000
+        
+        # Log the final response
+        logger.info(f"[{call_sid}] AGENT RESPONSE: '{response}' (took {duration_ms:.0f}ms)")
         
         # Log the agent call with results
         thread_id = getattr(self, "_last_thread_id", "unknown")
@@ -1060,3 +1108,86 @@ class OrchestratedFrontlineAgent(HandoffCapableAgent):
         )
         
         return response
+        
+    def _determine_intent(self, text: str) -> str:
+        """
+        Simple intent detection based on keywords.
+        In a real implementation, this would use a more sophisticated model.
+        
+        Args:
+            text: The input text
+            
+        Returns:
+            The detected intent
+        """
+        text = text.lower()
+        
+        # Get the current call SID for logging
+        call_sid = self._get_current_call_sid()
+        
+        # Log the intent detection attempt
+        logger.debug(f"[{call_sid}] Detecting intent from input: '{text}'")
+        
+        # Track start time for performance metrics
+        start_time = time.time()
+        
+        # Simple keyword matching with detailed logging
+        matched_words = []
+        detected_intent = "general"
+        confidence = 0.5  # Default confidence
+        
+        # Menu intent keywords
+        menu_keywords = ["menu", "item", "dish", "roll", "sushi", "food", "eat"]
+        if any(word in text for word in menu_keywords):
+            matched_words = [word for word in menu_keywords if word in text]
+            detected_intent = "menu_inquiry"
+            confidence = 0.7 + (0.05 * len(matched_words))  # Higher confidence with more matched words
+            
+        # Order intent keywords
+        order_keywords = ["order", "want", "get", "buy", "purchase"]
+        if any(word in text for word in order_keywords):
+            matched_words = [word for word in order_keywords if word in text]
+            detected_intent = "place_order"
+            confidence = 0.75 + (0.05 * len(matched_words))  # Higher confidence with more matched words
+            
+        # Restaurant info intent keywords
+        info_keywords = ["hour", "time", "open", "close", "address", "location", "phone", "call"]
+        if any(word in text for word in info_keywords):
+            matched_words = [word for word in info_keywords if word in text]
+            detected_intent = "restaurant_info"
+            confidence = 0.7 + (0.05 * len(matched_words))  # Higher confidence with more matched words
+            
+        # Escalation intent keywords
+        escalation_keywords = ["help", "human", "manager", "speak", "talk", "person"]
+        if any(word in text for word in escalation_keywords):
+            matched_words = [word for word in escalation_keywords if word in text]
+            detected_intent = "escalation"
+            confidence = 0.8 + (0.05 * len(matched_words))  # Higher confidence with more matched words
+        
+        # Calculate detection duration
+        duration_ms = (time.time() - start_time) * 1000
+        
+        # Cap confidence at 0.95
+        confidence = min(confidence, 0.95)
+        
+        # Create structured log entry with consistent format
+        intent_log = {
+            "event": "INTENT_DETECTION",
+            "call_sid": call_sid,
+            "timestamp": time.time(),
+            "input_text": text[:50] + ("..." if len(text) > 50 else ""),
+            "input_length": len(text),
+            "detected_intent": detected_intent,
+            "confidence": confidence,
+            "matched_keywords": matched_words,
+            "keyword_count": len(matched_words),
+            "duration_ms": duration_ms
+        }
+        
+        # Log the structured intent information
+        logger.info(f"STRUCTURED_LOG: {json.dumps(intent_log)}")
+        
+        # Also log in human-readable format
+        logger.info(f"[{call_sid}] Intent '{detected_intent}' detected with confidence {confidence:.2f}, keywords: {matched_words}")
+        
+        return detected_intent

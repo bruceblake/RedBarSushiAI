@@ -254,9 +254,11 @@ The application is structured as a Flask (WSGI) application that is made compati
 
 This architecture allows a traditional Flask application to handle WebSockets and async workloads effectively.
 
-## Recent ASGI Improvements
+## Recent System Improvements
 
-The WebSocket handling has been improved with these recent changes:
+### ASGI Infrastructure Improvements
+
+The WebSocket handling has been improved with these changes:
 
 1. **Removed Redundant Middleware**:
    - Eliminated unnecessary DispatcherMiddleware that was causing compatibility issues
@@ -275,6 +277,54 @@ The WebSocket handling has been improved with these recent changes:
    - Consistent approach to server startup in docker-entrypoint.sh
 
 These changes ensure proper handling of WebSocket upgrade requests, which helps address issues that might otherwise present as Twilio HTTP 11200 errors (though network connectivity can still be a factor in such errors).
+
+### Real-time Audio Processing Enhancements
+
+Recent improvements to the real-time audio processing system enable more natural conversations:
+
+1. **Enhanced Interruption Handling**:
+   - Configured OpenAI session with explicit `interrupt_response: true` setting
+   - Added `interruption_threshold_ms` parameter (300ms) to define when interruption triggers
+   - Implemented strategic gevent.sleep() calls to improve cooperative multitasking:
+     ```python
+     # Differentiated yielding for speech vs. silence packets
+     if is_speech:
+         # For speech packets (potential interruptions), use longer sleep
+         gevent.sleep(0.003)  # Slightly longer sleep for speech packets
+     else:
+         # For silence packets, use shorter sleep
+         gevent.sleep(0.001)  # Shorter sleep for silence packets
+     ```
+   - Added extra yields during audio playback to ensure responsiveness
+   - Enhanced VAD configuration for better silence detection and turn-taking
+
+2. **Improved Observability**:
+   - Added detailed logging for FSM state transitions:
+     ```python
+     log_orchestration_event(
+         "info",
+         f"[{call_sid}] FSM STATE TRANSITION: {previous_state_value} → {state.value}",
+         {
+             "call_sid": call_sid,
+             "previous_state": previous_state_value,
+             "new_state": state.value,
+             "retry_count": retry_count + 1,
+             "timestamp": datetime.now().isoformat()
+         },
+         call_sid=call_sid,
+         phase="FSM"
+     )
+     ```
+   - Enhanced intent detection logging to track decision factors
+   - Implemented speech detection event logging for interruption analysis
+   - Added slot update logging with proper redaction of sensitive data
+
+3. **Database Resilience Improvements**:
+   - Fixed schema-model discrepancy between `snoozed_until` (DB schema) and `snooze_until` (model code)
+   - Added property getters/setters for backward compatibility
+   - Implemented JSONB sanitization to ensure proper serialization
+   - Enhanced error handling for JSONB operations
+   - Added multi-level fallbacks for database operations
 
 ## Deployment and Infrastructure
 

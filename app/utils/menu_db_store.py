@@ -203,6 +203,78 @@ class MenuDBStore:
 
         return _memory_cache.get(key)
 
+    def _sanitize_properties(self, data: Dict[str, Any], item_type: str = 'item') -> None:
+        """
+        Sanitize the properties field of menu data to ensure it's JSON-serializable.
+        
+        Args:
+            data: The menu data dictionary to sanitize
+            item_type: Type of item being sanitized ('item', 'modifier', or 'group')
+            
+        Returns:
+            None, modifies the data dict in place
+        """
+        name = data.get('name', f'Unknown {item_type}')
+        
+        # Log the properties structure before sanitization
+        logger.debug(f"[MENU-STORE] {item_type.capitalize()} properties type: {type(data.get('properties'))}")
+        if 'properties' in data and data['properties'] is not None:
+            logger.debug(f"[MENU-STORE] {item_type.capitalize()} properties content sample: {str(data['properties'])[:100]}")
+            
+            # Enhanced JSONB handling - sanitize any non-JSON-serializable values
+            try:
+                # Test JSON serializability by attempting to serialize
+                json.dumps(data['properties'])
+                logger.debug(f"[MENU-STORE] Properties for {name} is already JSON-serializable")
+            except (TypeError, ValueError) as json_err:
+                logger.warning(f"[MENU-STORE] Non-serializable properties for {item_type} {name}, error: {json_err}")
+                
+                # If properties is a string, try to parse it
+                if isinstance(data['properties'], str):
+                    try:
+                        data['properties'] = json.loads(data['properties'])
+                        logger.info(f"[MENU-STORE] Converted properties string to dict for {item_type} {name}")
+                    except json.JSONDecodeError:
+                        logger.warning(f"[MENU-STORE] Could not parse properties string for {item_type} {name}, setting to empty dict")
+                        data['properties'] = {}
+                elif isinstance(data['properties'], dict):
+                    # If it's a dict but contains non-serializable values, sanitize them
+                    sanitized_props = {}
+                    for k, v in data['properties'].items():
+                        # Handle non-serializable values
+                        if isinstance(v, dict):
+                            # Recursively sanitize nested dicts
+                            try:
+                                json.dumps(v)  # Test if serializable
+                                sanitized_props[k] = v
+                            except (TypeError, ValueError):
+                                logger.warning(f"[MENU-STORE] Sanitizing non-serializable nested dict at key '{k}' for {item_type} {name}")
+                                sanitized_props[k] = str(v)
+                        elif isinstance(v, (list, tuple)):
+                            # Handle lists/tuples - convert any non-serializable items to strings
+                            try:
+                                json.dumps(v)  # Test if serializable
+                                sanitized_props[k] = v
+                            except (TypeError, ValueError):
+                                logger.warning(f"[MENU-STORE] Sanitizing non-serializable list/tuple at key '{k}' for {item_type} {name}")
+                                # Convert non-serializable items in lists to strings
+                                sanitized_props[k] = [str(item) if not isinstance(item, (str, int, float, bool, type(None))) else item for item in v]
+                        elif isinstance(v, (str, int, float, bool, type(None))):
+                            # These types are always JSON-serializable
+                            sanitized_props[k] = v
+                        else:
+                            # Convert other types to strings
+                            logger.warning(f"[MENU-STORE] Converting non-serializable value type {type(v)} at key '{k}' to string for {item_type} {name}")
+                            sanitized_props[k] = str(v)
+                            
+                    # Replace with sanitized properties
+                    data['properties'] = sanitized_props
+                    logger.info(f"[MENU-STORE] Sanitized properties for {item_type} {name}")
+                else:
+                    # If not a string or dict, set to empty dict
+                    logger.warning(f"[MENU-STORE] Properties not dict or string for {item_type} {name}, setting to empty dict")
+                    data['properties'] = {}
+
     def _store_in_memory_cache(self, key: str, data: Dict[str, Any]) -> bool:
         """
         Store menu data in in-memory cache.
@@ -481,64 +553,8 @@ class MenuDBStore:
                         f"[MENU-STORE] Processing item: {item_data.get('name')}, PLU: {item_data.get('plu')}, Price: {item_data.get('price')}"
                     )
 
-                    # Log the properties structure before item creation
-                    logger.debug(f"[MENU-STORE] Item properties type: {type(item_data.get('properties'))}")
-                    if 'properties' in item_data and item_data['properties'] is not None:
-                        logger.debug(f"[MENU-STORE] Item properties content sample: {str(item_data['properties'])[:100]}")
-                        
-                        # Enhanced JSONB handling - sanitize any non-JSON-serializable values
-                        try:
-                            # Test JSON serializability by attempting to serialize
-                            json.dumps(item_data['properties'])
-                            logger.debug(f"[MENU-STORE] Properties for {item_data.get('name')} is already JSON-serializable")
-                        except (TypeError, ValueError) as json_err:
-                            logger.warning(f"[MENU-STORE] Non-serializable properties for item {item_data.get('name')}, error: {json_err}")
-                            
-                            # If properties is a string, try to parse it
-                            if isinstance(item_data['properties'], str):
-                                try:
-                                    item_data['properties'] = json.loads(item_data['properties'])
-                                    logger.info(f"[MENU-STORE] Converted properties string to dict for item {item_data.get('name')}")
-                                except json.JSONDecodeError:
-                                    logger.warning(f"[MENU-STORE] Could not parse properties string for item {item_data.get('name')}, setting to empty dict")
-                                    item_data['properties'] = {}
-                            elif isinstance(item_data['properties'], dict):
-                                # If it's a dict but contains non-serializable values, sanitize them
-                                sanitized_props = {}
-                                for k, v in item_data['properties'].items():
-                                    # Handle non-serializable values
-                                    if isinstance(v, dict):
-                                        # Recursively sanitize nested dicts
-                                        try:
-                                            json.dumps(v)  # Test if serializable
-                                            sanitized_props[k] = v
-                                        except (TypeError, ValueError):
-                                            logger.warning(f"[MENU-STORE] Sanitizing non-serializable nested dict at key '{k}' for item {item_data.get('name')}")
-                                            sanitized_props[k] = str(v)
-                                    elif isinstance(v, (list, tuple)):
-                                        # Handle lists/tuples - convert any non-serializable items to strings
-                                        try:
-                                            json.dumps(v)  # Test if serializable
-                                            sanitized_props[k] = v
-                                        except (TypeError, ValueError):
-                                            logger.warning(f"[MENU-STORE] Sanitizing non-serializable list/tuple at key '{k}' for item {item_data.get('name')}")
-                                            # Convert non-serializable items in lists to strings
-                                            sanitized_props[k] = [str(item) if not isinstance(item, (str, int, float, bool, type(None))) else item for item in v]
-                                    elif isinstance(v, (str, int, float, bool, type(None))):
-                                        # These types are always JSON-serializable
-                                        sanitized_props[k] = v
-                                    else:
-                                        # Convert other types to strings
-                                        logger.warning(f"[MENU-STORE] Converting non-serializable value type {type(v)} at key '{k}' to string for item {item_data.get('name')}")
-                                        sanitized_props[k] = str(v)
-                                        
-                                # Replace with sanitized properties
-                                item_data['properties'] = sanitized_props
-                                logger.info(f"[MENU-STORE] Sanitized properties for item {item_data.get('name')}")
-                            else:
-                                # If not a string or dict, set to empty dict
-                                logger.warning(f"[MENU-STORE] Properties not dict or string for item {item_data.get('name')}, setting to empty dict")
-                                item_data['properties'] = {}
+                    # Process properties field
+                    self._sanitize_properties(item_data, 'item')
                     
                     item = MenuItem.from_dict(item_data)
                     session = get_session()
@@ -567,61 +583,8 @@ class MenuDBStore:
                 if location_id:
                     modifier_data["location_id"] = location_id
                 
-                # Handle properties for modifiers
-                if 'properties' in modifier_data and modifier_data['properties'] is not None:
-                    # Enhanced JSONB handling for modifiers
-                    try:
-                        # Test JSON serializability
-                        json.dumps(modifier_data['properties'])
-                        logger.debug(f"[MENU-STORE] Properties for modifier {modifier_data.get('name')} is already JSON-serializable")
-                    except (TypeError, ValueError) as json_err:
-                        logger.warning(f"[MENU-STORE] Non-serializable properties for modifier {modifier_data.get('name')}, error: {json_err}")
-                        
-                        # If properties is a string, try to parse it
-                        if isinstance(modifier_data['properties'], str):
-                            try:
-                                modifier_data['properties'] = json.loads(modifier_data['properties'])
-                                logger.info(f"[MENU-STORE] Converted properties string to dict for modifier {modifier_data.get('name')}")
-                            except json.JSONDecodeError:
-                                logger.warning(f"[MENU-STORE] Could not parse properties string for modifier {modifier_data.get('name')}, setting to empty dict")
-                                modifier_data['properties'] = {}
-                        elif isinstance(modifier_data['properties'], dict):
-                            # If it's a dict but contains non-serializable values, sanitize them
-                            sanitized_props = {}
-                            for k, v in modifier_data['properties'].items():
-                                # Handle non-serializable values
-                                if isinstance(v, dict):
-                                    # Recursively sanitize nested dicts
-                                    try:
-                                        json.dumps(v)  # Test if serializable
-                                        sanitized_props[k] = v
-                                    except (TypeError, ValueError):
-                                        logger.warning(f"[MENU-STORE] Sanitizing non-serializable nested dict at key '{k}' for modifier {modifier_data.get('name')}")
-                                        sanitized_props[k] = str(v)
-                                elif isinstance(v, (list, tuple)):
-                                    # Handle lists/tuples - convert any non-serializable items to strings
-                                    try:
-                                        json.dumps(v)  # Test if serializable
-                                        sanitized_props[k] = v
-                                    except (TypeError, ValueError):
-                                        logger.warning(f"[MENU-STORE] Sanitizing non-serializable list/tuple at key '{k}' for modifier {modifier_data.get('name')}")
-                                        # Convert non-serializable items in lists to strings
-                                        sanitized_props[k] = [str(item) if not isinstance(item, (str, int, float, bool, type(None))) else item for item in v]
-                                elif isinstance(v, (str, int, float, bool, type(None))):
-                                    # These types are always JSON-serializable
-                                    sanitized_props[k] = v
-                                else:
-                                    # Convert other types to strings
-                                    logger.warning(f"[MENU-STORE] Converting non-serializable value type {type(v)} at key '{k}' to string for modifier {modifier_data.get('name')}")
-                                    sanitized_props[k] = str(v)
-                                    
-                            # Replace with sanitized properties
-                            modifier_data['properties'] = sanitized_props
-                            logger.info(f"[MENU-STORE] Sanitized properties for modifier {modifier_data.get('name')}")
-                        else:
-                            # If not a string or dict, set to empty dict
-                            logger.warning(f"[MENU-STORE] Properties not dict or string for modifier {modifier_data.get('name')}, setting to empty dict")
-                            modifier_data['properties'] = {}
+                # Process properties field
+                self._sanitize_properties(modifier_data, 'modifier')
 
                 try:
                     modifier = MenuModifier.from_dict(modifier_data)
@@ -643,61 +606,8 @@ class MenuDBStore:
                 if location_id:
                     group_data["location_id"] = location_id
                 
-                # Handle properties for modifier groups
-                if 'properties' in group_data and group_data['properties'] is not None:
-                    # Enhanced JSONB handling for modifier groups
-                    try:
-                        # Test JSON serializability
-                        json.dumps(group_data['properties'])
-                        logger.debug(f"[MENU-STORE] Properties for group {group_data.get('name')} is already JSON-serializable")
-                    except (TypeError, ValueError) as json_err:
-                        logger.warning(f"[MENU-STORE] Non-serializable properties for group {group_data.get('name')}, error: {json_err}")
-                        
-                        # If properties is a string, try to parse it
-                        if isinstance(group_data['properties'], str):
-                            try:
-                                group_data['properties'] = json.loads(group_data['properties'])
-                                logger.info(f"[MENU-STORE] Converted properties string to dict for group {group_data.get('name')}")
-                            except json.JSONDecodeError:
-                                logger.warning(f"[MENU-STORE] Could not parse properties string for group {group_data.get('name')}, setting to empty dict")
-                                group_data['properties'] = {}
-                        elif isinstance(group_data['properties'], dict):
-                            # If it's a dict but contains non-serializable values, sanitize them
-                            sanitized_props = {}
-                            for k, v in group_data['properties'].items():
-                                # Handle non-serializable values
-                                if isinstance(v, dict):
-                                    # Recursively sanitize nested dicts
-                                    try:
-                                        json.dumps(v)  # Test if serializable
-                                        sanitized_props[k] = v
-                                    except (TypeError, ValueError):
-                                        logger.warning(f"[MENU-STORE] Sanitizing non-serializable nested dict at key '{k}' for group {group_data.get('name')}")
-                                        sanitized_props[k] = str(v)
-                                elif isinstance(v, (list, tuple)):
-                                    # Handle lists/tuples - convert any non-serializable items to strings
-                                    try:
-                                        json.dumps(v)  # Test if serializable
-                                        sanitized_props[k] = v
-                                    except (TypeError, ValueError):
-                                        logger.warning(f"[MENU-STORE] Sanitizing non-serializable list/tuple at key '{k}' for group {group_data.get('name')}")
-                                        # Convert non-serializable items in lists to strings
-                                        sanitized_props[k] = [str(item) if not isinstance(item, (str, int, float, bool, type(None))) else item for item in v]
-                                elif isinstance(v, (str, int, float, bool, type(None))):
-                                    # These types are always JSON-serializable
-                                    sanitized_props[k] = v
-                                else:
-                                    # Convert other types to strings
-                                    logger.warning(f"[MENU-STORE] Converting non-serializable value type {type(v)} at key '{k}' to string for group {group_data.get('name')}")
-                                    sanitized_props[k] = str(v)
-                                    
-                            # Replace with sanitized properties
-                            group_data['properties'] = sanitized_props
-                            logger.info(f"[MENU-STORE] Sanitized properties for group {group_data.get('name')}")
-                        else:
-                            # If not a string or dict, set to empty dict
-                            logger.warning(f"[MENU-STORE] Properties not dict or string for group {group_data.get('name')}, setting to empty dict")
-                            group_data['properties'] = {}
+                # Process properties field
+                self._sanitize_properties(group_data, 'group')
 
                 try:
                     group = MenuModifierGroup.from_dict(group_data)
@@ -960,46 +870,122 @@ class MenuDBStore:
             logger.error(f"Stack trace: {traceback.format_exc()}")
             
             # If this is a JSONB related error, give more specific information
-            if "JSONB" in str(e) or "json" in str(e).lower():
+            if "JSONB" in str(e) or "json" in str(e).lower() or "column" in str(e).lower() or "properties" in str(e).lower():
                 logger.error(f"JSONB serialization error detected. This is likely due to non-serializable data in properties.")
                 
-                # Try to identify which object is causing the issue
+                # Try to identify and fix the issue
                 try:
-                    # Check items
+                    # Import sanitize function from models
+                    from app.models.menu import sanitize_properties
+                    
+                    # Log detailed error info
+                    logger.error(f"JSONB Error details: {e}")
+                    logger.error(f"Error class: {e.__class__.__name__}")
+                    
+                    # Enhanced sanitization approach
+                    fixed_count = 0
+                    
+                    # Check and sanitize items
                     for i, item in enumerate(menu_data.get("items", [])):
                         if "properties" in item:
+                            old_prop = item["properties"]
                             try:
-                                # Test serialization
-                                json_str = json.dumps(item["properties"])
-                                logger.debug(f"Item {i} properties serializable: {item.get('name', 'unknown')}")
-                            except (TypeError, ValueError) as json_err:
-                                logger.error(f"Non-serializable properties in item {i}: {item.get('name', 'unknown')}, error: {json_err}")
-                                # Replace with empty dict to fix
+                                # Use our enhanced sanitize function
+                                item["properties"] = sanitize_properties(item["properties"])
+                                if item["properties"] != old_prop:
+                                    fixed_count += 1
+                                    logger.info(f"Fixed properties for item: {item.get('name', 'unknown')}")
+                            except Exception as item_err:
+                                logger.error(f"Failed to sanitize item {item.get('name', 'unknown')}: {item_err}")
+                                # Last resort - empty dict
                                 item["properties"] = {}
-                                
-                    # Check modifiers and modifierGroups
+                                fixed_count += 1
+                    
+                    # Check and sanitize modifiers
                     for i, modifier in enumerate(menu_data.get("modifiers", [])):
                         if "properties" in modifier:
+                            old_prop = modifier["properties"]
                             try:
-                                json_str = json.dumps(modifier["properties"])
-                            except (TypeError, ValueError) as json_err:
-                                logger.error(f"Non-serializable properties in modifier {i}: {modifier.get('name', 'unknown')}, error: {json_err}")
+                                modifier["properties"] = sanitize_properties(modifier["properties"])
+                                if modifier["properties"] != old_prop:
+                                    fixed_count += 1
+                                    logger.info(f"Fixed properties for modifier: {modifier.get('name', 'unknown')}")
+                            except Exception as mod_err:
+                                logger.error(f"Failed to sanitize modifier {modifier.get('name', 'unknown')}: {mod_err}")
                                 modifier["properties"] = {}
-                                
+                                fixed_count += 1
+                    
+                    # Check and sanitize modifier groups
                     for i, group in enumerate(menu_data.get("modifierGroups", [])):
                         if "properties" in group:
+                            old_prop = group["properties"]
                             try:
-                                json_str = json.dumps(group["properties"])
-                            except (TypeError, ValueError) as json_err:
-                                logger.error(f"Non-serializable properties in group {i}: {group.get('name', 'unknown')}, error: {json_err}")
+                                group["properties"] = sanitize_properties(group["properties"])
+                                if group["properties"] != old_prop:
+                                    fixed_count += 1
+                                    logger.info(f"Fixed properties for group: {group.get('name', 'unknown')}")
+                            except Exception as group_err:
+                                logger.error(f"Failed to sanitize group {group.get('name', 'unknown')}: {group_err}")
                                 group["properties"] = {}
+                                fixed_count += 1
                     
-                    # Try to store again with sanitized data
-                    logger.info("Attempting to store menu data again with sanitized properties")
-                    return self.store_menu_data(menu_data, location_id)
+                    # Handle column name issues (snoozed_until vs snoozeUntil vs snoozedUntil)
+                    for i, item in enumerate(menu_data.get("items", [])):
+                        # Process different field names for snoozed_until to ensure compatibility
+                        # Priority: snoozedUntil (DB column name) > snoozeUntil (camelCase API name)
+                        
+                        # If only snoozeUntil exists, add snoozedUntil for DB compatibility
+                        if "snoozeUntil" in item and "snoozedUntil" not in item:
+                            item["snoozedUntil"] = item["snoozeUntil"]
+                            logger.info(f"Added snoozedUntil for DB compatibility with item: {item.get('name', 'unknown')}")
+                            fixed_count += 1
+                            
+                        # If only snoozedUntil exists, add snoozeUntil for API compatibility
+                        elif "snoozedUntil" in item and "snoozeUntil" not in item:
+                            item["snoozeUntil"] = item["snoozedUntil"]
+                            logger.info(f"Added snoozeUntil for API compatibility with item: {item.get('name', 'unknown')}")
+                            fixed_count += 1
+                            
+                        # Log detailed debug info for snooze fields
+                        logger.debug(f"Item {item.get('name', 'unknown')} snooze fields: " +
+                                   f"snoozedUntil={item.get('snoozedUntil')}, " +
+                                   f"snoozeUntil={item.get('snoozeUntil')}")
                     
+                    logger.info(f"Fixed {fixed_count} properties fields")
+                    
+                    if fixed_count > 0:
+                        # Try to store again with sanitized data
+                        logger.info("Attempting to store menu data again with sanitized properties")
+                        return self.store_menu_data(menu_data, location_id)
+                    else:
+                        logger.warning("No properties were fixed, the issue might be something else")
+                
                 except Exception as debug_err:
                     logger.error(f"Error while debugging JSONB issue: {debug_err}")
+                    logger.exception("Exception details:")
+                    
+                # Provide more helpful information in logs
+                try:
+                    # Get database schema information for debugging
+                    from sqlalchemy import inspect
+                    engine = get_engine()
+                    if engine:
+                        inspector = inspect(engine)
+                        column_info = inspector.get_columns('menu_items')
+                        schema_columns = [col['name'] for col in column_info]
+                        logger.info(f"Database schema for menu_items table: {schema_columns}")
+                        
+                        # Check for specific column presence
+                        if 'properties' in schema_columns:
+                            column_type = next((col['type'] for col in column_info if col['name'] == 'properties'), None)
+                            logger.info(f"Properties column type: {column_type}")
+                        
+                        if 'snoozed_until' in schema_columns:
+                            logger.info("Column 'snoozed_until' exists in database schema")
+                        else:
+                            logger.warning("Column 'snoozed_until' NOT FOUND in database schema - this will cause errors")
+                except Exception as schema_err:
+                    logger.error(f"Could not get schema information: {schema_err}")
             
             return False
 

@@ -97,7 +97,11 @@ yarl==1.18.3
 # Core dependencies for WebSocket-based Realtime integration
 flask==3.1.0  # Web framework
 flask-sock==0.7.0  # WebSocket support for Flask
-gevent==23.9.1  # Coroutine-based network library
-gevent-websocket==0.10.1  # WebSocket worker for Gunicorn
+gevent==23.9.1  # Coroutine-based network library for WebSockets
 gunicorn==23.0.0  # Production WSGI server
+websocket-client==1.7.0  # WebSocket client for OpenAI connection
+psycopg2-binary==2.9.9  # PostgreSQL database adapter
+redis==5.2.1  # Redis client for caching and Celery
 ffmpeg-python==0.2.0  # Audio transcoding
+# Removing unnecessary ASGI dependencies
+# uvicorn is kept for compatibility but not used

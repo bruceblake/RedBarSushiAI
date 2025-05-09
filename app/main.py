@@ -1,0 +1,240 @@
+"""
+Main FastAPI application module for RedBarSushiAI.
+
+This module contains the FastAPI application instance and serves as the entry point
+for the application when running with ASGI servers like Uvicorn.
+"""
+
+import os
+import logging
+import sys
+from datetime import datetime
+from typing import Dict, Any
+
+from fastapi import FastAPI, Request, Depends
+from fastapi.responses import JSONResponse
+import uvicorn
+
+# Configure logging
+logging.basicConfig(
+    stream=sys.stderr,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+
+# Configure environment variables
+BASE_URL = os.environ.get("BASE_URL", "https://redbarsushiai.onrender.com")
+os.environ["BASE_URL"] = BASE_URL  # Ensure it's set for other modules
+
+# If running on Render, set the environment variable
+if os.environ.get("RENDER_SERVICE_ID"):
+    os.environ["RENDER"] = "true"
+    logger.info("Running on Render platform")
+
+# Configure headless mode for server environments
+is_render = os.environ.get("RENDER") == "true"
+force_headless = is_render or os.environ.get("FORCE_HEADLESS") == "true"
+
+if force_headless or os.environ.get("X11_SETUP_SUCCESS") != "true":
+    # Headless mode (recommended for production)
+    os.environ["PYNPUT_HEADLESS"] = "1"
+    os.environ["NO_X11"] = "1"
+    os.environ["HEADLESS"] = "1"
+    os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"
+
+    # Unset DISPLAY to prevent X11 connection attempts
+    if "DISPLAY" in os.environ:
+        del os.environ["DISPLAY"]
+
+    logger.info("Headless mode active (no X11 needed)")
+else:
+    # X11 mode - only for development with GUI components
+    # This branch should not be used in production
+    logger.warning("X11 mode active - not recommended for production")
+    
+    # Use the working display provided by the startup script
+    if "DISPLAY" in os.environ and os.environ["DISPLAY"]:
+        logger.info(f"Using provided X display: {os.environ['DISPLAY']}")
+    else:
+        # Default to no display
+        logger.warning("No display set, using headless mode instead")
+        os.environ["PYNPUT_HEADLESS"] = "1"
+        os.environ["NO_X11"] = "1"
+        os.environ["HEADLESS"] = "1"
+        os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"
+
+# Enhanced logging setup
+try:
+    from app.utils.enhanced_logging import initialize_logging
+    log_dir = initialize_logging()
+    logger.info(f"Enhanced logging system initialized, logs directory: {log_dir}")
+except ImportError:
+    # Fall back to basic logging if enhanced logging isn't available
+    logger.warning("Enhanced logging system not available, using basic logging instead")
+
+# Create the FastAPI application
+app = FastAPI(
+    title="RedBarSushi AI",
+    description="AI-powered voice ordering system for Red Bar Sushi",
+    version="1.0.0",
+)
+
+@app.get("/")
+async def index(request: Request) -> Dict[str, Any]:
+    """Root endpoint that doesn't require database access."""
+    # Add environment info to help diagnose routing issues
+    env_type = (
+        "Staging"
+        if os.environ.get("FLASK_ENV") == "staging" or os.environ.get("IS_STAGING")
+        else "Production"
+    )
+    return {
+        "message": f"Welcome to Red Bar Sushi AI API ({env_type} Environment)",
+        "version": "1.0.0",
+        "environment": env_type,
+        "host": request.headers.get("host", "unknown"),
+        "base_url": str(request.base_url),
+        "flask_env": os.environ.get("FLASK_ENV", "not set"),
+    }
+
+@app.get("/healthcheck")
+async def healthcheck() -> Dict[str, Any]:
+    """Basic health check endpoint."""
+    # Basic health information
+    health_info = {
+        "status": "ok",
+        "message": "RedBarSushiAI is running",
+        "timestamp": datetime.now().isoformat(),
+        "environment": (
+            "staging"
+            if os.environ.get("FLASK_ENV") == "staging"
+            or os.environ.get("IS_STAGING")
+            else (
+                "production" if os.environ.get("RENDER", False) else "development"
+            )
+        ),
+        "checks": {},
+    }
+    
+    # Database check will be added later when the async database is implemented
+    
+    return health_info
+
+@app.get("/environment")
+async def environment_info() -> Dict[str, Any]:
+    """Return detailed information about the environment."""
+    import socket
+    import platform
+
+    # Get environment variables
+    env_vars = {
+        key: value
+        for key, value in os.environ.items()
+        if not any(
+            secret in key.lower()
+            for secret in ["key", "secret", "password", "token"]
+        )
+    }
+
+    info = {
+        "environment": os.environ.get("FLASK_ENV", "not set"),
+        "is_staging": os.environ.get("IS_STAGING", False),
+        "render": os.environ.get("RENDER", False),
+        "docker": os.environ.get("DOCKER", False),
+        "hostname": socket.gethostname(),
+        "ip": socket.gethostbyname(socket.gethostname()),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "working_directory": os.getcwd(),
+        "render_instance_id": os.environ.get("RENDER_INSTANCE_ID", "not in Render"),
+        "render_service_id": os.environ.get("RENDER_SERVICE_ID", "not in Render"),
+        "timestamp": datetime.now().isoformat(),
+        "environment_variables": env_vars,
+    }
+
+    return info
+
+# Import and include API routers
+from app.api import api_router
+
+# Include the main API router
+app.include_router(api_router)
+
+# Add startup and shutdown events
+@app.on_event("startup")
+async def startup_event():
+    """Handle application startup."""
+    logger.info("Application startup")
+    
+    # Initialize Redis
+    try:
+        from app.redis_async import init_redis
+        redis_client = await init_redis()
+        if redis_client:
+            logger.info("Redis initialized successfully")
+        else:
+            logger.warning("Redis initialization failed, using memory cache fallback")
+    except Exception as e:
+        logger.error(f"Error initializing Redis: {e}")
+    
+    # Initialize database
+    try:
+        from app.db_async import init_database, verify_connection
+        
+        # Check connection first
+        is_connected = await verify_connection()
+        if is_connected:
+            logger.info("Database connection verified")
+            
+            # Initialize the database if needed
+            if settings.INITIALIZE_MENU_DATABASE:
+                await init_database()
+                logger.info("Database initialized successfully")
+        else:
+            logger.error("Database connection failed")
+    except Exception as e:
+        logger.error(f"Error initializing database: {e}")
+    
+    # Initialize async agent orchestrator
+    try:
+        from app.utils.agent_orchestration_async import async_agent_orchestrator
+        await async_agent_orchestrator.initialize()
+        logger.info("Async agent orchestrator initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing async agent orchestrator: {e}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Handle application shutdown."""
+    logger.info("Application shutdown")
+    
+    # Close Redis connection
+    try:
+        from app.redis_async import _redis_client
+        if _redis_client:
+            await _redis_client.close()
+            logger.info("Redis connection closed")
+    except Exception as e:
+        logger.error(f"Error closing Redis connection: {e}")
+    
+    # Close database connection pool
+    try:
+        from app.db_async import engine
+        await engine.dispose()
+        logger.info("Database connection pool closed")
+    except Exception as e:
+        logger.error(f"Error closing database connection pool: {e}")
+        
+    # Clean up any other resources
+    try:
+        # Close any other resources
+        pass
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+
+if __name__ == "__main__":
+    # For development only - use Uvicorn server with reloading
+    port = int(os.environ.get("PORT", 5000))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

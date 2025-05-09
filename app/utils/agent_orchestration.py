@@ -1088,29 +1088,71 @@ class FSMOrchestrator:
         # Default to initial state
         return FSMState.INITIAL
     
-    def set_current_state(self, call_sid: str, state: FSMState) -> None:
+    def set_current_state(self, call_sid: str, state: FSMState, retry_count: int = None) -> None:
         """
         Set the current state for a call.
         
         Args:
             call_sid: The call SID
             state: The state to set
+            retry_count: Optional explicit retry count (defaults to current + 1)
         """
+        start_time = time.time()
+        
+        # Get the previous state for transition logging
+        previous_state = self.get_current_state(call_sid)
+        previous_state_value = previous_state.value if previous_state else "None"
+        
+        # Set the new state
         self.slot_store.set_slot(call_sid, "current_state", state.value)
         
         # Also store the retry count for this state
         retry_key = f"retry_{state.value}"
-        retry_count = self.slot_store.get_slot(call_sid, retry_key) or 0
-        self.slot_store.set_slot(call_sid, retry_key, retry_count + 1)
+        current_retry_count = self.slot_store.get_slot(call_sid, retry_key) or 0
         
-        # Log the state change
-        log_with_context(
+        # Use provided retry_count or increment current
+        new_retry_count = retry_count if retry_count is not None else current_retry_count + 1
+        self.slot_store.set_slot(call_sid, retry_key, new_retry_count)
+        
+        # Get all slots for context
+        all_slots = self.slot_store.get_all_slots(call_sid)
+        # Filter out sensitive data for logging
+        filtered_slots = {k: "[REDACTED]" if k in ["phone", "phone_raw", "credit_card", "payment_info"] else v 
+                          for k, v in all_slots.items()}
+        
+        # Duration calculation
+        duration_ms = (time.time() - start_time) * 1000
+        
+        # Log the state transition with comprehensive information
+        log_orchestration_event(
             "info",
-            f"State change: {state.value}",
+            f"[{call_sid}] FSM STATE TRANSITION: {previous_state_value} → {state.value}",
             {
                 "call_sid": call_sid,
+                "previous_state": previous_state_value,
+                "new_state": state.value,
+                "retry_count": new_retry_count,
+                "duration_ms": duration_ms,
+                "timestamp": datetime.now().isoformat(),
+                "active_slots": list(filtered_slots.keys()),
+                "slot_count": len(filtered_slots),
+                "context": filtered_slots
+            },
+            call_sid=call_sid,
+            phase="FSM"
+        )
+        
+        # Also log with the standard monitoring system for redundancy
+        log_with_context(
+            "info",
+            f"[{call_sid}] State change: {previous_state_value} → {state.value}",
+            {
+                "call_sid": call_sid,
+                "previous_state": previous_state_value,
                 "state": state.value,
-                "retry_count": retry_count + 1
+                "retry_count": new_retry_count,
+                "duration_ms": duration_ms,
+                "active_slot_count": len(filtered_slots)
             }
         )
     
@@ -1137,16 +1179,55 @@ class FSMOrchestrator:
             slot_name: The name of the slot
             value: The value to set
         """
+        # Get the previous value for change tracking
+        previous_value = self.get_slot(call_sid, slot_name)
+        
+        # Set the new value
         self.slot_store.set_slot(call_sid, slot_name, value)
         
-        # Log the slot update
-        log_with_context(
+        # Create a safe value for logging (redact sensitive data)
+        safe_value = value
+        if slot_name in ["phone", "phone_raw", "credit_card", "payment_info"]:
+            safe_value = "[REDACTED]"
+        elif isinstance(value, str) and len(value) > 50:
+            safe_value = f"{value[:50]}... [truncated, total length: {len(value)}]"
+            
+        # Create a safe previous value
+        safe_previous = previous_value
+        if slot_name in ["phone", "phone_raw", "credit_card", "payment_info"]:
+            safe_previous = "[REDACTED]" if previous_value else None
+        elif isinstance(previous_value, str) and len(previous_value) > 50:
+            safe_previous = f"{previous_value[:50]}... [truncated, total length: {len(previous_value)}]"
+        
+        # Format the value change for logging
+        value_change = f"{safe_previous} → {safe_value}" if previous_value is not None else f"None → {safe_value}"
+        
+        # Log the slot update with detailed information
+        log_orchestration_event(
             "info",
-            f"Slot update: {slot_name}={value}",
+            f"[{call_sid}] SLOT UPDATE: {slot_name} = {safe_value}",
             {
                 "call_sid": call_sid,
                 "slot_name": slot_name,
-                "slot_value": value
+                "new_value_type": type(value).__name__,
+                "previous_value_type": type(previous_value).__name__ if previous_value is not None else None,
+                "value_changed": previous_value != value,
+                "value_change_summary": value_change,
+                "timestamp": datetime.now().isoformat()
+            },
+            call_sid=call_sid,
+            phase="SLOT"
+        )
+        
+        # Also log with the standard monitoring system for redundancy
+        log_with_context(
+            "info",
+            f"[{call_sid}] Slot update: {slot_name}={safe_value}",
+            {
+                "call_sid": call_sid,
+                "slot_name": slot_name,
+                "slot_value": safe_value,
+                "value_changed": previous_value != value
             }
         )
     

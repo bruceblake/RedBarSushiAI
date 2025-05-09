@@ -1,6 +1,36 @@
-# PostgreSQL Authentication Fix and Docker Setup Improvements
+# RedBarSushiAI System Improvements
 
-This document summarizes the changes made to fix the PostgreSQL authentication issue and improve the Docker setup for the RedBarSushiAI project.
+This document summarizes the key improvements made to the RedBarSushiAI system across multiple areas.
+
+## Recent System Enhancements (May 2025)
+
+### Database and Model Improvements
+
+- **Schema-Model Alignment**: Fixed the discrepancy between `snoozed_until` (DB schema) and `snooze_until` (model code) with backward-compatible property getters/setters
+- **JSONB Serialization**: Added robust sanitization for JSONB properties to prevent serialization errors
+- **Error Recovery**: Implemented multi-level fallbacks for database operations
+
+### Logging Enhancements
+
+- **FSM State Transitions**: Added detailed logging for conversation state transitions
+- **Intent Detection**: Enhanced logging for agent intent detection with keyword tracking
+- **Slot Updates**: Added logging for conversation context with sensitive data redaction
+- **Speech Detection**: Implemented logging for VAD events and potential interruptions
+
+### Real-time Audio Processing Improvements
+
+- **OpenAI Session Configuration**: Enhanced configuration with `interrupt_response: true` and interruption threshold settings
+- **Strategic Yielding**: Implemented gevent.sleep() with tuned durations for cooperative multitasking
+- **Speech-Aware Yielding**: Added differentiated yielding for speech vs. silence packets
+- **Resource Management**: Enhanced resource cleanup to prevent memory leaks
+
+### Documentation Improvements
+
+- **System Architecture**: Updated SYSTEM_ARCHITECTURE.md with comprehensive system overview
+- **Gevent Implementation**: Enhanced GEVENT_README.md with interruption handling details
+- **Database Fixes**: Created documentation of database fixes and improvement strategies
+
+## Previous Improvements: PostgreSQL Authentication Fix and Docker Setup
 
 ## New Files Created
 

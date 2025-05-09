@@ -128,7 +128,7 @@ services:
       - ../../app:/app/app
       - ../../init_database.py:/app/init_database.py
       - ../../menu_data.json:/app/menu_data.json
-    command: ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-w", "1", "--bind", "0.0.0.0:8080", "--timeout", "120", "--log-level", "debug"]
+    command: ["gunicorn", "-k", "gevent", "-w", "4", "--bind", "0.0.0.0:8080", "--timeout", "120", "--log-level", "debug", "wsgi:app"]
 EOF
 echo "✅ $OVERRIDE_FILE created"
 

@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-WSGI and ASGI entry point for the RedBarSushiAI project.
-This file is used by Render and other WSGI/ASGI-compatible servers.
+WSGI entry point for the RedBarSushiAI project.
+This file is used by Render and other WSGI-compatible servers with gevent worker.
 """
 
 # Apply gevent monkey patching BEFORE any imports to ensure all standard library calls are patched
 try:
     import gevent.monkey
     gevent.monkey.patch_all()
-    print("Applied gevent monkey patching")
+    print("Applied gevent monkey patching for WebSocket support")
 except ImportError:
-    print("Gevent not installed, WebSocket functionality will be limited")
+    print("ERROR: Gevent not installed, WebSocket functionality will fail!")
+    # Raise an exception to prevent further execution
+    raise RuntimeError("Gevent is required for WebSocket functionality")
 
 # Continue with standard imports after patching
 import os
