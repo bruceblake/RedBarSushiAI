@@ -42,41 +42,70 @@ This document summarizes the progress and remaining tasks in the migration from 
    - Created cleanup script for MCP server
    - Removed MCP-related scripts
 
+9. ✅ **Archived Flask routes**
+   - Created and ran cleanup_flask_routes.sh
+   - Successfully archived all Flask routes to archive/flask_routes/
+   - Created detailed summary of blueprints and route handlers
+
+10. ✅ **Migrated critical Voice/TwiML generation routes**
+    - Implemented enhanced `receive_call` endpoint in FastAPI
+    - Added comprehensive logging and error handling
+    - Updated TwiML generation utilities for FastAPI
+    - Implemented improved health check endpoint
+    - Added routes-debug endpoint for API exploration
+    - Created VOICE_MIGRATION_COMPLETE.md with migration details
+
 ## Remaining Tasks
 
-1. 🔄 **Remove Flask-specific routes in app/routes/**
-   - Created cleanup_flask_routes.sh to safely archive routes
-   - Need to execute script and verify archive
-   - Need to migrate essential routes to FastAPI
+1. ✅ **Remove Flask-specific routes in app/routes/**
+   - ✅ Created and executed cleanup_flask_routes.sh
+   - ✅ Successfully archived routes to archive/flask_routes/
+   - ✅ Verified archive integrity and structure
 
-2. 🔄 **Consolidate/migrate essential Flask routes to FastAPI**
-   - Migrate route handlers to FastAPI endpoint functions
-   - Update URL paths and HTTP methods
-   - Implement Pydantic models for request/response validation
+2. 🔄 **Migrate remaining essential Flask routes to FastAPI**
+   - ✅ Migrated voice/TwiML generation routes
+   - 🔄 Need to migrate order routes
+   - 🔄 Need to migrate menu routes
+   - 🔄 Need to migrate monitoring routes
+   - 🔄 Need to migrate location routes
+
+3. 🔄 **Enhance WebSocket implementation**
+   - 🔄 Update WebSocket handlers to use native FastAPI WebSocket support
+   - 🔄 Improve error handling and connection lifecycle management
+   - 🔄 Implement backpressure handling and proper resource cleanup
 
 ## Migration Path
 
 To complete the migration, follow these steps:
 
-1. Run the cleanup_flask_routes.sh script to archive Flask routes:
+1. ✅ Archive Flask routes (completed):
 ```bash
 ./cleanup_flask_routes.sh
 ```
 
-2. Migrate essential routes from the archive to FastAPI endpoints:
+2. Migrate remaining essential routes from the archive to FastAPI endpoints:
    - Create appropriate routers in app/api/ directory
    - Convert route handlers to async FastAPI endpoint functions
+   - Use Pydantic models for request/response validation
    - Test endpoints for functionality
 
-3. Update any remaining references to Flask-specific code:
+3. Implement enhanced WebSocket handling:
+   - Update WebSocket handlers in app/api/voice_async.py
+   - Implement proper connection lifecycle management
+   - Add backpressure handling for audio streams
+   - Ensure proper resource cleanup on disconnect
+
+4. Update any remaining references to Flask-specific code:
    - Check for imports of flask, flask_sqlalchemy, etc.
    - Update request objects to FastAPI request objects
-   - Convert jsonify() calls to return Python dictionaries
+   - Convert response handling to use FastAPI response types
+   - Replace middleware implementations with FastAPI equivalents
 
-4. Test the application thoroughly:
-   - Test all REST endpoints
-   - Test WebSocket functionality
+5. Test the application thoroughly:
+   - Test all REST endpoints with curl/Postman
+   - Test WebSocket functionality with test clients
    - Verify database operations work with async SQLAlchemy
+   - Check Twilio integration with actual calls
 
 ## Architecture Changes
 

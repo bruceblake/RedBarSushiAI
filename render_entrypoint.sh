@@ -245,14 +245,45 @@ fi
 log "Creating database tables if they don't exist..."
 python -c "
 import sys
-from app import create_app, db
+import asyncio
 
 try:
-    app = create_app()
-    with app.app_context():
-        db.create_all()
-        print('Database tables created successfully')
-        sys.exit(0)
+    # Try using the async database initialization
+    try:
+        from app.db_async import init_db
+        print('Using async database initialization')
+        
+        # Create and run async function
+        async def initialize_db():
+            try:
+                await init_db()
+                print('Async database initialization successful')
+                return True
+            except Exception as e:
+                print(f'Async database initialization failed: {e}')
+                return False
+                
+        # Run the async function
+        success = asyncio.run(initialize_db())
+        if success:
+            sys.exit(0)
+        else:
+            # Try fallback if async failed
+            raise ImportError('Async initialization failed')
+    
+    except ImportError as ie:
+        print(f'Falling back to Flask-style database initialization: {ie}')
+        # Try Flask-style initialization
+        try:
+            from app import create_app, db
+            app = create_app()
+            with app.app_context():
+                db.create_all()
+                print('Database tables created successfully (Flask-style)')
+                sys.exit(0)
+        except Exception as e:
+            print(f'Flask-style database initialization failed: {e}')
+            raise
 except Exception as e:
     print(f'Error creating database tables: {str(e)}')
     sys.exit(1)

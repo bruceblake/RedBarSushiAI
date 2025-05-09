@@ -78,9 +78,10 @@ docker run -d --name redis \
 
 # Step 8: Start PostgreSQL
 echo "Starting PostgreSQL container..."
+# Try to use a different port (5434) since 5433 seems to be already in use
 docker run -d --name postgres \
   --network redbarsushi-network \
-  -p 5433:5432 \
+  -p 5434:5432 \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=redbarsushi \
@@ -148,7 +149,8 @@ docker run -d --name redbarsushi-app \
   -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
   -e "POSTGRES_DB=$POSTGRES_DB" \
   -e "OPENAI_API_KEY=$OPENAI_API_KEY" \
-  -e "FLASK_ENV=$FLASK_ENV" \
+  -e "FASTAPI_ENV=${FLASK_ENV:-development}" \
+  -e "FLASK_ENV=${FLASK_ENV:-development}" \
   -e "FLASK_DEBUG=1" \
   -e "LOG_LEVEL=$LOG_LEVEL" \
   -e "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" \
@@ -171,7 +173,8 @@ docker run -d --name redbarsushi-app \
   -v "$(pwd)/menu_data.json:/app/menu_data.json" \
   -v "$(pwd)/websocket_test_client.py:/app/websocket_test_client.py" \
   --restart unless-stopped \
-  redbarsushiai-app
+  redbarsushiai-app \
+  "uvicorn" "main:app" "--host" "0.0.0.0" "--port" "8080" "--workers" "4"
 
 echo "✅ RedBarSushiAI app container started"
 
@@ -179,6 +182,7 @@ echo "✅ RedBarSushiAI app container started"
 echo "Verifying environment variables in the container..."
 sleep 5  # Wait for the container to fully start
 docker exec redbarsushi-app bash -c 'echo "OPENAI_API_KEY: ${OPENAI_API_KEY:0:5}..."'
+docker exec redbarsushi-app bash -c 'echo "FASTAPI_ENV: $FASTAPI_ENV"'
 docker exec redbarsushi-app bash -c 'echo "FLASK_ENV: $FLASK_ENV"'
 docker exec redbarsushi-app bash -c 'echo "VOICE_HANDLER: $VOICE_HANDLER"'
 docker exec redbarsushi-app bash -c 'echo "DATABASE_URL: $DATABASE_URL"'

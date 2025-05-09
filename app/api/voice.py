@@ -91,9 +91,137 @@ async def receive_call(request: Request) -> Response:
 
 @router.get("/health")
 async def voice_health() -> Dict[str, Any]:
-    """Health check endpoint for the voice service."""
+    """
+    Enhanced health check endpoint for the voice service.
+    
+    Verifies that all required components are properly initialized:
+    - Agent orchestration system
+    - Realtime processor
+    - Redis connection
+    
+    Returns:
+        Dict with status and component information
+    """
+    import os
+    
+    try:
+        # Check agent orchestration
+        try:
+            from app.utils.agent_orchestration_async import async_agent_orchestrator
+            agent_status = "initialized" if hasattr(async_agent_orchestrator, 'is_initialized') and async_agent_orchestrator.is_initialized else "not_initialized"
+        except ImportError:
+            agent_status = "not_available"
+        
+        # Try to check the FSM manager
+        try:
+            from app.utils.fsm_async import async_fsm_manager
+            fsm_status = "available" if hasattr(async_fsm_manager, 'is_initialized') and async_fsm_manager.is_initialized else "not_available"
+        except ImportError:
+            fsm_status = "not_available"
+        
+        # Check for realtime processor
+        try:
+            from app.utils.realtime_audio_async import get_realtime_processor
+            realtime_processor = await get_realtime_processor()
+            realtime_status = "available" if realtime_processor else "unavailable"
+            
+            # Check for fallback mode
+            is_fallback = False
+            if hasattr(realtime_processor, 'is_fallback'):
+                is_fallback = realtime_processor.is_fallback
+                
+        except Exception as realtime_error:
+            logger.error(f"Error checking realtime processor: {str(realtime_error)}")
+            realtime_status = "error"
+            is_fallback = False
+        
+        # Check Redis connection
+        redis_status = "unknown"
+        try:
+            from app.redis_async import get_redis
+            redis_client = await get_redis()
+            if redis_client and await redis_client.ping():
+                redis_status = "connected"
+            else:
+                redis_status = "disconnected"
+        except Exception as redis_error:
+            redis_status = f"error: {str(redis_error)}"
+        
+        # Get active connections
+        try:
+            from app.dependencies import connection_manager
+            active_connections = len(connection_manager.active_connections)
+        except Exception:
+            active_connections = 0
+        
+        # Compile the response
+        return {
+            "status": "ok" if agent_status == "initialized" and realtime_status == "available" else "error",
+            "service": "voice_realtime",
+            "agents": agent_status,
+            "fsm": fsm_status,
+            "realtime": realtime_status,
+            "realtime_fallback": is_fallback,
+            "redis": redis_status,
+            "active_connections": active_connections,
+            "environment": os.environ.get('FASTAPI_ENV', 'development'),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error in health check: {str(e)}")
+        return {
+            "status": "error",
+            "service": "voice_realtime",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@router.get("/routes-debug")
+async def debug_routes(request: Request) -> Dict[str, Any]:
+    """
+    Debug endpoint to show all registered routes.
+    
+    This endpoint provides information about all registered routes in the FastAPI app,
+    which is useful for debugging routing issues and understanding the API surface.
+    
+    Args:
+        request: The HTTP request
+        
+    Returns:
+        Dict with routes information
+    """
+    from fastapi.routing import APIRoute
+    
+    # Get the main FastAPI app instance
+    app = request.app
+    
+    # Collect route information
+    routes = []
+    
+    # Process all routes
+    for route in app.routes:
+        if isinstance(route, APIRoute):
+            routes.append({
+                "path": route.path,
+                "name": route.name,
+                "methods": list(route.methods) if route.methods else [],
+                "endpoint": route.endpoint.__name__ if hasattr(route.endpoint, "__name__") else str(route.endpoint),
+                "summary": route.summary or "",
+                "tags": route.tags or []
+            })
+        else:
+            # For non-API routes like WebSocket routes
+            routes.append({
+                "path": route.path,
+                "type": route.__class__.__name__,
+            })
+    
+    # Sort routes by path for readability
+    routes.sort(key=lambda r: r.get("path", ""))
+    
     return {
-        "status": "ok",
-        "service": "voice",
-        "timestamp": datetime.now().isoformat()
+        "routes": routes,
+        "count": len(routes),
+        "app_title": getattr(app, "title", "FastAPI"),
+        "app_version": getattr(app, "version", "unknown")
     }

@@ -89,12 +89,9 @@ services:
   - type: web
     name: redbarsushi-staging
     branch: staging
-    runtime: python
-    buildCommand: |
-      # Install ALL dependencies using our comprehensive script
-      chmod +x ./install_all_dependencies.sh
-      ./install_all_dependencies.sh
-    startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 --bind 0.0.0.0:$PORT --timeout 120 'run:app'
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: PROCESS
         value: web
@@ -102,6 +99,8 @@ services:
         value: "1"
       - key: FORCE_HEADLESS
         value: "true"
+      - key: FASTAPI_ENV
+        value: staging
       - key: FLASK_ENV
         value: staging
       - key: IS_STAGING

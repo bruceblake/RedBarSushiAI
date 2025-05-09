@@ -38,38 +38,61 @@ class TwimlParameter(BaseModel):
 
 def generate_media_streams_twiml(params: TwimlParameter) -> str:
     """
-    Generate TwiML for WebSocket-based media streaming.
+    Generate optimized TwiML for WebSocket-based media streaming.
+    
+    This function generates TwiML with a <Connect><Stream> element for bidirectional
+    media streaming with Twilio. It includes proper pausing and voice configuration
+    based on production best practices.
     
     Args:
         params: Parameters for TwiML generation
         
     Returns:
-        str: TwiML response
+        str: TwiML response as a string
     """
-    # Extract parameters
-    stream_url = params.stream_params.url
-    track = params.stream_params.track
-    stream_name = params.stream_params.name or "MediaStream"
-    
-    # Build parameters attribute if specified
-    params_attr = ""
-    if params.stream_params.parameters:
-        params_str = " ".join([f'{k}="{v}"' for k, v in params.stream_params.parameters.items()])
-        params_attr = f' parameters="{params_str}"'
-    
-    # Generate TwiML
-    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+    try:
+        call_sid = params.call_sid
+        logger.info(f"[TWIML:{call_sid}] Generating bidirectional TwiML with Connect")
+        
+        # Extract parameters
+        stream_url = params.stream_params.url
+        track = params.stream_params.track
+        stream_name = params.stream_params.name or "media_stream"
+        
+        # Build parameters attribute if specified
+        params_attr = ""
+        if params.stream_params.parameters:
+            params_str = " ".join([f'{k}="{v}"' for k, v in params.stream_params.parameters.items()])
+            params_attr = f' parameters="{params_str}"'
+        
+        # Generate TwiML
+        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="{params.voice}" language="{params.language}">{params.greeting_text}</Say>
+    <Pause length="1"/>
     <Connect>
         <Stream url="{stream_url}" track="{track}" name="{stream_name}"{params_attr} />
     </Connect>
     <Say voice="{params.voice}" language="{params.language}">{params.fallback_text}</Say>
 </Response>
 """
-    
-    logger.info(f"Generated TwiML with WebSocket URL: {stream_url}")
-    return twiml
+        
+        # Log the TwiML details for debugging
+        logger.info(f"[TWIML:{call_sid}] Generated TwiML with WebSocket URL: {stream_url}")
+        logger.debug(f"[TWIML:{call_sid}] TwiML: {twiml}")
+        
+        return twiml
+        
+    except Exception as e:
+        logger.error(f"Error generating optimized TwiML: {str(e)}")
+        
+        # Create an error response if TwiML generation fails
+        error_twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Amy-Neural">We're sorry, but an error occurred while processing your call. Please try again later.</Say>
+</Response>
+"""
+        return error_twiml
 
 def get_host_for_ws() -> str:
     """
