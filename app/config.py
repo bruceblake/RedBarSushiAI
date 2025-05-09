@@ -7,7 +7,13 @@ with validation and type conversion.
 
 import os
 from typing import Dict, Any, Optional, List
-from pydantic import BaseSettings, Field, validator, AnyHttpUrl
+try:
+    # Try to import from pydantic-settings (for pydantic v2)
+    from pydantic_settings import BaseSettings
+    from pydantic import Field, validator, AnyHttpUrl
+except ImportError:
+    # Fallback to legacy location (for pydantic v1)
+    from pydantic import BaseSettings, Field, validator, AnyHttpUrl
 
 # Default environment variables path
 ENV_FILE = ".env"
