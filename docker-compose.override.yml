@@ -8,11 +8,10 @@ services:
       - DELIVERECT_CHANNEL_NAME=redbarsushi
       - DELIVERECT_API_KEY=your_deliverect_api_key_here
       - DELIVERECT_BASE_URL=https://api.staging.deliverect.com
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
+      - FASTAPI_ENV=development
       - LOG_LEVEL=DEBUG
       - VOICE_HANDLER=realtime
       - FORCE_HEADLESS=true
       - IS_STAGING=true
       - OPENAI_REALTIME_VAD_SILENCE_MS=1000
-    command: ["gunicorn", "-k", "gevent", "-w", "4", "--bind", "0.0.0.0:8080", "--timeout", "120", "--log-level", "debug", "wsgi:app"]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--log-level", "debug"]

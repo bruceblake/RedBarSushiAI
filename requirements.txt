@@ -19,21 +19,16 @@ colorama==0.4.6
 distro==1.9.0
 docstring-to-markdown==0.15
 fastapi==0.115.11
-Flask==3.1.0
-flask-sock==0.7.0
-Flask-SQLAlchemy==3.1.1
 flower==2.0.1
 frozenlist==1.5.0
-greenlet==3.0.3
+greenlet==3.0.3  # Required for async SQLAlchemy
 griffe==1.6.2
-gunicorn==23.0.0
 h11==0.14.0
 httpcore==1.0.7
 httpx==0.28.1
 humanize==4.12.1
 idna==3.10
 iniconfig==2.0.0
-itsdangerous==2.2.0
 jedi==0.19.2
 Jinja2>=3.1.6,<4.0
 jiter==0.8.2
@@ -65,17 +60,14 @@ RapidFuzz==3.12.1
 redis==5.2.1
 redis-cli==1.0.1
 requests==2.32.3
-simple-websocket==1.1.0
 six==1.17.0
 sniffio==1.3.1
-sock==0.6.0
 sql==2022.4.0
 SQLAlchemy==2.0.38
-psycopg2-binary==2.9.9
+asyncpg==0.29.0  # Async PostgreSQL driver
+psycopg2-binary==2.9.9  # PostgreSQL database adapter (sync)
 starlette==0.46.0
 stripe==11.6.0
-gevent==23.9.1
-tornado==6.4.2
 tqdm==4.67.1
 twilio==9.4.6
 types-requests==2.32.0.20250306
@@ -83,25 +75,14 @@ typing_extensions==4.12.2
 tzdata==2025.1
 ujson==5.10.0
 urllib3==2.3.0
-uvicorn==0.34.0
+uvicorn==0.34.0  # ASGI server for FastAPI
 vine==5.1.0
-waitress==3.0.2
-wcwidth==0.2.13
-websocket-client==1.7.0
+websocket-client==1.7.0  # WebSocket client for OpenAI connection
 websockets==13.1
-Werkzeug==3.1.3
 wsproto==1.2.0
 yarl==1.18.3
 # Optional diagnostics - not required for core WebSocket functionality
 # psutil==5.9.7
-# Core dependencies for WebSocket-based Realtime integration
-flask==3.1.0  # Web framework
-flask-sock==0.7.0  # WebSocket support for Flask
-gevent==23.9.1  # Coroutine-based network library for WebSockets
-gunicorn==23.0.0  # Production WSGI server
-websocket-client==1.7.0  # WebSocket client for OpenAI connection
-psycopg2-binary==2.9.9  # PostgreSQL database adapter
+# Core dependencies for FastAPI + WebSocket integration
 redis==5.2.1  # Redis client for caching and Celery
 ffmpeg-python==0.2.0  # Audio transcoding
-# Removing unnecessary ASGI dependencies
-# uvicorn is kept for compatibility but not used

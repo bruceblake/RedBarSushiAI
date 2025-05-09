@@ -78,7 +78,7 @@ RUN set -e; \
     fi;
 
 # Ensure the critical WebSocket and ASGI packages are installed
-RUN pip install --no-cache-dir --upgrade flask-sock==0.7.0 uvicorn==0.34.0 websocket-client==1.7.0 pyaudio==0.2.14
+RUN pip install --no-cache-dir --upgrade fastapi==0.115.11 uvicorn==0.34.0 websocket-client==1.7.0 websockets==13.1
 
 # Dependencies are already installed in previous step
 
@@ -118,5 +118,5 @@ EXPOSE 8080
 # Use our entrypoint script
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
-# Use gevent worker for WebSocket support (required by Flask-Sock)
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-k", "gevent", "-w", "4", "--worker-connections", "1000", "--bind", "0.0.0.0:8080", "--timeout", "120", "--log-level", "info", "wsgi:app"]
+# Use Uvicorn for FastAPI
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--log-level", "info"]

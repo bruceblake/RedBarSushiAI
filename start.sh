@@ -34,6 +34,7 @@ export PORT=$PORT
 export VOICE_HANDLER=$VOICE_HANDLER
 export FORCE_HEADLESS=$FORCE_HEADLESS
 export OPENAI_REALTIME_NO_DISPLAY=1
+export FASTAPI_ENV=${MODE}  # For FastAPI environment
 
 # Create logs directory if it doesn't exist
 mkdir -p logs
@@ -50,20 +51,19 @@ echo "Headless mode: $FORCE_HEADLESS"
 case $MODE in
     dev)
         echo "Starting in development mode with auto-reload"
-        export FLASK_APP=run.py
-        export FLASK_DEBUG=1
-        flask run --host=0.0.0.0 --port=$PORT
+        export FASTAPI_ENV=development
+        uvicorn main:app --host=0.0.0.0 --port=$PORT --reload
         ;;
     prod)
-        echo "Starting in production mode with Gunicorn"
-        gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 2 --bind "0.0.0.0:$PORT" "run:app"
+        echo "Starting in production mode with Uvicorn"
+        export FASTAPI_ENV=production
+        uvicorn main:app --host=0.0.0.0 --port=$PORT --workers=4
         ;;
     debug)
         echo "Starting in debug mode with verbose logging"
-        export FLASK_APP=run.py
-        export FLASK_DEBUG=1
+        export FASTAPI_ENV=development
         export LOG_LEVEL=DEBUG
-        flask run --host=0.0.0.0 --port=$PORT
+        uvicorn main:app --host=0.0.0.0 --port=$PORT --reload --log-level=debug
         ;;
     *)
         echo "Unknown mode: $MODE"

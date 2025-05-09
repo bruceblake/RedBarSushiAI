@@ -117,8 +117,7 @@ services:
       - DELIVERECT_CHANNEL_NAME=$(grep DELIVERECT_CHANNEL_NAME $ENV_FILE | cut -d= -f2)
       - DELIVERECT_API_KEY=$(grep DELIVERECT_API_KEY $ENV_FILE | cut -d= -f2)
       - DELIVERECT_BASE_URL=$(grep DELIVERECT_BASE_URL $ENV_FILE | cut -d= -f2)
-      - FLASK_ENV=$(grep FLASK_ENV $ENV_FILE | cut -d= -f2)
-      - FLASK_DEBUG=$(grep FLASK_DEBUG $ENV_FILE | cut -d= -f2)
+      - FASTAPI_ENV=$(grep FASTAPI_ENV $ENV_FILE | cut -d= -f2 || grep FLASK_ENV $ENV_FILE | cut -d= -f2 || echo "development")
       - LOG_LEVEL=$(grep LOG_LEVEL $ENV_FILE | cut -d= -f2)
       - VOICE_HANDLER=realtime
       - FORCE_HEADLESS=true
@@ -128,7 +127,7 @@ services:
       - ../../app:/app/app
       - ../../init_database.py:/app/init_database.py
       - ../../menu_data.json:/app/menu_data.json
-    command: ["gunicorn", "-k", "gevent", "-w", "4", "--bind", "0.0.0.0:8080", "--timeout", "120", "--log-level", "debug", "wsgi:app"]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--log-level", "debug"]
 EOF
 echo "✅ $OVERRIDE_FILE created"
 
@@ -142,11 +141,11 @@ sleep 10
 
 # Verify API keys are passed correctly
 echo "Verifying environment configuration..."
-docker-compose -f $COMPOSE_FILE exec app bash -c 'echo "OPENAI_API_KEY: ${OPENAI_API_KEY:0:10}..."; echo "FLASK_ENV: $FLASK_ENV"; echo "LOG_LEVEL: $LOG_LEVEL"'
+docker-compose -f $COMPOSE_FILE exec app bash -c 'echo "OPENAI_API_KEY: ${OPENAI_API_KEY:0:10}..."; echo "FASTAPI_ENV: $FASTAPI_ENV"; echo "LOG_LEVEL: $LOG_LEVEL"'
 
 # Initialize database structure
 echo "Initializing database..."
-docker-compose -f $COMPOSE_FILE exec app bash -c 'python -c "from app import create_app, db; app = create_app(); with app.app_context(): db.create_all(); print(\"Database initialized successfully\")" || echo "Database initialization failed"'
+docker-compose -f $COMPOSE_FILE exec app bash -c 'python -c "import asyncio; from app.db_async import init_db; asyncio.run(init_db()); print(\"Database initialized successfully\")" || echo "Database initialization failed"'
 
 # Display status
 echo
@@ -156,7 +155,7 @@ docker-compose -f $COMPOSE_FILE ps
 echo
 echo "===== Environment ====="
 echo "Using: $ENV_FILE"
-echo "Mode: $(grep FLASK_ENV $ENV_FILE | cut -d= -f2 || echo 'development')"
+echo "Mode: $(grep FASTAPI_ENV $ENV_FILE | cut -d= -f2 || grep FLASK_ENV $ENV_FILE | cut -d= -f2 || echo 'development')"
 
 echo
 echo "===== Startup Completed ====="

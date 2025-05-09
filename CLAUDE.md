@@ -12,20 +12,19 @@ WE HAVE 2 ENVIRONMENTS, A STAGING ENVIRONMENT FOR TESTING AND A PRODUCTION ENVIR
 RedBarSushiAI is an AI-powered voice ordering system for Red Bar Sushi that enables customers to place orders and get menu information over the phone. The system integrates with:
 
 - **Twilio**: For phone/voice communication with programmable voice and media streams
-- **OpenAI**: For real-time audio processing, natural language understanding, and orchestrated multi-agent interactions using the Realtime API
+- **OpenAI**: For real-time audio processing, natural language understanding, and orchestrated multi-agent interactions
 - **Deliverect**: For order management and POS integration
 - **PostgreSQL**: For data persistence of menu items, orders, and variants
 - **Redis**: For caching, conversation state management, and as Celery broker
 - **Celery**: For asynchronous task processing including order confirmation and polling
-- **MCP Server**: Local API documentation and testing server that provides tooling for Claude integration
 
 ## Core Architecture
 
 ### Database Architecture
 
-The system uses PostgreSQL for data persistence with these key models that mirror the Deliverect data structure:
+The system uses PostgreSQL with SQLAlchemy for data persistence, with async support through asyncpg:
 
-1. **Menu Models** (`app/models/menu.py`):
+1. **Menu Models** (`app/models/menu_async.py`):
 
    - `MenuCategory`: `id`, `deliverect_category_id`, `name`, `description`
    - `MenuItem`: `id`, `category_id`, `name`, `description`, `price`, `plu` (critical link to POS), `deliverect_item_id`, `is_available`, `is_combo`, `is_variant`, `image_url`, `snoozed_until`
@@ -35,19 +34,19 @@ The system uses PostgreSQL for data persistence with these key models that mirro
    - `GroupModifier`: Links `modifier_groups` to `modifiers`
    - `MenuNameVariant`: `variant_phrase` (lowercase), `canonical_name`, `target_plu` - Essential for mapping natural language to specific PLUs
 
-2. **Order Models** (`app/models/order.py`):
+2. **Order Models** (`app/models/order_async.py`):
 
    - `Order`: `id`, `deliverect_channel_order_id` (critical link to Deliverect), `customer_phone`, `order_type`, `status`, `total_price`, `placed_at`, `estimated_time`, `delivery_address`
    - `OrderItem`: Links `orders` to `menu_items` via `menu_item_plu`, stores quantity
    - `OrderItemModifier`: Links `order_items` to `modifiers` via `modifier_plu`
 
-3. **Location Model** (`app/models/location.py`):
+3. **Location Model** (`app/models/location_async.py`):
    - `Location`: Stores location settings, Deliverect connection details, and business hours
    - Each location has its own `channelLinkId` for Deliverect integration
 
 ### Voice Architecture
 
-Voice interactions are managed through an orchestrated multi-agent architecture with real-time audio processing. The system has been refactored into a modular structure for improved maintainability:
+Voice interactions are managed through an orchestrated multi-agent architecture with real-time audio processing using FastAPI and WebSockets:
 
 ```
 ┌───────────────────────────┐
@@ -72,7 +71,7 @@ Voice interactions are managed through an orchestrated multi-agent architecture 
 └────────────┘  └─────────┘  └───────────┘
 ```
 
-1. **Modular Voice Implementation** (`app/routes/voice/` directory):
+1. **Async Voice Implementation** (`app/api/voice_async.py`):
 
    - Real-time audio processing via WebSockets
    - Multi-agent architecture with specialized roles
@@ -82,11 +81,11 @@ Voice interactions are managed through an orchestrated multi-agent architecture 
 
 2. **Key Components**:
 
-   - **Stream Handler** (`app/routes/realtime.py`): Main WebSocket handler for real-time audio
-   - **Event Handlers** (`app/routes/voice/handlers/`): Specialized handlers for different event types
-   - **TwiML Generation** (`app/routes/voice/twilio/improved_twiml.py`): Generates TwiML for Twilio
-   - **Tools Registry** (`app/routes/voice/utils/tools_registry.py`): Manages tool registration and execution
-   - **VAD Configuration** (`app/routes/voice/utils/vad.py`): Voice Activity Detection settings
+   - **WebSocket Handler** (`app/api/voice_async.py`): FastAPI WebSocket handler for real-time audio
+   - **FSM Implementation** (`app/utils/fsm_async.py`): Async FSM for conversation management
+   - **Agent Orchestrator** (`app/utils/agent_orchestration_async.py`): Async agent coordination system
+   - **Realtime Audio SDK** (`app/utils/realtime_audio_async.py`): Async OpenAI Realtime API client
+   - **Database Layer** (`app/db/session_async.py`): Async SQLAlchemy with asyncpg for non-blocking DB operations
 
 3. **Agent Roles**:
 
@@ -103,56 +102,139 @@ Voice interactions are managed through an orchestrated multi-agent architecture 
    - Progressive fallbacks with configurable retry limits
    - State-aware reprompting strategies
 
+## FastAPI Implementation
+
+The system has been migrated from Flask/Gevent to FastAPI with native async support:
+
+### Core FastAPI Components
+
+1. **Application Entry Point** (`app/main.py`):
+   - FastAPI application setup with lifespan events
+   - API router registration
+   - Database, agent, and FSM initialization
+
+2. **API Routes**:
+   - RESTful endpoints for menu, order, and voice operations
+   - WebSocket endpoint for Twilio media streams
+   - FSM debugging endpoints for testing conversation flows
+
+3. **Dependency Injection**:
+   - Database session management via dependencies
+   - Connection management for WebSockets
+   - Agent factories and orchestrator dependencies
+
+4. **Pydantic Models**:
+   - Request and response validation
+   - Data schema definitions
+   - Configuration management
+
+### Async Database Layer
+
+1. **SQLAlchemy 2.0 Async Setup** (`app/db/session_async.py`):
+   - AsyncEngine with create_async_engine()
+   - AsyncSession with async_sessionmaker()
+   - Dependency function for session injection
+   - Proper session lifecycle management
+
+2. **Async CRUD Operations** (`app/db/crud_*.py`):
+   - Non-blocking database operations
+   - Error handling for async database queries
+   - Transaction management with async commit/rollback
+
+3. **ORM Models** (`app/models/*.py`):
+   - SQLAlchemy models for menu, order, and location data
+   - Relationships between models
+   - Base class with common fields
+
+### Async FSM Implementation
+
+1. **State Machine Components** (`app/utils/fsm_async.py`):
+   - ConversationState enum for defining conversation states
+   - ConversationEvent enum for triggering state transitions
+   - AsyncStateHandler base class for state-specific behavior
+   - Specialized handlers for each conversation state
+
+2. **Core FSM Class** (`AsyncConversationFSM`):
+   - State transition logic with validation
+   - Event triggering and processing
+   - Context maintenance across transitions
+   - Persistence with async storage
+
+3. **FSM Manager** (`AsyncFSMManager`):
+   - Management of multiple FSM instances
+   - Instance creation, retrieval, and removal
+   - State handler provider system
+   - Session tracking and cleanup
+
+### Agent System
+
+1. **Agent Factory** (`app/agents/factory_async.py`):
+   - Async initialization of agent instances
+   - Agent registration and retrieval
+   - Voice agent system creation
+
+2. **Base Agent** (`app/agents/base_async.py`):
+   - Common agent functionality
+   - Tool execution framework
+   - Context management
+
+3. **Specialized Agents**:
+   - `AsyncFrontlineVoiceAgent`: Main conversation coordinator
+   - `AsyncMenuAgent`: Menu inquiry specialist
+   - `AsyncCartAgent`: Order management specialist
+   - `AsyncGuardrailAgent`: Order validation specialist
+   - `AsyncFulfillmentAgent`: Order submission specialist
+   - `AsyncEscalationAgent`: Human handoff specialist
+
+4. **Agent Orchestrator** (`app/utils/agent_orchestration_async.py`):
+   - Integration with FSM for state-driven agent selection
+   - Voice input processing through appropriate agents
+   - Tool call handling with specialized agents
+   - Session state management and cleanup
+
 ## Real-time Voice Architecture
 
-The real-time voice system is built using the OpenAI Realtime API with a Gevent-based WebSocket implementation for improved performance and stability:
+The real-time voice system is built using the OpenAI Realtime API with FastAPI WebSockets:
 
 ### WebSocket Implementation
 
 1. **Server Configuration**:
-   - Uses Flask-Sock for WebSocket support (native integration with Gevent)
-   - Uses Gevent worker with Gunicorn for cooperative concurrency
-   - Applies Gevent monkey patching for compatibility (`gevent.monkey.patch_all()` in wsgi.py)
-   - Recommended configuration: `gunicorn -k gevent --workers 4 --worker-connections 1000 --bind 0.0.0.0:$PORT wsgi:app`
+   - Uses FastAPI's native WebSocket support
+   - Async/await pattern for non-blocking operations
+   - Task-based concurrency with asyncio
+   - Proper resource management with task cancellation
 
 2. **WebSocket Connection Flow**:
-   - **Twilio Connection**: Call comes in, Twilio connects via WebSocket to `/ws/media/<call_sid>`
+   - **Twilio Connection**: Call comes in, Twilio connects via WebSocket to `/ws/media/{call_sid}`
    - **Handshake Process**: Handles 'connected' and 'start' events from Twilio
-   - **OpenAI Connection**: Establishes WebSocket connection to OpenAI Realtime API using `websocket-client` library
-   - **Bidirectional Streaming**: Handles audio streaming in both directions with optimized yielding
+   - **OpenAI Connection**: Establishes WebSocket connection to OpenAI Realtime API
+   - **Bidirectional Streaming**: Handles audio streaming in both directions
 
-3. **Gevent-based Concurrency**:
-   - **Greenlet-based Processing**: Uses Gevent greenlets instead of asyncio for concurrency
-   - **Strategic Yielding**: Implements carefully tuned `gevent.sleep()` calls for cooperative multitasking
-   - **Differentiated Yielding**: Uses different sleep durations for speech vs. silence packets
-   - **Event-based Communication**: Uses events and queues for inter-greenlet communication
-   - **Proper Error Handling**: Gracefully handles connection errors and closures with comprehensive logging
+3. **Implementation Details**:
+   - **Task-based Concurrency**: Uses asyncio tasks for concurrent operations
+   - **Queue-based Communication**: Uses asyncio queues for inter-task communication
+   - **Event-based Processing**: Processes events through dedicated handlers
+   - **Proper Error Handling**: Gracefully handles connection errors and closures
 
 ### OpenAI Realtime Integration
 
 1. **Session Configuration**:
    - Uses the `session.update` event to configure the OpenAI Realtime session
-   - Sets up audio formats (g711_ulaw), VAD parameters, and model instructions
-   - Configures server-side VAD for automatic speech detection with `interrupt_response: true`
-   - Sets appropriate interruption thresholds for natural conversational flow
+   - Sets up audio formats, VAD parameters, and model instructions
+   - Configures server-side VAD for automatic speech detection
+   - Proper interruption handling and timeout configuration
 
 2. **Audio Processing**:
    - **Input**: Forwards Twilio audio packets to OpenAI using `input_audio_buffer.append`
    - **Output**: Receives audio from OpenAI via `response.audio.delta` events
-   - **Transcription**: Processes final transcripts from OpenAI via `conversation.item.input_audio_transcription.completed`
+   - **Transcription**: Processes final transcripts from OpenAI
    - **TTS**: Generates text-to-speech using a two-step process with `conversation.item.create` and `response.create`
 
 3. **Tool Calling**:
    - Handles function calls from OpenAI via various event formats
    - Executes tools locally via the tools registry
-   - Returns results to OpenAI using the documented format (`conversation.item.create` with type `function_call_output`)
+   - Returns results to OpenAI using the documented format
    - Requests new responses using `response.create` after tool execution
-
-4. **Interruption Handling**:
-   - Monitors for user speech during AI response using OpenAI's VAD events
-   - Implements custom interruption logic with configurable thresholds
-   - Properly handles conversation turn-taking through greenlet coordination
-   - Uses enhanced resource cleanup to prevent memory leaks during interruptions
 
 ### Multi-Agent Orchestration
 
@@ -167,40 +249,17 @@ The real-time voice system is built using the OpenAI Realtime API with a Gevent-
    - Maintains session context for stateful interactions
    - Enables seamless agent transitions based on intents and triggers
 
-## Database Architecture Improvements
-
-The database layer has received several important improvements:
-
-1. **Schema-Model Alignment**:
-   - Fixed the discrepancy between `snoozed_until` (DB schema) and `snooze_until` (model code)
-   - Implemented backward-compatible property getters/setters to maintain compatibility
-   - Ensured consistent naming across schema, models, and application code
-
-2. **JSONB Serialization**:
-   - Added robust sanitization for JSONB properties to prevent serialization errors
-   - Implemented special handling for non-serializable types (datetime, custom objects)
-   - Added validation to recover from invalid JSON data in existing records
-   - Improved error handling for database operations with proper logging
-
-3. **Multi-Level Error Recovery**:
-   - Implemented comprehensive error handling with fallbacks for database operations
-   - Added cache consistency checks between Redis and PostgreSQL
-   - Enhanced logging for database operations with timing and error information
-   - Added graceful degradation when encountering data inconsistencies
-
 ## Menu Management
 
-The menu system uses a database-backed architecture with multi-level caching:
+The menu system uses a database-backed architecture with async operations:
 
-1. **Database Storage** (`app/utils/menu_db_store.py`):
+1. **Database Storage** (`app/db/crud_menu_async.py`):
 
    - PostgreSQL as the persistent source of truth
-   - Redis caching layer for improved performance
-   - In-memory fallback if Redis becomes unavailable
+   - Async database operations with SQLAlchemy 2.0
    - Menu validation and data integrity checks
-   - Sanitized JSONB properties for robust serialization
 
-2. **Menu Matching** (`app/utils/menu_matcher_db.py`):
+2. **Menu Matching**:
    - Progressive matching strategy with fallbacks:
      - Exact match (fastest, first attempt)
      - Fuzzy matching with Levenshtein distance (second attempt)
@@ -212,21 +271,21 @@ The menu system uses a database-backed architecture with multi-level caching:
 
 Orders are processed through a multi-stage pipeline with specialized agents:
 
-1. **Cart Management** (`app/agents/cart.py`):
+1. **Cart Management** (`app/agents/cart_async.py`):
 
    - Parses natural language order descriptions
    - Resolves ambiguities through interactive clarification
    - Manages cart state in Redis
    - Handles item modifications and quantities
 
-2. **Order Validation** (`app/agents/guardrail.py`):
+2. **Order Validation** (`app/agents/guardrail_async.py`):
 
    - Enforces business rules and constraints
    - Validates modifier selection limits
    - Verifies item availability and snooze status
    - Calculates accurate pricing
 
-3. **Order Fulfillment** (`app/agents/fulfillment.py`):
+3. **Order Fulfillment** (`app/agents/fulfillment_async.py`):
    - Prepares the Deliverect payload
    - Submits orders to the POS system
    - Records orders in the database
@@ -238,9 +297,9 @@ Orders are processed through a multi-stage pipeline with specialized agents:
 
 1. **Setup Phase**:
 
-   - Twilio initiates the call and connects to WebSocket endpoint `/ws/media/<call_sid>`
+   - Twilio initiates the call and connects to WebSocket endpoint `/ws/media/{call_sid}`
    - Twilio sends 'connected' and 'start' events to establish the media stream
-   - System initializes the orchestrated voice agent
+   - System initializes the FSM and agent orchestrator
    - System establishes connection to OpenAI Realtime API
 
 2. **Greeting Phase** (FSM: GREETING state):
@@ -306,45 +365,6 @@ Orders are processed through a multi-stage pipeline with specialized agents:
    - OpenAI generates audio using the configured voice
    - Audio streamed back to customer in real-time via Twilio
 
-## MCP Server Implementation
-
-The system includes a local MCP (Model Code Processing) server that provides tools for AI-assisted development and testing:
-
-1. **Setup & Configuration**:
-   - Located in the `mcp/` directory with its own virtual environment (`mcp_venv/`)
-   - Started via `start_redbarsushi_mcp.sh` or related scripts
-   - Listens on configurable port (default 4000) using SSE transport
-   - Connects to the same PostgreSQL and Redis instances as the main application
-
-2. **Available Tools**:
-   - **Environment Tools**:
-     - `get_environment_status`: Checks status of all environment components
-     - `setup_docker_environment`: Sets up a testing Docker environment
-     - `view_container_logs`: Accesses container logs for debugging
-   - **Database Tools**:
-     - `get_database_schema`: Retrieves database schema information
-     - `execute_query`: Runs SQL queries against the database
-     - `get_redis_keys`/`get_redis_value`: Redis inspection tools
-   - **Menu & Order Tools**:
-     - `lookup_menu_item`: Finds menu items by name
-     - `get_menu_categories`: Retrieves menu categories
-     - `get_menu_items`: Gets menu items with optional filtering
-     - `search_menu_items`: Searches items by name or description
-     - `get_current_cart`/`add_to_cart`: Cart management
-     - `place_order`/`poll_order_status`: Order operations
-
-3. **Usage**:
-   - Claude integration via `/mcp` commands
-   - JSON-RPC API endpoint at `/mcp` for direct access
-   - Health check endpoint at `/health`
-   - Example usage provided in `add_mcp_config.sh`
-
-4. **Benefits**:
-   - Provides direct system access for debugging and testing
-   - Enables AI agents to interact with the application
-   - Simplifies complex operations through standardized tools
-   - Documents API capabilities through interactive examples
-
 ## API Integrations
 
 ### OpenAI Realtime API Integration
@@ -359,18 +379,16 @@ The system integrates with OpenAI's Realtime API for real-time audio processing:
      - `OpenAI-Beta: realtime=v1`
 
 2. **Session Configuration**:
-   - **Audio Formats**: `g711_ulaw` for input and output (optimized for Twilio)
-   - **Voice**: `shimmer` (configurable via environment variable)
-   - **VAD**: Server-side VAD with custom silence duration and `interrupt_response: true`
+   - **Audio Formats**: `mulaw` for input and output
+   - **Voice**: `shimmer` (configurable)
+   - **VAD**: Server-side VAD with custom silence duration
    - **Modalities**: text and audio
-   - **Tools**: Function definitions with name, description, and parameters
 
 3. **Event Flow**:
    - **Input**: `input_audio_buffer.append` events with base64-encoded audio
-   - **Transcription**: `conversation.item.input_audio_transcription.completed` events
+   - **Transcription**: `transcript.final` events with complete transcripts
    - **Response**: Two-step process with `conversation.item.create` and `response.create`
    - **Output**: `response.audio.delta` events with base64-encoded audio chunks
-   - **Speech Detection**: `input_audio_buffer.speech_started` and `input_audio_buffer.speech_stopped`
 
 4. **Tool Calling**:
    - Functions registered with OpenAI for execution
@@ -422,9 +440,9 @@ The application is deployed on Render with these features:
    - Redis connection handling
 
 2. **Docker Configuration**:
-   - Gevent worker class for Gunicorn
-   - Monkey patching for cooperative concurrency
-   - WebSocket support via Flask-Sock
+   - FastAPI with Uvicorn and async workers
+   - Support for non-blocking WebSocket operations
+   - PostgreSQL and Redis containers
 
 3. **CI/CD Pipeline**:
    - Tests run on PR and push
@@ -437,49 +455,57 @@ The application is deployed on Render with these features:
 
 ```
 app/
+├── api/                    # API endpoints
+│   ├── api_v1/             # API version 1 routes
+│   │   ├── endpoints/      # Endpoint modules
+│   │   └── api.py          # API router
+│   └── voice_async.py      # Voice WebSocket handler
 ├── agents/                 # Agent components
-│   ├── base.py             # Base agent implementation
-│   ├── cart.py             # Cart management agent
-│   ├── factory.py          # Agent factory
-│   └── ...                 # Other specialized agents
+│   ├── base_async.py       # Base async agent implementation
+│   ├── cart_async.py       # Async cart management agent
+│   ├── factory_async.py    # Async agent factory
+│   └── ...                 # Other specialized async agents
+├── db/                     # Database components
+│   ├── crud_menu_async.py  # Async CRUD operations for menu
+│   ├── session_async.py    # Async database session setup
+│   └── ...                 # Other CRUD modules
 ├── models/                 # Database models
-│   ├── menu.py             # Menu items, modifiers, categories
-│   ├── order.py            # Order and item tracking
-│   └── ...                 # Other models
-├── routes/                 # API endpoints
-│   ├── realtime.py         # WebSocket handler for real-time audio
-│   ├── voice/              # Voice implementation components
-│   │   ├── twilio/         # Twilio integration
-│   │   ├── handlers/       # Event handlers
-│   │   └── utils/          # Utilities
-│   └── ...                 # Other route modules
+│   ├── menu_async.py       # Async menu models
+│   ├── order_async.py      # Async order models
+│   └── ...                 # Other model modules
+├── schemas/                # Pydantic schemas
+│   ├── menu.py             # Menu schemas
+│   ├── order.py            # Order schemas
+│   └── ...                 # Other schema modules
 └── utils/                  # Shared utilities
-    ├── realtime_audio_sdk.py  # Real-time audio processing
-    ├── conversation_store.py  # Conversation state management
-    └── ...                 # Other utilities
+    ├── fsm_async.py        # Async finite state machine
+    ├── agent_orchestration_async.py  # Async agent orchestration
+    ├── realtime_audio_async.py  # Async OpenAI Realtime client
+    └── ...                 # Other utility modules
 ```
 
-### WebSocket Implementation
+### FastAPI Implementation
 
-1. **wsgi.py**:
+1. **main.py**:
    - Entry point for the application
-   - Applies Gevent monkey patching
-   - Exports Flask app for Gunicorn
+   - FastAPI app configuration
+   - Lifespan events for startup/shutdown
+   - Router registration
 
-2. **app/routes/realtime.py**:
+2. **app/api/voice_async.py**:
    - WebSocket handler for Twilio media streams
    - Manages bidirectional audio between Twilio and OpenAI
    - Processes transcripts and handles agent responses
 
-3. **app/utils/realtime_audio_sdk.py**:
-   - Provides wrapper for OpenAI Realtime API
+3. **app/utils/realtime_audio_async.py**:
+   - Provides async wrapper for OpenAI Realtime API
    - Handles audio format conversion
    - Manages session lifecycle
 
 ### Common Tasks
 
-- **Run in Development**: `FLASK_DEBUG=1 FLASK_APP=run.py flask run`
-- **Run Tests**: `pytest tests/e2e/test_orchestrated_voice_flow.py`
+- **Run in Development**: `uvicorn app.main:app --reload`
+- **Run Tests**: `pytest tests/e2e/test_async_voice_flow.py`
 - **Rebuild Docker**: `./force_rebuild.sh && ./restart_docker.sh`
 - **Check Logs**: `docker logs -f redbarsushi-app-1`
 
@@ -541,8 +567,8 @@ app/
 
 3. **Performance**:
    - Optimize database queries
-   - Use caching where appropriate
-   - Monitor real-time audio performance
+   - Use async/await for I/O-bound operations
+   - Implement proper connection pooling
 
 ## System Configuration and Startup
 
@@ -552,26 +578,17 @@ The system relies on environment variables for configuration. Key variables incl
 
 ```
 # Database
-DATABASE_URL=postgresql://user:password@localhost:5432/redbarsushi
-TEST_DATABASE_URL=postgresql://user:password@localhost:5432/redbarsushi_test
-POSTGRES_HOST=localhost       # For Docker environment
-POSTGRES_PORT=5432            # For Docker environment
-POSTGRES_DB=redbarsushi       # For Docker environment
-POSTGRES_USER=postgres        # For Docker environment
-POSTGRES_PASSWORD=postgres    # For Docker environment
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/redbarsushi
+TEST_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/redbarsushi_test
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
-REDIS_HOST=localhost          # For Docker environment
-REDIS_PORT=6379               # For Docker environment
 CELERY_BROKER_URL=redis://localhost:6379/1
 CELERY_RESULT_BACKEND=redis://localhost:6379/1
 
 # OpenAI
 OPENAI_API_KEY=sk-...
-OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview-2024-10-01
-OPENAI_REALTIME_VOICE=shimmer  # Or alloy, nova, etc.
-OPENAI_REALTIME_SYSTEM_MESSAGE="You are Red Bar Sushi AI Assistant..."
+OPENAI_ASSISTANT_ID=asst_...
 
 # Twilio
 TWILIO_ACCOUNT_SID=AC...
@@ -584,116 +601,69 @@ DELIVERECT_API_KEY=...
 DELIVERECT_BASE_URL=https://api.staging.deliverect.com
 
 # Application Settings
-FLASK_APP=wsgi:app
-FLASK_ENV=development  # or production
 LOG_LEVEL=INFO
-FORCE_HEADLESS=true    # For Docker/Render environments
 ```
 
 ### Starting the Application
 
-The application can be started with the following methods:
+The application can be started with the following commands:
 
-1. **Docker (Recommended)**:
+1. **Start the FastAPI server**:
 
-   ```bash
-   # First time or after config changes:
-   ./force_rebuild.sh
-   
-   # Regular startup:
+   ```
+   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ```
+
+   or in debug mode:
+
+   ```
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+2. **Start the Celery worker**:
+
+   ```
+   celery -A app.celery_app worker --loglevel=INFO
+   ```
+
+3. **Start with Docker**:
+   ```
    ./start_docker.sh
-   
-   # Check health:
-   ./check_docker_health.sh
-   ```
-
-2. **Production Mode (Gevent/Gunicorn)**:
-
-   ```bash
-   # Using Gevent worker (required for WebSockets):
-   gunicorn -k gevent --workers 4 --worker-connections 1000 --bind 0.0.0.0:5000 wsgi:app
-   
-   # Start Celery worker:
-   celery -A celery_app worker --loglevel=INFO
-   ```
-
-3. **Development Mode (Not for WebSocket Testing)**:
-
-   ```bash
-   # Only for HTTP testing, NOT for WebSocket/voice:
-   FLASK_DEBUG=1 FLASK_APP=wsgi:app flask run
-   ```
-
-4. **MCP Server (for API Documentation & Testing)**:
-   ```bash
-   # Start MCP server:
-   ./start_redbarsushi_mcp.sh
-   
-   # Or simpler version:
-   ./start_fastmcp.sh
    ```
 
 ### Database Initialization
 
-The database can be initialized using these approaches:
+On first run, the database needs to be initialized:
 
-1. **Docker (Automatic)**:
-   - Database schema is automatically created using `db/init/01_schema.sql`
-   - Menu data seeding requires running: `python seed_menu_db.py` inside the container
-   - Schema fixes can be applied with: `./apply_db_fixes.sh`
-
-2. **Manual Initialization**:
-   - Create the database: `createdb redbarsushi`
-   - Initialize schema: `psql -d redbarsushi -f db/init/01_schema.sql`
-   - Apply schema fixes: `psql -d redbarsushi -f add_reference_handler_column.sql`
-   - Initialize menu data: `python seed_menu_db.py`
-
-3. **Database Fixes**:
-   - Schema-model discrepancies are fixed with property-based getters/setters
-   - JSONB serialization issues are handled with sanitization functions
-   - Error recovery is implemented with multi-level fallbacks
+1. Create the database: `createdb redbarsushi`
+2. Run migrations: `python -m app.db.init_db`
+3. Initialize menu data: `python -m app.db.seed_db`
 
 ## WebSocket Implementation Details
 
-The WebSocket implementation for voice processing follows these key patterns, with recent Gevent-based improvements:
+The WebSocket implementation for voice processing follows these key patterns:
 
-1. **TwiML Generation** (`app/routes/voice/twilio/improved_twiml.py`):
+1. **TwiML Generation**:
    - Generates TwiML with `<Connect><Stream>` elements for bidirectional audio
-   - Sends the CallSid to the WebSocket URL in the format: `wss://hostname/ws/media/<call_sid>`
+   - Sends the CallSid to the WebSocket URL in the format: `wss://hostname/ws/media/{call_sid}`
    - Configures proper track and stream name for media handling
-   - Includes optional initial greeting via `<Say>` element
 
-2. **WebSocket Handler** (`app/routes/realtime.py`):
-   - Implements a handler function using Flask-Sock with Gevent concurrency
-   - Uses optimized greenlets for concurrent operations with strategic `gevent.sleep()` calls
+2. **WebSocket Handler**:
+   - Implements a handler function using FastAPI's WebSocket support
+   - Uses asyncio tasks for concurrent operations and event processing
    - Establishes bidirectional connection between Twilio and OpenAI Realtime API
    - Forwards audio from Twilio to OpenAI and responses back to Twilio
-   - Implements differentiated yielding based on packet type (speech vs. silence)
    - Handles WebSocket lifecycle properly with appropriate close codes
    - Properly manages resource cleanup on connection termination
-   - Enhanced error recovery with graceful degradation
 
 3. **Connection Reliability**:
    - Implements heartbeat mechanism to keep connections alive
    - Uses extensive error handling and logging for connection diagnostics
    - Gracefully handles WebSocket closures and reconnection attempts
    - Maintains session context across connection interruptions
-   - Implements progressive timeouts based on connection state
-   - Enhanced debugging with detailed connection logging
 
-4. **Realtime Audio SDK** (`app/utils/realtime_audio_sdk.py`):
-   - Provides sync (gevent) implementation optimized for Gevent environment
-   - Uses `websocket-client` library compatible with Gevent's cooperative multitasking
-   - Handles audio format conversion between Twilio (mulaw) and OpenAI (g711_ulaw)
-   - Manages OpenAI Realtime API session configuration with interruption handling
+4. **Realtime Audio SDK**:
+   - Provides async WebSocket implementation for OpenAI Realtime API
+   - Handles audio format conversion between Twilio and OpenAI
+   - Manages OpenAI Realtime API session configuration
    - Processes events from OpenAI and converts them to application events
-   - Implements resource cleanup and connection termination properly
-
-5. **Interruption Handling**:
-   - Monitors for speech during AI responses using OpenAI's VAD events
-   - Implements turn detection with `interrupt_response: true` in session configuration
-   - Uses optimized yielding to ensure interruption events are processed promptly
-   - Properly manages conversation flow when user interrupts the AI
-   - Enhances conversation naturalness with configurable interruption thresholds
-
-For details on the Gevent-based implementation, see `GEVENT_README.md` for a comprehensive explanation of the approach and advantages.

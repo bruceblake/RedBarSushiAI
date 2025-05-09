@@ -46,10 +46,8 @@ if [ -z "$REDIS_URL" ]; then
 	export CELERY_RESULT_BACKEND="$REDIS_URL"
 fi
 
-if [ -z "$FLASK_APP" ]; then
-	echo "FLASK_APP not set. Using default value."
-	export FLASK_APP="run.py"
-fi
+# FastAPI does not need FLASK_APP
+echo "Using FastAPI with Uvicorn"
 
 # Use our comprehensive dependency installation script if available
 if [ -f "install_all_dependencies.sh" ]; then
@@ -278,16 +276,28 @@ fi
 # Initialize database if needed
 echo "Creating database tables if they don't exist..."
 python -c "
-from app import create_app, db
 import os
+import asyncio
 print('DEBUG: Python script starting')
-print('DEBUG: SQLALCHEMY_DATABASE_URI:', os.environ.get('SQLALCHEMY_DATABASE_URI', 'Not set'))
-app = create_app()
-print('DEBUG: App created')
-with app.app_context():
-    print('DEBUG: Creating database tables')
-    db.create_all()
-    print('DEBUG: Database tables created successfully')
+print('DEBUG: SQLALCHEMY_DATABASE_URI:', os.environ.get('DATABASE_URL', 'Not set'))
+
+# Import the async database initialization
+try:
+    from app.db_async import init_db
+    print('DEBUG: Imported async database initialization')
+    
+    # Create an async function and run it
+    async def init_database():
+        print('DEBUG: Initializing database')
+        await init_db()
+        print('DEBUG: Database initialized successfully')
+    
+    # Run the async function
+    asyncio.run(init_database())
+except ImportError as e:
+    print(f'ERROR: Failed to import async database initialization: {e}')
+except Exception as e:
+    print(f'ERROR: Failed to initialize database: {e}')
 "
 
 # Determine which process to start based on the PROCESS environment variable
@@ -453,44 +463,27 @@ EOF
 		export OPENAI_REALTIME_NO_DISPLAY=0
 		export X11_SETUP_SUCCESS=true
 
-		if [ -f "wsgi.py" ]; then
-			echo "DEBUG: Using wsgi.py entry point with gevent worker and memory optimizations"
-			exec gunicorn --worker-class=uvicorn.workers.UvicornWorker --workers=4 --threads=4 --bind="0.0.0.0:$PORT" \
-				--log-level=debug --max-requests=500 --max-requests-jitter=50 \
-				--worker-connections=1000 --timeout=120 "wsgi:app"
+		if [ -f "main.py" ]; then
+			echo "DEBUG: Using main.py entry point for FastAPI"
+			exec uvicorn main:app --workers=4 --host="0.0.0.0" --port="$PORT" \
+				--log-level=debug
 		else
-			echo "DEBUG: Using app:create_app() entry point with memory optimizations"
-			exec gunicorn --worker-class=uvicorn.workers.UvicornWorker --workers=1 --threads=4 --bind="0.0.0.0:$PORT" \
-				--log-level=debug --max-requests=500 --max-requests-jitter=50 \
-				--worker-connections=500 --timeout=120 "app:create_app()"
+			echo "DEBUG: Using main.py entry point for FastAPI"
+			exec uvicorn main:app --workers=4 --host="0.0.0.0" --port="$PORT" \
+				--log-level=debug
 		fi
 	else
-		# Use uvicorn worker for WebSocket support with asyncio
-		if [ -f "wsgi.py" ]; then
-			echo "DEBUG: Using wsgi.py entry point with ASGI support via uvicorn worker"
+		# Use uvicorn for FastAPI
+		if [ -f "main.py" ]; then
+			echo "DEBUG: Using main.py entry point for FastAPI"
 			
-			# Ensure gevent is installed at runtime
-			if ! python -c "import gevent" &>/dev/null; then
-				echo "Installing gevent package for WebSocket support..."
-				pip install gevent==23.9.1 --no-cache-dir
-				
-				# Verify installation
-				if python -c "import gevent" &>/dev/null; then
-					echo "✅ gevent installed successfully"
-				else
-					echo "⚠️ Failed to install gevent, functionality may be limited"
-				fi
-			else
-				echo "✅ gevent is already installed"
-			fi
-			
-			echo "Starting with gevent worker (recommended by Flask-Sock)"
-			exec gunicorn -k gevent -w 4 \
-    --worker-connections 1000 --bind="0.0.0.0:$PORT" --log-level=info --timeout=120 "wsgi:app"
+			echo "Starting with Uvicorn for FastAPI"
+			exec uvicorn main:app --workers=4 --host="0.0.0.0" --port="$PORT" \
+    --log-level=info
 		else
-			echo "DEBUG: Using app:create_app() factory function with gevent worker"
-			exec gunicorn -k gevent -w 4 \
-				--worker-connections 1000 --bind="0.0.0.0:$PORT" --log-level=info --timeout=120 "app:create_app()"
+			echo "DEBUG: Using main.py entry point for FastAPI"
+			exec uvicorn main:app --workers=4 --host="0.0.0.0" --port="$PORT" \
+				--log-level=info
 		fi
 	fi
 fi
