@@ -23,6 +23,8 @@ from app.config import settings
 
 # Configure logging
 logger = logging.getLogger(__name__)
+# Force DEBUG level for this module specifically
+logger.setLevel(logging.DEBUG)
 
 # Ensure the logs directory exists
 log_dir = os.path.join(os.getcwd(), 'logs')
@@ -34,7 +36,17 @@ file_handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
-logger.info("======= ASYNC REALTIME AUDIO CLIENT LOGGING INITIALIZED =======")
+
+# Add a console handler too for immediate visibility
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# Ensure our logs are seen even if parent loggers have higher levels
+logger.propagate = False
+
+logger.critical("======= ASYNC REALTIME AUDIO CLIENT LOGGING INITIALIZED WITH FORCED DEBUG LEVEL =======")
 
 @dataclass
 class RealtimeConfig:
@@ -187,7 +199,18 @@ class RealtimeEventProcessor:
         Args:
             event: The transcript event
         """
-        transcript = event.get("transcript", "")
+        # The event could be in one of these formats:
+        # 1. {"type": "transcript.final", "text": "..."}
+        # 2. {"type": "transcript.final", "data": {"text": "..."}}
+        # 3. {"type": "transcript.final", "transcript": "..."} (old format)
+        
+        # Try all possible locations for the transcript text
+        transcript = event.get("text", "")
+        if not transcript and "data" in event:
+            transcript = event.get("data", {}).get("text", "")
+        if not transcript:
+            transcript = event.get("transcript", "")
+            
         logger.info(f"Transcript: {transcript}")
         
         if self.client.transcript_callback:
@@ -293,7 +316,8 @@ class OpenAIRealtimeClient:
         self,
         api_key: Optional[str] = None,
         config: Optional[RealtimeConfig] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        event_processor: Optional['RealtimeEventProcessor'] = None
     ):
         """
         Initialize the OpenAI Realtime client.
@@ -302,13 +326,31 @@ class OpenAIRealtimeClient:
             api_key: The OpenAI API key (defaults to settings.OPENAI_API_KEY)
             config: The Realtime configuration
             session_id: The session ID (defaults to a generated UUID)
+            event_processor: An optional custom event processor
         """
-        self.api_key = api_key or settings.OPENAI_API_KEY
+        # Track if API key was explicitly provided
+        if api_key is not None:
+            self._explicit_api_key_provided = True
+            self.api_key = api_key
+        else:
+            self._explicit_api_key_provided = False
+            self.api_key = settings.OPENAI_API_KEY
+        
         self.config = config or RealtimeConfig()
         self.session_id = session_id or str(uuid.uuid4())
         
+        # Log initialization details
+        logger.critical(f"🔄 Initializing OpenAIRealtimeClient for session {self.session_id}")
+        logger.critical(f"🔄 Using model: {self.config.model}")
+        logger.critical(f"🔄 API key present: {bool(self.api_key)}")
+        logger.critical(f"🔄 API key source: {'INSTANCE PARAMETER' if self._explicit_api_key_provided else 'SETTINGS'}")
+        
+        print(f"\n!!! DEBUG: Initializing OpenAIRealtimeClient for session {self.session_id}", flush=True)
+        print(f"\n!!! DEBUG: API key present: {bool(self.api_key)}", flush=True)
+        print(f"\n!!! DEBUG: API key source: {'INSTANCE PARAMETER' if self._explicit_api_key_provided else 'SETTINGS'}", flush=True)
+        
         self.websocket = None
-        self.event_processor = RealtimeEventProcessor(self)
+        self.event_processor = event_processor or RealtimeEventProcessor(self)
         self.connected = False
         self.running = False
         
@@ -333,28 +375,40 @@ class OpenAIRealtimeClient:
         Returns:
             True if connection is successful, False otherwise
         """
+        # Extra debug to stderr using print (in case log configuration is broken)
+        print(f"\n!!! DEBUG: OpenAIRealtimeClient.connect() called for session {self.session_id}", flush=True)
+        
         # CRITICAL DEBUG: Log OpenAI API key status with high visibility
+        logger.critical(f"🔴 CONNECT ATTEMPT STARTED for call_sid: {self.session_id}, model: {self.config.model}")
+        
         if not self.api_key:
             logger.critical(f"🔴 OPENAI API KEY MISSING! Session: {self.session_id}")
             logger.critical(f"🔴 Cannot connect to OpenAI Realtime API without an API key")
             logger.critical(f"🔴 Check your environment variables or config settings")
             logger.critical(f"🔴 Current environment has OPENAI_API_KEY: {'YES' if settings.OPENAI_API_KEY else 'NO!!!'}")
+            print(f"\n!!! DEBUG: OpenAI API Key is MISSING for session {self.session_id}!", flush=True)
             self.connected = False
             return False
 
         # Log API key first few characters for debugging (safely)
         if self.api_key:
             key_preview = self.api_key[:4] + '...' + self.api_key[-4:] if len(self.api_key) > 8 else '[TOO SHORT]'
-            logger.critical(f"🔶 OpenAI API Key configured, preview: {key_preview}")
+            key_length = len(self.api_key)
+            logger.critical(f"🔶 OpenAI API Key configured, preview: {key_preview}, length: {key_length}")
+            logger.critical(f"🔶 OpenAI API Key source: {'INSTANCE PARAMETER' if hasattr(self, '_explicit_api_key_provided') else 'SETTINGS'}")
+            print(f"\n!!! DEBUG: OpenAI API Key present (preview: {key_preview}, length: {key_length})", flush=True)
+            
             if not self.api_key.startswith('sk-'):
                 logger.critical(f"🔴 WARNING: API key doesn't start with 'sk-', may be invalid: {key_preview}")
+                print(f"\n!!! DEBUG: API key format warning - doesn't start with 'sk-'", flush=True)
         
         if self.connected:
-            logger.warning("Already connected to OpenAI Realtime API")
+            logger.critical("🟢 Already connected to OpenAI Realtime API")
             return True
         
         logger.critical(f"🔄 CONNECTING to OpenAI Realtime API with session ID: {self.session_id}")
         logger.critical(f"🔄 WebSocket URL: {self.WEBSOCKET_URL}")
+        print(f"\n!!! DEBUG: Attempting WebSocket connection to: {self.WEBSOCKET_URL}", flush=True)
         
         try:
             # Prepare headers
@@ -366,52 +420,79 @@ class OpenAIRealtimeClient:
             
             # Log the attempt with complete details
             logger.critical(f"🔄 Connection attempt with headers: Authorization: Bearer {key_preview}, OpenAI-Beta: realtime=v1")
+            logger.critical(f"🔄 WEBSOCKETS CONNECT ATTEMPT: {self.WEBSOCKET_URL} (about to execute)")
             
             # Connect to the WebSocket
+            print(f"\n!!! DEBUG: About to execute websockets.connect() with headers Authorization and OpenAI-Beta", flush=True)
             self.websocket = await websockets.connect(
                 self.WEBSOCKET_URL,
                 extra_headers=headers
             )
             
             logger.critical("🟢 SUCCESSFULLY CONNECTED to OpenAI Realtime API")
+            print(f"\n!!! DEBUG: WebSocket connection SUCCESSFUL!", flush=True)
             self.connected = True
             
             # Configure the session
-            await self._configure_session()
+            logger.critical("🔄 About to configure OpenAI Realtime session")
+            try:
+                await self._configure_session()
+                logger.critical("🟢 Session configuration successful")
+                print(f"\n!!! DEBUG: Session configuration successful", flush=True)
+            except Exception as config_error:
+                logger.critical(f"🔴 SESSION CONFIGURATION FAILED: {str(config_error)}")
+                print(f"\n!!! DEBUG: SESSION CONFIGURATION FAILED: {str(config_error)}", flush=True)
+                logger.critical(traceback.format_exc())
+                # Continue despite configuration error - we'll try to work with the default config
             
             # Start event processing
             self.running = True
+            logger.critical("🔄 Starting event processing task")
             self._event_processing_task = asyncio.create_task(self._process_events())
+            logger.critical("🟢 Event processing task started")
             
             return True
         except websockets.exceptions.InvalidStatusCode as e:
             # CRITICAL: Handle HTTP status code errors specifically
             status_code = getattr(e, 'status_code', 'unknown')
+            response_body = getattr(e, 'response_body', 'no response body available')
+            
             logger.critical(f"🔴 CONNECTION FAILED with HTTP status {status_code}: {str(e)}")
+            logger.critical(f"🔴 Response body: {response_body}")
+            print(f"\n!!! DEBUG: CONNECTION FAILED with HTTP status {status_code}: {str(e)}", flush=True)
+            print(f"\n!!! DEBUG: Response body: {response_body}", flush=True)
             
             if status_code == 401:
                 logger.critical(f"🔴 AUTHENTICATION ERROR (401): Invalid API key or insufficient permissions")
                 logger.critical(f"🔴 Please check that your API key is correct and has access to the Realtime API")
+                print(f"\n!!! DEBUG: AUTHENTICATION ERROR (401) - Invalid API key", flush=True)
             elif status_code == 403:
                 logger.critical(f"🔴 AUTHORIZATION ERROR (403): Account does not have access to the Realtime API")
                 logger.critical(f"🔴 Your OpenAI account might need to be explicitly granted access to this API")
+                print(f"\n!!! DEBUG: AUTHORIZATION ERROR (403) - No access to Realtime API", flush=True)
             elif status_code == 429:
                 logger.critical(f"🔴 RATE LIMIT ERROR (429): Too many requests or quota exceeded")
+                print(f"\n!!! DEBUG: RATE LIMIT ERROR (429)", flush=True)
             else:
                 logger.critical(f"🔴 CONNECTION ERROR with status {status_code}: {str(e)}")
+                print(f"\n!!! DEBUG: CONNECTION ERROR with status {status_code}", flush=True)
             
-            logger.error(traceback.format_exc())
+            logger.critical(f"Full error: {traceback.format_exc()}")
             self.connected = False
             return False
         except websockets.exceptions.ConnectionClosedError as e:
             logger.critical(f"🔴 WebSocket CONNECTION CLOSED ERROR: code={e.code}, reason={e.reason}")
-            logger.error(traceback.format_exc())
+            logger.critical(traceback.format_exc())
+            print(f"\n!!! DEBUG: WebSocket CONNECTION CLOSED ERROR: code={e.code}, reason={e.reason}", flush=True)
             self.connected = False
             return False
         except Exception as e:
             logger.critical(f"🔴 UNEXPECTED ERROR connecting to OpenAI Realtime API: {e}")
             logger.critical(f"🔴 Error type: {type(e).__name__}")
-            logger.error(traceback.format_exc())
+            logger.critical(traceback.format_exc())
+            print(f"\n!!! DEBUG: UNEXPECTED ERROR connecting to OpenAI Realtime API: {str(e)}", flush=True)
+            print(f"\n!!! DEBUG: Error type: {type(e).__name__}", flush=True)
+            print(f"\n!!! DEBUG: {traceback.format_exc()}", flush=True)
             self.connected = False
             return False
     
@@ -493,15 +574,22 @@ class OpenAIRealtimeClient:
         """
         if not self.websocket:
             logger.critical("🔴 WebSocket not connected, cannot process events - CRITICAL FAILURE")
+            print(f"\n!!! DEBUG: WebSocket not connected, cannot process events", flush=True)
             return
         
         logger.critical("🟢 Starting event processing loop - CONNECTION SUCCESSFUL")
+        print(f"\n!!! DEBUG: Event processing loop STARTING", flush=True)
         
         try:
+            logger.critical("🔄 Entering main event loop")
+            print(f"\n!!! DEBUG: Entering main event processing loop", flush=True)
+            
             while self.running and self.connected:
                 try:
                     # Receive a message from the WebSocket
+                    logger.debug(f"🔄 Waiting for WebSocket message...")
                     message = await self.websocket.recv()
+                    logger.debug(f"🟢 Received WebSocket message")
                     
                     # Parse the message as JSON
                     event = json.loads(message)
@@ -510,15 +598,25 @@ class OpenAIRealtimeClient:
                     # Log the event (with different log levels based on type)
                     if event_type in ["error", "session.error"]:
                         logger.critical(f"🔴 RECEIVED ERROR EVENT: {json.dumps(event)}")
+                        print(f"\n!!! DEBUG: RECEIVED ERROR EVENT: {json.dumps(event)}", flush=True)
                     elif event_type == "session.update":
                         status = event.get("status", "unknown")
                         if status == "error":
                             logger.critical(f"🔴 SESSION UPDATE ERROR: {json.dumps(event)}")
+                            print(f"\n!!! DEBUG: SESSION UPDATE ERROR: {json.dumps(event)}", flush=True)
                         else:
                             logger.critical(f"🟢 SESSION UPDATE SUCCESS: {status}")
+                            print(f"\n!!! DEBUG: SESSION UPDATE SUCCESS: {status}", flush=True)
                     elif event_type == "transcript.final":
-                        transcript_text = event.get("data", {}).get("text", "")
+                        # Extract the transcript text from the correct location in the structure
+                        # The transcript.final event has this structure: {"type": "transcript.final", "text": "..."}
+                        # But it might also be {"type": "transcript.final", "data": {"text": "..."}}
+                        transcript_text = event.get("text", "")
+                        if not transcript_text and "data" in event:
+                            transcript_text = event.get("data", {}).get("text", "")
+                        
                         logger.critical(f"🟢 RECEIVED TRANSCRIPT: {transcript_text}")
+                        print(f"\n!!! DEBUG: RECEIVED TRANSCRIPT: {transcript_text}", flush=True)
                     elif event_type.startswith("response.audio"):
                         logger.debug(f"Received audio event: {event_type}")
                     else:
@@ -530,20 +628,26 @@ class OpenAIRealtimeClient:
                     
                 except ConnectionClosed as e:
                     logger.critical(f"🔴 WebSocket CONNECTION CLOSED: code={e.code}, reason={e.reason}")
+                    print(f"\n!!! DEBUG: WebSocket CONNECTION CLOSED: code={e.code}, reason={e.reason}", flush=True)
                     self.connected = False
                     break
                 except ConnectionClosedError as e:
                     logger.critical(f"🔴 WebSocket CONNECTION CLOSED WITH ERROR: code={e.code}, reason={e.reason}")
+                    print(f"\n!!! DEBUG: WebSocket CONNECTION CLOSED WITH ERROR: code={e.code}, reason={e.reason}", flush=True)
                     self.connected = False
                     break
                 except json.JSONDecodeError as e:
                     logger.critical(f"🔴 ERROR DECODING JSON: {e}")
                     logger.critical(f"🔴 Raw message: {message}")
+                    print(f"\n!!! DEBUG: ERROR DECODING JSON: {e}", flush=True)
                 except Exception as e:
                     logger.critical(f"🔴 ERROR PROCESSING EVENT: {e}")
                     logger.critical(traceback.format_exc())
+                    print(f"\n!!! DEBUG: ERROR PROCESSING EVENT: {e}", flush=True)
+                    print(f"\n!!! DEBUG: {traceback.format_exc()}", flush=True)
         finally:
             logger.critical("🔴 EVENT PROCESSING STOPPED - Connection may have been lost")
+            print(f"\n!!! DEBUG: EVENT PROCESSING STOPPED - Connection may have been lost", flush=True)
             self.running = False
     
     async def send_audio(self, audio_data: bytes):

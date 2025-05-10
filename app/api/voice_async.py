@@ -9,6 +9,8 @@ import time
 import base64
 import traceback
 import asyncio
+import os
+import sys
 from typing import Dict, List, Any, Optional, Union
 from urllib.parse import parse_qs
 
@@ -27,6 +29,20 @@ from app.config import settings
 
 # Set up logging
 logger = logging.getLogger(__name__)
+# Force DEBUG level for this module specifically
+logger.setLevel(logging.DEBUG)
+
+# Add a console handler for immediate visibility
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# Ensure our logs are seen even if parent loggers have higher levels
+logger.propagate = False
+
+logger.critical("======= VOICE ASYNC MODULE LOGGING INITIALIZED WITH FORCED DEBUG LEVEL =======")
 
 # Create the router
 router = APIRouter(prefix="/voice", tags=["voice"])
@@ -314,30 +330,57 @@ async def handle_media_stream(
                 event_processor.register_handler("conversation.function_call", on_tool_call)
                 
                 # Initialize the OpenAI Realtime client
+                print(f"\n!!! DEBUG: [{call_sid}] Initializing OpenAI Realtime client", flush=True)
                 logger.critical(f"🔴 [{call_sid}] Initializing OpenAI Realtime client with API_KEY {'SET' if settings.OPENAI_API_KEY else 'MISSING!!!'}")
+                
+                # Verify critical environment variables
+                logger.critical(f"🔄 [{call_sid}] ENVIRONMENT VERIFICATION")
+                logger.critical(f"🔄 [{call_sid}] OPENAI_API_KEY present: {bool(settings.OPENAI_API_KEY)}")
+                logger.critical(f"🔄 [{call_sid}] OPENAI_REALTIME_MODEL: {settings.OPENAI_REALTIME_MODEL}")
+                logger.critical(f"🔄 [{call_sid}] Environment: {os.environ.get('FASTAPI_ENV', 'undefined')}")
+                logger.critical(f"🔄 [{call_sid}] Running on Render: {os.environ.get('RENDER', 'false')}")
+                
+                print(f"\n!!! DEBUG: [{call_sid}] CRITICAL ENV CHECK - OPENAI_API_KEY present: {bool(settings.OPENAI_API_KEY)}", flush=True)
+                print(f"\n!!! DEBUG: [{call_sid}] OPENAI_REALTIME_MODEL: {settings.OPENAI_REALTIME_MODEL}", flush=True)
                 
                 # Safe logging of API key first/last few characters
                 if settings.OPENAI_API_KEY:
                     key_preview = settings.OPENAI_API_KEY[:4] + '...' + settings.OPENAI_API_KEY[-4:] if len(settings.OPENAI_API_KEY) > 8 else '[TOO SHORT]'
-                    logger.critical(f"🔶 [{call_sid}] OpenAI API Key preview: {key_preview}")
+                    key_length = len(settings.OPENAI_API_KEY)
+                    logger.critical(f"🔶 [{call_sid}] OpenAI API Key preview: {key_preview}, length: {key_length}")
+                    print(f"\n!!! DEBUG: [{call_sid}] OpenAI API Key preview: {key_preview}, length: {key_length}", flush=True)
+                    
                     if not settings.OPENAI_API_KEY.startswith('sk-'):
                         logger.critical(f"🔴 [{call_sid}] WARNING: API key doesn't start with 'sk-', may be invalid!")
+                        print(f"\n!!! DEBUG: [{call_sid}] WARNING: API key format is INVALID! Doesn't start with 'sk-'", flush=True)
                 else:
                     logger.critical(f"🔴 [{call_sid}] CRITICAL ERROR: OPENAI_API_KEY IS MISSING!")
+                    print(f"\n!!! DEBUG: [{call_sid}] CRITICAL ERROR: OPENAI_API_KEY IS MISSING!", flush=True)
+                
+                # Create client
+                logger.critical(f"🔄 [{call_sid}] Creating OpenAIRealtimeClient instance...")
+                print(f"\n!!! DEBUG: [{call_sid}] Creating OpenAIRealtimeClient instance...", flush=True)
                 
                 openai_client = OpenAIRealtimeClient(
                     api_key=settings.OPENAI_API_KEY,
                     config=realtime_config,
+                    session_id=call_sid,
                     event_processor=event_processor
                 )
+                
+                logger.critical(f"🔄 [{call_sid}] OpenAIRealtimeClient instance created")
+                print(f"\n!!! DEBUG: [{call_sid}] OpenAIRealtimeClient instance created", flush=True)
                 
                 # Define the task for processing transcripts
                 async def process_transcripts():
                     """Process transcripts as they arrive."""
+                    logger.critical(f"🔄 [{call_sid}] Starting transcript processing task")
+                    print(f"\n!!! DEBUG: [{call_sid}] Starting transcript processing task", flush=True)
                     while True:
                         try:
                             # Get the next transcript
                             transcript = await transcript_queue.get()
+                            logger.critical(f"🔄 [{call_sid}] Processing transcript: {transcript}")
                             
                             # Process with the agent orchestrator
                             response = await async_agent_orchestrator.process_voice_input(
@@ -347,30 +390,39 @@ async def handle_media_stream(
                             # Send response text to OpenAI for TTS
                             response_text = response.get("text", "")
                             if response_text:
+                                logger.critical(f"🔄 [{call_sid}] Sending response to TTS: {response_text}")
                                 await openai_client.request_response(response_text)
                             
                             # Mark task as done
                             transcript_queue.task_done()
                             
                         except asyncio.CancelledError:
-                            logger.info(f"[{call_sid}] Transcript processing task cancelled")
+                            logger.critical(f"🔴 [{call_sid}] Transcript processing task cancelled")
+                            print(f"\n!!! DEBUG: [{call_sid}] Transcript processing task cancelled", flush=True)
                             break
                         except Exception as e:
-                            logger.error(f"[{call_sid}] Error processing transcript: {e}")
+                            logger.critical(f"🔴 [{call_sid}] Error processing transcript: {e}")
+                            logger.critical(traceback.format_exc())
+                            print(f"\n!!! DEBUG: [{call_sid}] Error processing transcript: {e}", flush=True)
+                            print(f"\n!!! DEBUG: {traceback.format_exc()}", flush=True)
                 
                 # Define the task for processing events
                 async def process_events():
                     """Process events as they arrive."""
+                    logger.critical(f"🔄 [{call_sid}] Starting event processing task")
+                    print(f"\n!!! DEBUG: [{call_sid}] Starting event processing task", flush=True)
                     while True:
                         try:
                             # Get the next event
                             event_data = await event_queue.get()
+                            logger.debug(f"[{call_sid}] Processing event: {event_data.get('type')}")
                             
                             if event_data.get("type") == "tool_call":
                                 # Extract tool call details
                                 tool_call = event_data.get("data", {})
                                 tool_name = tool_call.get("name", "")
                                 tool_args = tool_call.get("arguments", {})
+                                logger.info(f"[{call_sid}] Tool call: {tool_name}")
                                 
                                 # Process the tool call
                                 if tool_name:
@@ -387,27 +439,43 @@ async def handle_media_stream(
                             event_queue.task_done()
                             
                         except asyncio.CancelledError:
-                            logger.info(f"[{call_sid}] Event processing task cancelled")
+                            logger.critical(f"🔴 [{call_sid}] Event processing task cancelled")
+                            print(f"\n!!! DEBUG: [{call_sid}] Event processing task cancelled", flush=True)
                             break
                         except Exception as e:
-                            logger.error(f"[{call_sid}] Error processing event: {e}")
+                            logger.critical(f"🔴 [{call_sid}] Error processing event: {e}")
+                            logger.critical(traceback.format_exc())
+                            print(f"\n!!! DEBUG: [{call_sid}] Error processing event: {e}", flush=True)
+                            print(f"\n!!! DEBUG: {traceback.format_exc()}", flush=True)
                 
                 # Connect to OpenAI Realtime API
                 logger.critical(f"🔄 [{call_sid}] ATTEMPTING to connect to OpenAI Realtime API...")
+                print(f"\n!!! DEBUG: [{call_sid}] ATTEMPTING to connect to OpenAI Realtime API...", flush=True)
                 try:
+                    print(f"\n!!! DEBUG: [{call_sid}] About to call openai_client.connect()", flush=True)
                     connection_result = await openai_client.connect()
+                    print(f"\n!!! DEBUG: [{call_sid}] openai_client.connect() returned: {connection_result}", flush=True)
+                    
                     if connection_result:
                         logger.critical(f"🟢 [{call_sid}] SUCCESSFULLY connected to OpenAI Realtime API")
+                        print(f"\n!!! DEBUG: [{call_sid}] CONNECTION SUCCESS", flush=True)
                     else:
                         logger.critical(f"🔴 [{call_sid}] FAILED to connect to OpenAI Realtime API")
-                        # This is where the "couldn't connect" message likely originates
+                        print(f"\n!!! DEBUG: [{call_sid}] CONNECTION FAILED - THIS TRIGGERS 'couldn't connect' message", flush=True)
+                        # This is where the "couldn't connect" message originates - triggered when connection_result is False
+                        logger.critical(f"🔴 [{call_sid}] ABOUT TO SEND 'couldn't connect' message to client")
                         await websocket.send_text(json.dumps({
                             "event": "ai_error", 
                             "message": "Failed to connect to OpenAI speech services."
                         }))
+                        logger.critical(f"🔴 [{call_sid}] SENT 'couldn't connect' message to client")
                 except Exception as e:
                     logger.critical(f"🔴 [{call_sid}] EXCEPTION during OpenAI connection attempt: {str(e)}")
+                    logger.critical(f"🔴 [{call_sid}] Exception type: {type(e).__name__}")
                     logger.critical(traceback.format_exc())
+                    print(f"\n!!! DEBUG: [{call_sid}] EXCEPTION during connection: {str(e)}", flush=True)
+                    print(f"\n!!! DEBUG: [{call_sid}] Exception type: {type(e).__name__}", flush=True)
+                    print(f"\n!!! DEBUG: {traceback.format_exc()}", flush=True)
                     raise
                 
                 # Start the OpenAI WebSocket processing task
