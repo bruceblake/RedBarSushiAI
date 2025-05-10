@@ -14,11 +14,15 @@ This document details the fixes applied to make the FastAPI application deploy c
    - `redis_async.py` had a syntax error with `global _memory_cache, _memory_cache_timestamps` being used after variables were already in use
    - Fixed by replacing with direct cache clearing method that avoids the global declaration
 
-3. **Missing Environment Variables**:
+3. **Circular Import in Database Module**:
+   - `app/db.py` was importing `from app import db as _db` which created a circular import
+   - Fixed by directly instantiating SQLAlchemy with `from flask_sqlalchemy import SQLAlchemy; _db = SQLAlchemy()`
+
+4. **Missing Environment Variables**:
    - Required environment variables `TWILIO_PHONE_NUMBER` and `DELIVERECT_API_KEY` were missing
    - Added placeholder values to `.env` file
 
-4. **Entrypoint Script Improvements**:
+5. **Entrypoint Script Improvements**:
    - Modified database initialization check to be less strict during startup
    - Prevents failing startup due to configuration issues
 

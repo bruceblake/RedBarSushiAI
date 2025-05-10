@@ -9,7 +9,9 @@ check for application context availability, making it robust for use in
 various scenarios including testing.
 """
 
-from app import db as _db
+# Import Flask-SQLAlchemy directly to avoid circular import
+from flask_sqlalchemy import SQLAlchemy
+_db = SQLAlchemy()
 from flask import current_app, has_app_context
 import logging
 from typing import Optional, Any

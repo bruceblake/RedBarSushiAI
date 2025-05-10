@@ -29,6 +29,10 @@ echo "DELIVERECT_API_KEY=dummy-key-replace-in-prod" >> .env
 log "Fixing redis_async.py..."
 sed -i 's/global _memory_cache, _memory_cache_timestamps/_memory_cache.clear()\n            _memory_cache_timestamps.clear()/g' app/redis_async.py
 
+# Fix circular import in db.py
+log "Fixing circular import in db.py..."
+sed -i 's/from app import db as _db/# Import Flask-SQLAlchemy directly to avoid circular import\nfrom flask_sqlalchemy import SQLAlchemy\n_db = SQLAlchemy()/g' app/db.py
+
 # Fix database init function name in main.py
 log "Fixing main.py db initialization functions..."
 sed -i 's/from app.db_async import init_db/from app.db_async import init_database/g' main.py
