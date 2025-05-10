@@ -4,6 +4,25 @@ This document summarizes the key improvements made to the RedBarSushiAI system a
 
 ## Recent System Enhancements (May 2025)
 
+### Code Refactoring and Architecture Improvements
+
+- **Large Module Refactoring**: Split several oversized files into focused, maintainable modules:
+  - Refactored `app/api/voice_async.py` (833 lines) into specialized modules under `app/api/voice/`
+  - Refactored `app/utils/fsm_async.py` (1137 lines) into a core module and state handlers
+  - Split `app/routes/order.py` (5672 lines) into logical modules under `app/routes/order/`
+
+- **FastAPI Migration**: Continued converting Flask routes to FastAPI:
+  - Created FastAPI-compatible structure in `app/api/order/`
+  - Converted order status and order taking routes from Flask to FastAPI
+  - Added comprehensive Pydantic models for request/response validation
+  - Converted synchronous functions to async with proper error handling
+  - Implemented dependency injection for database access and other services
+
+- **Database Access**: Enhanced SQLAlchemy integration with FastAPI:
+  - Created SQLAlchemy 2.0 async models in `app/models/order_async.py`
+  - Added async versions of helper functions in `app/utils/helpers_async.py`
+  - Implemented proper async transaction management
+
 ### Database and Model Improvements
 
 - **Schema-Model Alignment**: Fixed the discrepancy between `snoozed_until` (DB schema) and `snooze_until` (model code) with backward-compatible property getters/setters
