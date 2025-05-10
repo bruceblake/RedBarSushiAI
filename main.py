@@ -84,7 +84,7 @@ except ImportError:
     logging.warning("Enhanced logging system not available, using basic logging instead")
 
 # Initialize database
-from app.db_async import init_db
+from app.db_async import init_database
 
 # Create FastAPI application
 app = FastAPI(title="RedBarSushiAI", version="1.0.0")
@@ -109,7 +109,7 @@ async def startup_event():
     """Initialize the application on startup."""
     # Initialize the database
     try:
-        await init_db()
+        await init_database()
         logging.info("Database initialized successfully")
     except Exception as e:
         logging.error(f"Failed to initialize database: {e}", exc_info=True)
@@ -215,10 +215,10 @@ async def healthcheck():
     # Check database connection
     try:
         # Simple database ping with proper session handling
-        from app.db_async import verify_connection_async
+        from app.db_async import verify_connection
 
         # Use our verify_connection function that handles session lifecycle
-        if await verify_connection_async():
+        if await verify_connection():
             health_info["checks"]["database"] = "ok"
         else:
             health_info["checks"][

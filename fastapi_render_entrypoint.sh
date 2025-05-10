@@ -30,9 +30,9 @@ async def test_db_async():
     try:
         # Try async database initialization if available
         try:
-            from app.db_async import init_db, get_async_engine
+            from app.db_async import init_database, verify_connection
             print('Using async database initialization')
-            await init_db()
+            await init_database()
             print('Database initialized successfully')
             return True
         except ImportError:
