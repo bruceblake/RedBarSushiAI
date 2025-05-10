@@ -96,6 +96,9 @@ RUN mkdir -p /app/logs /app/data /app/backups
 # Copy application code
 COPY . .
 
+# Make sure .env file exists (will be used for staging environment)
+RUN touch /app/.env
+
 # Ensure entrypoint is executable
 COPY fastapi_render_entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh

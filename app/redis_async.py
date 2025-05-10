@@ -206,18 +206,20 @@ def memory_cache_set(key: str, value: Any) -> bool:
                 reverse=True,
             )[:50]  # Keep only the 50 most recent
             
-            # Rebuild the caches with only the items to keep
-            new_cache = {}
-            new_timestamps = {}
+            # Create new cache dictionaries
+            temp_cache = {}
+            temp_timestamps = {}
             
+            # Populate the temporary dictionaries
             for k, ts in items_to_keep:
-                if k in _memory_cache:
-                    new_cache[k] = _memory_cache[k]
-                    new_timestamps[k] = ts
-                    
-            global _memory_cache, _memory_cache_timestamps
-            _memory_cache = new_cache
-            _memory_cache_timestamps = new_timestamps
+                temp_cache[k] = _memory_cache.get(k)
+                temp_timestamps[k] = ts
+                
+            # Clear and update the existing cache
+            _memory_cache.clear()
+            _memory_cache_timestamps.clear()
+            _memory_cache.update(temp_cache)
+            _memory_cache_timestamps.update(temp_timestamps)
             
             logger.info(f"Memory cache cleaned up, now storing {len(_memory_cache)} items")
             

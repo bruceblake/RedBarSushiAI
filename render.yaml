@@ -92,6 +92,7 @@ services:
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
+    buildCommand: ./fix_render_deploy.sh
     envVars:
       - key: PROCESS
         value: web
