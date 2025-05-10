@@ -24,19 +24,25 @@ class BaseAsyncAgent:
     such as handling inputs, generating responses, and managing state.
     """
     
-    def __init__(self, agent_id: Optional[str] = None, name: str = "BaseAgent"):
+    def __init__(self, agent_id: Optional[str] = None, name: str = "BaseAgent", agent_name: Optional[str] = None, **kwargs):
         """
         Initialize the agent.
         
         Args:
             agent_id: Optional ID for the agent (used with OpenAI Assistants API)
             name: Name of the agent for logging and identification
+            agent_name: Alternative name parameter (for compatibility with subclasses)
+            **kwargs: Additional keyword arguments for extended functionality
         """
         self.agent_id = agent_id or f"agent_{int(time.time())}"
-        self.name = name
+        # Handle both name and agent_name for backward compatibility
+        self.name = agent_name or name
+        self.agent_name = self.name  # Add agent_name as an alias for name
         self.specialists = {}  # For registering specialist agents
         self.policy_agent = None  # For policy enforcement
         self.context = {}  # For maintaining conversation context
+        
+        logger.info(f"BaseAsyncAgent initialized with name: {self.name}")
         
     async def process_input(self, input_text: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
