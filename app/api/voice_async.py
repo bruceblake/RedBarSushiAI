@@ -155,6 +155,8 @@ async def receive_call(request: Request) -> Response:
         ws_scheme = "wss" if scheme == "https" else "ws"
         
         # Generate optimized WebSocket URL with CallSid as path parameter for reliability
+        # IMPORTANT: This path MUST match the @router.websocket path defined below
+        # The route is defined as @router.websocket("/ws/media/{call_sid}")
         websocket_url = f"{ws_scheme}://{host}/ws/media/{call_sid}"
         logger.critical(f"WebSocket URL for Twilio: {websocket_url}")
         
@@ -221,6 +223,9 @@ async def receive_call(request: Request) -> Response:
                 status_code=500
             )
 
+# This WebSocket route is mounted at /realtime prefix in __init__.py, 
+# resulting in the path /realtime/ws/media/{call_sid} which matches
+# the WebSocket URL generated in the TwiML by voice.py
 @router.websocket("/ws/media/{call_sid}")
 async def handle_media_stream(
     websocket: WebSocket, 
@@ -245,8 +250,27 @@ async def handle_media_stream(
     tasks = []
     
     # Set up the WebSocket connection
-    await connection_mgr.connect(websocket, call_sid)
-    logger.info(f"[{call_sid}] WebSocket connection established")
+    logger.critical(f"🔄 [{call_sid}] ATTEMPTING to accept WebSocket connection...")
+    print(f"\n!!! DEBUG: [{call_sid}] About to accept WebSocket connection", flush=True)
+    
+    try:
+        # First, accept the WebSocket connection
+        logger.critical(f"🔄 [{call_sid}] Calling websocket.accept()...")
+        await websocket.accept()
+        logger.critical(f"🟢 [{call_sid}] WebSocket acceptance successful")
+        print(f"\n!!! DEBUG: [{call_sid}] WebSocket.accept() successful", flush=True)
+        
+        # Then register with connection manager
+        await connection_mgr.connect(websocket, call_sid)
+        logger.critical(f"🟢 [{call_sid}] WebSocket connection fully established and registered")
+        print(f"\n!!! DEBUG: [{call_sid}] WebSocket connection fully established", flush=True)
+    except Exception as e:
+        logger.critical(f"🔴 [{call_sid}] FAILED to accept WebSocket connection: {str(e)}")
+        logger.critical(f"🔴 [{call_sid}] Error type: {type(e).__name__}")
+        logger.critical(traceback.format_exc())
+        print(f"\n!!! DEBUG: [{call_sid}] FAILED to accept WebSocket: {str(e)}", flush=True)
+        print(f"\n!!! DEBUG: {traceback.format_exc()}", flush=True)
+        raise
     
     try:
         # Process messages from the WebSocket

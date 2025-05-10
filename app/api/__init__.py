@@ -15,9 +15,10 @@ from app.api.voice_async import router as voice_async_router
 api_router = APIRouter()
 
 # Include routers
-api_router.include_router(realtime_router, prefix="/realtime")
+# Comment out the realtime_router since its path would conflict with voice_async_router
+# api_router.include_router(realtime_router, prefix="/realtime")
 api_router.include_router(voice_router, prefix="")  # Root path for voice routes
-api_router.include_router(voice_async_router, prefix="/async")  # Async routes under /async prefix
+api_router.include_router(voice_async_router, prefix="/realtime")  # Mount at /realtime to match the TwiML URL
 
 # Export the router
 __all__ = ["api_router"]

@@ -45,14 +45,14 @@ class ConnectionManager:
         
     async def connect(self, websocket: WebSocket, call_sid: str) -> None:
         """
-        Accept a new WebSocket connection.
+        Register a new WebSocket connection.
+        Note: The connection must already be accepted with await websocket.accept()
         
         Args:
-            websocket: The WebSocket connection to accept
+            websocket: The WebSocket connection to register (already accepted)
             call_sid: The unique identifier for the call
         """
-        logger.info(f"[{call_sid}] Accepting WebSocket connection")
-        await websocket.accept()
+        logger.info(f"[{call_sid}] Registering WebSocket connection")
         self.active_connections[call_sid] = websocket
         self.call_data[call_sid] = {"connected_at": None}
         
