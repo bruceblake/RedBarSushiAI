@@ -314,6 +314,17 @@ async def handle_media_stream(
                 event_processor.register_handler("conversation.function_call", on_tool_call)
                 
                 # Initialize the OpenAI Realtime client
+                logger.critical(f"🔴 [{call_sid}] Initializing OpenAI Realtime client with API_KEY {'SET' if settings.OPENAI_API_KEY else 'MISSING!!!'}")
+                
+                # Safe logging of API key first/last few characters
+                if settings.OPENAI_API_KEY:
+                    key_preview = settings.OPENAI_API_KEY[:4] + '...' + settings.OPENAI_API_KEY[-4:] if len(settings.OPENAI_API_KEY) > 8 else '[TOO SHORT]'
+                    logger.critical(f"🔶 [{call_sid}] OpenAI API Key preview: {key_preview}")
+                    if not settings.OPENAI_API_KEY.startswith('sk-'):
+                        logger.critical(f"🔴 [{call_sid}] WARNING: API key doesn't start with 'sk-', may be invalid!")
+                else:
+                    logger.critical(f"🔴 [{call_sid}] CRITICAL ERROR: OPENAI_API_KEY IS MISSING!")
+                
                 openai_client = OpenAIRealtimeClient(
                     api_key=settings.OPENAI_API_KEY,
                     config=realtime_config,
@@ -382,9 +393,25 @@ async def handle_media_stream(
                             logger.error(f"[{call_sid}] Error processing event: {e}")
                 
                 # Connect to OpenAI Realtime API
-                await openai_client.connect()
+                logger.critical(f"🔄 [{call_sid}] ATTEMPTING to connect to OpenAI Realtime API...")
+                try:
+                    connection_result = await openai_client.connect()
+                    if connection_result:
+                        logger.critical(f"🟢 [{call_sid}] SUCCESSFULLY connected to OpenAI Realtime API")
+                    else:
+                        logger.critical(f"🔴 [{call_sid}] FAILED to connect to OpenAI Realtime API")
+                        # This is where the "couldn't connect" message likely originates
+                        await websocket.send_text(json.dumps({
+                            "event": "ai_error", 
+                            "message": "Failed to connect to OpenAI speech services."
+                        }))
+                except Exception as e:
+                    logger.critical(f"🔴 [{call_sid}] EXCEPTION during OpenAI connection attempt: {str(e)}")
+                    logger.critical(traceback.format_exc())
+                    raise
                 
                 # Start the OpenAI WebSocket processing task
+                logger.critical(f"🔄 [{call_sid}] Starting OpenAI message processing task...")
                 openai_task = asyncio.create_task(openai_client.process_messages())
                 
                 # Start the transcript and event processing tasks
@@ -395,7 +422,13 @@ async def handle_media_stream(
                 tasks.extend([openai_task, transcript_task, event_task])
                 
                 # Send the greeting to OpenAI for TTS
-                await openai_client.request_response(greeting_text)
+                logger.critical(f"🔄 [{call_sid}] Sending greeting for TTS: \"{greeting_text}\"")
+                try:
+                    await openai_client.request_response(greeting_text)
+                    logger.critical(f"🟢 [{call_sid}] Successfully sent greeting for TTS")
+                except Exception as e:
+                    logger.critical(f"🔴 [{call_sid}] FAILED to send greeting for TTS: {str(e)}")
+                    logger.critical(traceback.format_exc())
                 
             elif event == "media":
                 # Handle media event with audio data
