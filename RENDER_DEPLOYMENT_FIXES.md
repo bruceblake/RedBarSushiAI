@@ -2,9 +2,11 @@
 
 This document details the fixes applied to make the FastAPI application deploy correctly on Render.
 
-## Issue Diagnosed
+## Issues Diagnosed
 
-The deployment was failing with a pydantic-related error:
+### Issue 1: Pydantic BaseSettings Import Error
+
+The first deployment was failing with a pydantic-related error:
 
 ```
 ERROR: App initialization failed: `BaseSettings` has been moved to the `pydantic-settings` package. 
@@ -15,21 +17,33 @@ This was due to:
 1. Using pydantic v2.x which moved `BaseSettings` to a separate package
 2. Our code was still importing `BaseSettings` directly from `pydantic`
 
+### Issue 2: Dependency Conflict
+
+Attempting to use both pydantic v1 and pydantic-settings created a dependency conflict:
+
+```
+ERROR: Cannot install fastapi==0.115.11, pydantic-settings==2.0.3 and pydantic==1.10.8 because these package versions have conflicting dependencies.
+
+The conflict is caused by:
+    The user requested pydantic==1.10.8
+    fastapi 0.115.11 depends on pydantic!=1.8, !=1.8.1, !=2.0.0, !=2.0.1, !=2.1.0, <3.0.0 and >=1.7.4
+    pydantic-settings 2.0.3 depends on pydantic>=2.0.1
+```
+
+This was due to pydantic-settings requiring pydantic v2, which would break our BaseSettings imports.
+
 ## Changes Made
 
-### 1. Fixed BaseSettings Import in config.py
+### 1. Standardized on Pydantic v1 for BaseSettings
 
-Updated the import statement to work with both pydantic v1 and v2:
+Updated app/config.py to use pydantic v1 directly:
 
 ```python
-try:
-    # Try to import from pydantic-settings (for pydantic v2)
-    from pydantic_settings import BaseSettings
-    from pydantic import Field, validator, AnyHttpUrl
-except ImportError:
-    # Fallback to legacy location (for pydantic v1)
-    from pydantic import BaseSettings, Field, validator, AnyHttpUrl
+# Import directly from pydantic v1
+from pydantic import BaseSettings, Field, validator, AnyHttpUrl
 ```
+
+This approach ensures consistent behavior without trying to use pydantic-settings compatibility layer.
 
 ### 2. Created a Root Dockerfile
 
@@ -37,7 +51,7 @@ Created a Dockerfile in the project root that Render can detect automatically, w
 - Multi-stage build for faster deployment
 - Proper dependency installation with fallbacks
 - Configuration for FastAPI and Uvicorn
-- Compatibility with both pydantic v1 and v2
+- Specific pydantic v1.10.8 installation to ensure BaseSettings compatibility
 - Explicit installation of required packages
 
 ### 3. Created a FastAPI-specific Render Entrypoint
@@ -54,8 +68,8 @@ Wrote `fastapi_render_entrypoint.sh` with:
 
 Added `requirements-fastapi.txt` with:
 - FastAPI and ASGI server dependencies
-- Pydantic v1.10.8 (compatible version)
-- Pydantic-settings for v2 compatibility
+- Pydantic v1.10.8 (compatible version that includes BaseSettings)
+- Removed pydantic-settings to avoid dependency conflicts
 - All other required dependencies with exact versions
 
 ### 5. Updated render.yaml Configuration

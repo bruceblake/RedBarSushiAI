@@ -2,9 +2,8 @@
 fastapi==0.115.11
 uvicorn==0.34.0
 
-# Pydantic with settings
+# Pydantic v1 (compatible with FastAPI)
 pydantic==1.10.8
-pydantic-settings==2.0.3
 
 # WebSockets
 websockets==13.1

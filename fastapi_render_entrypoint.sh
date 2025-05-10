@@ -72,7 +72,7 @@ if [ -f "requirements-fastapi.txt" ]; then
     log "Installed FastAPI dependencies from requirements-fastapi.txt"
 else
     log "requirements-fastapi.txt not found, installing core dependencies manually"
-    pip install pydantic==1.10.8 pydantic-settings==2.0.3 fastapi==0.115.11 uvicorn==0.34.0 websockets==13.1 websocket-client==1.7.0
+    pip install pydantic==1.10.8 fastapi==0.115.11 uvicorn==0.34.0 websockets==13.1 websocket-client==1.7.0
 fi
 
 # Check python installation and dependencies
@@ -91,16 +91,7 @@ try:
     import pydantic
     print(f'Pydantic version: {pydantic.__version__}')
     
-    # Check if pydantic-settings is available
-    try:
-        import pydantic_settings
-        print(f'Pydantic-settings version: {pydantic_settings.__version__}')
-    except ImportError:
-        print('WARNING: pydantic-settings not available, installing now')
-        import subprocess
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pydantic-settings==2.0.3'])
-        import pydantic_settings
-        print(f'Installed pydantic-settings version: {pydantic_settings.__version__}')
+    # No need to check for pydantic-settings - we're using pydantic v1
     
     print('All critical imports successful')
 except ImportError as e:
@@ -108,7 +99,7 @@ except ImportError as e:
     # Try to install missing dependencies
     print('Attempting to install missing dependencies...')
     import subprocess
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pydantic==1.10.8', 'pydantic-settings==2.0.3'])
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pydantic==1.10.8'])
     print('Dependencies installed. Continuing...')
 "
 
@@ -118,25 +109,25 @@ python -c "
 import sys
 import traceback
 
-# Handle potential pydantic version conflicts
+# Confirm we're using pydantic v1 which has BaseSettings
 try:
-    # Check if BaseSettings is being imported
-    import importlib
-    if importlib.util.find_spec('pydantic_settings') is not None:
-        # Create a compatibility layer for pydantic
-        import sys
-        import types
+    import pydantic
+    print(f'Using pydantic version: {pydantic.__version__}')
+    if not hasattr(pydantic, 'BaseSettings'):
+        print('ERROR: pydantic version does not have BaseSettings!')
+        # Force reinstall the right version
+        import subprocess
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', 'pydantic==1.10.8'])
+        # Reimport
+        import importlib
+        importlib.reload(pydantic)
+        print(f'Reinstalled pydantic version: {pydantic.__version__}')
         
-        # If pydantic doesn't have BaseSettings, create a module-level reference
-        # This will prevent imports of BaseSettings from pydantic from failing
-        import pydantic
         if not hasattr(pydantic, 'BaseSettings'):
-            import pydantic_settings
-            # Add BaseSettings to pydantic module
-            pydantic.BaseSettings = pydantic_settings.BaseSettings
-            print('Added BaseSettings compatibility layer')
+            print('ERROR: Still missing BaseSettings after reinstall')
+            sys.exit(1)
 except Exception as e:
-    print(f'Warning: Could not set up pydantic compatibility: {e}')
+    print(f'Warning: pydantic check failed: {e}')
 
 try:
     import os
@@ -152,13 +143,14 @@ try:
             print(f'FastAPI app routes: {len(app.routes)}')
         else:
             print('WARNING: App instance may not be FastAPI')
-    except ImportError as e:
+    except Exception as e:
+        print(f'Error importing app: {e}')
         if 'BaseSettings' in str(e):
             print('Detected BaseSettings import error, trying to fix...')
             # Force install the right versions
             import subprocess
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', 'pydantic==1.10.8'])
-            print('Downgraded pydantic to version 1.10.8, retrying import...')
+            print('Fixed pydantic to version 1.10.8, retrying import...')
             
             # Clear module cache and retry
             import importlib
@@ -166,11 +158,20 @@ try:
                 del sys.modules['pydantic']
             if 'main' in sys.modules:
                 del sys.modules['main']
+            if 'app' in sys.modules:
+                del sys.modules['app']
+            if 'app.config' in sys.modules:
+                del sys.modules['app.config']
                 
             # Try import again
-            from main import app
-            print('FastAPI app initialization successful after pydantic fix')
+            try:
+                from main import app
+                print('FastAPI app initialization successful after pydantic fix')
+            except Exception as retry_e:
+                print(f'Error after pydantic fix: {retry_e}')
+                raise
         else:
+            # Not a BaseSettings issue
             raise
 except Exception as e:
     print(f'ERROR: App initialization failed: {e}')

@@ -78,7 +78,8 @@ RUN set -e; \
     fi;
 
 # Ensure the critical FastAPI and ASGI packages are installed
-RUN pip install --no-cache-dir --upgrade fastapi==0.115.11 uvicorn==0.34.0 websocket-client==1.7.0 websockets==13.1 pydantic==1.10.8 pydantic-settings==2.0.3
+# Use either pydantic v1 without pydantic-settings (recommended)
+RUN pip install --no-cache-dir --upgrade fastapi==0.115.11 uvicorn==0.34.0 websocket-client==1.7.0 websockets==13.1 pydantic==1.10.8
 
 # Stage 3: Final runtime image
 FROM base AS final
