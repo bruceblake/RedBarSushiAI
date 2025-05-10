@@ -122,6 +122,10 @@ sed -i 's/client_secret = DELIVERECT_CLIENT_SECRET/client_secret = settings.DELI
 log "Fixing all direct imports from app.config..."
 python3 fix_config_imports.py app
 
+# Fix API model imports
+log "Fixing API model imports..."
+python3 fix_api_imports.py
+
 # Fix JSONB handling in menu.py
 log "Fixing JSONB handling in menu.py..."
 cat > app/jsonb_helper.py << 'EOF'

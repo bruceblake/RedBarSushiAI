@@ -23,7 +23,14 @@ This document details the fixes applied to make the FastAPI application deploy c
    - Changes them to `from app.config import settings` and updates variable usage
    - Integrated this script into fix_render_deploy.sh to fix all similar issues
 
-4. **Environment Variables Needed in Render**:
+4. **Missing TwimlParameter and VoiceResponse Model Imports**:
+   - Fixed import error in voice_async.py: `cannot import name 'TwimlParameter' from 'app.models.api'`
+   - TwimlParameter was defined in app/utils/twilio_twiml.py but imported from app/models/api.py
+   - Created VoiceResponseModel in app/models/api.py which was missing
+   - Created fix_api_imports.py script to automatically correct these imports
+   - Integrated this script into fix_render_deploy.sh to fix similar issues
+
+5. **Environment Variables Needed in Render**:
    - Added DELIVERECT_API_URL to the list of required variables
    - Updated fix_render_deploy.sh to include this in placeholder values
    - Ensured all necessary variables are covered in both settings class and fallback values

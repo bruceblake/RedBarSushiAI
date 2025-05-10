@@ -109,3 +109,12 @@ class AudioResponse(BaseModel):
     type: str = "audio"
     payload: str  # Base64-encoded audio data
     format: str = "mulaw"
+
+class VoiceResponseModel(BaseModel):
+    """Model for voice response API in FastAPI routes."""
+    
+    say_text: Optional[str] = None
+    play_url: Optional[str] = None
+    hangup: bool = False
+    redirect_url: Optional[str] = None
+    gather_params: Optional[Dict[str, Any]] = None

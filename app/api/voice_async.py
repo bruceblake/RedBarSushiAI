@@ -20,7 +20,9 @@ from app.utils.agent_orchestration_async import async_agent_orchestrator
 from app.utils.fsm_async import async_fsm_manager, ConversationState, ConversationEvent
 from app.utils.twilio_twiml import generate_media_streams_twiml
 from app.dependencies import get_connection_manager, ConnectionManager
-from app.models.api import TwimlParameter, VoiceResponse
+from app.utils.twilio_twiml import TwimlParameter
+from app.models.api import VoiceResponseModel as VoiceResponse
+from twilio.twiml.voice_response import VoiceResponse as TwilioVoiceResponse
 from app.config import settings
 
 # Set up logging
