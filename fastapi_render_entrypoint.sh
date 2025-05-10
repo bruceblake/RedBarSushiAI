@@ -94,6 +94,45 @@ try:
     
     # No need to check for pydantic-settings - we're using pydantic v1
     
+    # Verify agent modules are available
+    try:
+        print('Verifying agent modules...')
+        
+        from app.agents.base_async import BaseAsyncAgent
+        print('- BaseAsyncAgent imported')
+        
+        from app.agents.guardrail_async import AsyncGuardrailAgent
+        print('- AsyncGuardrailAgent imported')
+        
+        from app.agents.fulfillment_async import AsyncFulfillmentAgent
+        print('- AsyncFulfillmentAgent imported')
+        
+        from app.agents.escalation_async import AsyncEscalationAgent
+        print('- AsyncEscalationAgent imported')
+        
+        from app.agents.factory_async import async_agent_factory
+        print('- async_agent_factory imported')
+        print(f'- Factory has agent classes: {list(async_agent_factory.agent_classes.keys())}')
+        
+        # Ensure agents are registered
+        if 'guardrail' not in async_agent_factory.agent_classes:
+            print('- Manually registering guardrail agent')
+            async_agent_factory.register_agent_class('guardrail', AsyncGuardrailAgent)
+            
+        if 'fulfillment' not in async_agent_factory.agent_classes:
+            print('- Manually registering fulfillment agent')
+            async_agent_factory.register_agent_class('fulfillment', AsyncFulfillmentAgent)
+            
+        if 'escalation' not in async_agent_factory.agent_classes:
+            print('- Manually registering escalation agent')
+            async_agent_factory.register_agent_class('escalation', AsyncEscalationAgent)
+            
+        print(f'- Final agent classes: {list(async_agent_factory.agent_classes.keys())}')
+        
+    except ImportError as agent_error:
+        print(f'Error importing agent modules: {agent_error}')
+        print('This may cause startup failure if the orchestrator requires these agents')
+    
     print('All critical imports successful')
 except ImportError as e:
     print(f'Error importing critical module: {e}')
