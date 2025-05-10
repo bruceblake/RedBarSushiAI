@@ -10,6 +10,9 @@ from app.agents.base_async import BaseAsyncAgent
 from app.agents.menu_async import AsyncMenuAgent
 from app.agents.cart_async import AsyncCartAgent
 from app.agents.frontline_async import AsyncFrontlineVoiceAgent
+from app.agents.guardrail_async import AsyncGuardrailAgent
+from app.agents.fulfillment_async import AsyncFulfillmentAgent
+from app.agents.escalation_async import AsyncEscalationAgent
 from app.config import settings
 
 # Set up logging
@@ -32,6 +35,9 @@ class AsyncAgentFactory:
         self.register_agent_class("frontline", AsyncFrontlineVoiceAgent)
         self.register_agent_class("menu", AsyncMenuAgent)
         self.register_agent_class("cart", AsyncCartAgent)
+        self.register_agent_class("guardrail", AsyncGuardrailAgent)
+        self.register_agent_class("fulfillment", AsyncFulfillmentAgent)
+        self.register_agent_class("escalation", AsyncEscalationAgent)
     
     def register_agent_class(self, agent_type: str, agent_class: Type[BaseAsyncAgent]):
         """
