@@ -18,11 +18,16 @@ This document details the fixes applied to make the FastAPI application deploy c
    - `app/db.py` was importing `from app import db as _db` which created a circular import
    - Fixed by directly instantiating SQLAlchemy with `from flask_sqlalchemy import SQLAlchemy; _db = SQLAlchemy()`
 
-4. **Missing Environment Variables**:
+4. **SQLAlchemy Model Compatibility Issues**:
+   - Models using Flask-SQLAlchemy style `db.Model`, `db.Column`, and `db.func` were incompatible with SQLAlchemy 2.0 async approach
+   - Created a compatibility layer in `compat_models.py` that bridges Flask-SQLAlchemy syntax to SQLAlchemy 2.0
+   - Updated model imports to use this compatibility layer instead of direct Flask-SQLAlchemy imports
+
+5. **Missing Environment Variables**:
    - Required environment variables `TWILIO_PHONE_NUMBER` and `DELIVERECT_API_KEY` were missing
    - Added placeholder values to `.env` file
 
-5. **Entrypoint Script Improvements**:
+6. **Entrypoint Script Improvements**:
    - Modified database initialization check to be less strict during startup
    - Prevents failing startup due to configuration issues
 

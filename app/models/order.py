@@ -3,40 +3,50 @@ Order model for storing order data and contact requests.
 """
 
 from datetime import datetime
-from app import db
-from app.models.base import TimestampMixin
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
+
+# Import the SQLAlchemy 2.0 Base
+from app.db_async import Base
+
+# Define the TimestampMixin in SQLAlchemy 2.0 style
+class TimestampMixin:
+    """Mixin that adds created_at and updated_at timestamps."""
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-class Order(db.Model, TimestampMixin):
+class Order(Base, TimestampMixin):
     """
     Order model for storing customer orders.
     """
 
     __tablename__ = "order"
-    id = db.Column(db.String(36), primary_key=True)
-    sender = db.Column(db.String(15), nullable=False)
-    caller_name = db.Column(db.String(50), nullable=False)
-    message = db.Column(db.String(500), nullable=False)
-    status = db.Column(db.String(20), default="NEW")
-    status_code = db.Column(db.Integer, nullable=True)  # Deliverect status code
-    status_updated_at = db.Column(
-        db.DateTime, nullable=True
+    id = Column(String(36), primary_key=True)
+    sender = Column(String(15), nullable=False)
+    caller_name = Column(String(50), nullable=False)
+    message = Column(String(500), nullable=False)
+    status = Column(String(20), default="NEW")
+    status_code = Column(Integer, nullable=True)  # Deliverect status code
+    status_updated_at = Column(
+        DateTime, nullable=True
     )  # When status last changed
-    timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
-    location_id = db.Column(db.String(36), nullable=True)
-    sms_sid = db.Column(db.String(50), nullable=True)
-    sms_status = db.Column(db.String(20), nullable=True)
-    sms_error_code = db.Column(db.Integer, nullable=True)
-    sms_error_message = db.Column(db.String(255), nullable=True)
+    timestamp = Column(DateTime, default=func.current_timestamp())
+    location_id = Column(String(36), nullable=True)
+    sms_sid = Column(String(50), nullable=True)
+    sms_status = Column(String(20), nullable=True)
+    sms_error_code = Column(Integer, nullable=True)
+    sms_error_message = Column(String(255), nullable=True)
     # Delivery tracking fields
-    delivery_status = db.Column(
-        db.String(30), nullable=True
+    delivery_status = Column(
+        String(30), nullable=True
     )  # Delivery-specific status
-    delivery_status_code = db.Column(db.Integer, nullable=True)  # Delivery status code
-    courier_name = db.Column(db.String(50), nullable=True)  # Name of delivery courier
-    courier_phone = db.Column(db.String(20), nullable=True)  # Phone of delivery courier
-    estimated_delivery_time = db.Column(
-        db.DateTime, nullable=True
+    delivery_status_code = Column(Integer, nullable=True)  # Delivery status code
+    courier_name = Column(String(50), nullable=True)  # Name of delivery courier
+    courier_phone = Column(String(20), nullable=True)  # Phone of delivery courier
+    estimated_delivery_time = Column(
+        DateTime, nullable=True
     )  # Estimated delivery time
 
     def __repr__(self):
@@ -117,20 +127,20 @@ class Order(db.Model, TimestampMixin):
         )
 
 
-class ContactRequest(db.Model, TimestampMixin):
+class ContactRequest(Base, TimestampMixin):
     """
     Model for storing customer contact requests for callbacks or menu notifications.
     """
     __tablename__ = "contact_requests"
     
-    id = db.Column(db.String(36), primary_key=True)
-    customer_name = db.Column(db.String(255))
-    customer_phone = db.Column(db.String(20))
-    customer_email = db.Column(db.String(255))
-    message = db.Column(db.String(500))
-    request_type = db.Column(db.String(50))  # callback, menu_notification, etc.
-    status = db.Column(db.String(50), default='pending')  # pending, completed, etc.
-    timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+    id = Column(String(36), primary_key=True)
+    customer_name = Column(String(255))
+    customer_phone = Column(String(20))
+    customer_email = Column(String(255))
+    message = Column(String(500))
+    request_type = Column(String(50))  # callback, menu_notification, etc.
+    status = Column(String(50), default='pending')  # pending, completed, etc.
+    timestamp = Column(DateTime, default=func.current_timestamp())
     
     def __repr__(self):
         return f"<ContactRequest {self.id}: {self.customer_name}, Type: {self.request_type}, Status: {self.status}>"
