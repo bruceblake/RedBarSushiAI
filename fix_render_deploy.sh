@@ -24,6 +24,7 @@ log "Setting environment variables..."
 echo "APP_SECRET_KEY=render_secret_key_placeholder" >> .env
 echo "TWILIO_PHONE_NUMBER=+10000000000" >> .env
 echo "DELIVERECT_API_KEY=dummy-key-replace-in-prod" >> .env
+echo "DELIVERECT_API_URL=https://api.staging.deliverect.com/v2/orders" >> .env
 echo "DELIVERECT_CLIENT_ID=dummy-client-id-replace-in-prod" >> .env
 echo "DELIVERECT_CLIENT_SECRET=dummy-client-secret-replace-in-prod" >> .env
 echo "STRIPE_API_KEY=sk-stripe-dummy-replace-in-prod" >> .env
@@ -116,6 +117,10 @@ log "Fixing Deliverect auth imports..."
 sed -i 's/from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET/from app.config import settings/g' app/utils/deliverect/auth.py
 sed -i 's/client_id = DELIVERECT_CLIENT_ID/client_id = settings.DELIVERECT_CLIENT_ID/g' app/utils/deliverect/auth.py
 sed -i 's/client_secret = DELIVERECT_CLIENT_SECRET/client_secret = settings.DELIVERECT_CLIENT_SECRET/g' app/utils/deliverect/auth.py
+
+# Fix all direct imports from app.config
+log "Fixing all direct imports from app.config..."
+python3 fix_config_imports.py app
 
 # Fix JSONB handling in menu.py
 log "Fixing JSONB handling in menu.py..."

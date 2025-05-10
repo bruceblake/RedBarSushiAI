@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from app import db
 from app.models.location import Location
-from app.config import BASE_URL
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def register_new_location(location_data):
             name=location_data["name"],
             deliverect_channel_name=location_data["deliverect_channel_name"],
             deliverect_channel_link_id=location_data["deliverect_channel_link_id"],
-            webhook_base=location_data.get("webhook_base", BASE_URL),
+            webhook_base=location_data.get("webhook_base", settings.BASE_URL),
             address=location_data.get("address", ""),
             phone=location_data.get("phone", ""),
             email=location_data.get("email", ""),
@@ -126,20 +126,20 @@ def get_location_webhook_urls(location_id):
         dict: Dictionary of webhook URLs matching Deliverect's expected format
     """
     try:
-        logger.info(f"Generating webhook URLs for location {location_id} with BASE_URL: {BASE_URL}")
+        logger.info(f"Generating webhook URLs for location {location_id} with BASE_URL: {settings.BASE_URL}")
         
         location = Location.query.filter_by(id=location_id).first()
         if not location or not location.webhook_base:
             # For non-existent locations, use the regular endpoints without the location prefix
             # THIS IS THE STANDARD FORMAT EXPECTED BY DELIVERECT
             response = {
-                "statusUpdateURL": f"{BASE_URL}/order_status",
-                "menuUpdateURL": f"{BASE_URL}/menu_update",
-                "snoozeUnsnoozeURL": f"{BASE_URL}/snoozeUnsnooze",
-                "busyModeURL": f"{BASE_URL}/busy_mode",
-                "updatePrepTimeURL": f"{BASE_URL}/updatePrepTime",
-                "courierUpdateURL": f"{BASE_URL}/courierUpdate",
-                "paymentUpdateURL": f"{BASE_URL}/payment_update",
+                "statusUpdateURL": f"{settings.BASE_URL}/order_status",
+                "menuUpdateURL": f"{settings.BASE_URL}/menu_update",
+                "snoozeUnsnoozeURL": f"{settings.BASE_URL}/snoozeUnsnooze",
+                "busyModeURL": f"{settings.BASE_URL}/busy_mode",
+                "updatePrepTimeURL": f"{settings.BASE_URL}/updatePrepTime",
+                "courierUpdateURL": f"{settings.BASE_URL}/courierUpdate",
+                "paymentUpdateURL": f"{settings.BASE_URL}/payment_update",
             }
             logger.info(f"Generated standard webhook URLs: {json.dumps(response)}")
             return response
@@ -147,13 +147,13 @@ def get_location_webhook_urls(location_id):
             # For existing locations, use the location-specific endpoints
             # NOTE: Some Deliverect implementations may not accept these prefixed URLs
             urls = {
-                "statusUpdateURL": f"{BASE_URL}/location/{location_id}/order_status",
-                "menuUpdateURL": f"{BASE_URL}/location/{location_id}/menu_update",
-                "snoozeUnsnoozeURL": f"{BASE_URL}/location/{location_id}/snoozeUnsnooze",
-                "busyModeURL": f"{BASE_URL}/location/{location_id}/busy_mode",
-                "updatePrepTimeURL": f"{BASE_URL}/location/{location_id}/updatePrepTime",
-                "courierUpdateURL": f"{BASE_URL}/location/{location_id}/courierUpdate",
-                "paymentUpdateURL": f"{BASE_URL}/location/{location_id}/payment_update",
+                "statusUpdateURL": f"{settings.BASE_URL}/location/{location_id}/order_status",
+                "menuUpdateURL": f"{settings.BASE_URL}/location/{location_id}/menu_update",
+                "snoozeUnsnoozeURL": f"{settings.BASE_URL}/location/{location_id}/snoozeUnsnooze",
+                "busyModeURL": f"{settings.BASE_URL}/location/{location_id}/busy_mode",
+                "updatePrepTimeURL": f"{settings.BASE_URL}/location/{location_id}/updatePrepTime",
+                "courierUpdateURL": f"{settings.BASE_URL}/location/{location_id}/courierUpdate",
+                "paymentUpdateURL": f"{settings.BASE_URL}/location/{location_id}/payment_update",
             }
             logger.info(f"Generated location-specific webhook URLs: {json.dumps(urls)}")
             return urls
@@ -161,13 +161,13 @@ def get_location_webhook_urls(location_id):
         logger.error(f"Error generating location webhook URLs: {e}")
         
         # Fall back to default URLs - most compatible option
-        logger.info(f"Falling back to default webhook URLs with BASE_URL: {BASE_URL}")
+        logger.info(f"Falling back to default webhook URLs with BASE_URL: {settings.BASE_URL}")
         return {
-            "statusUpdateURL": f"{BASE_URL}/order_status",
-            "menuUpdateURL": f"{BASE_URL}/menu_update",
-            "snoozeUnsnoozeURL": f"{BASE_URL}/snoozeUnsnooze",
-            "busyModeURL": f"{BASE_URL}/busy_mode",
-            "updatePrepTimeURL": f"{BASE_URL}/updatePrepTime",
-            "courierUpdateURL": f"{BASE_URL}/courierUpdate",
-            "paymentUpdateURL": f"{BASE_URL}/payment_update",
+            "statusUpdateURL": f"{settings.BASE_URL}/order_status",
+            "menuUpdateURL": f"{settings.BASE_URL}/menu_update",
+            "snoozeUnsnoozeURL": f"{settings.BASE_URL}/snoozeUnsnooze",
+            "busyModeURL": f"{settings.BASE_URL}/busy_mode",
+            "updatePrepTimeURL": f"{settings.BASE_URL}/updatePrepTime",
+            "courierUpdateURL": f"{settings.BASE_URL}/courierUpdate",
+            "paymentUpdateURL": f"{settings.BASE_URL}/payment_update",
         }

@@ -4,6 +4,30 @@ This document details the fixes applied to make the FastAPI application deploy c
 
 ## Latest Fixes (May 9, 2025)
 
+### Additional Fixes
+
+1. **Missing BASE_URL Import in locations.py**:
+   - The locations.py module was trying to import BASE_URL directly from app.config
+   - Changed to import the settings object and access via settings.BASE_URL
+   - Updated fix_render_deploy.sh to include this fix
+
+2. **Missing DELIVERECT_API_URL in Settings Model**:
+   - Added DELIVERECT_API_URL field to the Settings class
+   - Set default value to 'https://api.staging.deliverect.com/v2/orders'
+   - Added fallback value in settings initialization
+   - Added to .env file with placeholder value
+
+3. **Systematic Fix for Direct Imports from app.config**:
+   - Created a `fix_config_imports.py` script to automatically fix all direct imports from app.config
+   - The script finds and fixes any file with `from app.config import VARIABLE` patterns
+   - Changes them to `from app.config import settings` and updates variable usage
+   - Integrated this script into fix_render_deploy.sh to fix all similar issues
+
+4. **Environment Variables Needed in Render**:
+   - Added DELIVERECT_API_URL to the list of required variables
+   - Updated fix_render_deploy.sh to include this in placeholder values
+   - Ensured all necessary variables are covered in both settings class and fallback values
+
 ### Issues Fixed
 
 1. **Function Name Mismatch in Database Initialization**:
@@ -39,8 +63,9 @@ This document details the fixes applied to make the FastAPI application deploy c
    - Added missing Stripe API key to the fallback settings
    - Environment variables that must be set in Render:
      - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` 
-     - `DELIVERECT_API_KEY`, `DELIVERECT_CLIENT_ID`, `DELIVERECT_CLIENT_SECRET`
+     - `DELIVERECT_API_KEY`, `DELIVERECT_API_URL`, `DELIVERECT_CLIENT_ID`, `DELIVERECT_CLIENT_SECRET`
      - `OPENAI_API_KEY`
+     - `BASE_URL` (should be set to the Render deployment URL, e.g. 'https://redbarsushiai-staging.onrender.com')
      - `STRIPE_API_KEY` (if payment processing is needed)
 
 8. **Incorrect Import Pattern in Deliverect Auth Module**:
