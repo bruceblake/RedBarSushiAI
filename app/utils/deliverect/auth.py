@@ -9,7 +9,7 @@ obtaining and managing access tokens.
 import time
 import requests
 import logging
-from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +52,8 @@ def get_deliverect_access_token(channel_link_id):
     
     try:
         # Get the credentials for authentication
-        client_id = DELIVERECT_CLIENT_ID
-        client_secret = DELIVERECT_CLIENT_SECRET
+        client_id = settings.DELIVERECT_CLIENT_ID
+        client_secret = settings.DELIVERECT_CLIENT_SECRET
         
         if not client_id or not client_secret:
             logger.error("Missing Deliverect API credentials")

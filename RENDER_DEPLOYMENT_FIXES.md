@@ -43,7 +43,12 @@ This document details the fixes applied to make the FastAPI application deploy c
      - `OPENAI_API_KEY`
      - `STRIPE_API_KEY` (if payment processing is needed)
 
-8. **Entrypoint Script Improvements**:
+8. **Incorrect Import Pattern in Deliverect Auth Module**:
+   - The auth.py module was trying to import DELIVERECT_CLIENT_ID and DELIVERECT_CLIENT_SECRET directly from app.config
+   - Changed to import the settings object and access the properties via settings.DELIVERECT_CLIENT_ID
+   - This matches the standard Pydantic settings pattern and prevents ImportError
+
+9. **Entrypoint Script Improvements**:
    - Modified database initialization check to be less strict during startup
    - Prevents failing startup due to configuration issues
 

@@ -111,6 +111,12 @@ sed -i 's/from app.models.base import TimestampMixin//g' app/models/menu.py
 log "Fixing syntax error in voice_async.py..."
 sed -i 's/        })$/        )/g' app/api/voice_async.py
 
+# Fix Deliverect auth imports
+log "Fixing Deliverect auth imports..."
+sed -i 's/from app.config import DELIVERECT_CLIENT_ID, DELIVERECT_CLIENT_SECRET/from app.config import settings/g' app/utils/deliverect/auth.py
+sed -i 's/client_id = DELIVERECT_CLIENT_ID/client_id = settings.DELIVERECT_CLIENT_ID/g' app/utils/deliverect/auth.py
+sed -i 's/client_secret = DELIVERECT_CLIENT_SECRET/client_secret = settings.DELIVERECT_CLIENT_SECRET/g' app/utils/deliverect/auth.py
+
 # Fix JSONB handling in menu.py
 log "Fixing JSONB handling in menu.py..."
 cat > app/jsonb_helper.py << 'EOF'
