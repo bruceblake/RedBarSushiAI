@@ -32,9 +32,16 @@ This document details the fixes applied to make the FastAPI application deploy c
    - Created a new helper module (`jsonb_helper.py`) that uses the DATABASE_URL to determine if PostgreSQL is being used
    - Updated menu.py to use this helper module for JSONB column detection
 
-7. **Missing Environment Variables**:
-   - Required environment variables `TWILIO_PHONE_NUMBER` and `DELIVERECT_API_KEY` were missing
-   - Added placeholder values to `.env` file
+7. **Missing Environment Variables and Configuration Settings**:
+   - Required environment variables were missing in the Render environment
+   - Added placeholder values to `.env` file for critical values
+   - Added missing Deliverect client credentials to the Pydantic Settings class
+   - Added missing Stripe API key to the fallback settings
+   - Environment variables that must be set in Render:
+     - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` 
+     - `DELIVERECT_API_KEY`, `DELIVERECT_CLIENT_ID`, `DELIVERECT_CLIENT_SECRET`
+     - `OPENAI_API_KEY`
+     - `STRIPE_API_KEY` (if payment processing is needed)
 
 8. **Entrypoint Script Improvements**:
    - Modified database initialization check to be less strict during startup

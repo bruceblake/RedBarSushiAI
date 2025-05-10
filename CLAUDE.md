@@ -24,6 +24,27 @@ RedBarSushiAI is an AI-powered voice ordering system for Red Bar Sushi that enab
 
 The system uses PostgreSQL with SQLAlchemy for data persistence, with async support through asyncpg:
 
+#### Database Engine and Sessions
+
+1. **AsyncEngine Setup** (`app/db_async.py`):
+   - Creates an async database engine using `create_async_engine` 
+   - Configures connection pooling with `pool_pre_ping` and `pool_recycle`
+   - Automatically converts `postgresql://` URLs to `postgresql+asyncpg://`
+   - Provides validation and retry mechanisms for connection stability
+
+2. **Async Sessions**:
+   - Uses `async_sessionmaker` for creating async database sessions
+   - Dependency injection with `get_db()` for FastAPI endpoints
+   - Proper session lifecycle management with automatic cleanup
+   - Connection verification with `verify_connection()`
+
+3. **Model Base Classes**:
+   - Uses SQLAlchemy 2.0 style with `DeclarativeBase` in `app/db_async.py`
+   - Compatibility layer in `app/compat_models.py` for legacy Flask-SQLAlchemy-style models
+   - Proper transaction management with async commit/rollback
+
+#### Key Database Models
+
 1. **Menu Models** (`app/models/menu_async.py`):
 
    - `MenuCategory`: `id`, `deliverect_category_id`, `name`, `description`
@@ -43,6 +64,11 @@ The system uses PostgreSQL with SQLAlchemy for data persistence, with async supp
 3. **Location Model** (`app/models/location_async.py`):
    - `Location`: Stores location settings, Deliverect connection details, and business hours
    - Each location has its own `channelLinkId` for Deliverect integration
+
+4. **Special Data Types**:
+   - Uses PostgreSQL JSONB for flexible property storage with proper fallback to Text
+   - Helper module `app/jsonb_helper.py` for dialect-aware column type selection
+   - TimestampMixin for consistent created_at/updated_at tracking
 
 ### Voice Architecture
 
@@ -438,16 +464,30 @@ The application is deployed on Render with these features:
    - Production vs. Staging environments
    - Automatic database initialization
    - Redis connection handling
+   - Essential environment variables (must be set in Render dashboard):
+     - `DATABASE_URL`: PostgreSQL connection string
+     - `OPENAI_API_KEY`: For OpenAI Realtime API access
+     - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`: For Twilio integration
+     - `DELIVERECT_API_KEY`: For Deliverect POS integration
+     - `STRIPE_API_KEY` (if payment processing is enabled)
 
 2. **Docker Configuration**:
    - FastAPI with Uvicorn and async workers
    - Support for non-blocking WebSocket operations
    - PostgreSQL and Redis containers
+   - Custom Dockerfile with multi-stage build for optimized deployments
 
 3. **CI/CD Pipeline**:
    - Tests run on PR and push
    - Deploys to staging from `staging` branch
    - Deploys to production from `main` branch
+   - Automated fixes applied during build via `fix_render_deploy.sh`
+
+4. **Render-specific Adaptations**:
+   - Custom `fastapi_render_entrypoint.sh` script to handle initialization
+   - Environment-aware database URL transformation for asyncpg
+   - Compatibility layer for SQLAlchemy models (see `compat_models.py`)
+   - Headless mode enforcement for server environments
 
 ## Development Guide
 
@@ -508,6 +548,25 @@ app/
 - **Run Tests**: `pytest tests/e2e/test_async_voice_flow.py`
 - **Rebuild Docker**: `./force_rebuild.sh && ./restart_docker.sh`
 - **Check Logs**: `docker logs -f redbarsushi-app-1`
+- **Deploy to Staging**: Push changes to the `staging` branch
+- **Deploy to Production**: Push changes to the `main` branch
+- **Fix Render Deployment Issues**: `./fix_render_deploy.sh`
+- **Check WebSocket Connections**: `python websocket_test_client.py`
+
+### Deployment and Fixes
+
+1. **Render Deployment Process**:
+   - Code is pushed to GitHub repository
+   - Render builds the application using `Dockerfile` and `render.yaml` configuration
+   - Deployment fixes applied automatically via `fix_render_deploy.sh`
+   - Environment variables injected from Render dashboard
+
+2. **Known Issues and Fixes**:
+   - **Database Connectivity**: Ensure `DATABASE_URL` is properly set and formatted
+   - **SQLAlchemy Compatibility**: Use `compat_models.py` for transitioning from Flask-SQLAlchemy to async SQLAlchemy
+   - **JSONB Detection**: Use `jsonb_helper.py` for database-dialect aware JSONB column configuration
+   - **WebSocket Handling**: Carefully manage task cancellation and resource cleanup
+   - **Environment Variables**: Ensure Twilio, OpenAI, and Deliverect credentials are set
 
 ## API Reference
 
@@ -539,19 +598,46 @@ app/
 ## Error Handling
 
 1. **Connection Errors**:
-   - WebSocket connection failures
-   - OpenAI API timeouts
-   - Twilio connection issues
+   - **WebSocket Connection Failures**:
+     - Graceful error handling for client disconnections
+     - Automatic task cleanup and resource release
+     - Proper WebSocket close code selection based on error type
+   - **OpenAI API Timeouts**:
+     - Configurable request timeouts with fallback strategies
+     - Retry logic with exponential backoff for transient issues
+     - Session recreation for persistent errors
+   - **Twilio Connection Issues**:
+     - Proper detection of Twilio connection loss
+     - Safe reconnection strategies with WebSocket protocol
+     - Call preservation mechanisms when possible
 
 2. **Runtime Errors**:
-   - Agent processing failures
-   - Tool execution errors
-   - Database connectivity issues
+   - **Agent Processing Failures**:
+     - Monitored execution with error boundaries
+     - Fallback to general responses on agent-specific errors
+     - Complete error logging for diagnosis
+   - **Tool Execution Errors**:
+     - Isolated tool execution to prevent cascade failures
+     - Tool-specific error handlers with standardized reporting
+     - Default responses for failed tool calls
+   - **Database Connectivity Issues**:
+     - Connection pool management with health checks
+     - Graceful request failure with user-friendly messages
+     - Retry logic for transient database errors
 
 3. **Recovery Strategies**:
-   - Graceful connection closure
-   - Error reporting with appropriate codes
-   - State preservation when possible
+   - **Graceful Degradation**:
+     - Feature-specific fallbacks that maintain core functionality
+     - User experience preservation with appropriate messaging
+     - Progressive reduction of capabilities based on error severity
+   - **Session Preservation**:
+     - Persistent session state with Redis for recovery
+     - Conversation context maintenance across reconnections
+     - Order state preservation during system instability
+   - **Monitoring and Alerting**:
+     - Structured logging with context for easy debugging
+     - Error rate monitoring with severity classification
+     - Automated alerts for critical system failures
 
 ## Best Practices
 
@@ -559,16 +645,41 @@ app/
    - Keep files under 500 lines
    - Use modular, well-documented components
    - Follow established patterns for new features
+   - Separate concerns with specialized agents and utilities
 
 2. **Error Handling**:
    - Provide meaningful error messages
    - Use appropriate WebSocket close codes
    - Log errors with sufficient context
+   - Implement graceful degradation strategies
+   - Ensure proper resource cleanup in error cases
 
 3. **Performance**:
-   - Optimize database queries
-   - Use async/await for I/O-bound operations
-   - Implement proper connection pooling
+   - Optimize database queries using async SQLAlchemy
+   - Use async/await for all I/O-bound operations
+   - Implement proper connection pooling 
+   - Use caching with Redis for frequently accessed data
+   - Stream audio in small chunks with minimal buffering
+
+4. **Database Operations**:
+   - Use the async session factory and dependency injection
+   - Properly close all database sessions
+   - Handle transaction boundaries explicitly
+   - Use SQLAlchemy 2.0 style with async/await patterns
+   - Avoid N+1 query problems with proper relationship loading
+
+5. **WebSocket Handling**:
+   - Maintain single responsibility per asyncio task
+   - Use proper exception handling within tasks
+   - Ensure all tasks are properly cancelled on cleanup
+   - Implement keep-alive mechanisms for long connections
+   - Handle reconnection scenarios gracefully
+
+6. **Deployment Considerations**:
+   - Always set required environment variables in Render dashboard
+   - Use the fix_render_deploy.sh script to apply necessary fixes
+   - Keep Docker images optimized with multi-stage builds
+   - Ensure model compatibility between SQLAlchemy versions
 
 ## System Configuration and Startup
 
@@ -587,22 +698,46 @@ CELERY_BROKER_URL=redis://localhost:6379/1
 CELERY_RESULT_BACKEND=redis://localhost:6379/1
 
 # OpenAI
-OPENAI_API_KEY=sk-...
-OPENAI_ASSISTANT_ID=asst_...
+OPENAI_API_KEY=sk-...                                 # Required for all API calls
+OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview-2024-10-01  # Realtime model version
+OPENAI_REALTIME_VOICE=shimmer                         # Voice for TTS
 
 # Twilio
-TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=...
-TWILIO_PHONE_NUMBER=+1...
+TWILIO_ACCOUNT_SID=AC...                              # Required for Twilio API calls
+TWILIO_AUTH_TOKEN=...                                 # Required for Twilio auth
+TWILIO_PHONE_NUMBER=+1...                             # Phone number for outbound calls/SMS
 
 # Deliverect
-DELIVERECT_CHANNEL_NAME=redbarsushi
-DELIVERECT_API_KEY=...
-DELIVERECT_BASE_URL=https://api.staging.deliverect.com
+DELIVERECT_CHANNEL_NAME=redbarsushi                   # Channel identifier
+DELIVERECT_API_KEY=...                                # Required for Deliverect API calls
+DELIVERECT_CLIENT_ID=...                              # Required for Deliverect authentication
+DELIVERECT_CLIENT_SECRET=...                          # Required for Deliverect authentication
+DELIVERECT_BASE_URL=https://api.staging.deliverect.com  # API endpoint
 
 # Application Settings
+APP_SECRET_KEY=...                                    # For session security
+FLASK_ENV=staging|production                          # Environment type
+FASTAPI_ENV=staging|production                        # FastAPI environment type
+FORCE_HEADLESS=true                                   # For server environments
 LOG_LEVEL=INFO
+VOICE_HANDLER=realtime                                # Voice processing mode
 ```
+
+### Configuration System
+
+The application uses Pydantic's `BaseSettings` for configuration management:
+
+1. **Config Module** (`app/config.py`):
+   - Loads environment variables with proper validation
+   - Provides defaults where appropriate
+   - Ensures required values are present
+   - Converts types automatically (strings to booleans, ints, etc.)
+
+2. **Environment Detection**:
+   - Automatically detects Render environment
+   - Sets appropriate defaults based on environment
+   - Configures headless mode for server deployment
+   - Adapts database connection parameters based on environment
 
 ### Starting the Application
 

@@ -66,7 +66,9 @@ class Settings(BaseSettings):
     # Deliverect settings
     DELIVERECT_CHANNEL_NAME: str = Field("redbarsushi", env="DELIVERECT_CHANNEL_NAME")
     DELIVERECT_API_KEY: str = Field(..., env="DELIVERECT_API_KEY")
-    DELIVERECT_BASE_URL: str = Field("https://api.staging.deliverect.com", env="DELIVERECT_BASE_URL")
+    DELIVERECT_BASE_URL: str = Field("https://api.staging.deliverect.com", env="DELIVERECT_BASE_URL") 
+    DELIVERECT_CLIENT_ID: str = Field(..., env="DELIVERECT_CLIENT_ID")
+    DELIVERECT_CLIENT_SECRET: str = Field(..., env="DELIVERECT_CLIENT_SECRET")
     
     # Voice config
     VOICE_HANDLER: str = Field("realtime", env="VOICE_HANDLER")
@@ -114,4 +116,7 @@ except Exception as e:
         TWILIO_AUTH_TOKEN=os.environ.get("TWILIO_AUTH_TOKEN", "dummy-token"),
         TWILIO_PHONE_NUMBER=os.environ.get("TWILIO_PHONE_NUMBER", "+10000000000"),
         DELIVERECT_API_KEY=os.environ.get("DELIVERECT_API_KEY", "dummy-key"),
+        DELIVERECT_CLIENT_ID=os.environ.get("DELIVERECT_CLIENT_ID", "dummy-client-id"),
+        DELIVERECT_CLIENT_SECRET=os.environ.get("DELIVERECT_CLIENT_SECRET", "dummy-client-secret"),
+        STRIPE_API_KEY=os.environ.get("STRIPE_API_KEY", "sk-stripe-dummy"),
     )

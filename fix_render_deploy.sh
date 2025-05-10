@@ -24,6 +24,9 @@ log "Setting environment variables..."
 echo "APP_SECRET_KEY=render_secret_key_placeholder" >> .env
 echo "TWILIO_PHONE_NUMBER=+10000000000" >> .env
 echo "DELIVERECT_API_KEY=dummy-key-replace-in-prod" >> .env
+echo "DELIVERECT_CLIENT_ID=dummy-client-id-replace-in-prod" >> .env
+echo "DELIVERECT_CLIENT_SECRET=dummy-client-secret-replace-in-prod" >> .env
+echo "STRIPE_API_KEY=sk-stripe-dummy-replace-in-prod" >> .env
 
 # Fix redis_async.py _memory_cache issue
 log "Fixing redis_async.py..."
