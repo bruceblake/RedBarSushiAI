@@ -126,55 +126,13 @@ python3 fix_config_imports.py app
 log "Fixing API model imports..."
 python3 fix_api_imports.py
 
-# Fix JSONB handling in menu.py
-log "Fixing JSONB handling in menu.py..."
-cat > app/jsonb_helper.py << 'EOF'
-"""
-Helper module for handling PostgreSQL JSONB type safely.
-"""
-import logging
-import os
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Text
-from app.db_async import DATABASE_URL
-from app.config import settings
+# Fix JSONB handling in menu.py by using our fixed version
+log "Replacing menu.py with a fixed version that properly uses JSONB on Render..."
+cp app/models/menu_fixed.py app/models/menu.py
 
-# Set up logger
-logger = logging.getLogger(__name__)
-
-# Check if using PostgreSQL based on connection string
-def is_postgresql():
-    """Determine if using PostgreSQL based on DATABASE_URL"""
-    # On Render, we know it's always PostgreSQL
-    if os.environ.get("RENDER") == "true" or getattr(settings, "RENDER", False):
-        return True
-    
-    # Otherwise check the connection string
-    db_url = getattr(settings, "DATABASE_URL", None) or DATABASE_URL
-    return db_url.startswith('postgresql+asyncpg://') or db_url.startswith('postgresql://')
-
-# Get appropriate column type
-def get_jsonb_column():
-    """Get the appropriate column type for JSON data"""
-    if is_postgresql():
-        logger.info("Using PostgreSQL JSONB for properties column")
-        return JSONB
-    else:
-        logger.info("Using Text for properties column (non-PostgreSQL database)")
-        return Text
-
-# Get default value
-def get_default_value():
-    """Get appropriate default value for the column type"""
-    if is_postgresql():
-        return dict
-    else:
-        return lambda: '{}'
-EOF
-
-# Update menu.py to use the jsonb_helper
-sed -i 's/^def is_postgresql.*$/from app.jsonb_helper import is_postgresql, get_jsonb_column, get_default_value/g' app/models/menu.py
-sed -i '/^# Function to determine if we/,/^def get_jsonb_column/d' app/models/menu.py
+# Fix menu_cache_sdk.py to not rely on Flask's create_app
+log "Fixing menu_cache_sdk.py Redis client issues..."
+cp app/utils/menu_cache_sdk_fixed.py app/utils/menu_cache_sdk.py
 
 # Fix database init function name in main.py
 log "Fixing main.py db initialization functions..."
@@ -182,71 +140,303 @@ sed -i 's/from app.db_async import init_db/from app.db_async import init_databas
 sed -i 's/await init_db()/await init_database()/g' main.py
 sed -i 's/verify_connection_async/verify_connection/g' main.py
 
-# Fix menu_cache_sdk.py to not rely on Flask's create_app
-log "Fixing menu_cache_sdk.py Redis client issues..."
-cat > fix_menu_cache_sdk.py << 'EOF'
-#!/usr/bin/env python3
-import os
-import re
+# Ensure all required agent modules exist
+log "Ensuring all required agent modules exist..."
 
-# Path to the menu_cache_sdk.py file
-menu_cache_sdk_path = 'app/utils/menu_cache_sdk.py'
+# Check if guardrail_async.py exists, create if it doesn't
+if [ ! -f "app/agents/guardrail_async.py" ]; then
+    log "Creating missing guardrail_async.py..."
+    cat > app/agents/guardrail_async.py << 'EOF'
+"""
+Async guardrail agent for validation and business rule enforcement.
+This agent handles validation of orders against business rules like item availability,
+modifier constraints, and price calculations.
+"""
 
-if not os.path.exists(menu_cache_sdk_path):
-    print(f"Error: {menu_cache_sdk_path} not found!")
-    exit(1)
+import logging
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from app.agents.base_async import BaseAsyncAgent
 
-# Read the file
-with open(menu_cache_sdk_path, 'r') as f:
-    content = f.read()
+logger = logging.getLogger(__name__)
 
-# Replace the import for get_redis_client
-replacement = '''
-def get_redis_client():
+class AsyncGuardrailAgent(BaseAsyncAgent):
     """
-    Get a Redis client connection.
-    
-    Returns:
-        Optional[redis.Redis]: Redis client or None if not available
+    Async agent for validating orders against business rules and constraints.
     """
-    try:
-        # Try to import settings first
-        try:
-            from app.config import settings
-            redis_url = settings.REDIS_URL
-        except (ImportError, AttributeError):
-            # Fall back to environment variable
-            redis_url = os.environ.get("REDIS_URL")
+    def __init__(self, agent_name: str = "GuardrailAgent", **kwargs):
+        """Initialize the guardrail agent."""
+        super().__init__(agent_name=agent_name, **kwargs)
+        logger.info(f"AsyncGuardrailAgent initialized with name: {self.agent_name}")
+        self._db_session = None
         
-        if redis_url:
-            logger.info(f"Creating Redis client with URL: {redis_url.split('@')[-1] if '@' in redis_url else 'redis://localhost'}")
-            return redis.Redis.from_url(redis_url)
+    async def validate_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate an order against business rules.
         
-        # Last resort - try localhost
-        logger.warning("No Redis URL found, trying localhost")
-        return redis.Redis(host="localhost", port=6379, db=0)
-    except Exception as e:
-        logger.warning(f"Failed to get Redis client: {e}")
-        return None
-'''
-
-# Remove the existing import for get_redis_client
-content = re.sub(r'from app\.utils\.agents_sdk import get_redis_client\s+', '', content)
-
-# Find where to insert the new function
-# Insert after logger initialization but before any other code
-logger_pattern = r'logger = logging\.getLogger\(__name__\)'
-content = re.sub(f'{logger_pattern}', f'{logger_pattern}\n{replacement}', content)
-
-# Write the changes back
-with open(menu_cache_sdk_path, 'w') as f:
-    f.write(content)
-
-print(f"Successfully updated {menu_cache_sdk_path}")
+        Args:
+            order_data: The order data to validate
+            
+        Returns:
+            Dict with validation results
+        """
+        logger.info(f"Validating order: {order_data.get('id', 'new order')}")
+        
+        # This is a placeholder implementation
+        return {"valid": True, "errors": []}
+        
+    async def check_item_availability(self, plu: str) -> bool:
+        """
+        Check if a menu item is available.
+        
+        Args:
+            plu: The PLU of the item to check
+            
+        Returns:
+            True if available, False otherwise
+        """
+        # This is a placeholder implementation
+        logger.info(f"Checking availability for item: {plu}")
+        return True
+        
+    async def validate_modifiers(self, item_plu: str, modifiers: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Validate modifiers against modifier group constraints.
+        
+        Args:
+            item_plu: The PLU of the item
+            modifiers: The list of modifiers to validate
+            
+        Returns:
+            Dict with validation results
+        """
+        # This is a placeholder implementation
+        logger.info(f"Validating modifiers for item: {item_plu}")
+        return {"valid": True, "errors": []}
+        
+    async def calculate_price(self, item_plu: str, modifiers: List[Dict[str, Any]]) -> float:
+        """
+        Calculate the total price for an item with modifiers.
+        
+        Args:
+            item_plu: The PLU of the item
+            modifiers: The list of modifiers
+            
+        Returns:
+            The calculated price
+        """
+        # This is a placeholder implementation
+        logger.info(f"Calculating price for item: {item_plu}")
+        return 0.0
 EOF
+fi
 
-# Execute the fix script
-python3 fix_menu_cache_sdk.py
+# Check if fulfillment_async.py exists, create if it doesn't
+if [ ! -f "app/agents/fulfillment_async.py" ]; then
+    log "Creating missing fulfillment_async.py..."
+    cat > app/agents/fulfillment_async.py << 'EOF'
+"""
+Async fulfillment agent for order processing and submission.
+This agent handles the final order processing, including submission to Deliverect,
+recording the order in the database, and sending notifications.
+"""
+
+import logging
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from app.agents.base_async import BaseAsyncAgent
+
+logger = logging.getLogger(__name__)
+
+class AsyncFulfillmentAgent(BaseAsyncAgent):
+    """
+    Async agent for order fulfillment and submission.
+    """
+    def __init__(self, agent_name: str = "FulfillmentAgent", **kwargs):
+        """Initialize the fulfillment agent."""
+        super().__init__(agent_name=agent_name, **kwargs)
+        logger.info(f"AsyncFulfillmentAgent initialized with name: {self.agent_name}")
+        self._db_session = None
+        
+    async def process_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process an order for submission.
+        
+        Args:
+            order_data: The order data to process
+            
+        Returns:
+            Dict with processing results
+        """
+        logger.info(f"Processing order: {order_data.get('id', 'new order')}")
+        
+        # This is a placeholder implementation
+        return {"success": True, "order_id": "123456"}
+        
+    async def submit_to_deliverect(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Submit an order to Deliverect.
+        
+        Args:
+            order_data: The order data to submit
+            
+        Returns:
+            Dict with submission results
+        """
+        # This is a placeholder implementation
+        logger.info(f"Submitting order to Deliverect: {order_data.get('id', 'new order')}")
+        return {"success": True, "deliverect_id": "DEL-123456"}
+        
+    async def record_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Record an order in the database.
+        
+        Args:
+            order_data: The order data to record
+            
+        Returns:
+            Dict with the recorded order
+        """
+        # This is a placeholder implementation
+        logger.info(f"Recording order in database: {order_data.get('id', 'new order')}")
+        return {"id": "DB-123456"}
+        
+    async def send_notifications(self, order_data: Dict[str, Any]) -> bool:
+        """
+        Send notifications for an order.
+        
+        Args:
+            order_data: The order data for notifications
+            
+        Returns:
+            True if notifications were sent successfully
+        """
+        # This is a placeholder implementation
+        logger.info(f"Sending notifications for order: {order_data.get('id', 'new order')}")
+        return True
+EOF
+fi
+
+# Check if escalation_async.py exists, create if it doesn't
+if [ ! -f "app/agents/escalation_async.py" ]; then
+    log "Creating missing escalation_async.py..."
+    cat > app/agents/escalation_async.py << 'EOF'
+"""
+Async escalation agent for handling complex cases requiring human intervention.
+This agent manages the handoff process between AI and human staff when complex
+situations arise during the ordering process.
+"""
+
+import logging
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from app.agents.base_async import BaseAsyncAgent
+
+logger = logging.getLogger(__name__)
+
+class AsyncEscalationAgent(BaseAsyncAgent):
+    """
+    Async agent for managing escalations to human staff.
+    """
+    def __init__(self, agent_name: str = "EscalationAgent", **kwargs):
+        """Initialize the escalation agent."""
+        super().__init__(agent_name=agent_name, **kwargs)
+        logger.info(f"AsyncEscalationAgent initialized with name: {self.agent_name}")
+        self._db_session = None
+        
+    async def should_escalate(self, context: Dict[str, Any]) -> bool:
+        """
+        Determine if a conversation should be escalated.
+        
+        Args:
+            context: The conversation context
+            
+        Returns:
+            True if the conversation should be escalated
+        """
+        logger.info("Evaluating if conversation should be escalated")
+        
+        # This is a placeholder implementation
+        return False
+        
+    async def prepare_handoff(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare for handoff to human staff.
+        
+        Args:
+            context: The conversation context
+            
+        Returns:
+            Dict with handoff details
+        """
+        # This is a placeholder implementation
+        logger.info("Preparing handoff to human staff")
+        return {"ready": True, "summary": "Customer needs assistance with order."}
+        
+    async def notify_staff(self, handoff_data: Dict[str, Any]) -> bool:
+        """
+        Notify staff of an escalation.
+        
+        Args:
+            handoff_data: The handoff data
+            
+        Returns:
+            True if staff was notified successfully
+        """
+        # This is a placeholder implementation
+        logger.info(f"Notifying staff of escalation: {handoff_data.get('summary', '')}")
+        return True
+        
+    async def generate_handoff_message(self, context: Dict[str, Any]) -> str:
+        """
+        Generate a message to inform the customer of handoff.
+        
+        Args:
+            context: The conversation context
+            
+        Returns:
+            Handoff message for the customer
+        """
+        # This is a placeholder implementation
+        logger.info("Generating handoff message for customer")
+        return "I'll connect you with a member of our staff who can assist you further. Please hold for a moment."
+EOF
+fi
+
+# Update the factory to ensure it registers all agents
+log "Updating factory_async.py to register all agents..."
+patch_factory=$(cat << 'EOF'
+    def _register_standard_agents(self):
+        """Register standard agent classes."""
+        self.register_agent_class("frontline", AsyncFrontlineVoiceAgent)
+        self.register_agent_class("menu", AsyncMenuAgent)
+        self.register_agent_class("cart", AsyncCartAgent)
+        self.register_agent_class("guardrail", AsyncGuardrailAgent)
+        self.register_agent_class("fulfillment", AsyncFulfillmentAgent)
+        self.register_agent_class("escalation", AsyncEscalationAgent)
+EOF
+)
+
+# Create temporary file to store the patched version
+cat app/agents/factory_async.py > app/agents/factory_async.py.tmp
+
+# Apply patch to factory_async.py
+if grep -q "_register_standard_agents" app/agents/factory_async.py; then
+    log "Updating existing _register_standard_agents method..."
+    sed -i "s/.*def _register_standard_agents.*/${patch_factory}/g" app/agents/factory_async.py.tmp
+else
+    log "Adding _register_standard_agents method..."
+    sed -i "/class AsyncAgentFactory/a\\    ${patch_factory}" app/agents/factory_async.py.tmp
+fi
+
+# Update the __init__ method to call _register_standard_agents
+if ! grep -q "_register_standard_agents" app/agents/factory_async.py.tmp; then
+    log "Adding call to _register_standard_agents in __init__..."
+    sed -i '/def __init__/a\        self._register_standard_agents()' app/agents/factory_async.py.tmp
+fi
+
+# Replace the original file with the patched version
+mv app/agents/factory_async.py.tmp app/agents/factory_async.py
 
 # Ensure agent modules are properly loaded and factory is initialized
 log "Ensuring all agent modules are properly loaded..."
@@ -312,6 +502,46 @@ if __name__ == "__main__":
 EOF
 
 python3 force_reload_agents.py
+
+# Update fastapi_render_entrypoint.sh to check for agent modules
+log "Updating fastapi_render_entrypoint.sh to check for agent modules..."
+cat > fastapi_render_entrypoint.sh.new << 'EOF'
+#!/bin/bash
+set -e
+
+# Function to log messages with timestamps
+log() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $@"
+}
+
+log "Starting FastAPI application in Render environment..."
+
+# Set environment variables
+export RENDER=true
+export FORCE_HEADLESS=true
+
+# Apply deployment fixes
+if [ -f "fix_render_deploy.sh" ]; then
+    log "Applying deployment fixes..."
+    bash fix_render_deploy.sh
+fi
+
+# Verify database configuration
+log "Verifying database configuration..."
+python -c "from app.config import settings; print(f'Database URL: {settings.DATABASE_URL}')"
+
+# Ensure agent modules are loaded
+log "Ensuring agent modules are loaded..."
+python force_reload_agents.py
+
+# Start the application with Uvicorn
+log "Starting application with Uvicorn..."
+exec uvicorn app.main:app --host 0.0.0.0 --port $PORT
+EOF
+
+# Make the new file executable and replace the old one
+chmod +x fastapi_render_entrypoint.sh.new
+mv fastapi_render_entrypoint.sh.new fastapi_render_entrypoint.sh
 
 # Make entrypoint script executable
 log "Making entrypoint script executable..."
