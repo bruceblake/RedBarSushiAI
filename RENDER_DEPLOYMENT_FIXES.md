@@ -30,10 +30,24 @@ This document details the fixes applied to make the FastAPI application deploy c
    - Created fix_api_imports.py script to automatically correct these imports
    - Integrated this script into fix_render_deploy.sh to fix similar issues
 
-5. **Environment Variables Needed in Render**:
-   - Added DELIVERECT_API_URL to the list of required variables
-   - Updated fix_render_deploy.sh to include this in placeholder values
-   - Ensured all necessary variables are covered in both settings class and fallback values
+5. **Making Environment Variables Optional for Staging**:
+   - Updated all Pydantic Settings fields to make critical ones like DELIVERECT_API_KEY optional
+   - Changed settings fields to use Optional[str] = Field(None, env="VARIABLE_NAME") pattern
+   - Added defaults for DATABASE_URL to ensure the app starts even without a database
+   - Updated fallback settings initialization to handle partial configurations
+   - This allows the app to start with minimal environment variables, which is helpful for staging
+
+6. **Fixing JSONB Detection for PostgreSQL**:
+   - Improved is_postgresql() function to explicitly check for Render environment
+   - Added handling to make PostgreSQL dialect detection more reliable
+   - Ensures JSONB columns are correctly used on Render which always uses PostgreSQL
+
+7. **Redis Client Issues in menu_cache_sdk.py**:
+   - Replaced the import of get_redis_client from agents_sdk with a direct implementation
+   - Implemented a better Redis client initialization that uses settings.REDIS_URL
+   - Added graceful fallbacks to environment variables and localhost if needed
+   - Created fix_menu_cache_sdk.py script to apply these changes during deployment
+   - This resolves the "cannot import name 'create_app'" error
 
 ### Issues Fixed
 

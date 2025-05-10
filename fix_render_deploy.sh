@@ -133,9 +133,11 @@ cat > app/jsonb_helper.py << 'EOF'
 Helper module for handling PostgreSQL JSONB type safely.
 """
 import logging
+import os
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Text
 from app.db_async import DATABASE_URL
+from app.config import settings
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -143,7 +145,13 @@ logger = logging.getLogger(__name__)
 # Check if using PostgreSQL based on connection string
 def is_postgresql():
     """Determine if using PostgreSQL based on DATABASE_URL"""
-    return DATABASE_URL.startswith('postgresql+asyncpg://') or DATABASE_URL.startswith('postgresql://')
+    # On Render, we know it's always PostgreSQL
+    if os.environ.get("RENDER") == "true" or getattr(settings, "RENDER", False):
+        return True
+    
+    # Otherwise check the connection string
+    db_url = getattr(settings, "DATABASE_URL", None) or DATABASE_URL
+    return db_url.startswith('postgresql+asyncpg://') or db_url.startswith('postgresql://')
 
 # Get appropriate column type
 def get_jsonb_column():
@@ -173,6 +181,72 @@ log "Fixing main.py db initialization functions..."
 sed -i 's/from app.db_async import init_db/from app.db_async import init_database/g' main.py
 sed -i 's/await init_db()/await init_database()/g' main.py
 sed -i 's/verify_connection_async/verify_connection/g' main.py
+
+# Fix menu_cache_sdk.py to not rely on Flask's create_app
+log "Fixing menu_cache_sdk.py Redis client issues..."
+cat > fix_menu_cache_sdk.py << 'EOF'
+#!/usr/bin/env python3
+import os
+import re
+
+# Path to the menu_cache_sdk.py file
+menu_cache_sdk_path = 'app/utils/menu_cache_sdk.py'
+
+if not os.path.exists(menu_cache_sdk_path):
+    print(f"Error: {menu_cache_sdk_path} not found!")
+    exit(1)
+
+# Read the file
+with open(menu_cache_sdk_path, 'r') as f:
+    content = f.read()
+
+# Replace the import for get_redis_client
+replacement = '''
+def get_redis_client():
+    """
+    Get a Redis client connection.
+    
+    Returns:
+        Optional[redis.Redis]: Redis client or None if not available
+    """
+    try:
+        # Try to import settings first
+        try:
+            from app.config import settings
+            redis_url = settings.REDIS_URL
+        except (ImportError, AttributeError):
+            # Fall back to environment variable
+            redis_url = os.environ.get("REDIS_URL")
+        
+        if redis_url:
+            logger.info(f"Creating Redis client with URL: {redis_url.split('@')[-1] if '@' in redis_url else 'redis://localhost'}")
+            return redis.Redis.from_url(redis_url)
+        
+        # Last resort - try localhost
+        logger.warning("No Redis URL found, trying localhost")
+        return redis.Redis(host="localhost", port=6379, db=0)
+    except Exception as e:
+        logger.warning(f"Failed to get Redis client: {e}")
+        return None
+'''
+
+# Remove the existing import for get_redis_client
+content = re.sub(r'from app\.utils\.agents_sdk import get_redis_client\s+', '', content)
+
+# Find where to insert the new function
+# Insert after logger initialization but before any other code
+logger_pattern = r'logger = logging\.getLogger\(__name__\)'
+content = re.sub(f'{logger_pattern}', f'{logger_pattern}\n{replacement}', content)
+
+# Write the changes back
+with open(menu_cache_sdk_path, 'w') as f:
+    f.write(content)
+
+print(f"Successfully updated {menu_cache_sdk_path}")
+EOF
+
+# Execute the fix script
+python3 fix_menu_cache_sdk.py
 
 # Make entrypoint script executable
 log "Making entrypoint script executable..."

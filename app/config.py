@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field("INFO", env="LOG_LEVEL")
     
     # Database settings
-    DATABASE_URL: str = Field(..., env="DATABASE_URL")
+    DATABASE_URL: str = Field("sqlite:///app.db", env="DATABASE_URL")  # Default to SQLite for local dev
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
     
     # Redis settings
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: Optional[str] = Field(None, env="CELERY_RESULT_BACKEND")
     
     # OpenAI settings
-    OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")
+    OPENAI_API_KEY: Optional[str] = Field(None, env="OPENAI_API_KEY")
     OPENAI_REALTIME_MODEL: str = Field("gpt-4o-realtime-preview-2024-10-01", env="OPENAI_REALTIME_MODEL")
     OPENAI_REALTIME_VOICE: str = Field("shimmer", env="OPENAI_REALTIME_VOICE")
     OPENAI_REALTIME_INSTRUCTIONS: str = Field(
@@ -55,9 +55,9 @@ class Settings(BaseSettings):
     )
     
     # Twilio settings
-    TWILIO_ACCOUNT_SID: str = Field(..., env="TWILIO_ACCOUNT_SID")
-    TWILIO_AUTH_TOKEN: str = Field(..., env="TWILIO_AUTH_TOKEN")
-    TWILIO_PHONE_NUMBER: str = Field(..., env="TWILIO_PHONE_NUMBER")
+    TWILIO_ACCOUNT_SID: Optional[str] = Field(None, env="TWILIO_ACCOUNT_SID")
+    TWILIO_AUTH_TOKEN: Optional[str] = Field(None, env="TWILIO_AUTH_TOKEN")
+    TWILIO_PHONE_NUMBER: Optional[str] = Field(None, env="TWILIO_PHONE_NUMBER")
     
     # Stripe settings (if used)
     STRIPE_API_KEY: Optional[str] = Field(None, env="STRIPE_API_KEY")
@@ -65,11 +65,11 @@ class Settings(BaseSettings):
     
     # Deliverect settings
     DELIVERECT_CHANNEL_NAME: str = Field("redbarsushi", env="DELIVERECT_CHANNEL_NAME")
-    DELIVERECT_API_KEY: str = Field(..., env="DELIVERECT_API_KEY")
+    DELIVERECT_API_KEY: Optional[str] = Field(None, env="DELIVERECT_API_KEY")
     DELIVERECT_BASE_URL: str = Field("https://api.staging.deliverect.com", env="DELIVERECT_BASE_URL") 
     DELIVERECT_API_URL: str = Field("https://api.staging.deliverect.com/v2/orders", env="DELIVERECT_API_URL")
-    DELIVERECT_CLIENT_ID: str = Field(..., env="DELIVERECT_CLIENT_ID")
-    DELIVERECT_CLIENT_SECRET: str = Field(..., env="DELIVERECT_CLIENT_SECRET")
+    DELIVERECT_CLIENT_ID: Optional[str] = Field(None, env="DELIVERECT_CLIENT_ID")
+    DELIVERECT_CLIENT_SECRET: Optional[str] = Field(None, env="DELIVERECT_CLIENT_SECRET")
     
     # Voice config
     VOICE_HANDLER: str = Field("realtime", env="VOICE_HANDLER")
@@ -109,16 +109,30 @@ except Exception as e:
     logging.error(f"Error loading configuration: {e}")
     # Load with empty values for optional fields to prevent startup failures
     # in environments where all env vars are not set
-    settings = Settings(
-        SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
-        DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
-        OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", "sk-dummy"),
-        TWILIO_ACCOUNT_SID=os.environ.get("TWILIO_ACCOUNT_SID", "AC-dummy"),
-        TWILIO_AUTH_TOKEN=os.environ.get("TWILIO_AUTH_TOKEN", "dummy-token"),
-        TWILIO_PHONE_NUMBER=os.environ.get("TWILIO_PHONE_NUMBER", "+10000000000"),
-        DELIVERECT_API_KEY=os.environ.get("DELIVERECT_API_KEY", "dummy-key"),
-        DELIVERECT_API_URL=os.environ.get("DELIVERECT_API_URL", "https://api.staging.deliverect.com/v2/orders"),
-        DELIVERECT_CLIENT_ID=os.environ.get("DELIVERECT_CLIENT_ID", "dummy-client-id"),
-        DELIVERECT_CLIENT_SECRET=os.environ.get("DELIVERECT_CLIENT_SECRET", "dummy-client-secret"),
-        STRIPE_API_KEY=os.environ.get("STRIPE_API_KEY", "sk-stripe-dummy"),
-    )
+    # Try to create settings with minimal config
+    try:
+        settings = Settings(
+            SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
+            DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
+            BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
+        )
+    except Exception as e:
+        # If that fails, create with all potential fields to avoid crashing
+        logging.error(f"Error creating minimal settings: {e}, trying with all fields")
+        settings = Settings(
+            SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
+            DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
+            BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
+            OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", None),
+            TWILIO_ACCOUNT_SID=os.environ.get("TWILIO_ACCOUNT_SID", None),
+            TWILIO_AUTH_TOKEN=os.environ.get("TWILIO_AUTH_TOKEN", None),
+            TWILIO_PHONE_NUMBER=os.environ.get("TWILIO_PHONE_NUMBER", None),
+            DELIVERECT_API_KEY=os.environ.get("DELIVERECT_API_KEY", None),
+            DELIVERECT_API_URL=os.environ.get("DELIVERECT_API_URL", "https://api.staging.deliverect.com/v2/orders"),
+            DELIVERECT_CLIENT_ID=os.environ.get("DELIVERECT_CLIENT_ID", None),
+            DELIVERECT_CLIENT_SECRET=os.environ.get("DELIVERECT_CLIENT_SECRET", None),
+            STRIPE_API_KEY=os.environ.get("STRIPE_API_KEY", None),
+            REDIS_URL=os.environ.get("REDIS_URL", None),
+            CELERY_BROKER_URL=os.environ.get("CELERY_BROKER_URL", None),
+            CELERY_RESULT_BACKEND=os.environ.get("CELERY_RESULT_BACKEND", None),
+        )

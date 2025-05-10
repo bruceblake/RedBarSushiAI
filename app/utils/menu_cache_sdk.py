@@ -11,9 +11,34 @@ import redis
 import os
 from functools import wraps
 
-from app.utils.agents_sdk import get_redis_client
-
 logger = logging.getLogger(__name__)
+
+def get_redis_client():
+    """
+    Get a Redis client connection.
+    
+    Returns:
+        Optional[redis.Redis]: Redis client or None if not available
+    """
+    try:
+        # Try to import settings first
+        try:
+            from app.config import settings
+            redis_url = settings.REDIS_URL
+        except (ImportError, AttributeError):
+            # Fall back to environment variable
+            redis_url = os.environ.get("REDIS_URL")
+        
+        if redis_url:
+            logger.info(f"Creating Redis client with URL: {redis_url.split('@')[-1] if '@' in redis_url else 'redis://localhost'}")
+            return redis.Redis.from_url(redis_url)
+        
+        # Last resort - try localhost
+        logger.warning("No Redis URL found, trying localhost")
+        return redis.Redis(host="localhost", port=6379, db=0)
+    except Exception as e:
+        logger.warning(f"Failed to get Redis client: {e}")
+        return None
 
 # Default TTL for cached menu items (1 hour)
 DEFAULT_MENU_TTL = 3600  
