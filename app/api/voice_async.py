@@ -671,7 +671,7 @@ async def get_fsm_state(call_sid: str) -> JSONResponse:
         return JSONResponse(
             content={"error": str(e)},
             status_code=500
-        })
+        )
 
 @router.delete("/sessions/{call_sid}")
 async def cleanup_session(call_sid: str) -> JSONResponse:

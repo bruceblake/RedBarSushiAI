@@ -104,6 +104,52 @@ log "Fixing menu.py to use SQLAlchemy 2.0 style..."
 sed -i 's/from app import db/from app.compat_models import db, TimestampMixin/g' app/models/menu.py
 sed -i 's/from app.models.base import TimestampMixin//g' app/models/menu.py
 
+# Fix syntax error in voice_async.py
+log "Fixing syntax error in voice_async.py..."
+sed -i 's/        })$/        )/g' app/api/voice_async.py
+
+# Fix JSONB handling in menu.py
+log "Fixing JSONB handling in menu.py..."
+cat > app/jsonb_helper.py << 'EOF'
+"""
+Helper module for handling PostgreSQL JSONB type safely.
+"""
+import logging
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Text
+from app.db_async import DATABASE_URL
+
+# Set up logger
+logger = logging.getLogger(__name__)
+
+# Check if using PostgreSQL based on connection string
+def is_postgresql():
+    """Determine if using PostgreSQL based on DATABASE_URL"""
+    return DATABASE_URL.startswith('postgresql+asyncpg://') or DATABASE_URL.startswith('postgresql://')
+
+# Get appropriate column type
+def get_jsonb_column():
+    """Get the appropriate column type for JSON data"""
+    if is_postgresql():
+        logger.info("Using PostgreSQL JSONB for properties column")
+        return JSONB
+    else:
+        logger.info("Using Text for properties column (non-PostgreSQL database)")
+        return Text
+
+# Get default value
+def get_default_value():
+    """Get appropriate default value for the column type"""
+    if is_postgresql():
+        return dict
+    else:
+        return lambda: '{}'
+EOF
+
+# Update menu.py to use the jsonb_helper
+sed -i 's/^def is_postgresql.*$/from app.jsonb_helper import is_postgresql, get_jsonb_column, get_default_value/g' app/models/menu.py
+sed -i '/^# Function to determine if we/,/^def get_jsonb_column/d' app/models/menu.py
+
 # Fix database init function name in main.py
 log "Fixing main.py db initialization functions..."
 sed -i 's/from app.db_async import init_db/from app.db_async import init_database/g' main.py

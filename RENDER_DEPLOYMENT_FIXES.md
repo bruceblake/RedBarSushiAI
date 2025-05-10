@@ -23,11 +23,20 @@ This document details the fixes applied to make the FastAPI application deploy c
    - Created a compatibility layer in `compat_models.py` that bridges Flask-SQLAlchemy syntax to SQLAlchemy 2.0
    - Updated model imports to use this compatibility layer instead of direct Flask-SQLAlchemy imports
 
-5. **Missing Environment Variables**:
+5. **Syntax Error in voice_async.py**:
+   - Found a mismatched parenthesis in the error handler causing a syntax error
+   - Fixed by removing the extra closing brace on line 674
+
+6. **JSONB Type Detection Issues**:
+   - The `is_postgresql()` function in menu.py was trying to access `db.engine.dialect` which doesn't exist
+   - Created a new helper module (`jsonb_helper.py`) that uses the DATABASE_URL to determine if PostgreSQL is being used
+   - Updated menu.py to use this helper module for JSONB column detection
+
+7. **Missing Environment Variables**:
    - Required environment variables `TWILIO_PHONE_NUMBER` and `DELIVERECT_API_KEY` were missing
    - Added placeholder values to `.env` file
 
-6. **Entrypoint Script Improvements**:
+8. **Entrypoint Script Improvements**:
    - Modified database initialization check to be less strict during startup
    - Prevents failing startup due to configuration issues
 
