@@ -1,15 +1,19 @@
 """
 Database models for menu items, modifiers, and modifier groups.
-These models are used to store menu data in a relational database.
+These models are used to store menu data in a relational database using SQLAlchemy 2.0 async style.
 """
 
 import json
 import logging
 from datetime import datetime
-from app import db
-from app.models.base import TimestampMixin
-from sqlalchemy import event, inspect, Text
+from typing import List, Optional, Dict, Any, Union
+from sqlalchemy import Column, String, Integer, Float, Boolean, Text, ForeignKey, DateTime, inspect, event, Table
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.mutable import MutableDict
+
+# Import the correct Base from the async database setup
+from app.db_async import Base
+from app.models.base_async import TimestampMixin
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -168,7 +172,7 @@ def sanitize_properties(props):
         return '{}'
 
 
-class MenuItem(db.Model, TimestampMixin):
+class MenuItem(Base, TimestampMixin):
     """
     Menu item model that maps to a database table.
     Stores menu items with all their properties.
@@ -176,25 +180,25 @@ class MenuItem(db.Model, TimestampMixin):
 
     __tablename__ = "menu_items"
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    reference_handler = db.Column(db.String(255), index=True, nullable=True)
-    plu = db.Column(db.String(255), index=True, nullable=True)
-    price = db.Column(db.Float, nullable=True, default=0.0)
-    description = db.Column(db.Text, nullable=True)
-    category = db.Column(db.String(255), nullable=True)
-    parent_id = db.Column(db.String(255), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    reference_handler: Mapped[Optional[str]] = mapped_column(String(255), index=True, nullable=True)
+    plu: Mapped[Optional[str]] = mapped_column(String(255), index=True, nullable=True)
+    price: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    category: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    parent_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Status flags
-    available = db.Column(db.Boolean, default=True)
-    snoozed = db.Column(db.Boolean, default=False)
-    is_category = db.Column(db.Boolean, default=False)
-    is_variant = db.Column(db.Boolean, default=False)
+    available: Mapped[bool] = mapped_column(Boolean, default=True)
+    snoozed: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_category: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_variant: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Snooze time settings
-    snooze_start = db.Column(db.DateTime, nullable=True)
-    snooze_end = db.Column(db.DateTime, nullable=True)
-    snoozed_until = db.Column(db.DateTime, nullable=True)  # The actual database column name
+    snooze_start: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    snooze_end: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    snoozed_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # The actual database column name
     
     # Property to handle camelCase API format (snoozeUntil) mapped to snake_case DB column (snoozed_until)
     @property
@@ -211,17 +215,17 @@ class MenuItem(db.Model, TimestampMixin):
     # Metadata is now provided by TimestampMixin
 
     # Location tracking
-    location_id = db.Column(db.String(36), nullable=True)
+    location_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
 
     # Store additional properties as JSON
-    properties = db.Column(
+    properties: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         get_jsonb_column(),
         nullable=True,
         default=get_default_value()
     )
 
     # One-to-many relationship with modifier groups
-    modifier_groups = db.relationship(
+    modifier_groups: Mapped[List["MenuModifierGroup"]] = relationship(
         "MenuModifierGroup", secondary="menu_item_modifiers", lazy="dynamic"
     )
 
@@ -384,7 +388,7 @@ class MenuItem(db.Model, TimestampMixin):
         return item
 
 
-class MenuModifier(db.Model, TimestampMixin):
+class MenuModifier(Base, TimestampMixin):
     """
     Menu modifier model that maps to a database table.
     Stores modifiers that can be applied to menu items.
@@ -392,22 +396,22 @@ class MenuModifier(db.Model, TimestampMixin):
 
     __tablename__ = "menu_modifiers"
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    reference_handler = db.Column(db.String(255), index=True, nullable=True)
-    price = db.Column(db.Float, nullable=True, default=0.0)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    reference_handler: Mapped[Optional[str]] = mapped_column(String(255), index=True, nullable=True)
+    price: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
 
     # Status flags
-    available = db.Column(db.Boolean, default=True)
-    snoozed_until = db.Column(db.DateTime, nullable=True)
+    available: Mapped[bool] = mapped_column(Boolean, default=True)
+    snoozed_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Metadata is now provided by TimestampMixin
 
     # Location tracking
-    location_id = db.Column(db.String(36), nullable=True)
+    location_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
 
     # Store additional properties as JSON
-    properties = db.Column(
+    properties: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         get_jsonb_column(),
         nullable=True,
         default=get_default_value()
@@ -521,7 +525,7 @@ class MenuModifier(db.Model, TimestampMixin):
         return modifier
 
 
-class MenuModifierGroup(db.Model, TimestampMixin):
+class MenuModifierGroup(Base, TimestampMixin):
     """
     Menu modifier group model that maps to a database table.
     Stores groups of modifiers that can be applied to menu items.
@@ -529,32 +533,32 @@ class MenuModifierGroup(db.Model, TimestampMixin):
 
     __tablename__ = "menu_modifier_groups"
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    reference_handler = db.Column(db.String(255), index=True, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    reference_handler: Mapped[Optional[str]] = mapped_column(String(255), index=True, nullable=True)
 
     # Constraint values
-    min_allowed = db.Column(db.Integer, default=0)
-    max_allowed = db.Column(db.Integer, default=None)
-    multi_max = db.Column(db.Integer, default=1)  # Max quantity per modifier
+    min_allowed: Mapped[int] = mapped_column(Integer, default=0)
+    max_allowed: Mapped[Optional[int]] = mapped_column(Integer, default=None)
+    multi_max: Mapped[int] = mapped_column(Integer, default=1)  # Max quantity per modifier
 
     # Flags
-    is_variant_group = db.Column(db.Boolean, default=False)
+    is_variant_group: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Metadata is now provided by TimestampMixin
 
     # Location tracking
-    location_id = db.Column(db.String(36), nullable=True)
+    location_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
 
     # Store additional properties as JSON
-    properties = db.Column(
+    properties: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         get_jsonb_column(),
         nullable=True,
         default=get_default_value()
     )
 
     # Many-to-many relationship with modifiers
-    modifiers = db.relationship(
+    modifiers: Mapped[List["MenuModifier"]] = relationship(
         "MenuModifier", secondary="menu_modifier_group_items", lazy="dynamic"
     )
 
@@ -660,34 +664,36 @@ class MenuModifierGroup(db.Model, TimestampMixin):
 
 
 # Association tables for many-to-many relationships with explicit foreign keys
-menu_item_modifiers = db.Table(
+menu_item_modifiers = Table(
     "menu_item_modifiers",
-    db.Column(
+    Base.metadata,
+    Column(
         "menu_item_id",
-        db.Integer,
-        db.ForeignKey("menu_items.id", ondelete="CASCADE"),
+        Integer,
+        ForeignKey("menu_items.id", ondelete="CASCADE"),
         primary_key=True,
     ),
-    db.Column(
+    Column(
         "menu_modifier_group_id",
-        db.Integer,
-        db.ForeignKey("menu_modifier_groups.id", ondelete="CASCADE"),
+        Integer,
+        ForeignKey("menu_modifier_groups.id", ondelete="CASCADE"),
         primary_key=True,
     ),
 )
 
-menu_modifier_group_items = db.Table(
+menu_modifier_group_items = Table(
     "menu_modifier_group_items",
-    db.Column(
+    Base.metadata,
+    Column(
         "menu_modifier_group_id",
-        db.Integer,
-        db.ForeignKey("menu_modifier_groups.id", ondelete="CASCADE"),
+        Integer,
+        ForeignKey("menu_modifier_groups.id", ondelete="CASCADE"),
         primary_key=True,
     ),
-    db.Column(
+    Column(
         "menu_modifier_id",
-        db.Integer,
-        db.ForeignKey("menu_modifiers.id", ondelete="CASCADE"),
+        Integer,
+        ForeignKey("menu_modifiers.id", ondelete="CASCADE"),
         primary_key=True,
     ),
 )

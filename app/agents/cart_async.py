@@ -10,8 +10,8 @@ import time
 from typing import Dict, List, Any, Optional, Union, Callable
 
 from app.agents.base_async import BaseAsyncAgent
-from app.utils.menu_matcher_cache import cached_menu_matcher as menu_matcher
-from app.utils.menu_db_store import menu_db_store
+from app.utils.menu_matcher_cache_async import get_cached_async_menu_matcher
+from app.utils.menu_db_store_async import async_menu_db_store
 from app.utils.menu_cache_sdk import menu_cache
 from app.utils.conversation_store_sdk_async import async_agents_conversation_store
 from app.config import settings
@@ -25,14 +25,16 @@ class AsyncCartAgent(BaseAsyncAgent):
     Translates natural language into structured cart items and validates them.
     """
     
-    def __init__(self, agent_id: Optional[str] = None):
+    def __init__(self, agent_id: Optional[str] = None, db: Optional[Any] = None):
         """
         Initialize the Async Cart Agent.
         
         Args:
             agent_id: Optional ID for the agent (used with OpenAI Assistants API)
+            db: Optional database session for async operations
         """
         super().__init__(agent_id=agent_id, name="Cart")
+        self.db = db
         
         # Define the tools this agent can use
         self.tools = [
@@ -499,9 +501,9 @@ class AsyncCartAgent(BaseAsyncAgent):
         """
         logger.info(f"Looking up menu item: {item_name}")
         
-        # Use the cached menu matcher to find the item
-        # Note: This uses synchronous API for now
-        menu_item = menu_matcher.find_menu_item(item_name)
+        # Use the async menu matcher to find the item
+        async_matcher = await get_cached_async_menu_matcher(self.db)
+        menu_item, score = await async_matcher.match_item(item_name)
         
         if not menu_item:
             logger.info(f"Menu item not found: {item_name}")
@@ -521,11 +523,11 @@ class AsyncCartAgent(BaseAsyncAgent):
         # Get modifiers for this item
         modifiers = []
         for mod_group_id in menu_item.get("modifierGroups", []):
-            group = menu_db_store.get_modifier_group(mod_group_id)
+            group = await async_menu_db_store.get_modifier_group(self.db, mod_group_id)
             if group:
                 mod_list = []
                 for mod_id in group.get("modifierIds", []):
-                    modifier = menu_db_store.get_modifier(mod_id)
+                    modifier = await async_menu_db_store.get_modifier(self.db, mod_id)
                     if modifier and modifier.get("available", True):
                         mod_price = modifier.get("price", 0)
                         mod_price_str = f"${mod_price/100:.2f}" if mod_price else ""

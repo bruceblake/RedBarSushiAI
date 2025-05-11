@@ -77,8 +77,8 @@ class AsyncAgentFactory:
             agent_class = self.agent_classes[agent_type]
             
             # Initialize the agent with appropriate parameters
-            if agent_type == "menu" and db is not None:
-                # Menu agent needs database session for async operations
+            if (agent_type == "menu" or agent_type == "cart") and db is not None:
+                # Menu and Cart agents need database session for async operations
                 agent = agent_class(agent_id=agent_id, db=db)
             elif agent_id:
                 agent = agent_class(agent_id=agent_id)
@@ -108,7 +108,7 @@ class AsyncAgentFactory:
         
         # Create and register specialist agents
         menu_agent = await self.get_agent("menu", db=db)
-        cart_agent = await self.get_agent("cart")
+        cart_agent = await self.get_agent("cart", db=db)
         
         # Register specialists with the frontline agent
         frontline_agent.register_specialist("menu", menu_agent)
