@@ -3,7 +3,14 @@ Package for all database models.
 Ensures that models are properly importable.
 """
 
-# Import models directly from their modules
-from app.models.order import Order, ContactRequest
+# Import async models for the FastAPI application
+from app.models.order_async import Order, OrderItem, OrderItemModifier, ContactRequest
 from app.models.location import Location
-from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
+from app.models.menu_async import MenuCategory, MenuItem, MenuModifier, MenuModifierGroup, MenuNameVariant
+
+# Export all models
+__all__ = [
+    "Order", "OrderItem", "OrderItemModifier", "ContactRequest",
+    "Location",
+    "MenuCategory", "MenuItem", "MenuModifier", "MenuModifierGroup", "MenuNameVariant"
+]

@@ -130,8 +130,12 @@ class Order(Base, TimestampMixin):
 class ContactRequest(Base, TimestampMixin):
     """
     Model for storing customer contact requests for callbacks or menu notifications.
+    
+    Note: This is the legacy Flask version, with 'extend_existing=True' to avoid conflicts
+    with the async version in order_async.py. Both use the same database table.
     """
     __tablename__ = "contact_requests"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(String(36), primary_key=True)
     customer_name = Column(String(255))
