@@ -12,9 +12,9 @@ import requests
 import uuid
 from datetime import datetime
 from app import db
-# Import directly from location.py for backwards compatibility with Flask routes
-# that use the SQLAlchemy 1.x style query interface
-from app.models.location import Location
+# Import from the models package to ensure we get the version defined in __init__.py
+# This will resolve to the async version when imported through app/models/__init__.py
+from app.models import Location
 from app.utils.deliverect.auth import get_deliverect_access_token
 
 logger = logging.getLogger(__name__)

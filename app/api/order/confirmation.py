@@ -19,7 +19,8 @@ from sqlalchemy import select
 from app.db_async import get_db
 from app.models.order_async import Order, OrderItem
 from app.utils.helpers_async import commit_with_retry_async, log_info_async
-from app.utils.order_utils import build_order_description, calculate_bill_amount
+# Use async versions of order utilities for FastAPI routes
+from app.utils.order_utils_async import build_order_description_async, calculate_bill_amount_async
 # Import from async deliverect module for FastAPI routes
 from app.utils.deliverect_async import build_deliverect_order, send_order_to_deliverect_async, generate_order_id
 from app.utils.agent_utils import OrderParsingAgent, get_order_modifications

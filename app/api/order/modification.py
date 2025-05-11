@@ -17,7 +17,13 @@ from app.db_async import get_db
 from app.models.order_async import Order
 from app.utils.helpers_async import commit_with_retry_async, log_info_async
 from app.utils.agent_utils import OrderParsingAgent, get_order_modifications
-from app.utils.order_utils import build_order_description, calculate_bill_amount, validate_modifiers, mark_unavailable_items
+# Use async versions of order utilities for FastAPI routes
+from app.utils.order_utils_async import (
+    build_order_description_async,
+    calculate_bill_amount_async, 
+    validate_modifiers_async, 
+    mark_unavailable_items_async
+)
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -116,14 +122,11 @@ async def modify_order(
             }
         
         # Process and mark any unavailable items
-        available_items, unavailable_items = mark_unavailable_items(updated_order)
+        available_items, unavailable_items = await mark_unavailable_items_async(db, updated_order)
         
         # Handle case where all items are unavailable
         if not available_items and unavailable_items:
-            unavailable_names = [
-                item.get("name").split(" (")[0] for item in unavailable_items
-            ]
-            unavailable_text = ", ".join(unavailable_names)
+            unavailable_text = ", ".join(unavailable_items)
             
             return {
                 "message": f"I'm sorry, the item(s) you requested ({unavailable_text}) are currently unavailable. Please make a different modification.",
@@ -132,23 +135,24 @@ async def modify_order(
             }
         
         # Include both available and unavailable items
-        updated_order = available_items + unavailable_items
+        updated_order = available_items
         
         # Validate modifiers
-        validation_result = validate_modifiers(updated_order)
+        is_valid, error_messages = await validate_modifiers_async(db, updated_order)
         
-        if not validation_result["valid"]:
+        if not is_valid:
+            error_msg = "; ".join(error_messages)
             return {
-                "message": f"There's an issue with your order: {validation_result['reason']}. Please make a different modification.",
+                "message": f"There's an issue with your order: {error_msg}. Please make a different modification.",
                 "redirect_to": "/new_modify_order",
                 "modifications_applied": False
             }
         
         # Calculate bill amount
-        calculate_bill_amount(updated_order)
+        total_price = await calculate_bill_amount_async(updated_order)
         
         # Build order description
-        order_description = build_order_description(updated_order)
+        order_description = await build_order_description_async(updated_order)
         total_price = sum(item.get("price", 0) * item.get("quantity", 1) for item in updated_order)
         
         # Return the updated order for confirmation

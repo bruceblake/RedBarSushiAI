@@ -10,7 +10,8 @@ import json
 import logging
 from datetime import datetime
 from app import db
-from app.models.location import Location
+# Import from the models package to ensure we get the version defined in __init__.py
+from app.models import Location
 from app.config import settings
 
 logger = logging.getLogger(__name__)
