@@ -1,27 +1,19 @@
 """
 Base model definitions and utility functions for database models.
 This module provides the base classes and utilities for all models.
+
+THIS FILE IS BEING MAINTAINED FOR COMPATIBILITY WITH LEGACY FLASK MODELS ONLY.
+FOR NEW ASYNC MODELS, USE app/models/base_async.py INSTEAD.
 """
 
 import json
+import logging
 from datetime import datetime
-from sqlalchemy.ext.declarative import declared_attr
-from app import db
+from sqlalchemy import Column, DateTime
+from sqlalchemy.sql import func
 
-# Create the base class for all models using Flask-SQLAlchemy's Model
-class Base(db.Model):
-    """Base model class for all models.
-    
-    This provides a common base for all models that can be used to create 
-    tables with db.create_all() without explicitly passing an engine.
-    """
-    
-    __abstract__ = True
-    
-    @declared_attr
-    def __tablename__(cls):
-        return cls.__name__.lower()
-
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Common utility functions
 def to_dict(model):
@@ -44,12 +36,30 @@ def to_dict(model):
         result[column.name] = value
     return result
 
-
-# Mixin classes
+# Mixin classes - using direct SQLAlchemy imports
+# instead of db.Column to avoid the db.Model dependency
 class TimestampMixin:
     """Mixin that adds created_at and updated_at timestamps."""
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# For backwards compatibility with existing code
+try:
+    # Import Flask-SQLAlchemy db if available, but catch the error if not
+    from app import db
+    
+    # Forward reference for legacy models
+    class Base:
+        """
+        Placeholder Base class to avoid breaking imports.
+        THIS IS NOT A REAL BASE CLASS - it's a compatibility shim.
+        
+        New code should import Base from app.db_async instead.
+        """
+        pass
+        
+    # Register the class to avoid import errors in code that expects Base to be defined
+    logger.warning("app.models.base.Base is deprecated - use app.db_async.Base for new models")
+except ImportError:
+    logger.info("Flask-SQLAlchemy db not available, Base class not defined")

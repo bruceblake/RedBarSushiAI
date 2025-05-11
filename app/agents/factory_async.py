@@ -50,13 +50,14 @@ class AsyncAgentFactory:
         self.agent_classes[agent_type] = agent_class
         logger.info(f"Registered agent class: {agent_type} -> {agent_class.__name__}")
     
-    async def get_agent(self, agent_type: str, agent_id: Optional[str] = None) -> BaseAsyncAgent:
+    async def get_agent(self, agent_type: str, agent_id: Optional[str] = None, db=None) -> BaseAsyncAgent:
         """
         Get or create an agent instance.
         
         Args:
             agent_type: The type of agent to create
             agent_id: Optional specific agent ID to reuse
+            db: Optional database session to pass to agents that need it
             
         Returns:
             The agent instance
@@ -75,8 +76,11 @@ class AsyncAgentFactory:
         if agent_type in self.agent_classes:
             agent_class = self.agent_classes[agent_type]
             
-            # Initialize the agent
-            if agent_id:
+            # Initialize the agent with appropriate parameters
+            if agent_type == "menu" and db is not None:
+                # Menu agent needs database session for async operations
+                agent = agent_class(agent_id=agent_id, db=db)
+            elif agent_id:
                 agent = agent_class(agent_id=agent_id)
             else:
                 agent = agent_class()
@@ -87,12 +91,15 @@ class AsyncAgentFactory:
         else:
             raise ValueError(f"Unknown agent type: {agent_type}")
     
-    async def create_voice_agent_system(self) -> BaseAsyncAgent:
+    async def create_voice_agent_system(self, db=None) -> BaseAsyncAgent:
         """
         Create a complete voice agent system with all specialists.
         
         This sets up a frontline agent with menu, cart, and other specialist agents.
         
+        Args:
+            db: Optional database session to pass to agents that need it
+            
         Returns:
             The configured frontline agent
         """
@@ -100,7 +107,7 @@ class AsyncAgentFactory:
         frontline_agent = await self.get_agent("frontline")
         
         # Create and register specialist agents
-        menu_agent = await self.get_agent("menu")
+        menu_agent = await self.get_agent("menu", db=db)
         cart_agent = await self.get_agent("cart")
         
         # Register specialists with the frontline agent
