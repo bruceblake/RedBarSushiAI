@@ -16,7 +16,7 @@ from app.schemas.menu import (
     MenuItemCreate, MenuItemUpdate, MenuItemResponse, 
     MenuItemListResponse, SnoozeRequest, SnoozeResponse
 )
-from app.db.crud_menu_async import (
+from app.db import (
     get_items, count_items, get_item, get_items_by_category,
     create_item, update_item, delete_item, snooze_item, unsnooze_item
 )

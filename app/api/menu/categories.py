@@ -15,7 +15,7 @@ from app.schemas.menu import (
     MenuCategoryCreate, MenuCategoryUpdate,
     MenuCategoryResponse, MenuCategoryListResponse
 )
-from app.db.crud_menu_async import (
+from app.db import (
     get_categories, count_categories, get_category,
     create_category, update_category, delete_category
 )

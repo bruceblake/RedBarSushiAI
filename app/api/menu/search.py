@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import or_, func, select
 
 from app.db_async import get_db
-from app.models.menu_async import MenuItem, MenuCategory, MenuModifier, MenuNameVariant
+from app.models import MenuCategory, MenuItem, MenuModifier, MenuNameVariant
 from app.schemas.menu import (
     MenuItemResponse, MenuCategoryResponse, 
     MenuModifierResponse, MenuVariantResponse

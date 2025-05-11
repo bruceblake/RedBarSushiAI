@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db_async import get_db
-from app.db.crud_menu_async import (
+from app.db import (
     get_modifiers, count_modifiers, get_modifier, create_modifier, update_modifier,
     delete_modifier, snooze_modifier, unsnooze_modifier,
     get_modifier_groups, count_modifier_groups, get_modifier_group, 

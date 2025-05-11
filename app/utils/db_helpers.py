@@ -21,9 +21,9 @@ def get_jsonb_type():
         JSONB class or Text class as fallback
     """
     try:
-        # Try to import from app.db first
-        from app.db import JSONB
-        logger.info("Using JSONB from app.db")
+        # Try to import from app.legacy_db first
+        from app.legacy_db import JSONB
+        logger.info("Using JSONB from app.legacy_db")
         return JSONB
     except (ImportError, AttributeError):
         # Try direct import from sqlalchemy

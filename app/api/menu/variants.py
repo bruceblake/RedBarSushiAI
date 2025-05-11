@@ -15,7 +15,7 @@ from app.db_async import get_db
 from app.schemas.menu import (
     MenuVariantCreate, MenuVariantUpdate, MenuVariantResponse, MenuVariantListResponse
 )
-from app.db.crud_menu_async import (
+from app.db import (
     get_variants, count_variants, get_variant, get_variant_by_phrase,
     create_variant, update_variant, delete_variant
 )

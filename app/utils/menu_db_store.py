@@ -427,7 +427,7 @@ class MenuDBStore:
         try:
             # Import models here to avoid circular imports
             from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
-            from app.db import db, get_session, get_engine, session_scope
+            from app.legacy_db import db, get_session, get_engine, session_scope
             from flask import current_app, has_app_context
 
             # Check if we're in an application context
@@ -492,7 +492,7 @@ class MenuDBStore:
         try:
             # Import models here to avoid circular imports
             from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup
-            from app.db import db, get_session, get_engine, session_scope
+            from app.legacy_db import db, get_session, get_engine, session_scope
             from flask import current_app, has_app_context
 
             # Check if we're in an application context
@@ -1005,7 +1005,7 @@ class MenuDBStore:
         try:
             # Import models here to avoid circular imports
             from app.models.menu import MenuItem
-            from app.db import db, get_session, get_engine, session_scope
+            from app.legacy_db import db, get_session, get_engine, session_scope
             from flask import current_app, has_app_context
 
             # Check if we're in an application context
