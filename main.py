@@ -101,7 +101,115 @@ app.add_middleware(
 # Import API routes
 from app.api import api_router
 
-# Include API router
+# Define diagnostic routes
+from fastapi.routing import APIRoute, APIRouter, WebSocketRoute
+from typing import List, Set
+from fastapi.responses import RedirectResponse
+
+@app.get("/routes", summary="List all registered application routes", include_in_schema=False)
+async def list_routes_endpoint() -> Dict[str, Any]:
+    """List all registered routes for debugging."""
+    http_routes_info = []
+    ws_routes_info = []
+    
+    processed_routes: Set[str] = set()
+
+    def get_route_details(r, prefix=""):
+        path = f"{prefix}{r.path}"
+        if path in processed_routes:  # Avoid duplicates if same route object is on multiple routers
+            return None
+        processed_routes.add(path)
+
+        if isinstance(r, APIRoute):
+            return {
+                "path": path,
+                "name": r.name,
+                "methods": sorted(list(r.methods)) if r.methods else [],
+                "endpoint": f"{r.endpoint.__module__}.{r.endpoint.__name__}" if hasattr(r.endpoint, "__module__") and hasattr(r.endpoint, "__name__") else str(r.endpoint),
+            }
+        elif isinstance(r, WebSocketRoute):
+            return {
+                "path": path,
+                "name": r.name,
+                "endpoint": f"{r.endpoint.__module__}.{r.endpoint.__name__}" if hasattr(r.endpoint, "__module__") and hasattr(r.endpoint, "__name__") else str(r.endpoint),
+            }
+        return None
+
+    # First, collect routes directly on the app
+    for r in app.routes:
+        if isinstance(r, APIRouter):  # It's a sub-router included directly on app
+            router_prefix = getattr(r, "prefix", "")
+            router_routes = getattr(r, "routes", [])
+            
+            for sub_r in router_routes:
+                details = get_route_details(sub_r, prefix=router_prefix)
+                if details:
+                    if isinstance(sub_r, APIRoute):
+                        http_routes_info.append(details)
+                    elif isinstance(sub_r, WebSocketRoute):
+                        ws_routes_info.append(details)
+        else:  # It's a route directly on app
+            details = get_route_details(r)
+            if details:
+                if isinstance(r, APIRoute):
+                    http_routes_info.append(details)
+                elif isinstance(r, WebSocketRoute):
+                    ws_routes_info.append(details)
+    
+    # Process included APIRouter (api_router) separate from app.routes
+    if hasattr(api_router, "routes"):
+        router_prefix = getattr(api_router, "prefix", "")
+        for r in api_router.routes:
+            if isinstance(r, APIRouter):  # Nested router
+                sub_prefix = getattr(r, "prefix", "")
+                full_prefix = f"{router_prefix}{sub_prefix}"
+                
+                for sub_r in getattr(r, "routes", []):
+                    details = get_route_details(sub_r, prefix=full_prefix)
+                    if details:
+                        if isinstance(sub_r, APIRoute):
+                            http_routes_info.append(details)
+                        elif isinstance(sub_r, WebSocketRoute):
+                            ws_routes_info.append(details)
+            else:  # Direct route on api_router
+                details = get_route_details(r, prefix=router_prefix)
+                if details:
+                    if isinstance(r, APIRoute):
+                        http_routes_info.append(details)
+                    elif isinstance(r, WebSocketRoute):
+                        ws_routes_info.append(details)
+    
+    # Sort the routes by path
+    http_routes_info.sort(key=lambda x: x["path"])
+    ws_routes_info.sort(key=lambda x: x["path"])
+
+    return {
+        "http_routes": http_routes_info,
+        "websocket_routes": ws_routes_info,
+        "total_http_routes": len(http_routes_info),
+        "total_websocket_routes": len(ws_routes_info),
+    }
+
+# Add a simple endpoint to access the websocket test page
+@app.get("/ws-test-page")
+async def websocket_test_page():
+    """Redirect to the WebSocket test page."""
+    return RedirectResponse(url="/static/websocket-test.html")
+
+# Mount static files directory
+from fastapi.staticfiles import StaticFiles
+
+# Create static directory if it doesn't exist
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir)
+    logging.info(f"Created static directory: {static_dir}")
+
+# Mount the static directory
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+logging.info(f"Mounted static files directory: {static_dir}")
+
+# Include API router after defining diagnostic routes
 app.include_router(api_router)
 
 @app.on_event("startup")
@@ -115,7 +223,6 @@ async def startup_event():
         logging.error(f"Failed to initialize database: {e}", exc_info=True)
         logging.warning("App will continue starting up despite database initialization error")
 
-@app.get("/")
 # WebSocket test endpoint for diagnostics
 @app.websocket("/ws-test/{client_id}")
 async def websocket_test_endpoint(websocket: WebSocket, client_id: str):
@@ -144,6 +251,7 @@ async def websocket_test_endpoint(websocket: WebSocket, client_id: str):
     finally:
         logging.info(f"WEBSOCKET TEST: Connection closed for {client_id}")
 
+@app.get("/")
 async def index():
     """Root endpoint."""
     # Add environment info to help diagnose routing issues
