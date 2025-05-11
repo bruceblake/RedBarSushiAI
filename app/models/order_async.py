@@ -76,3 +76,19 @@ class OrderItemModifier(Base, TimestampMixin):
     
     # Relationship to order item
     order_item: Mapped["OrderItem"] = relationship("OrderItem", back_populates="modifiers")
+
+class ContactRequest(Base, TimestampMixin):
+    """
+    Model for storing customer contact requests for callbacks or menu notifications.
+    """
+    __tablename__ = "contact_requests"
+    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    customer_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    customer_phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    customer_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    message: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    request_type: Mapped[str] = mapped_column(String(50))  # callback, menu_notification, etc.
+    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, completed, etc.
+    call_sid: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

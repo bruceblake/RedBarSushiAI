@@ -10,13 +10,28 @@ This document summarizes the key improvements made to the RedBarSushiAI system a
   - Refactored `app/api/voice_async.py` (833 lines) into specialized modules under `app/api/voice/`
   - Refactored `app/utils/fsm_async.py` (1137 lines) into a core module and state handlers
   - Split `app/routes/order.py` (5672 lines) into logical modules under `app/routes/order/`
+  - Started refactoring `app/routes/menu.py` (1699 lines) into specialized modules under `app/api/menu/`
 
 - **FastAPI Migration**: Continued converting Flask routes to FastAPI:
-  - Created FastAPI-compatible structure in `app/api/order/`
-  - Converted order status and order taking routes from Flask to FastAPI
-  - Added comprehensive Pydantic models for request/response validation
+  - Created FastAPI-compatible structure in `app/api/order/` and `app/api/menu/`
+  - Converted multiple order route modules from Flask to FastAPI:
+    - Status routes for order status checking and webhooks
+    - Take order routes for initial order processing
+    - Modification routes for order changes and updates
+    - Contact routes for callback requests and customer notifications
+    - Checkout functionality for order submission
+    - Confirmation routes for finalizing orders before and after modifications
+  - Started converting menu route modules from Flask to FastAPI:
+    - Category routes for menu category management
+    - Item routes for menu item management with filtering and snoozing
+    - Modifier routes for menu modifiers and modifier groups management
+    - Variant routes for menu name variants management
+    - Search routes for querying menu entities
+  - Added comprehensive Pydantic models with validation and documentation
+  - Built validator functions for advanced input validation
   - Converted synchronous functions to async with proper error handling
   - Implemented dependency injection for database access and other services
+  - Created isolated helper functions for improved testability
 
 - **Database Access**: Enhanced SQLAlchemy integration with FastAPI:
   - Created SQLAlchemy 2.0 async models in `app/models/order_async.py`

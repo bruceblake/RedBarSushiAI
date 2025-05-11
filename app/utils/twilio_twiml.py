@@ -33,7 +33,7 @@ class TwimlParameter(BaseModel):
     language: str = "en-US"  # For <Say> elements
     greeting_text: Optional[str] = "Welcome to Red Bar Sushi. Please wait while we connect you."
     fallback_text: Optional[str] = "Sorry, we couldn't connect you to our AI assistant. Please try again later."
-    stream_params: TwimlStreamParameter = Field(...)
+    stream_params: TwimlStreamParameter  # Allow TwimlStreamParameter instance
     call_sid: str
 
 def generate_media_streams_twiml(params: TwimlParameter) -> str:

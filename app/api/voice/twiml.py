@@ -129,8 +129,9 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # Get the URL scheme (http or https)
         scheme = request.url.scheme
         
-        # Determine WebSocket scheme (ws or wss)
-        ws_scheme = "wss" if scheme == "https" else "ws"
+        # For Render deployment, always use wss:// for WebSocket connections
+        # Render provides HTTPS by default for all deployments
+        ws_scheme = "wss"
         
         # Generate optimized WebSocket URL with CallSid as path parameter for reliability
         # IMPORTANT: This path MUST match the @router.websocket path defined in __init__.py
@@ -141,7 +142,7 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # Create Stream parameters with production settings
         stream_params = TwimlStreamParameter(
             url=websocket_url,
-            track="inbound_track",  # Only use inbound track for bidirectional streaming (Twilio best practice)
+            track="both",  # Use both tracks for bidirectional streaming
             name="media_stream"     # Consistent name for stream tracking
         )
         
