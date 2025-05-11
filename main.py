@@ -197,6 +197,105 @@ async def websocket_test_page():
     """Redirect to the WebSocket test page."""
     return RedirectResponse(url="/static/websocket-test.html")
 
+# Special Twilio WebSocket handler that follows Twilio blog pattern exactly
+@app.websocket("/twilio-ws-test/{call_sid}")
+async def twilio_websocket_handler(websocket: WebSocket, call_sid: str):
+    """WebSocket handler following Twilio blog pattern exactly."""
+    # FIRST line must log entry
+    logging.critical(f"❗❗❗ TWILIO-WS-TEST: Connection attempt for call_sid: {call_sid}")
+    print(f"!!! PRINT DEBUG: TWILIO-WS-TEST: HANDLER ENTERED for {call_sid} !!!", flush=True)
+    
+    # Variables to store call state
+    stream_sid = None
+    
+    try:
+        # Accept connection - this is the FIRST await
+        await websocket.accept()
+        logging.critical(f"🟢 TWILIO-WS-TEST: Connection accepted for call_sid: {call_sid}")
+        print(f"!!! PRINT DEBUG: TWILIO-WS-TEST: Connection ACCEPTED for {call_sid} !!!", flush=True)
+        
+        # Main processing loop - this processes incoming messages as JSON from Twilio
+        while True:
+            # Log that we're waiting for a message
+            logging.info(f"[{call_sid}] TWILIO-WS-TEST: Waiting for message...")
+            
+            # Receive message as text (Twilio sends JSON strings)
+            message_str = await websocket.receive_text()
+            
+            # Parse JSON
+            import json
+            try:
+                message = json.loads(message_str)
+            except json.JSONDecodeError:
+                logging.error(f"[{call_sid}] TWILIO-WS-TEST: Failed to parse message as JSON: {message_str}")
+                continue
+                
+            # Log received message type
+            event = message.get("event")
+            logging.info(f"[{call_sid}] TWILIO-WS-TEST: Received event: {event}")
+            
+            # Handle different events
+            if event == "connected":
+                # Log connected event
+                logging.critical(f"🔵 TWILIO-WS-TEST: 'connected' event received for {call_sid}")
+                print(f"!!! PRINT DEBUG: TWILIO-WS-TEST: 'connected' event for {call_sid} !!!", flush=True)
+                
+            elif event == "start":
+                # This is when we'd normally start the OpenAI connection
+                stream_sid = message.get("streamSid")
+                logging.critical(f"🔵 TWILIO-WS-TEST: 'start' event received, streamSid: {stream_sid}")
+                print(f"!!! PRINT DEBUG: TWILIO-WS-TEST: 'start' event, streamSid: {stream_sid} !!!", flush=True)
+                
+                # Send a media message back to Twilio with dummy audio
+                # In a real implementation, this would be audio from OpenAI TTS
+                # Since this is just a test, we send an empty audio payload
+                dummy_media = {
+                    "event": "media",
+                    "streamSid": stream_sid,
+                    "media": {
+                        "payload": ""  # Empty payload for testing
+                    }
+                }
+                await websocket.send_text(json.dumps(dummy_media))
+                logging.critical(f"🟢 TWILIO-WS-TEST: Sent dummy media response for {call_sid}")
+                
+            elif event == "media":
+                # Handle media events (audio from caller)
+                media = message.get("media", {})
+                payload = media.get("payload", "")
+                chunk_size = len(payload) if payload else 0
+                logging.info(f"[{call_sid}] TWILIO-WS-TEST: Received media, payload size: {chunk_size} bytes")
+                
+                # In a real implementation, we would send this audio to OpenAI Realtime API
+                # For this test, we just acknowledge receipt
+                logging.info(f"[{call_sid}] TWILIO-WS-TEST: Received {chunk_size} bytes of audio")
+                
+            elif event == "stop":
+                # Handle connection stop
+                logging.critical(f"🔵 TWILIO-WS-TEST: 'stop' event received for {call_sid}")
+                print(f"!!! PRINT DEBUG: TWILIO-WS-TEST: 'stop' event for {call_sid} !!!", flush=True)
+                # In a real implementation, we would close the OpenAI connection
+                break
+                
+            else:
+                # Handle unknown events
+                logging.warning(f"[{call_sid}] TWILIO-WS-TEST: Unknown event: {event}")
+            
+    except WebSocketDisconnect:
+        logging.critical(f"🔴 TWILIO-WS-TEST: WebSocket disconnected for {call_sid}")
+        print(f"!!! PRINT DEBUG: TWILIO-WS-TEST: WebSocket disconnected for {call_sid} !!!", flush=True)
+        
+    except Exception as e:
+        logging.critical(f"🔴 TWILIO-WS-TEST: Error for {call_sid}: {str(e)}")
+        logging.critical(f"🔴 TWILIO-WS-TEST: Error type: {type(e).__name__}")
+        import traceback
+        logging.critical(traceback.format_exc())
+        print(f"!!! PRINT DEBUG: TWILIO-WS-TEST: Error for {call_sid}: {str(e)} !!!", flush=True)
+        
+    finally:
+        logging.critical(f"🔄 TWILIO-WS-TEST: Connection closed for {call_sid}")
+        print(f"!!! PRINT DEBUG: TWILIO-WS-TEST: Connection closed for {call_sid} !!!", flush=True)
+
 # Mount static files directory
 from fastapi.staticfiles import StaticFiles
 
@@ -224,81 +323,73 @@ async def startup_event():
         logging.error(f"Failed to initialize database: {e}", exc_info=True)
         logging.warning("App will continue starting up despite database initialization error")
 
-# WebSocket test endpoint for diagnostics
+# WebSocket test endpoint for diagnostics - ULTRA SIMPLIFIED VERSION
 @app.websocket("/ws-test/{client_id}")
 async def websocket_test_endpoint(websocket: WebSocket, client_id: str):
-    """WebSocket test endpoint for diagnostics."""
-    # Log critical connection information
-    print(f"⚠️ WEBSOCKET TEST: Connection attempt from {client_id}")
-    logging.critical(f"⚠️ WEBSOCKET TEST: Connection attempt from {client_id}")
+    """Ultra simplified WebSocket test endpoint focusing only on connection handshake."""
+    # ABSOLUTE FIRST LINE - Log that we've entered the handler
+    logging.critical(f"❗❗❗ WS Handler /ws-test/ ENTERED for {client_id}")
+    print(f"!!! PRINT DEBUG: WS Handler /ws-test/ ENTERED for {client_id} !!!", flush=True)
     
-    # Log detailed connection headers and query params
-    headers = dict(websocket.headers)
-    query_params = dict(websocket.query_params)
-    connection_info = {
-        "client_id": client_id,
-        "headers": {k: v for k, v in headers.items() if k.lower() not in ("authorization", "cookie")},
-        "query_params": query_params,
-        "client_host": websocket.client.host if hasattr(websocket, "client") else "unknown",
-        "url": str(websocket.url),
-    }
+    # Immediately log basic connection info
+    headers_str = ", ".join([f"{k}={v}" for k, v in websocket.headers.items() 
+                         if k.lower() not in ("authorization", "cookie")])
+    logging.critical(f"❗❗❗ HEADERS: {headers_str}")
+    print(f"!!! PRINT DEBUG: HEADERS: {headers_str} !!!", flush=True)
     
-    # Log the connection info in multiple formats for easy diagnosis
-    logging.critical(f"WEBSOCKET CONNECTION INFO: {connection_info}")
-    print(f"\n===== WEBSOCKET HEADERS =====\n")
-    for k, v in headers.items():
-        if k.lower() not in ("authorization", "cookie"):
-            print(f"{k}: {v}")
-    print(f"\n===== WEBSOCKET QUERY PARAMS =====\n")
-    for k, v in query_params.items():
-        print(f"{k}: {v}")
-    
-    # Detect if this is a connection from Twilio
-    is_twilio = "client" in query_params and query_params["client"] == "twilio"
-    if is_twilio:
-        logging.critical(f"⚠️ DETECTED TWILIO CONNECTION: {client_id}")
-        print(f"⚠️ DETECTED TWILIO CONNECTION: {client_id}")
-        
+    # Immediately try to accept
     try:
-        # Accept the WebSocket connection
         await websocket.accept()
-        print(f"✅ WEBSOCKET TEST: Connection accepted for {client_id}")
-        logging.critical(f"✅ WEBSOCKET TEST: Connection accepted for {client_id}")
+        logging.critical(f"🟢 WebSocket connection ACCEPTED for {client_id}")
+        print(f"!!! PRINT DEBUG: WebSocket CONNECTION ACCEPTED for {client_id} !!!", flush=True)
         
-        # Send an initial message
-        await websocket.send_text(f"Hello, {client_id}! Connection established.")
+        # Log success and send a simple message
+        await websocket.send_text(f"Test connection to /ws-test/ for {client_id} successful.")
+        logging.critical(f"🟢 Sent initial message to {client_id}")
+        print(f"!!! PRINT DEBUG: Sent initial message to {client_id} !!!", flush=True)
         
-        # Special handling for Twilio
-        if is_twilio:
-            logging.critical(f"🔵 TWILIO CONNECTION SUCCESSFUL - READY FOR MEDIA: {client_id}")
-            # Twilio expects specific patterns for media streams
-            # But our test endpoint just handles text for simplicity
+        # Try to receive one message with timeout
+        try:
+            import asyncio
+            logging.critical(f"🔄 Waiting for initial message from {client_id}...")
+            print(f"!!! PRINT DEBUG: Waiting for message from {client_id} !!!", flush=True)
             
-        # Echo messages back to the client
-        while True:
-            try:
-                # First try to receive as text (for browser clients)
-                data = await websocket.receive_text()
-                logging.info(f"WEBSOCKET TEST: Received text from {client_id}: {data}")
-                await websocket.send_text(f"Echo: {data}")
-            except Exception as text_error:
-                try:
-                    # If text fails, try to receive binary (for Twilio media)
-                    data = await websocket.receive_bytes()
-                    logging.info(f"WEBSOCKET TEST: Received binary data ({len(data)} bytes) from {client_id}")
-                    # Echo binary data back
-                    await websocket.send_bytes(data)
-                except Exception as binary_error:
-                    logging.error(f"WEBSOCKET TEST: Error receiving message: {str(binary_error)}")
-                    raise
-                    
-    except WebSocketDisconnect:
-        logging.warning(f"WEBSOCKET TEST: Client {client_id} disconnected")
+            data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            
+            logging.critical(f"🔵 Received message: {data} from {client_id}")
+            print(f"!!! PRINT DEBUG: Received message: {data} from {client_id} !!!", flush=True)
+            
+            # Echo back the received message
+            await websocket.send_text(f"Echo: {data}")
+            
+        except asyncio.TimeoutError:
+            # After timeout, send a message anyway
+            logging.warning(f"🟡 Timeout waiting for message from {client_id}")
+            print(f"!!! PRINT DEBUG: TIMEOUT waiting for message from {client_id} !!!", flush=True)
+            await websocket.send_text(f"No message received in 30 seconds, but connection is working!")
+        
+        # Keep the connection open for a few seconds
+        await asyncio.sleep(5)
+        logging.critical(f"✅ Test completed successfully for {client_id}")
+        print(f"!!! PRINT DEBUG: Test completed for {client_id} !!!", flush=True)
+        
+    except WebSocketDisconnect as e:
+        code = getattr(e, 'code', 'unknown')
+        reason = getattr(e, 'reason', 'unknown reason')
+        logging.critical(f"🔴 WebSocket disconnect from {client_id}. Code: {code}, Reason: {reason}")
+        print(f"!!! PRINT DEBUG: WS DISCONNECT: {client_id}, Code: {code}, Reason: {reason} !!!", flush=True)
+        
     except Exception as e:
-        logging.error(f"WEBSOCKET TEST: Error with {client_id}: {str(e)}")
-        print(f"❌ WEBSOCKET TEST: Error with {client_id}: {str(e)}")
+        logging.critical(f"🔴 ERROR with {client_id}: {str(e)}")
+        logging.critical(f"🔴 Error type: {type(e).__name__}")
+        import traceback
+        logging.critical(traceback.format_exc())
+        print(f"!!! PRINT DEBUG: ERROR with {client_id}: {str(e)} !!!", flush=True)
+        print(f"!!! PRINT DEBUG: {traceback.format_exc()} !!!", flush=True)
+        
     finally:
-        logging.info(f"WEBSOCKET TEST: Connection closed for {client_id}")
+        logging.critical(f"🔄 WebSocket connection closing for {client_id}")
+        print(f"!!! PRINT DEBUG: Connection closing for {client_id} !!!", flush=True)
 
 @app.get("/")
 async def index():
