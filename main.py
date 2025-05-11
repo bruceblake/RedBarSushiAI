@@ -7,7 +7,7 @@ This file is used by Uvicorn to run the FastAPI server.
 import os
 import logging
 import sys
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
@@ -116,6 +116,34 @@ async def startup_event():
         logging.warning("App will continue starting up despite database initialization error")
 
 @app.get("/")
+# WebSocket test endpoint for diagnostics
+@app.websocket("/ws-test/{client_id}")
+async def websocket_test_endpoint(websocket: WebSocket, client_id: str):
+    """WebSocket test endpoint for diagnostics."""
+    print(f"⚠️ WEBSOCKET TEST: Connection attempt from {client_id}")
+    logging.critical(f"⚠️ WEBSOCKET TEST: Connection attempt from {client_id}")
+    
+    try:
+        await websocket.accept()
+        print(f"✅ WEBSOCKET TEST: Connection accepted for {client_id}")
+        logging.critical(f"✅ WEBSOCKET TEST: Connection accepted for {client_id}")
+        
+        # Send an initial message
+        await websocket.send_text(f"Hello, {client_id}! Connection established.")
+        
+        # Echo messages back to the client
+        while True:
+            data = await websocket.receive_text()
+            logging.info(f"WEBSOCKET TEST: Received message from {client_id}: {data}")
+            await websocket.send_text(f"Echo: {data}")
+    except WebSocketDisconnect:
+        logging.warning(f"WEBSOCKET TEST: Client {client_id} disconnected")
+    except Exception as e:
+        logging.error(f"WEBSOCKET TEST: Error with {client_id}: {str(e)}")
+        print(f"❌ WEBSOCKET TEST: Error with {client_id}: {str(e)}")
+    finally:
+        logging.info(f"WEBSOCKET TEST: Connection closed for {client_id}")
+
 async def index():
     """Root endpoint."""
     # Add environment info to help diagnose routing issues

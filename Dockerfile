@@ -121,4 +121,4 @@ EXPOSE 8080
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
 # Use Uvicorn for FastAPI
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--log-level", "info"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--log-level", "debug"]

@@ -224,4 +224,4 @@ log "Starting FastAPI application with Uvicorn..."
 PORT=${PORT:-8080}
 WORKER_COUNT=${WORKER_COUNT:-4}
 
-exec uvicorn main:app --host 0.0.0.0 --port $PORT --workers $WORKER_COUNT --log-level info
+exec uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level debug
