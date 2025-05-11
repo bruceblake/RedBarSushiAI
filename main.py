@@ -104,7 +104,7 @@ from app.api import api_router
 # Define diagnostic routes
 from fastapi.routing import APIRoute, APIRouter
 from starlette.routing import WebSocketRoute  # Import WebSocketRoute from starlette.routing
-from typing import List, Set
+from typing import List, Set, Dict, Any
 from fastapi.responses import RedirectResponse
 
 @app.get("/routes", summary="List all registered application routes", include_in_schema=False)

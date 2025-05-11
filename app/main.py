@@ -15,6 +15,8 @@ from fastapi import FastAPI, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 import uvicorn
 
+from app.config import settings
+
 # Configure logging
 logging.basicConfig(
     stream=sys.stderr,
@@ -242,7 +244,8 @@ app.include_router(api_router)
 @app.get("/routes", include_in_schema=False)
 async def list_routes() -> Dict[str, Any]:
     """List all registered routes for debugging."""
-    from fastapi.routing import APIRoute, WebSocketRoute, APIRouter
+    from fastapi.routing import APIRoute, APIRouter
+    from starlette.routing import WebSocketRoute
     
     http_routes = []
     ws_routes = []
