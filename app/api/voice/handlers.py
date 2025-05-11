@@ -53,6 +53,9 @@ async def handle_media_stream(
         call_sid: The Twilio call SID
         connection_mgr: The WebSocket connection manager
     """
+    # CRITICAL: This must be the very first log in the function, before any other code
+    logger.critical(f"❗❗❗ WEBSOCKET CONNECTION ATTEMPTED: {call_sid} ❗❗❗")
+    """
     # Local references to track active tasks and resources
     openai_task = None
     transcript_queue = asyncio.Queue()
