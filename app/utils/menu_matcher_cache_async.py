@@ -10,6 +10,8 @@ from typing import Dict, List, Any, Optional, Tuple, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.menu_matcher_db_async import AsyncMenuMatcher as BaseAsyncMenuMatcher
+# Ensure we're not importing from the old menu_matcher_db module:
+# Avoid: from app.utils.menu_matcher_db import MenuMatcher
 from app.utils.menu_cache_sdk import menu_cache, with_menu_cache
 
 logger = logging.getLogger(__name__)

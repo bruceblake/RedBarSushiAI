@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional, Union, Callable
 
 from app.agents.base_async import BaseAsyncAgent
 from app.utils.menu_matcher_cache_async import get_cached_async_menu_matcher
-from app.utils.menu_db_store import menu_db_store
+from app.utils.menu_db_store_async import async_menu_db_store
 from app.utils.menu_cache_sdk import menu_cache
 from app.utils.agents_sdk import guardrail
 from app.utils.conversation_store_async import async_conversation_store
@@ -346,11 +346,11 @@ class AsyncMenuAgent(BaseAsyncAgent):
         # Get modifiers for this item
         modifiers = []
         for mod_group_id in menu_item.get("modifierGroups", []):
-            group = menu_db_store.get_modifier_group(mod_group_id)
+            group = await async_menu_db_store.get_modifier_group(self.db, mod_group_id)
             if group:
                 mod_list = []
                 for mod_id in group.get("modifierIds", []):
-                    modifier = menu_db_store.get_modifier(mod_id)
+                    modifier = await async_menu_db_store.get_modifier(self.db, mod_id)
                     if modifier and modifier.get("available", True):
                         mod_price = modifier.get("price", 0)
                         mod_price_str = f"${mod_price/100:.2f}" if mod_price else ""
@@ -389,9 +389,8 @@ class AsyncMenuAgent(BaseAsyncAgent):
         """
         logger.info("Listing menu categories")
         
-        # Get all categories from the menu store
-        # Note: This uses synchronous API for now
-        categories = menu_db_store.get_categories()
+        # Get all categories from the menu store using async API
+        categories = await async_menu_db_store.get_categories(self.db)
         
         # Return formatted categories
         return {
@@ -410,9 +409,8 @@ class AsyncMenuAgent(BaseAsyncAgent):
         """
         logger.info(f"Getting items for category: {category_name}")
         
-        # Get all items in the category
-        # Note: This uses synchronous API for now
-        items = menu_db_store.get_items_by_category(category_name)
+        # Get all items in the category using async API
+        items = await async_menu_db_store.get_items_by_category(self.db, category_name)
         
         if not items:
             logger.info(f"Category not found or empty: {category_name}")

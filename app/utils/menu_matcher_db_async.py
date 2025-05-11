@@ -12,6 +12,8 @@ from typing import Dict, List, Any, Optional, Tuple, Union
 import openai
 
 from app.utils.menu_utils_db_async import load_menu_data
+# Ensure we're not importing from the old menu_utils_db module:
+# Avoid: from app.utils.menu_utils_db import load_menu_data
 from app.utils.agent_utils import log_openai_request, log_openai_response
 from sqlalchemy.ext.asyncio import AsyncSession
 

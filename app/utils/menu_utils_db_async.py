@@ -22,6 +22,8 @@ from app.models.menu_async import (
     MenuCategory, MenuItem, MenuModifier, 
     MenuModifierGroup, MenuNameVariant
 )
+# Ensure we're not importing from the old models package that leads to base.py
+# Avoid: from app.models.menu import ...
 
 # Configure logging
 logger = logging.getLogger(__name__)
