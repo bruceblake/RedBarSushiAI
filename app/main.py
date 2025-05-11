@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 from typing import Dict, Any
 
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 import uvicorn
 
@@ -80,6 +80,70 @@ app = FastAPI(
     description="AI-powered voice ordering system for Red Bar Sushi",
     version="1.0.0",
 )
+
+# Mount static files directory
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Check if static directory exists, create it if not
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir)
+    logger.info(f"Created static directory: {static_dir}")
+
+# Mount the static directory
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+logger.info(f"Mounted static files directory: {static_dir}")
+
+# Create a dedicated logger for our WebSocket test
+ws_test_logger = logging.getLogger("app.main_ws_test")
+ws_test_logger.setLevel(logging.DEBUG)  # Force debug level
+if not ws_test_logger.hasHandlers():
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    ws_test_logger.addHandler(ch)
+    ws_test_logger.propagate = False
+    
+ws_test_logger.critical("🔄 WebSocket test logger initialized")
+
+# Add an endpoint to access the WebSocket test page
+@app.get("/ws-test-page")
+async def websocket_test_page():
+    """Redirect to the WebSocket test page in the static directory."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/static/websocket-test.html")
+
+# Add a simple test WebSocket endpoint directly on the app
+@app.websocket("/ws-test/{client_id}")
+async def websocket_test_endpoint(websocket: WebSocket, client_id: str):
+    ws_test_logger.critical(f"❗❗❗ /ws-test: WebSocket Connection ATTEMPTED for client_id: {client_id} ❗❗❗")
+    print(f"!!! PRINT DEBUG: /ws-test: ATTEMPTING ACCEPT for {client_id} !!!", flush=True)
+    
+    try:
+        # Try to accept the WebSocket connection
+        await websocket.accept()
+        ws_test_logger.critical(f"🟢 /ws-test: WebSocket Connection ACCEPTED for client_id: {client_id}")
+        print(f"!!! PRINT DEBUG: /ws-test: ACCEPTED for {client_id} !!!", flush=True)
+        
+        # Send an initial message
+        await websocket.send_text(f"Hello, {client_id}! Connection established.")
+        ws_test_logger.info(f"[{client_id}] /ws-test: Sent welcome message")
+        
+        # Echo messages back to the client
+        while True:
+            data = await websocket.receive_text()
+            ws_test_logger.info(f"[{client_id}] /ws-test: Received: {data}")
+            await websocket.send_text(f"Message received: {data}")
+    except WebSocketDisconnect:
+        ws_test_logger.warning(f"[{client_id}] /ws-test: Client disconnected")
+    except Exception as e:
+        ws_test_logger.error(f"[{client_id}] /ws-test: Error: {e}", exc_info=True)
+        print(f"!!! PRINT DEBUG: /ws-test: ERROR for {client_id}: {str(e)} !!!", flush=True)
+    finally:
+        ws_test_logger.info(f"[{client_id}] /ws-test: Connection closed")
+        print(f"!!! PRINT DEBUG: /ws-test: CONNECTION CLOSED for {client_id} !!!", flush=True)
 
 @app.get("/")
 async def index(request: Request) -> Dict[str, Any]:

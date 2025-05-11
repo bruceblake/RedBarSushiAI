@@ -140,18 +140,20 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # Render provides HTTPS by default for all deployments
         ws_scheme = "wss"
         
-        # Generate optimized WebSocket URL with CallSid as path parameter for reliability
-        # IMPORTANT: This path MUST match the @router.websocket path defined in handlers.py
-        # The route is defined as @router.websocket("/ws/media/{call_sid}")
-        # and mounted with prefix="/realtime" in app/api/__init__.py
-        websocket_url = f"{ws_scheme}://{host}/realtime/ws/media/{call_sid}"
+        # TEMPORARILY USING THE SIMPLIFIED TEST ENDPOINT for diagnostic purposes
+        # Original URL: 
+        # websocket_url = f"{ws_scheme}://{host}/realtime/ws/media/{call_sid}"
+        
+        # Test endpoint URL directly on the FastAPI app object
+        websocket_url = f"{ws_scheme}://{host}/ws-test/{call_sid}"
         
         # Log this URL multiple times in different formats to make it absolutely unmissable
-        logger.critical(f"❗❗❗ WEBSOCKET URL SET IN TWIML: {websocket_url} ❗❗❗")
+        logger.critical(f"❗❗❗ TEMP TEST WEBSOCKET URL SET IN TWIML: {websocket_url} ❗❗❗")
         logger.critical(f"WEBSOCKET SCHEME: {ws_scheme}")
         logger.critical(f"WEBSOCKET HOST: {host}")
-        logger.critical(f"WEBSOCKET PATH: /realtime/ws/media/{call_sid}")
+        logger.critical(f"WEBSOCKET PATH: /ws-test/{call_sid}")
         logger.critical(f"RESULTING FULL URL: {websocket_url}")
+        logger.critical(f"ATTENTION: Using simplified test WebSocket endpoint!")
         
         # Create Stream parameters with production settings
         stream_params = TwimlStreamParameter(
