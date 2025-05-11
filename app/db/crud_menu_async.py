@@ -15,7 +15,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.menu_async import (
     MenuCategory, MenuItem, MenuModifier, MenuModifierGroup, 
-    ItemModifierGroup, GroupModifier, MenuNameVariant
+    item_modifier_group, group_modifier, MenuNameVariant
 )
 from app.schemas.menu import (
     MenuCategoryCreate, MenuCategoryUpdate,
@@ -946,8 +946,8 @@ async def get_modifier_groups(
             query = (
                 select(MenuModifierGroup)
                 .options(selectinload(MenuModifierGroup.modifiers))
-                .join(ItemModifierGroup)
-                .where(ItemModifierGroup.c.menu_item_id == item_id)
+                .join(item_modifier_group)
+                .where(item_modifier_group.c.menu_item_id == item_id)
                 .offset(skip)
                 .limit(limit)
                 .order_by(MenuModifierGroup.name)
@@ -955,8 +955,8 @@ async def get_modifier_groups(
         else:
             query = (
                 select(MenuModifierGroup)
-                .join(ItemModifierGroup)
-                .where(ItemModifierGroup.c.menu_item_id == item_id)
+                .join(item_modifier_group)
+                .where(item_modifier_group.c.menu_item_id == item_id)
                 .offset(skip)
                 .limit(limit)
                 .order_by(MenuModifierGroup.name)
@@ -989,8 +989,8 @@ async def count_modifier_groups(
         query = (
             select(func.count())
             .select_from(MenuModifierGroup)
-            .join(ItemModifierGroup)
-            .where(ItemModifierGroup.c.menu_item_id == item_id)
+            .join(item_modifier_group)
+            .where(item_modifier_group.c.menu_item_id == item_id)
         )
     else:
         query = select(func.count()).select_from(MenuModifierGroup)

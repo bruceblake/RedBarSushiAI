@@ -7,8 +7,9 @@ with validation and type conversion.
 
 import os
 from typing import Dict, Any, Optional, List
-# Import directly from pydantic v1
-from pydantic import BaseSettings, Field, validator, AnyHttpUrl
+# Import from pydantic-settings
+from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator, AnyHttpUrl
 
 # Default environment variables path
 ENV_FILE = ".env"
@@ -90,16 +91,17 @@ class Settings(BaseSettings):
     MCP_URL: Optional[str] = Field(None, env="MCP_URL")
     
     # Validators
-    @validator('VOICE_HANDLER')
+    @field_validator('VOICE_HANDLER')
     def validate_voice_handler(cls, v):
         if v != "realtime":
             raise ValueError(f"Unsupported VOICE_HANDLER value: {v}, only 'realtime' is supported")
         return v
     
-    class Config:
-        """Pydantic config"""
-        env_file = ENV_FILE
-        case_sensitive = True
+    model_config = {
+        "env_file": ENV_FILE,
+        "case_sensitive": True,
+        "extra": "allow"  # Allow extra fields from environment variables
+    }
 
 # Load settings from environment variables
 try:
