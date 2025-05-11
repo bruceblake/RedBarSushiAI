@@ -102,7 +102,8 @@ app.add_middleware(
 from app.api import api_router
 
 # Define diagnostic routes
-from fastapi.routing import APIRoute, APIRouter, WebSocketRoute
+from fastapi.routing import APIRoute, APIRouter
+from starlette.routing import WebSocketRoute  # Import WebSocketRoute from starlette.routing
 from typing import List, Set
 from fastapi.responses import RedirectResponse
 

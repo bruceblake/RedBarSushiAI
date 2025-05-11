@@ -70,7 +70,8 @@ debug_router = APIRouter(tags=["Debug"])
 @debug_router.get("/debug-routes")
 async def debug_routes():
     """Debug endpoint to list all routes from api_router."""
-    from fastapi.routing import APIRoute, WebSocketRoute
+    from fastapi.routing import APIRoute
+    from starlette.routing import WebSocketRoute
     
     def get_route_info(route):
         if isinstance(route, APIRoute):
