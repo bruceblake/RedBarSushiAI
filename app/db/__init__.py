@@ -5,7 +5,7 @@ This package contains database models, sessions, and CRUD operations.
 """
 
 # Re-export commonly used items for easier imports
-from app.db_async import Base, get_db, async_engine, AsyncSessionFactory
+from app.db_async import Base, get_db, engine, async_session_factory
 
 # Re-export CRUD modules for convenience
 from app.db.crud_menu_async import (
@@ -37,7 +37,7 @@ from app.db.crud_menu_async import (
 
 __all__ = [
     # Database session
-    "Base", "get_db", "async_engine", "AsyncSessionFactory",
+    "Base", "get_db", "engine", "async_session_factory",
     
     # Categories
     "get_categories", "count_categories", "get_category", 
