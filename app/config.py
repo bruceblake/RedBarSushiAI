@@ -6,10 +6,12 @@ with validation and type conversion.
 """
 
 import os
+import logging
 from typing import Dict, Any, Optional, List
-# Import from pydantic_settings for Pydantic v2 compatibility
-from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator, AnyHttpUrl
+# Import directly from pydantic for v1.x compatibility
+from pydantic import BaseSettings, Field, validator, AnyHttpUrl
+
+logger = logging.getLogger(__name__)
 
 # Default environment variables path
 ENV_FILE = ".env"
@@ -91,24 +93,31 @@ class Settings(BaseSettings):
     MCP_URL: Optional[str] = Field(None, env="MCP_URL")
     
     # Validators
-    @field_validator('VOICE_HANDLER')
+    @validator('VOICE_HANDLER')
     def validate_voice_handler(cls, v):
         if v != "realtime":
             raise ValueError(f"Unsupported VOICE_HANDLER value: {v}, only 'realtime' is supported")
         return v
     
-    model_config = {
-        "env_file": ENV_FILE,
-        "case_sensitive": True,
-        "extra": "allow",  # Allow extra fields from environment variables
-    }
+    class Config:
+        """Pydantic config"""
+        env_file = ENV_FILE
+        case_sensitive = True
+        extra = "allow"  # Allow extra fields from environment variables
 
 # Load settings from environment variables
 try:
+    # Try to get the installed pydantic version
+    import pydantic
+    logger.info(f"Pydantic version: {pydantic.__version__}")
+    
+    # Try to load settings from environment variables
     settings = Settings()
+    logger.info("Settings loaded successfully")
+    logger.info(f"Running in environment: {settings.ENVIRONMENT}")
+    logger.info(f"BASE_URL from settings: {settings.BASE_URL}")
 except Exception as e:
-    import logging
-    logging.error(f"Error loading configuration: {e}")
+    logger.error(f"Error loading configuration: {e}")
     # Load with empty values for optional fields to prevent startup failures
     # in environments where all env vars are not set
     # Try to create settings with minimal config
@@ -118,9 +127,10 @@ except Exception as e:
             DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
             BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
         )
+        logger.info("Created settings with minimal config")
     except Exception as e:
         # If that fails, create with all potential fields to avoid crashing
-        logging.error(f"Error creating minimal settings: {e}, trying with all fields")
+        logger.error(f"Error creating minimal settings: {e}, trying with all fields")
         settings = Settings(
             SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
             DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
@@ -138,3 +148,4 @@ except Exception as e:
             CELERY_BROKER_URL=os.environ.get("CELERY_BROKER_URL", None),
             CELERY_RESULT_BACKEND=os.environ.get("CELERY_RESULT_BACKEND", None),
         )
+        logger.info("Created settings with all fields")
