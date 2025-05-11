@@ -146,19 +146,21 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # websocket_url = f"{ws_scheme}://{host}/realtime/ws/media/{call_sid}"
         
         # Test endpoint options:
-        # 1. Generic test endpoint directly on the FastAPI app object
-        # websocket_url = f"{ws_scheme}://{host}/ws-test/{call_sid}"
+        # 1. Generic test endpoint directly on the FastAPI app object - USING THIS ONE NOW
+        # This endpoint works with browsers, let's see if Twilio can also connect to it
+        websocket_url = f"{ws_scheme}://{host}/ws-test/{call_sid}"
         
         # 2. Twilio-specific pattern following the blog post exactly
-        websocket_url = f"{ws_scheme}://{host}/twilio-ws-test/{call_sid}"
+        # websocket_url = f"{ws_scheme}://{host}/twilio-ws-test/{call_sid}"
         
         # Log this URL multiple times in different formats to make it absolutely unmissable
         logger.critical(f"❗❗❗ TEMP TEST WEBSOCKET URL SET IN TWIML: {websocket_url} ❗❗❗")
         logger.critical(f"WEBSOCKET SCHEME: {ws_scheme}")
         logger.critical(f"WEBSOCKET HOST: {host}")
-        logger.critical(f"WEBSOCKET PATH: /twilio-ws-test/{call_sid}")
+        logger.critical(f"WEBSOCKET PATH: /ws-test/{call_sid}")
         logger.critical(f"RESULTING FULL URL: {websocket_url}")
-        logger.critical(f"ATTENTION: Using Twilio-specific test WebSocket endpoint!")
+        logger.critical(f"❗❗❗ TWIML NOW POINTS TO GENERIC /ws-test/: {websocket_url} ❗❗❗")
+        logger.critical(f"ATTENTION: Using browser-proven generic WebSocket endpoint!")
         
         # Create Stream parameters with production settings
         # Add parameters to help with debugging (they'll be passed as query params)
