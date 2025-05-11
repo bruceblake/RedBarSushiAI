@@ -99,36 +99,7 @@ async def index(request: Request) -> Dict[str, Any]:
         "flask_env": os.environ.get("FLASK_ENV", "not set"),
     }
 
-@app.get("/routes")
-async def list_routes() -> Dict[str, Any]:
-    """List all registered routes for debugging."""
-    from fastapi.routing import APIRoute, WebSocketRoute
-    
-    http_routes = []
-    ws_routes = []
-    
-    # List all routes in the app
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            route_info = {
-                "path": route.path,
-                "name": route.name,
-                "methods": route.methods,
-                "endpoint": f"{route.endpoint.__module__}.{route.endpoint.__name__}",
-            }
-            http_routes.append(route_info)
-        elif isinstance(route, WebSocketRoute):
-            route_info = {
-                "path": route.path,
-                "name": route.name,
-                "endpoint": f"{route.endpoint.__module__}.{route.endpoint.__name__}",
-            }
-            ws_routes.append(route_info)
-    
-    return {
-        "http_routes": http_routes,
-        "websocket_routes": ws_routes,
-    }
+# /routes endpoint moved after API router inclusion to ensure it can see all routes
 
 @app.get("/healthcheck")
 async def healthcheck() -> Dict[str, Any]:
@@ -187,11 +158,90 @@ async def environment_info() -> Dict[str, Any]:
 
     return info
 
+# Remove existing /routes endpoint before adding API router
+# It will be re-added below
+routes_to_keep = []
+for route in app.routes:
+    # Skip the /routes endpoint, we'll re-add it below
+    if getattr(route, "path", None) != "/routes":
+        routes_to_keep.append(route)
+app.routes = routes_to_keep
+
 # Import and include API routers
 from app.api import api_router
 
 # Include the main API router
 app.include_router(api_router)
+
+# Add the /routes endpoint AFTER including the API router
+# This ensures it can see all routes including the ones from api_router
+@app.get("/routes", include_in_schema=False)
+async def list_routes() -> Dict[str, Any]:
+    """List all registered routes for debugging."""
+    from fastapi.routing import APIRoute, WebSocketRoute, APIRouter
+    
+    http_routes = []
+    ws_routes = []
+    sub_routers_info = []
+    
+    # Helper function to get route info
+    def get_route_info(route):
+        if isinstance(route, APIRoute):
+            return {
+                "path": route.path,
+                "name": route.name,
+                "methods": sorted(list(route.methods)) if route.methods else [],
+                "endpoint": f"{route.endpoint.__module__}.{route.endpoint.__name__}",
+            }
+        elif isinstance(route, WebSocketRoute):
+            return {
+                "path": route.path,
+                "name": route.name,
+                "endpoint": f"{route.endpoint.__module__}.{route.endpoint.__name__}",
+            }
+        return None
+    
+    # List all routes in the app, including nested routers
+    for route in app.routes:
+        if isinstance(route, APIRouter):  # This checks for nested APIRouters
+            # Log details about the sub-router itself
+            sub_routers_info.append({
+                "prefix": route.prefix,
+                "tags": route.tags,
+                "routes_count": len(route.routes) if hasattr(route, 'routes') else 0
+            })
+            
+            # Process routes in the sub-router
+            if hasattr(route, 'routes'):
+                for sub_route in route.routes:
+                    info = get_route_info(sub_route)
+                    if info:
+                        # Adjust path with the parent router's prefix
+                        if route.prefix:
+                            info["path"] = f"{route.prefix}{info['path']}"
+                        if isinstance(sub_route, APIRoute):
+                            http_routes.append(info)
+                        elif isinstance(sub_route, WebSocketRoute):
+                            ws_routes.append(info)
+        else:
+            # Direct routes on the app
+            info = get_route_info(route)
+            if info:
+                if isinstance(route, APIRoute):
+                    http_routes.append(info)
+                elif isinstance(route, WebSocketRoute):
+                    ws_routes.append(info)
+    
+    # Sort routes for consistent output
+    http_routes.sort(key=lambda x: x["path"])
+    ws_routes.sort(key=lambda x: x["path"])
+    
+    return {
+        "http_routes": http_routes,
+        "websocket_routes": ws_routes,
+        "sub_routers_info": sub_routers_info,
+        "total_app_routes_count": len(app.routes)
+    }
 
 # Add startup and shutdown events
 @app.on_event("startup")

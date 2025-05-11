@@ -4,34 +4,111 @@ API module for RedBarSushiAI FastAPI application.
 This module contains API routers for the different components of the application.
 """
 
+import logging
 from fastapi import APIRouter
 
-# Import routers
-from app.api.voice import http_twiml_router, media_stream_router, testing_router
-from app.api.order import order_router
-from app.api.menu import menu_router
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Create main API router
 api_router = APIRouter()
+
+# Import order and menu routers
+from app.api.order import order_router
+from app.api.menu import menu_router
 
 # Include core routers for orders and menu
 api_router.include_router(order_router, prefix="/order")  # Order routes
 api_router.include_router(menu_router, prefix="/menu")  # Menu routes
 
-# Mount TwiML HTTP endpoint router at /voice
-api_router.include_router(http_twiml_router, prefix="/voice", tags=["Voice (TwiML Webhooks)"])
-# This makes your TwiML endpoint:
-# POST https://<host>/voice/ and POST https://<host>/voice/webhook
-# Ensure Twilio console points to this exact URL.
+# Import voice routers from the structured module
+# This is the preferred implementation with better organized code
+try:
+    from app.api.voice import http_twiml_router, media_stream_router, testing_router
+    
+    # Mount TwiML HTTP endpoint router at /voice
+    api_router.include_router(http_twiml_router, prefix="/voice", tags=["Voice (TwiML Webhooks)"])
+    # This makes your TwiML endpoint:
+    # POST https://<host>/voice/ and POST https://<host>/voice/webhook
+    # Ensure Twilio console points to this exact URL.
+    
+    # Mount WebSocket media endpoint router at /realtime
+    api_router.include_router(media_stream_router, prefix="/realtime", tags=["Voice (Realtime Media Stream)"])
+    # This makes your WebSocket endpoint:
+    # wss://<host>/realtime/ws/media/{call_sid}
+    # Ensure your TwiML generation creates this exact URL for the <Stream> tag.
+    
+    # Mount testing endpoints
+    api_router.include_router(testing_router, prefix="/voice/test", tags=["Voice Testing"])
+    
+    logger.info("Successfully registered voice routers from structured voice module")
+    logger.critical("❗❗❗ USING STRUCTURED VOICE MODULE ❗❗❗")
+    logger.critical("❗❗❗ TwiML endpoint: /voice/ and /voice/webhook ❗❗❗")
+    logger.critical("❗❗❗ WebSocket endpoint: /realtime/ws/media/{call_sid} ❗❗❗")
+    
+except ImportError as e:
+    logger.warning(f"Failed to import structured voice module: {str(e)}")
+    logger.warning("Falling back to legacy voice module")
+    
+    # Fall back to the legacy voice module if the structured one is not available
+    try:
+        from app.api.voice_async import router as voice_async_router
+        
+        # Mount legacy voice router
+        api_router.include_router(voice_async_router)
+        
+        logger.info("Successfully registered legacy voice router")
+        logger.critical("❗❗❗ USING LEGACY VOICE MODULE ❗❗❗")
+        logger.critical("❗❗❗ Voice endpoints: /voice/, /voice/webhook, /ws/media/{call_sid} ❗❗❗")
+    except ImportError as e2:
+        logger.error(f"Failed to import legacy voice module: {str(e2)}")
+        logger.critical("❗❗❗ NO VOICE MODULE AVAILABLE - VOICE FUNCTIONALITY WILL NOT WORK ❗❗❗")
 
-# Mount WebSocket media endpoint router at /realtime
-api_router.include_router(media_stream_router, prefix="/realtime", tags=["Voice (Realtime Media Stream)"])
-# This makes your WebSocket endpoint:
-# wss://<host>/realtime/ws/media/{call_sid}
-# Ensure your TwiML generation creates this exact URL for the <Stream> tag.
+# Always add Debug routes to inspect the routing
+debug_router = APIRouter(tags=["Debug"])
 
-# Mount testing endpoints
-api_router.include_router(testing_router, prefix="/voice/test", tags=["Voice Testing"])
+@debug_router.get("/debug-routes")
+async def debug_routes():
+    """Debug endpoint to list all routes."""
+    from fastapi.routing import APIRoute, WebSocketRoute
+    
+    def get_route_info(route):
+        if isinstance(route, APIRoute):
+            return {
+                "path": route.path,
+                "name": route.name,
+                "methods": list(route.methods) if route.methods else [],
+                "endpoint": f"{route.endpoint.__module__}.{route.endpoint.__name__}",
+            }
+        elif isinstance(route, WebSocketRoute):
+            return {
+                "path": route.path,
+                "name": route.name,
+                "endpoint": f"{route.endpoint.__module__}.{route.endpoint.__name__}",
+            }
+        return {
+            "path": getattr(route, "path", "unknown"),
+            "type": route.__class__.__name__
+        }
+    
+    # Get routes from API router
+    routes = []
+    for route in api_router.routes:
+        if hasattr(route, 'routes'):  # This is a sub-router
+            prefix = getattr(route, 'prefix', '')
+            for subroute in route.routes:
+                route_info = get_route_info(subroute)
+                route_info['path'] = prefix + route_info['path']
+                routes.append(route_info)
+        else:
+            routes.append(get_route_info(route))
+    
+    return {
+        "routes": routes,
+        "count": len(routes)
+    }
+
+api_router.include_router(debug_router)
 
 # Export the router
 __all__ = ["api_router"]
