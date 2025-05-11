@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.crud_menu_async import (
-    get_menu_categories, get_menu_items, get_menu_modifiers, 
-    get_menu_modifier_groups, get_menu_variants
+    get_categories, get_items, get_modifiers, 
+    get_modifier_groups, get_variants
 )
 from app.models.menu_async import (
     MenuCategory, MenuItem, MenuModifier, MenuModifierGroup
@@ -100,19 +100,20 @@ class AsyncMenuDbStore:
         # Convert to dictionary
         return modifier.to_dict()
         
-    async def get_categories(self, db: AsyncSession) -> List[Dict[str, Any]]:
+    async def get_categories(self, db: AsyncSession, location_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get all menu categories.
         
         Args:
             db: Database session
+            location_id: Optional location ID to filter by
             
         Returns:
             List of categories as dictionaries
         """
-        stmt = select(MenuCategory)
-        result = await db.execute(stmt)
-        categories = result.scalars().all()
+        # Use the imported crud function 
+        from app.db.crud_menu_async import get_categories as crud_get_categories
+        categories = await crud_get_categories(db, location_id=location_id)
         
         return [category.to_dict() for category in categories]
         
@@ -127,7 +128,9 @@ class AsyncMenuDbStore:
         Returns:
             List of items in the category as dictionaries
         """
-        # First get the category ID
+        from app.db.crud_menu_async import get_items_by_category as crud_get_items_by_category
+        
+        # First find the category by name
         stmt = select(MenuCategory).where(MenuCategory.name.ilike(f"%{category_name}%"))
         result = await db.execute(stmt)
         category = result.scalar_one_or_none()
@@ -135,10 +138,8 @@ class AsyncMenuDbStore:
         if not category:
             return []
             
-        # Now get all items in that category
-        stmt = select(MenuItem).where(MenuItem.category_id == category.id)
-        result = await db.execute(stmt)
-        items = result.scalars().all()
+        # Now get all items in that category using the CRUD function
+        items = await crud_get_items_by_category(db, category.id)
         
         return [item.to_dict() for item in items]
         
