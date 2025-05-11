@@ -18,54 +18,29 @@ from app.models.base_async import TimestampMixin
 # Set up logger
 logger = logging.getLogger(__name__)
 
-# Safely import JSONB with fallback
-try:
-    from sqlalchemy.dialects.postgresql import JSONB
-    logger.info("Imported JSONB directly from sqlalchemy.dialects.postgresql")
-except ImportError:
-    # If JSONB is not available, use our helper
-    try:
-        from app.utils.db_helpers import get_jsonb_type
-        JSONB = get_jsonb_type()
-        logger.info(f"Using JSONB from db_helpers: {JSONB.__name__}")
-    except ImportError:
-        # Ultimate fallback
-        logger.warning("Failed to import JSONB, using Text as fallback")
-        JSONB = Text
+# Import the JSONB helper
+from app.db.jsonb_helper import get_json_type
 
-# Default to JSON text storage
-USE_JSONB = False
+# Get the appropriate JSON type for the current database
+JSONLike = get_json_type()
 
-# Function to determine if we're using PostgreSQL
-def is_postgresql():
-    try:
-        # Try to determine if we're using PostgreSQL
-        dialect = db.engine.dialect.name
-        is_pg = dialect == 'postgresql'
-        logger.info(f"Database dialect: {dialect}, using PostgreSQL: {is_pg}")
-        return is_pg
-    except Exception as e:
-        logger.warning(f"Could not determine database dialect: {e}")
-        # Safe default - assume we're not using PostgreSQL
-        return False
-
-# Create a JSONB property function
+# Function to get the appropriate column type with MutableDict
 def get_jsonb_column():
-    """Get the appropriate column type based on database dialect"""
-    if is_postgresql():
-        logger.info("Using PostgreSQL JSONB for properties column")
-        return MutableDict.as_mutable(JSONB)
-    else:
-        logger.info("Using Text for properties column (non-PostgreSQL database)")
-        return Text
+    """Get the appropriate column type for JSON data, with MutableDict support"""
+    return MutableDict.as_mutable(JSONLike)
 
 # Function to get the appropriate default value
 def get_default_value():
     """Get the appropriate default value based on database dialect"""
-    if is_postgresql():
+    if JSONLike.__name__ == 'JSONB':
         return dict
     else:
         return lambda: '{}'
+        
+# Helper function to determine if we're using PostgreSQL
+def is_postgresql():
+    """Determine if we're using PostgreSQL"""
+    return JSONLike.__name__ == 'JSONB'
         
 # Helper function to safely process properties
 def sanitize_properties(props):
@@ -179,6 +154,7 @@ class MenuItem(Base, TimestampMixin):
     """
 
     __tablename__ = "menu_items"
+    __table_args__ = {'extend_existing': True}  # Allow table redefinition if needed
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -395,6 +371,7 @@ class MenuModifier(Base, TimestampMixin):
     """
 
     __tablename__ = "menu_modifiers"
+    __table_args__ = {'extend_existing': True}  # Allow table redefinition if needed
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
