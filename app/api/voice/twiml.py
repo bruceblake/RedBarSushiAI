@@ -14,7 +14,7 @@ from fastapi import Request
 from fastapi.responses import PlainTextResponse
 from starlette.status import HTTP_200_OK
 
-from app.utils.twilio_twiml import generate_media_streams_twiml, TwimlParameter
+from app.utils.twilio_twiml import generate_media_streams_twiml, TwimlParameter, TwimlStreamParameter
 from app.utils.twilio_twiml import get_environment_name
 
 # Set up logging
@@ -32,13 +32,15 @@ logger.addHandler(console_handler)
 # Ensure our logs are seen even if parent loggers have higher levels
 logger.propagate = False
 
-class TwimlStreamParameter:
-    """Parameters for configuring the TwiML stream."""
-    
-    def __init__(self, url: str, track: str, name: str):
-        self.url = url
-        self.track = track
-        self.name = name
+# Using the Pydantic model from app.utils.twilio_twiml
+# instead of defining our own class
+# class TwimlStreamParameter:
+#     """Parameters for configuring the TwiML stream."""
+#     
+#     def __init__(self, url: str, track: str, name: str):
+#         self.url = url
+#         self.track = track
+#         self.name = name
 
 async def receive_call(request: Request) -> PlainTextResponse:
     """
