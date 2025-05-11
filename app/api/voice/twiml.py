@@ -9,6 +9,7 @@ import os
 import uuid
 import logging
 import traceback
+import time
 from datetime import datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
@@ -156,10 +157,18 @@ async def receive_call(request: Request) -> PlainTextResponse:
         logger.critical(f"ATTENTION: Using simplified test WebSocket endpoint!")
         
         # Create Stream parameters with production settings
+        # Add parameters to help with debugging (they'll be passed as query params)
+        stream_parameters = {
+            "debug": "true",  
+            "client": "twilio",  # Mark this as from Twilio
+            "time": str(int(time.time()))  # Timestamp to trace this specific request
+        }
+        
         stream_params = TwimlStreamParameter(
             url=websocket_url,
             track="both",  # Use both tracks for bidirectional streaming
-            name="media_stream"     # Consistent name for stream tracking
+            name="media_stream",     # Consistent name for stream tracking
+            parameters=stream_parameters  # Add debug parameters
         )
         
         # Create welcome message based on environment

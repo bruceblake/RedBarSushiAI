@@ -228,10 +228,39 @@ async def startup_event():
 @app.websocket("/ws-test/{client_id}")
 async def websocket_test_endpoint(websocket: WebSocket, client_id: str):
     """WebSocket test endpoint for diagnostics."""
+    # Log critical connection information
     print(f"⚠️ WEBSOCKET TEST: Connection attempt from {client_id}")
     logging.critical(f"⚠️ WEBSOCKET TEST: Connection attempt from {client_id}")
     
+    # Log detailed connection headers and query params
+    headers = dict(websocket.headers)
+    query_params = dict(websocket.query_params)
+    connection_info = {
+        "client_id": client_id,
+        "headers": {k: v for k, v in headers.items() if k.lower() not in ("authorization", "cookie")},
+        "query_params": query_params,
+        "client_host": websocket.client.host if hasattr(websocket, "client") else "unknown",
+        "url": str(websocket.url),
+    }
+    
+    # Log the connection info in multiple formats for easy diagnosis
+    logging.critical(f"WEBSOCKET CONNECTION INFO: {connection_info}")
+    print(f"\n===== WEBSOCKET HEADERS =====\n")
+    for k, v in headers.items():
+        if k.lower() not in ("authorization", "cookie"):
+            print(f"{k}: {v}")
+    print(f"\n===== WEBSOCKET QUERY PARAMS =====\n")
+    for k, v in query_params.items():
+        print(f"{k}: {v}")
+    
+    # Detect if this is a connection from Twilio
+    is_twilio = "client" in query_params and query_params["client"] == "twilio"
+    if is_twilio:
+        logging.critical(f"⚠️ DETECTED TWILIO CONNECTION: {client_id}")
+        print(f"⚠️ DETECTED TWILIO CONNECTION: {client_id}")
+        
     try:
+        # Accept the WebSocket connection
         await websocket.accept()
         print(f"✅ WEBSOCKET TEST: Connection accepted for {client_id}")
         logging.critical(f"✅ WEBSOCKET TEST: Connection accepted for {client_id}")
@@ -239,11 +268,30 @@ async def websocket_test_endpoint(websocket: WebSocket, client_id: str):
         # Send an initial message
         await websocket.send_text(f"Hello, {client_id}! Connection established.")
         
+        # Special handling for Twilio
+        if is_twilio:
+            logging.critical(f"🔵 TWILIO CONNECTION SUCCESSFUL - READY FOR MEDIA: {client_id}")
+            # Twilio expects specific patterns for media streams
+            # But our test endpoint just handles text for simplicity
+            
         # Echo messages back to the client
         while True:
-            data = await websocket.receive_text()
-            logging.info(f"WEBSOCKET TEST: Received message from {client_id}: {data}")
-            await websocket.send_text(f"Echo: {data}")
+            try:
+                # First try to receive as text (for browser clients)
+                data = await websocket.receive_text()
+                logging.info(f"WEBSOCKET TEST: Received text from {client_id}: {data}")
+                await websocket.send_text(f"Echo: {data}")
+            except Exception as text_error:
+                try:
+                    # If text fails, try to receive binary (for Twilio media)
+                    data = await websocket.receive_bytes()
+                    logging.info(f"WEBSOCKET TEST: Received binary data ({len(data)} bytes) from {client_id}")
+                    # Echo binary data back
+                    await websocket.send_bytes(data)
+                except Exception as binary_error:
+                    logging.error(f"WEBSOCKET TEST: Error receiving message: {str(binary_error)}")
+                    raise
+                    
     except WebSocketDisconnect:
         logging.warning(f"WEBSOCKET TEST: Client {client_id} disconnected")
     except Exception as e:
