@@ -12,9 +12,9 @@ from app.utils.deliverect.auth import (
     get_deliverect_headers,
 )
 
-# Menu processing (import from synchronous module as it doesn't use db.Model)
-from app.utils.deliverect.menu import (
-    process_deliverect_menu,
+# Menu processing (async version)
+from app.utils.deliverect.menu_async import (
+    process_deliverect_menu_async,
 )
 
 # Order management (async versions)
@@ -26,24 +26,24 @@ from app.utils.deliverect.orders_async import (
     generate_order_id,  # Shared with synchronous module (pure function)
 )
 
-# Location management (these would need async versions if they use location model)
-from app.utils.deliverect.locations import (
-    register_new_location,
-    update_location_status,
-    get_location_webhook_urls,
+# Location management (async versions)
+from app.utils.deliverect.locations_async import (
+    register_new_location_async,
+    update_location_status_async,
+    get_location_webhook_urls_async,
 )
 
-# Make sure to maintain the same API as the original module
+# Make sure to maintain the same API as the original module but with async variants
 __all__ = [
     "get_deliverect_access_token",
     "get_deliverect_headers",
-    "process_deliverect_menu",
+    "process_deliverect_menu_async",
     "build_deliverect_order",
     "send_order_to_deliverect_async",
     "get_order_status_async",
     "process_order_status_update_async",
     "generate_order_id",
-    "register_new_location",
-    "update_location_status",
-    "get_location_webhook_urls",
+    "register_new_location_async",
+    "update_location_status_async",
+    "get_location_webhook_urls_async",
 ]

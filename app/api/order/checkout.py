@@ -19,7 +19,8 @@ from app.db_async import get_db
 from app.models.order_async import Order, OrderItem
 from app.utils.helpers_async import commit_with_retry_async, log_info_async
 from app.utils.order_utils import mark_unavailable_items, build_order_description, validate_modifiers
-from app.utils.deliverect import build_deliverect_order, get_deliverect_headers, send_order_to_deliverect, generate_order_id
+# Import from async deliverect module for FastAPI routes
+from app.utils.deliverect_async import build_deliverect_order, get_deliverect_headers, send_order_to_deliverect_async, generate_order_id
 
 # Configure logger
 logger = logging.getLogger(__name__)

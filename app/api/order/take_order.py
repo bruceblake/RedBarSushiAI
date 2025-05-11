@@ -18,8 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db_async import get_db
 from app.models.order_async import Order, OrderItem
 from app.utils.helpers_async import commit_with_retry_async, log_info_async
-from app.utils.menu_utils_db import load_menu_data  # Will need async version
-from app.utils.agent_utils import OrderParsingAgent  # May need async version
+from app.utils.menu_utils_db_async import load_menu_data  # Using async version
+from app.utils.agent_utils import OrderParsingAgent  # TODO: Create async version if needed
 
 # Configure logger
 logger = logging.getLogger(__name__)
