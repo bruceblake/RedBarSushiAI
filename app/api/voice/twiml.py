@@ -10,7 +10,7 @@ import uuid
 import logging
 import traceback
 from datetime import datetime
-from fastapi import Request
+from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 from starlette.status import HTTP_200_OK
 
@@ -32,6 +32,9 @@ logger.addHandler(console_handler)
 # Ensure our logs are seen even if parent loggers have higher levels
 logger.propagate = False
 
+# Create a dedicated router for HTTP TwiML endpoints only
+router = APIRouter(tags=["Voice TwiML Webhooks"])
+
 # Using the Pydantic model from app.utils.twilio_twiml
 # instead of defining our own class
 # class TwimlStreamParameter:
@@ -42,6 +45,8 @@ logger.propagate = False
 #         self.track = track
 #         self.name = name
 
+@router.post("/", response_class=PlainTextResponse)
+@router.post("/webhook", response_class=PlainTextResponse) 
 async def receive_call(request: Request) -> PlainTextResponse:
     """
     Primary webhook endpoint for Twilio calls with enhanced logging and TwiML generation.
@@ -136,10 +141,17 @@ async def receive_call(request: Request) -> PlainTextResponse:
         ws_scheme = "wss"
         
         # Generate optimized WebSocket URL with CallSid as path parameter for reliability
-        # IMPORTANT: This path MUST match the @router.websocket path defined in __init__.py
+        # IMPORTANT: This path MUST match the @router.websocket path defined in handlers.py
         # The route is defined as @router.websocket("/ws/media/{call_sid}")
+        # and mounted with prefix="/realtime" in app/api/__init__.py
         websocket_url = f"{ws_scheme}://{host}/realtime/ws/media/{call_sid}"
-        logger.critical(f"WebSocket URL for Twilio: {websocket_url}")
+        
+        # Log this URL multiple times in different formats to make it absolutely unmissable
+        logger.critical(f"❗❗❗ WEBSOCKET URL SET IN TWIML: {websocket_url} ❗❗❗")
+        logger.critical(f"WEBSOCKET SCHEME: {ws_scheme}")
+        logger.critical(f"WEBSOCKET HOST: {host}")
+        logger.critical(f"WEBSOCKET PATH: /realtime/ws/media/{call_sid}")
+        logger.critical(f"RESULTING FULL URL: {websocket_url}")
         
         # Create Stream parameters with production settings
         stream_params = TwimlStreamParameter(

@@ -56,7 +56,7 @@ class ConnectionManager:
         self.active_connections[call_sid] = websocket
         self.call_data[call_sid] = {"connected_at": None}
         
-    def disconnect(self, call_sid: str) -> None:
+    async def disconnect(self, call_sid: str) -> None:
         """
         Register a disconnection for a call.
         
@@ -171,7 +171,7 @@ class ConnectionManager:
         """
         return self.call_data.get(call_sid, {})
         
-    def update_call_data(self, call_sid: str, data: Dict[str, Any]) -> None:
+    async def update_call_data(self, call_sid: str, data: Dict[str, Any]) -> None:
         """
         Update data associated with a call.
         

@@ -99,6 +99,37 @@ async def index(request: Request) -> Dict[str, Any]:
         "flask_env": os.environ.get("FLASK_ENV", "not set"),
     }
 
+@app.get("/routes")
+async def list_routes() -> Dict[str, Any]:
+    """List all registered routes for debugging."""
+    from fastapi.routing import APIRoute, WebSocketRoute
+    
+    http_routes = []
+    ws_routes = []
+    
+    # List all routes in the app
+    for route in app.routes:
+        if isinstance(route, APIRoute):
+            route_info = {
+                "path": route.path,
+                "name": route.name,
+                "methods": route.methods,
+                "endpoint": f"{route.endpoint.__module__}.{route.endpoint.__name__}",
+            }
+            http_routes.append(route_info)
+        elif isinstance(route, WebSocketRoute):
+            route_info = {
+                "path": route.path,
+                "name": route.name,
+                "endpoint": f"{route.endpoint.__module__}.{route.endpoint.__name__}",
+            }
+            ws_routes.append(route_info)
+    
+    return {
+        "http_routes": http_routes,
+        "websocket_routes": ws_routes,
+    }
+
 @app.get("/healthcheck")
 async def healthcheck() -> Dict[str, Any]:
     """Basic health check endpoint."""
@@ -167,6 +198,11 @@ app.include_router(api_router)
 async def startup_event():
     """Handle application startup."""
     logger.info("Application startup")
+    
+    # Log critical information about routes
+    logger.critical(f"❗❗❗ APPLICATION STARTUP ❗❗❗")
+    logger.critical(f"❗❗❗ WebSocket route should be available at: /realtime/ws/media/{{call_sid}} ❗❗❗")
+    logger.critical(f"❗❗❗ TwiML route should be available at: /voice/ and /voice/webhook ❗❗❗")
     
     # Initialize Redis
     try:

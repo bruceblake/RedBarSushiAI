@@ -8,8 +8,14 @@ with OpenAI's Realtime API for speech-to-text and text-to-speech.
 
 from fastapi import APIRouter
 
-from app.api.voice.handlers import handle_media_stream
-from app.api.voice.twiml import receive_call
+# Import the dedicated routers
+from app.api.voice.handlers import router as media_stream_router
+from app.api.voice.twiml import router as http_twiml_router
+
+# Create a router for testing/debug endpoints
+testing_router = APIRouter(tags=["Voice Testing"])
+
+# Import testing utilities
 from app.api.voice.testing import (
     process_voice_input, 
     execute_tool, 
@@ -19,35 +25,13 @@ from app.api.voice.testing import (
     cleanup_session
 )
 
-# Create the router
-router = APIRouter(prefix="/voice", tags=["voice"])
-
-# Register the TwiML generation route
-router.add_api_route("/", receive_call, methods=["POST"])
-router.add_api_route("/voice", receive_call, methods=["POST"])
-router.add_api_route("/webhook/voice", receive_call, methods=["POST"])
-
-# Register the WebSocket route
-# This WebSocket route is mounted at /realtime prefix in app/api/__init__.py,
-# resulting in the path /realtime/ws/media/{call_sid} which matches
-# the WebSocket URL generated in the TwiML
-router.add_websocket_route("/ws/media/{call_sid}", handle_media_stream)
-
 # Register testing and debugging routes
-router.add_api_route("/process", process_voice_input, methods=["POST"])
-router.add_api_route("/tool", execute_tool, methods=["POST"])
-router.add_api_route("/sessions/{call_sid}", get_session_state, methods=["GET"])
-router.add_api_route("/fsm/{call_sid}/event", trigger_fsm_event, methods=["POST"])
-router.add_api_route("/fsm/{call_sid}", get_fsm_state, methods=["GET"])
-router.add_api_route("/sessions/{call_sid}", cleanup_session, methods=["DELETE"])
+testing_router.add_api_route("/process", process_voice_input, methods=["POST"])
+testing_router.add_api_route("/tool", execute_tool, methods=["POST"])
+testing_router.add_api_route("/sessions/{call_sid}", get_session_state, methods=["GET"])
+testing_router.add_api_route("/fsm/{call_sid}/event", trigger_fsm_event, methods=["POST"])
+testing_router.add_api_route("/fsm/{call_sid}", get_fsm_state, methods=["GET"])
+testing_router.add_api_route("/sessions/{call_sid}", cleanup_session, methods=["DELETE"])
 
-# Initialize on startup
-@router.on_event("startup")
-async def startup_event():
-    """Initialize the voice routes on startup."""
-    from app.utils.agent_orchestration_async import async_agent_orchestrator
-    import logging
-    
-    logger = logging.getLogger(__name__)
-    await async_agent_orchestrator.initialize()
-    logger.info("Voice routes initialized")
+# Export the routers
+__all__ = ["http_twiml_router", "media_stream_router", "testing_router"]

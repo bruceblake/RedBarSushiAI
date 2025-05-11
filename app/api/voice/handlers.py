@@ -8,14 +8,13 @@ including accepting connections, managing the session, and handling various even
 import json
 import logging
 import time
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 import base64
 import traceback
 import asyncio
 import os
 import sys
 from typing import Dict, List, Any, Optional, Union
-
-from fastapi import WebSocket, WebSocketDisconnect, Depends
 
 from app.utils.agent_orchestration_async import async_agent_orchestrator
 from app.utils.fsm_async import async_fsm_manager, ConversationState, ConversationEvent
@@ -37,11 +36,25 @@ logger.addHandler(console_handler)
 # Ensure our logs are seen even if parent loggers have higher levels
 logger.propagate = False
 
+# Create a dedicated router for WebSocket endpoints only
+router = APIRouter(tags=["Voice Media Streams"])
+
+# Initialize on startup
+@router.on_event("startup")
+async def startup_event():
+    """Initialize on startup."""
+    await async_agent_orchestrator.initialize()
+    logger.info("Voice media stream handlers initialized")
+
+@router.websocket("/ws/media/{call_sid}")
 async def handle_media_stream(
     websocket: WebSocket, 
     call_sid: str,
     connection_mgr: ConnectionManager = Depends(get_connection_manager)
 ):
+    # CRITICAL: This must be the very first log in the function, before any other code
+    logger.critical(f"❗❗❗ WEBSOCKET CONNECTION RECEIVED BY HANDLER: {call_sid} ❗❗❗")
+    logger.critical(f"❗❗❗ HANDLER ROUTE: /realtime/ws/media/{call_sid} ❗❗❗")
     """
     WebSocket endpoint for handling Twilio media streams.
     
@@ -55,7 +68,6 @@ async def handle_media_stream(
     """
     # CRITICAL: This must be the very first log in the function, before any other code
     logger.critical(f"❗❗❗ WEBSOCKET CONNECTION ATTEMPTED: {call_sid} ❗❗❗")
-    """
     # Local references to track active tasks and resources
     openai_task = None
     transcript_queue = asyncio.Queue()
