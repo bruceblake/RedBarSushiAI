@@ -1,8 +1,8 @@
-# app/utils/deliverect/orders.py
+# app/utils/deliverect/orders_async.py
 """
-Order management module for the Deliverect API.
+Order management module for the Deliverect API (async version).
 
-This module provides functions for order creation, submission, and status tracking
+This module provides async functions for order creation, submission, and status tracking
 through the Deliverect API.
 """
 
@@ -11,10 +11,13 @@ import logging
 import requests
 import uuid
 from datetime import datetime
-from app import db
-# Import directly from location.py for backwards compatibility with Flask routes
-# that use the SQLAlchemy 1.x style query interface
-from app.models.location import Location
+from typing import Dict, Any, Tuple, Optional
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app import db  # Keep for compatibility with synchronous code
+from app.models import Location  # Import from models package to get the async version
 from app.utils.deliverect.auth import get_deliverect_access_token
 
 logger = logging.getLogger(__name__)
@@ -120,14 +123,15 @@ def build_deliverect_order(order_data, location_id=None):
     return deliverect_order
 
 
-def send_order_to_deliverect(order_data, location_id=None):
+async def send_order_to_deliverect_async(order_data: Dict[str, Any], db: AsyncSession, location_id: Optional[str] = None) -> Tuple[bool, Dict[str, Any], Optional[int]]:
     """
-    Send a prepared order to the Deliverect API.
+    Send a prepared order to the Deliverect API (async version).
     
     Args:
         order_data (dict): The order data payload formatted according to Deliverect specifications
-        location_id (int, optional): The location ID to use for the order. If not provided,
-                                    the default location will be used
+        db (AsyncSession): SQLAlchemy async database session
+        location_id (str, optional): The location ID to use for the order. If not provided,
+                                  the default location will be used
                                     
     Returns:
         tuple: (success, response_data, status_code)
@@ -143,7 +147,11 @@ def send_order_to_deliverect(order_data, location_id=None):
         channel_name = None
         
         if location_id:
-            location = Location.query.filter_by(id=location_id).first()
+            # Use SQLAlchemy 2.0 style select with async execution
+            stmt = select(Location).where(Location.id == location_id)
+            result = await db.execute(stmt)
+            location = result.scalar_one_or_none()
+            
             if location:
                 channel_link_id = location.deliverect_channel_link_id
                 channel_name = location.deliverect_channel_name
@@ -153,7 +161,10 @@ def send_order_to_deliverect(order_data, location_id=None):
                 return False, {"error": "Location not found"}, None
         else:
             # Get the first available location
-            location = Location.query.first()
+            stmt = select(Location).limit(1)
+            result = await db.execute(stmt)
+            location = result.scalar_one_or_none()
+            
             if location:
                 channel_link_id = location.deliverect_channel_link_id
                 channel_name = location.deliverect_channel_name
@@ -187,6 +198,8 @@ def send_order_to_deliverect(order_data, location_id=None):
         # Send the request to Deliverect
         logger.info(f"Sending order to Deliverect API: {api_url}")
         
+        # Note: requests.post is still synchronous here
+        # For fully async operation, this should be replaced with an async HTTP client like aiohttp or httpx
         response = requests.post(
             api_url,
             headers=headers,
@@ -219,14 +232,15 @@ def send_order_to_deliverect(order_data, location_id=None):
         return False, {"error": f"Unexpected error: {str(e)}"}, None
 
 
-def get_order_status(channel_order_id, location_id=None):
+async def get_order_status_async(channel_order_id: str, db: AsyncSession, location_id: Optional[str] = None) -> Tuple[bool, Dict[str, Any], Optional[int]]:
     """
-    Get the status of an order from the Deliverect API.
+    Get the status of an order from the Deliverect API (async version).
     
     Args:
         channel_order_id (str): The unique channel order ID used when the order was created
-        location_id (int, optional): The location ID to use for the status check. 
-                                     If not provided, the default location will be used
+        db (AsyncSession): SQLAlchemy async database session
+        location_id (str, optional): The location ID to use for the status check. 
+                                   If not provided, the default location will be used
                                     
     Returns:
         tuple: (success, status_data, status_code)
@@ -242,7 +256,11 @@ def get_order_status(channel_order_id, location_id=None):
         channel_name = None
         
         if location_id:
-            location = Location.query.filter_by(id=location_id).first()
+            # Use SQLAlchemy 2.0 style select with async execution
+            stmt = select(Location).where(Location.id == location_id)
+            result = await db.execute(stmt)
+            location = result.scalar_one_or_none()
+            
             if location:
                 channel_link_id = location.deliverect_channel_link_id
                 channel_name = location.deliverect_channel_name
@@ -252,7 +270,10 @@ def get_order_status(channel_order_id, location_id=None):
                 return False, {"error": "Location not found"}, None
         else:
             # Get the first available location
-            location = Location.query.first()
+            stmt = select(Location).limit(1)
+            result = await db.execute(stmt)
+            location = result.scalar_one_or_none()
+            
             if location:
                 channel_link_id = location.deliverect_channel_link_id
                 channel_name = location.deliverect_channel_name
@@ -286,6 +307,8 @@ def get_order_status(channel_order_id, location_id=None):
         # Send the request to Deliverect
         logger.info(f"Checking order status from Deliverect API: {api_url}")
         
+        # Note: requests.get is still synchronous here
+        # For fully async operation, this should be replaced with an async HTTP client like aiohttp or httpx
         response = requests.get(
             api_url,
             headers=headers,
@@ -337,9 +360,9 @@ def generate_order_id():
     return channel_order_id, display_id
 
 
-def process_order_status_update(webhook_data, location_id=None):
+async def process_order_status_update_async(webhook_data: Dict[str, Any], db: AsyncSession, location_id: Optional[str] = None) -> Tuple[bool, Dict[str, Any], Optional[Dict[str, Any]]]:
     """
-    Process an order status update webhook from Deliverect.
+    Process an order status update webhook from Deliverect (async version).
     
     This function handles the webhook payload sent by Deliverect when an order's status changes.
     The webhook format follows the documentation at:
@@ -347,7 +370,8 @@ def process_order_status_update(webhook_data, location_id=None):
     
     Args:
         webhook_data (dict): The webhook payload from Deliverect
-        location_id (int, optional): The location ID to associate with this update
+        db (AsyncSession): SQLAlchemy async database session
+        location_id (str, optional): The location ID to associate with this update
                                     
     Returns:
         tuple: (success, response, order_info)
@@ -397,10 +421,12 @@ def process_order_status_update(webhook_data, location_id=None):
                 snake_field = ''.join(['_' + c.lower() if c.isupper() else c for c in field]).lstrip('_')
                 order_info[snake_field] = webhook_data[field]
         
-        # Find the order in the database
-        from app.models.order import Order
+        # Find the order in the database using SQLAlchemy 2.0 style select with async execution
+        from app.models import Order
         
-        order = Order.query.filter_by(deliverect_channel_order_id=channel_order_id).first()
+        stmt = select(Order).where(Order.deliverect_channel_order_id == channel_order_id)
+        result = await db.execute(stmt)
+        order = result.scalar_one_or_none()
         
         if not order:
             logger.warning(f"Order not found with channel order ID: {channel_order_id}")
@@ -433,7 +459,7 @@ def process_order_status_update(webhook_data, location_id=None):
         
         # Save the changes
         order.updated_at = datetime.now()
-        db.session.commit()
+        await db.commit()
         
         logger.info(f"Order status updated from {old_status} to {status} for order {channel_order_id}")
         
