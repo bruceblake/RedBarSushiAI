@@ -82,13 +82,7 @@ async def create_openai_client(
             "data": tool_data
         })
     
-    # Create the event processor
-    event_processor = RealtimeEventProcessor()
-    event_processor.register_handler("transcript.final", on_transcript_final)
-    event_processor.register_handler("response.audio.delta", on_audio_delta)
-    event_processor.register_handler("conversation.function_call", on_tool_call)
-    
-    # Initialize the OpenAI Realtime client
+    # Initialize the OpenAI Realtime client first
     print(f"\n!!! DEBUG: [{call_sid}] Initializing OpenAI Realtime client", flush=True)
     logger.critical(f"🔴 [{call_sid}] Initializing OpenAI Realtime client with API_KEY {'SET' if settings.OPENAI_API_KEY else 'MISSING!!!'}")
     
@@ -123,12 +117,20 @@ async def create_openai_client(
     openai_client = OpenAIRealtimeClient(
         api_key=settings.OPENAI_API_KEY,
         config=realtime_config,
-        session_id=call_sid,
-        event_processor=event_processor
+        session_id=call_sid
     )
     
-    logger.critical(f"🔄 [{call_sid}] OpenAIRealtimeClient instance created")
-    print(f"\n!!! DEBUG: [{call_sid}] OpenAIRealtimeClient instance created", flush=True)
+    # Now create and configure the event processor with the client
+    event_processor = RealtimeEventProcessor(client=openai_client)
+    event_processor.register_handler("transcript.final", on_transcript_final)
+    event_processor.register_handler("response.audio.delta", on_audio_delta)
+    event_processor.register_handler("conversation.function_call", on_tool_call)
+    
+    # Set the event processor on the client
+    openai_client.event_processor = event_processor
+    
+    logger.critical(f"🔄 [{call_sid}] OpenAIRealtimeClient instance created and configured")
+    print(f"\n!!! DEBUG: [{call_sid}] OpenAIRealtimeClient instance created and configured", flush=True)
     
     return openai_client
 
