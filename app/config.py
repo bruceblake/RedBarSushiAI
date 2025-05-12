@@ -20,12 +20,29 @@ except ImportError:
     PYDANTIC_V2 = False
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Ensure this logger is verbose
+# Add handler if still no output from this logger
+if not logger.handlers:
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    logger.propagate = True
+
 logger.info(f"Using Pydantic v2: {PYDANTIC_V2}")
 
-logger = logging.getLogger(__name__)
-
 # Default environment variables path
-ENV_FILE = ".env"
+ENV_FILE = ".env.development"  # Make sure this matches your Docker Compose env_file
+
+# Display raw environment variables for debugging
+logger.critical("--- app.config.py: Checking raw environment variables ---")
+raw_openai_key_from_os_environ = os.environ.get('OPENAI_API_KEY')
+logger.critical(f"Raw OPENAI_API_KEY directly from os.environ: '{raw_openai_key_from_os_environ}' (Type: {type(raw_openai_key_from_os_environ).__name__})")
+if raw_openai_key_from_os_environ:
+    logger.critical(f"Raw OPENAI_API_KEY preview from os.environ: {raw_openai_key_from_os_environ[:7]}...{raw_openai_key_from_os_environ[-4:] if len(raw_openai_key_from_os_environ) > 11 else ''}")
+else:
+    logger.critical("OPENAI_API_KEY NOT FOUND in os.environ!")
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables with validation."""
@@ -56,7 +73,7 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: Optional[str] = Field(None, env="CELERY_RESULT_BACKEND")
     
     # OpenAI settings
-    OPENAI_API_KEY: Optional[str] = Field(None, env="OPENAI_API_KEY")
+    OPENAI_API_KEY: Optional[str] = Field("USING_DEFAULT_FALLBACK_KEY", env="OPENAI_API_KEY")
     OPENAI_REALTIME_MODEL: str = Field("gpt-4o-realtime-preview-2024-10-01", env="OPENAI_REALTIME_MODEL")
     OPENAI_REALTIME_VOICE: str = Field("shimmer", env="OPENAI_REALTIME_VOICE")
     OPENAI_REALTIME_INSTRUCTIONS: str = Field(
@@ -129,33 +146,56 @@ class Settings(BaseSettings):
 try:
     # Try to get the installed pydantic version
     import pydantic
-    logger.info(f"Pydantic version: {pydantic.__version__}")
+    logger.critical(f"Pydantic version: {pydantic.__version__}")
+    
+    logger.critical("--- app.config.py: Attempting to load Pydantic Settings ---")
+    logger.critical(f"Using env_file: {ENV_FILE}")
     
     # Try to load settings from environment variables
     settings = Settings()
+    
+    logger.critical("--- Pydantic Settings object created ---")
+    logger.critical(f"Loaded settings.OPENAI_API_KEY: '{settings.OPENAI_API_KEY}'")
+    if settings.OPENAI_API_KEY:
+        logger.critical(f"Loaded settings.OPENAI_API_KEY preview: {settings.OPENAI_API_KEY[:7]}...{settings.OPENAI_API_KEY[-4:] if len(settings.OPENAI_API_KEY) > 11 else ''}")
+        if "mytestapikey" in settings.OPENAI_API_KEY.lower():
+            logger.critical("CRITICAL: OPENAI_API_KEY loaded appears to be a TEST/DUMMY key: " + settings.OPENAI_API_KEY)
+            
     logger.info("Settings loaded successfully")
     logger.info(f"Running in environment: {settings.ENVIRONMENT}")
     logger.info(f"BASE_URL from settings: {settings.BASE_URL}")
 except Exception as e:
-    logger.error(f"Error loading configuration: {e}")
+    logger.critical(f"CRITICAL ERROR during Pydantic Settings instantiation in app.config.py: {e}", exc_info=True)
     # Load with empty values for optional fields to prevent startup failures
     # in environments where all env vars are not set
     # Try to create settings with minimal config
     try:
+        logger.critical("Attempting to create settings with minimal config")
         settings = Settings(
             SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
             DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
             BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
         )
         logger.info("Created settings with minimal config")
+        
+        # Log the OPENAI_API_KEY again
+        logger.critical(f"Minimal config settings.OPENAI_API_KEY: '{settings.OPENAI_API_KEY}'")
+        if settings.OPENAI_API_KEY:
+            logger.critical(f"Minimal config settings.OPENAI_API_KEY preview: {settings.OPENAI_API_KEY[:7]}...{settings.OPENAI_API_KEY[-4:] if len(settings.OPENAI_API_KEY) > 11 else ''}")
+            
     except Exception as e:
         # If that fails, create with all potential fields to avoid crashing
-        logger.error(f"Error creating minimal settings: {e}, trying with all fields")
+        logger.critical(f"Error creating minimal settings: {e}, trying with all fields")
+        
+        # Log the raw value again
+        raw_key = os.environ.get("OPENAI_API_KEY", "NO_KEY_FOUND")
+        logger.critical(f"Raw OPENAI_API_KEY before full settings creation: '{raw_key}'")
+        
         settings = Settings(
             SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
             DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
             BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
-            OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", None),
+            OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", "sk-mytestapikey"),  # EXPLICITLY SET FALLBACK FOR DEBUGGING
             TWILIO_ACCOUNT_SID=os.environ.get("TWILIO_ACCOUNT_SID", None),
             TWILIO_AUTH_TOKEN=os.environ.get("TWILIO_AUTH_TOKEN", None),
             TWILIO_PHONE_NUMBER=os.environ.get("TWILIO_PHONE_NUMBER", None),
@@ -168,4 +208,11 @@ except Exception as e:
             CELERY_BROKER_URL=os.environ.get("CELERY_BROKER_URL", None),
             CELERY_RESULT_BACKEND=os.environ.get("CELERY_RESULT_BACKEND", None),
         )
-        logger.info("Created settings with all fields")
+        logger.critical("Created settings with all fields")
+        
+        # Log the final result for OPENAI_API_KEY
+        logger.critical(f"Final settings.OPENAI_API_KEY: '{settings.OPENAI_API_KEY}'")
+        if settings.OPENAI_API_KEY:
+            logger.critical(f"Final settings.OPENAI_API_KEY preview: {settings.OPENAI_API_KEY[:7]}...{settings.OPENAI_API_KEY[-4:] if len(settings.OPENAI_API_KEY) > 11 else ''}")
+            if "mytestapikey" in settings.OPENAI_API_KEY.lower():
+                logger.critical("CRITICAL: Final OPENAI_API_KEY is a TEST/DUMMY key: " + settings.OPENAI_API_KEY)
