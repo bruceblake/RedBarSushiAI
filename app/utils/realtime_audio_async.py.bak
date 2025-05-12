@@ -301,18 +301,6 @@ class RealtimeEventProcessor:
         
         if self.client.error_callback:
             await self.client.error_callback(error_message)
-    
-    async def on_close(self, close_info: Dict[str, Any]):
-        """
-        Handle WebSocket close event.
-        
-        Args:
-            close_info: Information about the close event
-        """
-        logger.info(f"WebSocket closed: {close_info}")
-        
-        # Any additional cleanup or notification can be done here
-        pass
 
 
 class OpenAIRealtimeClient:
@@ -366,9 +354,8 @@ class OpenAIRealtimeClient:
         self.connected = False
         self.running = False
         
-        # Event processing task - crucial for task management
+        # Event processing task
         self._event_processing_task = None
-        self.is_processing_loop_active = False
         
         # Callbacks
         self.transcript_callback = None
@@ -458,23 +445,10 @@ class OpenAIRealtimeClient:
                 logger.critical(traceback.format_exc())
                 # Continue despite configuration error - we'll try to work with the default config
             
-            # Start event processing - with proper task management
+            # Start event processing
             self.running = True
-            
-            # Cancel any existing event processing task before starting a new one
-            if self._event_processing_task and not self._event_processing_task.done():
-                logger.warning(f"Event processing task already exists. Cancelling old one.")
-                self._event_processing_task.cancel()
-                try:
-                    await self._event_processing_task
-                except asyncio.CancelledError:
-                    logger.info("Old event processing task cancelled.")
-                except Exception as e:
-                    logger.error(f"Error awaiting cancelled event task: {e}")
-            
             logger.critical("🔄 Starting event processing task")
-            self.is_processing_loop_active = True
-            self._event_processing_task = asyncio.create_task(self.process_messages())
+            self._event_processing_task = asyncio.create_task(self._process_events())
             logger.critical("🟢 Event processing task started")
             
             return True
@@ -599,10 +573,17 @@ class OpenAIRealtimeClient:
         This runs as a background task while the client is connected.
         Public method called by handlers.py.
         """
-        if not self.websocket or not self.connected:
-            logger.critical("🔴 WebSocket not connected, cannot process messages - CRITICAL FAILURE")
-            print(f"\n!!! DEBUG: WebSocket not connected, cannot process messages", flush=True)
-            self.is_processing_loop_active = False
+        return await self._process_events()
+    
+    async def _process_events(self):
+        """
+        Process events from the OpenAI Realtime API.
+        This runs as a background task while the client is connected.
+        Internal implementation used by process_messages.
+        """
+        if not self.websocket:
+            logger.critical("🔴 WebSocket not connected, cannot process events - CRITICAL FAILURE")
+            print(f"\n!!! DEBUG: WebSocket not connected, cannot process events", flush=True)
             return
         
         logger.critical("🟢 Starting event processing loop - CONNECTION SUCCESSFUL")
@@ -612,15 +593,13 @@ class OpenAIRealtimeClient:
             logger.critical("🔄 Entering main event loop")
             print(f"\n!!! DEBUG: Entering main event processing loop", flush=True)
             
-            # Using async for is safer to prevent multiple recv() calls
-            async for message in self.websocket:
-                if not self.is_processing_loop_active or not self.running:
-                    logger.info("Event loop flagged to stop, breaking")
-                    break
-                
-                logger.debug(f"🟢 Received WebSocket message")
-                
+            while self.running and self.connected:
                 try:
+                    # Receive a message from the WebSocket
+                    logger.debug(f"🔄 Waiting for WebSocket message...")
+                    message = await self.websocket.recv()
+                    logger.debug(f"🟢 Received WebSocket message")
+                    
                     # Parse the message as JSON
                     event = json.loads(message)
                     event_type = event.get("type", "unknown")
@@ -656,6 +635,16 @@ class OpenAIRealtimeClient:
                     # Process the event
                     await self.event_processor.process_event(event)
                     
+                except ConnectionClosed as e:
+                    logger.critical(f"🔴 WebSocket CONNECTION CLOSED: code={e.code}, reason={e.reason}")
+                    print(f"\n!!! DEBUG: WebSocket CONNECTION CLOSED: code={e.code}, reason={e.reason}", flush=True)
+                    self.connected = False
+                    break
+                except ConnectionClosedError as e:
+                    logger.critical(f"🔴 WebSocket CONNECTION CLOSED WITH ERROR: code={e.code}, reason={e.reason}")
+                    print(f"\n!!! DEBUG: WebSocket CONNECTION CLOSED WITH ERROR: code={e.code}, reason={e.reason}", flush=True)
+                    self.connected = False
+                    break
                 except json.JSONDecodeError as e:
                     logger.critical(f"🔴 ERROR DECODING JSON: {e}")
                     logger.critical(f"🔴 Raw message: {message}")
@@ -665,24 +654,10 @@ class OpenAIRealtimeClient:
                     logger.critical(traceback.format_exc())
                     print(f"\n!!! DEBUG: ERROR PROCESSING EVENT: {e}", flush=True)
                     print(f"\n!!! DEBUG: {traceback.format_exc()}", flush=True)
-        except websockets.exceptions.ConnectionClosed as e:
-            logger.critical(f"🔴 WebSocket CONNECTION CLOSED: code={e.code}, reason={e.reason}")
-            print(f"\n!!! DEBUG: WebSocket CONNECTION CLOSED: code={e.code}, reason={e.reason}", flush=True)
-            await self.event_processor.on_close({"code": e.code, "reason": e.reason})
-        except asyncio.CancelledError:
-            logger.info("OpenAI WebSocket task cancelled.")
-            await self.event_processor.on_close({"code": 1000, "reason": "Task cancelled"})
-        except Exception as e:
-            logger.critical(f"🔴 ERROR IN PROCESS_MESSAGES: {e}")
-            logger.critical(traceback.format_exc())
-            print(f"\n!!! DEBUG: ERROR IN PROCESS_MESSAGES: {e}", flush=True)
-            await self.event_processor.on_close({"code": 1011, "reason": str(e)})
         finally:
             logger.critical("🔴 EVENT PROCESSING STOPPED - Connection may have been lost")
             print(f"\n!!! DEBUG: EVENT PROCESSING STOPPED - Connection may have been lost", flush=True)
             self.running = False
-            self.connected = False
-            self.is_processing_loop_active = False
     
     async def send_audio(self, audio_data: bytes):
         """
@@ -782,27 +757,20 @@ class OpenAIRealtimeClient:
         """Close the connection to the OpenAI Realtime API."""
         logger.info("Closing OpenAI Realtime client")
         
-        # Signal the event loop to stop
         self.running = False
-        self.is_processing_loop_active = False
         
         # Cancel the event processing task
-        if self._event_processing_task and not self._event_processing_task.done():
-            logger.info("Cancelling event processing task")
+        if self._event_processing_task:
             self._event_processing_task.cancel()
             try:
                 await self._event_processing_task
             except asyncio.CancelledError:
-                logger.info("Event processing task successfully cancelled during close")
-            except Exception as e:
-                logger.error(f"Error awaiting cancelled event task: {e}")
+                pass
         
         # Close the WebSocket connection
-        if self.websocket and self.connected:
-            try:
-                await self.websocket.close(1000, "Closing connection normally")
-            except Exception as e:
-                logger.error(f"Error closing WebSocket: {e}")
+        if self.websocket:
+            await self.websocket.close()
+            self.websocket = None
         
         self.connected = False
         logger.info("OpenAI Realtime client closed")

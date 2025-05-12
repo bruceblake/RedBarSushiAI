@@ -1,92 +1,88 @@
 version: '3.8'
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: redbarsushi-app-dev
-    ports:
-      - "${APP_PORT:-8080}:8080"
-    env_file:
-      - .env.development
+  postgres:
+    image: postgres:14
+    container_name: redbarsushi-postgres
     environment:
-      - PYTHONUNBUFFERED=1
-      # Explicitly set DB credentials at container level to ensure they're set
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=redbarsushi
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=redbarsushi
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/redbarsushi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: redbarsushi-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: redbarsushi-app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthcheck"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/redbarsushi
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - OPENAI_API_KEY=sk-mytestapikey
+      - TWILIO_ACCOUNT_SID=ACb8391ed8d92871d85180ca9adea481b6
+      - TWILIO_AUTH_TOKEN=8bbdc0c60316d163ee36c58af5f35154
+      - TWILIO_PHONE_NUMBER=+17036467799
+      - STRIPE_API_KEY=dummy-key-for-development
+      - SECRET_KEY=supersecretkey123
+      - FASTAPI_ENV=development
+      - FLASK_ENV=development
+      - LOG_LEVEL=DEBUG
+      - VOICE_HANDLER=realtime
+    ports:
+      - "8080:8080"
     volumes:
       - ./app:/app/app
       - ./logs:/app/logs
-      - ./:/app/
     networks:
-      - redbarsushi-dev-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: ["/bin/bash", "-c", "cd /app && python fix_pydantic.py && echo '📦 Using Pydantic:' && pip show pydantic | grep Version && echo '🔍 Database credentials:' && echo 'DB_USER:' $DB_USER && echo 'DB_PASSWORD:' $DB_PASSWORD && echo 'DATABASE_URL:' $DATABASE_URL && sleep 3 && python check_db_enhanced.py && python init_db.py && echo 'Starting server...' && uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1 --log-level debug"]
-
-  postgres:
-    image: postgres:14
-    container_name: redbarsushi-postgres-dev
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=redbarsushi
-    ports:
-      - "${POSTGRES_PORT:-5433}:5432"
-    volumes:
-      - postgres-dev-data:/var/lib/postgresql/data
-      - ./db/init:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: always
-    networks:
-      - redbarsushi-dev-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  redis:
-    image: redis:6
-    container_name: redbarsushi-redis-dev
-    ports:
-      - "${REDIS_PORT:-6380}:6379"
-    volumes:
-      - redis-dev-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: always
-    networks:
-      - redbarsushi-dev-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - app_network
+    command: >
+      sh -c "
+        echo '=== Environment Variables ===' &&
+        echo 'DATABASE_URL: ' $DATABASE_URL &&
+        echo 'REDIS_URL: ' $REDIS_URL &&
+        echo 'OPENAI_API_KEY: ' $OPENAI_API_KEY &&
+        echo 'TWILIO_ACCOUNT_SID: ' $TWILIO_ACCOUNT_SID &&
+        echo 'SECRET_KEY: ' $SECRET_KEY &&
+        echo '=== Network Tests ===' &&
+        echo 'Testing connection to postgres...' &&
+        ping -c 3 postgres &&
+        echo 'Testing connection to redis...' &&
+        ping -c 3 redis &&
+        echo '=== Starting Application ===' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1 --log-level debug
+      "
 
 networks:
-  redbarsushi-dev-network:
+  app_network:
     driver: bridge
 
 volumes:
-  postgres-dev-data:
-  redis-dev-data:
+  postgres_data:
