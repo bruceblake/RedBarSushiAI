@@ -1,10 +1,14 @@
 #!/bin/bash
 # Script to restart Docker containers for RedBarSushiAI development environment
 
-# Copy the fix_pydantic_version.sh script to the docker directory if it doesn't exist
-mkdir -p docker
-if [ ! -f docker/fix_pydantic_version.sh ]; then
-    cp docker/fix_pydantic_version.sh docker/ 2>/dev/null || echo "Note: fix_pydantic_version.sh not found, skipping copy"
+# Create directory structure
+mkdir -p docker/images
+mkdir -p logs
+mkdir -p db/init
+
+# Copy the fix script to docker directory if it doesn't exist
+if [ ! -f docker/main_simplified.py ]; then
+    cp -f docker/main_simplified.py docker/ 2>/dev/null || echo "Note: main_simplified.py not found, but that's ok"
 fi
 
 set -e  # Exit on any error

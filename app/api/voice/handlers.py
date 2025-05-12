@@ -52,9 +52,6 @@ async def handle_media_stream(
     call_sid: str,
     connection_mgr: ConnectionManager = Depends(get_connection_manager)
 ):
-    # CRITICAL: This must be the very first log in the function, before any other code
-    logger.critical(f"❗❗❗ WEBSOCKET CONNECTION RECEIVED BY HANDLER: {call_sid} ❗❗❗")
-    logger.critical(f"❗❗❗ HANDLER ROUTE: /realtime/ws/media/{call_sid} ❗❗❗")
     """
     WebSocket endpoint for handling Twilio media streams.
     
@@ -66,29 +63,45 @@ async def handle_media_stream(
         call_sid: The Twilio call SID
         connection_mgr: The WebSocket connection manager
     """
-    # CRITICAL: This must be the very first log in the function, before any other code
-    logger.critical(f"❗❗❗ WEBSOCKET CONNECTION ATTEMPTED: {call_sid} ❗❗❗")
+    # CRITICAL: These must be the very first logs in the function, before any other code
+    # Undeniable first logs matching our successful test pattern 
+    logger.critical(f"❗❗❗ /realtime/ws/media: WebSocket Connection ATTEMPTED for client_id: {call_sid} ❗❗❗")
+    print(f"!!! PRINT DEBUG: /realtime/ws/media: ATTEMPTING ACCEPT for {call_sid} !!!", flush=True)
+    
+    # Log headers and query parameters - critical for debugging
+    headers = dict(websocket.headers)
+    query_params = dict(websocket.query_params)
+    headers_str = ", ".join([f"{k}={v}" for k, v in headers.items() 
+                           if k.lower() not in ("authorization", "cookie")])
+    
+    logger.critical(f"❗❗❗ HEADERS: {headers_str} ❗❗❗")
+    logger.critical(f"❗❗❗ QUERY PARAMETERS: {query_params} ❗❗❗")
+    
+    # Extract custom parameters from either query params or headers
+    debug_param = query_params.get("debug", headers.get("debug", "false"))
+    client_param = query_params.get("client", headers.get("client", "unknown"))
+    time_param = query_params.get("time", headers.get("time", "0"))
+    logger.critical(f"❗❗❗ CUSTOM PARAMETERS: debug={debug_param}, client={client_param}, time={time_param} ❗❗❗")
+    
     # Local references to track active tasks and resources
     openai_task = None
     transcript_queue = asyncio.Queue()
     event_queue = asyncio.Queue()
     tasks = []
     
-    # Set up the WebSocket connection
-    logger.critical(f"🔄 [{call_sid}] ATTEMPTING to accept WebSocket connection...")
-    print(f"\n!!! DEBUG: [{call_sid}] About to accept WebSocket connection", flush=True)
-    
     try:
         # First, accept the WebSocket connection
         logger.critical(f"🔄 [{call_sid}] Calling websocket.accept()...")
+        print(f"!!! PRINT DEBUG: [{call_sid}] About to call websocket.accept() !!!", flush=True)
         await websocket.accept()
-        logger.critical(f"🟢 [{call_sid}] WebSocket acceptance successful")
-        print(f"\n!!! DEBUG: [{call_sid}] WebSocket.accept() successful", flush=True)
+        logger.critical(f"🟢 [{call_sid}] WebSocket acceptance SUCCESSFUL")
+        print(f"!!! PRINT DEBUG: [{call_sid}] WebSocket.accept() SUCCESSFUL !!!", flush=True)
         
         # Then register with connection manager
+        logger.critical(f"🔄 [{call_sid}] Registering with connection manager...")
         await connection_mgr.connect(websocket, call_sid)
-        logger.critical(f"🟢 [{call_sid}] WebSocket connection fully established and registered")
-        print(f"\n!!! DEBUG: [{call_sid}] WebSocket connection fully established", flush=True)
+        logger.critical(f"🟢 [{call_sid}] WebSocket connection FULLY ESTABLISHED and registered")
+        print(f"!!! PRINT DEBUG: [{call_sid}] WebSocket FULLY CONNECTED !!!", flush=True)
     except Exception as e:
         logger.critical(f"🔴 [{call_sid}] FAILED to accept WebSocket connection: {str(e)}")
         logger.critical(f"🔴 [{call_sid}] Error type: {type(e).__name__}")
