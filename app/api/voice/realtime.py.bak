@@ -43,6 +43,18 @@ async def create_openai_client(
     Returns:
         The initialized OpenAI Realtime client
     """
+    # Initialize the OpenAI Realtime client with the configuration
+    realtime_config = RealtimeConfig(
+        model=settings.OPENAI_REALTIME_MODEL,
+        instructions="You are an AI assistant for Red Bar Sushi restaurant, helping customers place orders over the phone. Be friendly, helpful, and concise.",
+        voice=settings.OPENAI_REALTIME_VOICE or "shimmer",
+        input_audio_format="mulaw",
+        output_audio_format="mulaw",
+        vad_enabled=True,
+        vad_silence_threshold_ms=1000,
+        vad_speech_threshold_ms=8000
+    )
+    
     # Define event handlers
     async def on_transcript_final(transcript_data):
         """Handle final transcript events from OpenAI."""
@@ -97,18 +109,6 @@ async def create_openai_client(
     else:
         logger.critical(f"🔴 [{call_sid}] CRITICAL ERROR: OPENAI_API_KEY IS MISSING!")
         print(f"\n!!! DEBUG: [{call_sid}] CRITICAL ERROR: OPENAI_API_KEY IS MISSING!", flush=True)
-    
-    # Initialize the configuration
-    realtime_config = RealtimeConfig(
-        model=settings.OPENAI_REALTIME_MODEL,
-        instructions="You are an AI assistant for Red Bar Sushi restaurant, helping customers place orders over the phone. Be friendly, helpful, and concise.",
-        voice=settings.OPENAI_REALTIME_VOICE or "shimmer",
-        input_audio_format="mulaw",
-        output_audio_format="mulaw",
-        vad_enabled=True,
-        vad_silence_threshold_ms=1000,
-        vad_speech_threshold_ms=8000
-    )
     
     # Create client
     logger.critical(f"🔄 [{call_sid}] Creating OpenAIRealtimeClient instance...")

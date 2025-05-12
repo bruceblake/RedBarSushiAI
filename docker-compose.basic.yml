@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:14
+    container_name: redbarsushi-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: redbarsushi
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    restart: always
+
+  app:
+    build: .
+    container_name: redbarsushi-app
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/redbarsushi
+      - OPENAI_API_KEY=sk-mytestapikey
+    ports:
+      - "8080:8080"
+    command: sh -c "sleep 10 && uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1"
+    restart: always
+
+volumes:
+  db-data:
