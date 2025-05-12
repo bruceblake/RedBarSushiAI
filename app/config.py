@@ -8,8 +8,19 @@ with validation and type conversion.
 import os
 import logging
 from typing import Dict, Any, Optional, List
-# Import directly from pydantic for v1.x compatibility
-from pydantic import BaseSettings, Field, validator, AnyHttpUrl
+# Try import for Pydantic v2 first, fall back to v1 if needed
+try:
+    # Pydantic v2 imports
+    from pydantic_settings import BaseSettings
+    from pydantic import Field, field_validator as validator, AnyHttpUrl
+    PYDANTIC_V2 = True
+except ImportError:
+    # Pydantic v1 imports for backward compatibility
+    from pydantic import BaseSettings, Field, validator, AnyHttpUrl
+    PYDANTIC_V2 = False
+
+logger = logging.getLogger(__name__)
+logger.info(f"Using Pydantic v2: {PYDANTIC_V2}")
 
 logger = logging.getLogger(__name__)
 
@@ -94,16 +105,25 @@ class Settings(BaseSettings):
     
     # Validators
     @validator('VOICE_HANDLER')
-    def validate_voice_handler(cls, v):
+    def validate_voice_handler(cls, v, **kwargs):
         if v != "realtime":
             raise ValueError(f"Unsupported VOICE_HANDLER value: {v}, only 'realtime' is supported")
         return v
     
-    class Config:
-        """Pydantic config"""
-        env_file = ENV_FILE
-        case_sensitive = True
-        extra = "allow"  # Allow extra fields from environment variables
+    if PYDANTIC_V2:
+        # Pydantic v2 config
+        model_config = {
+            "env_file": ENV_FILE,
+            "case_sensitive": True,
+            "extra": "allow"  # Allow extra fields from environment variables
+        }
+    else:
+        # Pydantic v1 config
+        class Config:
+            """Pydantic config"""
+            env_file = ENV_FILE
+            case_sensitive = True
+            extra = "allow"  # Allow extra fields from environment variables
 
 # Load settings from environment variables
 try:

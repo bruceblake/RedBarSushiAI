@@ -29,7 +29,7 @@ services:
       - redbarsushi-dev-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--log-level", "debug"]
+    command: ["/bin/bash", "-c", "cd /app && ./docker/fix_pydantic_version.sh && uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1 --log-level debug"]
 
   postgres:
     image: postgres:14
