@@ -59,11 +59,13 @@ def generate_media_streams_twiml(params: TwimlParameter) -> str:
         track = params.stream_params.track
         stream_name = params.stream_params.name or "media_stream"
         
-        # Build parameters attribute if specified
+        # Add parameters as URL query parameters instead of attributes
         params_attr = ""
         if params.stream_params.parameters:
-            params_str = " ".join([f'{k}="{v}"' for k, v in params.stream_params.parameters.items()])
-            params_attr = f' parameters="{params_str}"'
+            from urllib.parse import urlencode
+            query_params = urlencode(params.stream_params.parameters)
+            # Modify the stream_url to include query parameters
+            stream_url = f"{stream_url}?{query_params}"
         
         # Generate TwiML
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -71,7 +73,7 @@ def generate_media_streams_twiml(params: TwimlParameter) -> str:
     <Say voice="{params.voice}" language="{params.language}">{params.greeting_text}</Say>
     <Pause length="1"/>
     <Connect>
-        <Stream url="{stream_url}" track="{track}" name="{stream_name}"{params_attr} />
+        <Stream url="{stream_url}" track="{track}" name="{stream_name}" />
     </Connect>
     <Say voice="{params.voice}" language="{params.language}">{params.fallback_text}</Say>
 </Response>
@@ -80,6 +82,8 @@ def generate_media_streams_twiml(params: TwimlParameter) -> str:
         # Log the TwiML details for debugging
         logger.info(f"[TWIML:{call_sid}] Generated TwiML with WebSocket URL: {stream_url}")
         logger.debug(f"[TWIML:{call_sid}] TwiML: {twiml}")
+        # Additional logging for the WebSocket URL with parameters
+        logger.critical(f"❗❗❗ FINAL WEBSOCKET URL WITH PARAMETERS: {stream_url} ❗❗❗")
         
         return twiml
         

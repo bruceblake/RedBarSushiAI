@@ -120,18 +120,24 @@ async def websocket_test_page():
 # Add a simple test WebSocket endpoint directly on the app
 @app.websocket("/ws-test/{client_id}")
 async def websocket_test_endpoint(websocket: WebSocket, client_id: str):
+    # Log detailed connection information including query parameters
+    query_params = dict(websocket.query_params)
     ws_test_logger.critical(f"❗❗❗ /ws-test: WebSocket Connection ATTEMPTED for client_id: {client_id} ❗❗❗")
+    ws_test_logger.critical(f"❗❗❗ Query Parameters: {query_params} ❗❗❗")
     print(f"!!! PRINT DEBUG: /ws-test: ATTEMPTING ACCEPT for {client_id} !!!", flush=True)
+    print(f"!!! PRINT DEBUG: Query Parameters: {query_params} !!!", flush=True)
     
     try:
         # Try to accept the WebSocket connection
         await websocket.accept()
         ws_test_logger.critical(f"🟢 /ws-test: WebSocket Connection ACCEPTED for client_id: {client_id}")
+        ws_test_logger.critical(f"🟢 Connection Details - Client: {websocket.client}, Headers: {dict(websocket.headers)}")
         print(f"!!! PRINT DEBUG: /ws-test: ACCEPTED for {client_id} !!!", flush=True)
         
-        # Send an initial message
-        await websocket.send_text(f"Hello, {client_id}! Connection established.")
-        ws_test_logger.info(f"[{client_id}] /ws-test: Sent welcome message")
+        # Send an initial message with connection details
+        connection_info = f"Hello, {client_id}! Connection established with params: {query_params}"
+        await websocket.send_text(connection_info)
+        ws_test_logger.info(f"[{client_id}] /ws-test: Sent welcome message with params")
         
         # Echo messages back to the client
         while True:
