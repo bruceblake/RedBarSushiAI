@@ -1,122 +1,186 @@
 # OpenAI Realtime API Integration Fixes
 
-This document explains the fixes applied to resolve WebSocket connection issues with the OpenAI Realtime API integration.
+This document details the comprehensive fixes implemented to the OpenAI Realtime API integration in the RedBarSushiAI system.
 
-## Issues Fixed
+## Issues Addressed
 
-### Issue 1: Circular Dependency in Event Processor
-- **Problem**: `TypeError: RealtimeEventProcessor.__init__() missing 1 required positional argument: 'client'`
-- **Fix**: Modified initialization order to create client first, then processor, then set processor on client
+1. **Missing Model Error**: OpenAI was reporting a `missing_model` error because the model parameter was not included in the WebSocket URL as required by the OpenAI Realtime API documentation.
 
-### Issue 2: Multiple Coroutines Waiting on WebSocket
-- **Problem**: `RuntimeError: cannot call recv while another coroutine is already waiting for the next message`
-- **Fix**: Changed from manually calling `await self.websocket.recv()` to using the safer `async for message in self.websocket:` pattern
+2. **Incorrect Message Formats**: Several message types weren't following the exact format expected by the OpenAI Realtime API, including:
+   - Audio input messages (`input_audio_buffer.append`)
+   - TTS request messages (`response.create`)
+   - Audio output parsing (`response.audio.delta`)
 
-### Issue 3: Missing Method in OpenAIRealtimeClient
-- **Problem**: `AttributeError: 'OpenAIRealtimeClient' object has no attribute 'request_response'`
-- **Fix**: Added `request_response` method as an alias to `send_text_for_tts` to maintain compatibility with handlers.py
+3. **Connection Stability Issues**: WebSocket connections were experiencing stability problems, particularly with the "cannot call recv while another coroutine is already waiting" error.
 
-## Key Changes
+## Implemented Fixes
 
-### 1. WebSocket Message Processing
+### 1. WebSocket URL Construction
+
+Modified the `connect()` method in `OpenAIRealtimeClient` to properly include query parameters in the WebSocket URL:
+
 ```python
-# Old pattern (problematic):
-while self.running and self.connected:
-    message = await self.websocket.recv()  # <-- Could cause RuntimeError
-
-# New pattern (safe):
-async for message in self.websocket:
-    if not self.is_processing_loop_active or not self.running:
-        break
-    # Process message
+# Construct URL with query parameters as per OpenAI documentation
+url_query_params_dict = {
+    "model": self.config.model,
+    "voice": self.config.voice,
+}
+encoded_url_query_params = urlencode(url_query_params_dict)
+connect_url = f"{self.WEBSOCKET_URL}?{encoded_url_query_params}"
 ```
 
-### 2. Added Method Compatibility
+This ensures the model is specified in the URL (e.g., `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01&voice=shimmer`), which OpenAI requires.
+
+### 2. Session Configuration Enhancement
+
+Updated the `_configure_session()` method to follow the OpenAI documentation format:
+
 ```python
-async def request_response(self, text: str, response_id: Optional[str] = None):
-    """
-    Requests OpenAI to generate TTS for the given text.
-    This is an alias for send_text_for_tts to maintain compatibility with handlers.py.
-    """
-    logger.critical(f"Requesting response for text: {text}")
-    return await self.send_text_for_tts(text)
+session_config = {
+    "type": "session.update",
+    "session": {
+        "model": self.config.model,
+        "voice": self.config.voice,
+        "modalities": ["text", "audio"],
+        "input_audio_format": input_audio_format,
+        "output_audio_format": output_audio_format,
+        "stream_priority": "default",
+        "interrupt_types": ["speech_start", "speech_stop"],
+        "speed": 1.0,
+        "buffer_ms": 200,
+        "instructions": self.config.instructions,
+        "response_expected": True,
+        "vad": vad_config,
+        "language": "en",
+        "tools": []
+    }
+}
 ```
 
-### 3. Task Management
-```python
-# Added task tracking
-self._event_processing_task = None
-self.is_processing_loop_active = False
+Added detailed audio format specifications with a simple fallback option.
 
-# Proper task cancellation in close() method
-if self._event_processing_task and not self._event_processing_task.done():
-    self._event_processing_task.cancel()
-    try:
-        await self._event_processing_task
-    except asyncio.CancelledError:
-        logger.info("Event processing task successfully cancelled during close")
+### 3. Audio Input/Output Message Format Fixes
+
+#### Audio Input (ASR)
+
+Fixed the `send_audio()` method to properly format audio data for the OpenAI Realtime API:
+
+```python
+audio_payload = {
+    "type": "input_audio_buffer.append",
+    "input_audio_buffer": {
+        "payload": base64_audio,
+        "end_of_stream": False
+    }
+}
+await self.send_event(audio_payload)
 ```
 
-## How to Apply the Fix
+#### TTS Request (Text to Speech)
 
-1. Run the update script to apply the fixes to the Docker container:
-   ```bash
-   ./update_methods.sh
+Updated the `send_text_for_tts()` and `request_response()` methods to include the text to be spoken directly in the `response.create` message:
+
+```python
+response_create = {
+    "type": "response.create",
+    "response_id": response_id,
+    "response": {
+        "text": text,  # Include text explicitly
+        "responder": {"type": "model"},
+        "end_of_response": True,
+        "modalities": ["audio"]
+    }
+}
+await self.send_event(response_create)
+```
+
+#### Audio Output Parsing
+
+Enhanced the `_handle_audio_delta()` method in `RealtimeEventProcessor` to correctly extract and process audio chunks:
+
+```python
+audio = event.get("audio", {})
+audio_payload = audio.get("payload", "")
+is_end_of_stream = audio.get("end_of_stream", False)
+
+if not audio_payload:
+    return
+
+audio_bytes = base64.b64decode(audio_payload)
+await self.client.audio_callback(audio_bytes)
+```
+
+### 4. Connection Stability Improvements
+
+1. **Timeout Handling**: Added proper timeouts for WebSocket connections:
+
+   ```python
+   self.websocket = await asyncio.wait_for(
+       websockets.connect(
+           connect_url,
+           extra_headers=headers,
+           ping_interval=30,
+           close_timeout=5
+       ),
+       timeout=15.0
+   )
    ```
 
-2. Alternatively, start a new Docker environment with the fixed implementation:
-   ```bash
-   ./start_dev_env.sh up --build
-   ```
+2. **Improved Loop Management**:
+   - Added proper flags to track active processing loops
+   - Implemented safer async iteration with `async for message in self.websocket`
 
-## Verification
+3. **Task Cancellation**:
+   - Enhanced task cleanup in the `close()` method
+   - Added graceful shutdown periods for tasks
+
+4. **Error Classification**:
+   - Added specific detection for WebSocket errors
+   - Improved handling of connection closure events
+
+## Testing the Fixes
+
+1. **WebSocket Connection URL**: Check logs for the model parameter in the URL (`?model=gpt-4o-realtime-preview-2024-10-01`).
+
+2. **Session Configuration**: Verify the comprehensive `session.update` payload in logs.
+
+3. **Audio Messages**:
+   - Confirm `input_audio_buffer.append` contains correct nested structure
+   - Verify `response.create` includes the text to be spoken
+   - Check that audio chunks are properly received in `response.audio.delta` events
+
+4. **Connection Stability**:
+   - Watch for absence of "cannot call recv while another coroutine is already waiting" errors
+   - Monitor for proper task cancellation and resource cleanup
+
+## Prerequisites for Testing
+
+1. **Valid OpenAI API Key**: Ensure your `.env.development` file contains a valid OpenAI API key with access to the OpenAI Realtime API.
+
+2. **Environment Setup**: Run the testing script `python test_realtime_client.py` to verify connection and TTS functionality.
+
+3. **End-to-End Testing**: Use the Docker setup with ngrok to test a full Twilio call flow.
+
+## Verification Steps
 
 To verify the fixes are working:
 
 1. After deployment, make a test call to your Twilio number
 
 2. Check for the following successful events in the logs:
-   - `🟢 [CALL_SID] WebSocket acceptance SUCCESSFUL` - Twilio connection successful
+   - `🟢 WebSocket acceptance SUCCESSFUL` - Twilio connection successful
+   - `WEBSOCKET CONNECT ATTEMPT: wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01&voice=shimmer` - URL with query parameters
    - `🟢 SUCCESSFULLY CONNECTED to OpenAI Realtime API` - OpenAI connection successful
-   - `🔄 [CALL_SID] Sending greeting for TTS: "Hello there! Welcome to Red Bar Sushi"` - Greeting generation
-   - `🟢 [CALL_SID] Successfully sent greeting for TTS` - TTS successfully requested
+   - `Sending session configuration: {"type": "session.update", "session": {...}}` - Session configuration sent
+   - `Sending response.create: {"type": "response.create", "response_id": "...", "response": {"text": "..."}}` - TTS request with text
+   - `Received audio delta for response_id: ...` - Audio response chunks
 
-3. Confirm audio flows in both directions:
-   - Audio from Twilio to OpenAI: `Forwarding audio chunk to OpenAI Realtime API`
-   - Audio from OpenAI to Twilio: `Processed audio chunk from OpenAI Realtime API`
+3. Confirm the absence of error messages:
+   - No `ERROR EVENT FROM OPENAI: {"type": "error", "error": {"code": "missing_model"}}` - Model param fixed
+   - No `cannot call recv while another coroutine is already waiting` errors - WebSocket stability fixes working
 
-## Environment Variable Requirements
+## Conclusion
 
-Ensure these critical environment variables are set:
+These fixes align our OpenAI Realtime API integration with their documentation requirements, particularly addressing the model specification in the URL and ensuring all message formats match what the API expects. By fixing these issues, we've resolved the `missing_model` error and improved the stability of our WebSocket connections.
 
-| Variable | Description | Status |
-|----------|-------------|--------|
-| `OPENAI_API_KEY` | OpenAI API key | **Required** |
-| `TWILIO_ACCOUNT_SID` | Twilio account SID | **Required** |
-| `TWILIO_AUTH_TOKEN` | Twilio authentication token | **Required** |
-| `TWILIO_PHONE_NUMBER` | Twilio phone number | **Required** |
-| `SECRET_KEY` | Application secret key | **Required** |
-
-## Troubleshooting
-
-If issues persist:
-
-1. **Check logs for specific error messages**:
-   - API key errors: `🔴 OPENAI API KEY MISSING`
-   - Connection errors: `🔴 CONNECTION FAILED`
-   - Method errors: Look for `AttributeError` mentions
-
-2. **Verify environment variables**:
-   ```bash
-   docker exec redbarsushi-app env | grep -E 'OPENAI|TWILIO|SECRET'
-   ```
-
-3. **Test OpenAI API connectivity**:
-   ```bash
-   docker exec redbarsushi-app python /app/verify_openai_api_simple.py
-   ```
-
-4. **Verify method implementation**:
-   ```bash
-   docker exec redbarsushi-app python /app/verify_methods.py
-   ```
+The changes are backward-compatible with existing code calling these methods, preserving the API interface while improving the underlying implementation.

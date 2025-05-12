@@ -10,32 +10,40 @@ DOCKER_COMPOSE_FILE="$PROJECT_ROOT/docker-compose.fixed.yml" # Default Docker Co
 
 # Log function for consistent output
 log() {
-	echo "[$(date +'%Y-%m-%d %H:%M:%S')] - $1"
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')][RedBarSushiDev] - $1"
 }
 
 # --- Helper Functions ---
 check_files() {
-	if [ ! -f "$DOCKER_COMPOSE_FILE" ]; then
-		log "❌ ERROR: Docker Compose file not found at $DOCKER_COMPOSE_FILE"
-		exit 1
-	fi
-	log "✅ Using Docker Compose file: $DOCKER_COMPOSE_FILE"
+    if [ ! -f "$DOCKER_COMPOSE_FILE" ]; then
+        log "❌ ERROR: Docker Compose file not found at $DOCKER_COMPOSE_FILE"
+        log "Ensure it exists or update DOCKER_COMPOSE_FILE variable in this script."
+        exit 1
+    fi
+    log "✅ Using Docker Compose file: $DOCKER_COMPOSE_FILE"
 
-	if [ ! -f "$ENV_FILE" ]; then
-		log "⚠️ WARNING: Environment file not found at $ENV_FILE."
-		log "⚠️ Creating basic environment file with default values."
-		create_default_env_file
-	else
-		log "✅ Using environment file: $ENV_FILE"
-	fi
+    if [ ! -f "$ENV_FILE" ]; then
+        log "⚠️ WARNING: Environment file not found at $ENV_FILE."
+        log "⚠️ Creating basic .env.development file with PLACEHOLDERS."
+        log "👉 IMPORTANT: You MUST edit $ENV_FILE and replace placeholders with your actual credentials/keys!"
+        create_placeholder_env_file
+    else
+        log "✅ Using environment file: $ENV_FILE"
+        # Check if critical keys are still placeholders
+        if grep -q "YOUR_DEV_OPENAI_KEY_HERE" "$ENV_FILE" || grep -q "YOUR_DEV_TWILIO_AUTH_TOKEN_HERE" "$ENV_FILE"; then
+            log "🔥🔥🔥 WARNING: $ENV_FILE seems to contain placeholder API keys/secrets. Please update it with real values! 🔥🔥🔥"
+        fi
+    fi
 }
 
-create_default_env_file() {
-	log "Creating default .env.development file..."
-	cat >"$ENV_FILE" <<'EOF'
+create_placeholder_env_file() {
+    log "Creating placeholder .env.development file..."
+    cat >"$ENV_FILE" <<EOF
 # RedBarSushi Development Environment Variables
+# ❗❗❗ IMPORTANT: Replace placeholder values with your actual development credentials! ❗❗❗
 
 # Server Configuration
+APP_ENV=development
 FASTAPI_ENV=development
 FLASK_ENV=development
 LOG_LEVEL=DEBUG
@@ -44,11 +52,15 @@ FORCE_HEADLESS=true
 IS_STAGING=true
 OPENAI_REALTIME_VAD_SILENCE_MS=1000
 
-# Database Configuration
+# Security
+APP_SECRET_KEY=REPLACE_WITH_A_STRONG_RANDOM_SECRET_KEY_FOR_DEVELOPMENT
+
+# Database Configuration (for Docker Compose service names)
+# Ensure these service names match your docker-compose.fixed.yml
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=redbarsushi
-DATABASE_URL=postgresql://postgres:postgres@postgres:5432/redbarsushi
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/redbarsushi
 
 # Database variables in alternative format (for compatibility)
 DB_USER=postgres
@@ -62,199 +74,232 @@ REDIS_URL=redis://redis:6379/0
 CELERY_BROKER_URL=redis://redis:6379/1
 CELERY_RESULT_BACKEND=redis://redis:6379/1
 
-# OpenAI Configuration
-OPENAI_API_KEY=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
-# Twilio Configuration
-TWILIO_ACCOUNT_SID=ACb8391ed8d92871d85180ca9adea481b6
-TWILIO_AUTH_TOKEN=8bbdc0c60316d163ee36c58af5f35154
-TWILIO_PHONE_NUMBER=+17036467799
+# OpenAI Configuration - Use REAL (test-tier if possible) key for development
+OPENAI_API_KEY=sk-YOUR_DEV_OPENAI_KEY_HERE
+OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview-2024-10-01
+OPENAI_REALTIME_VOICE=shimmer
+
+# Twilio Configuration - Use REAL test credentials
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=YOUR_DEV_TWILIO_AUTH_TOKEN_HERE
+TWILIO_PHONE_NUMBER=+15551234567 # A Twilio number you own for testing
 
 # Deliverect Configuration
 DELIVERECT_CHANNEL_NAME=redbarsushi
-DELIVERECT_API_KEY=your_deliverect_api_key_here
+DELIVERECT_API_KEY=YOUR_DEV_DELIVERECT_API_KEY_HERE
+DELIVERECT_CLIENT_ID=YOUR_DEV_DELIVERECT_CLIENT_ID_HERE
+DELIVERECT_CLIENT_SECRET=YOUR_DEV_DELIVERECT_CLIENT_SECRET_HERE
 DELIVERECT_BASE_URL=https://api.staging.deliverect.com
+
+# Application URL (Ngrok will provide the public one for Twilio)
+BASE_URL=http://localhost:\${APP_PORT:-8080}
 
 # Docker Ports (host:container)
 APP_PORT=8080
 POSTGRES_PORT=5433
 REDIS_PORT=6380
 EOF
-	log "✅ Default .env.development file created"
+    log "✅ Placeholder .env.development file created. 🔥 EDIT IT NOW with your credentials! 🔥"
 }
 
 clean_environment() {
-	log "🧹 Stopping and removing all existing containers, volumes, and networks..."
-	docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" down -v --remove-orphans
-	docker network prune -f
-	docker volume prune -f
-	log "✅ Development environment cleaned"
+    log "🧹 Stopping and removing development services, their volumes, and orphaned containers..."
+    docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" down -v --remove-orphans
+    # This is safer than pruning all networks and volumes globally
+    log "✅ Development environment cleaned."
 }
 
 start_services() {
-	local build_option=""
-	local detach_option=""
+    local build_option=""
+    local detach_option=""
 
-	if [ "$1" == "--build" ]; then
-		build_option="--build"
-		shift # Consume the --build argument
-	fi
+    # Process arguments for start_services
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --build) build_option="--build"; shift ;;
+            -d) detach_option="-d"; shift ;;
+            *) log "Unknown option to start_services: $1"; shift ;; # Or error out
+        esac
+    done
 
-	if [ "$1" == "-d" ]; then
-		detach_option="-d"
-		shift # Consume the -d argument
-	fi
+    log "🚀 Starting services (PostgreSQL, Redis, App) using Docker Compose..."
+    log "   Compose file: $DOCKER_COMPOSE_FILE"
+    log "   Env file: $ENV_FILE"
+    if [ -n "$build_option" ]; then log "   Option: Rebuilding images"; fi
+    if [ -n "$detach_option" ]; then log "   Option: Running in detached mode"; fi
 
-	log "🚀 Starting services with Docker Compose..."
-	docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" up $build_option $detach_option
+    # Ensure Docker daemon is running
+    if ! docker info > /dev/null 2>&1; then
+        log "❌ ERROR: Docker daemon is not running. Please start Docker Desktop or Docker service."
+        exit 1
+    fi
+    
+    docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" up $build_option $detach_option
 
-	if [ -z "$detach_option" ]; then
-		log "✅ Services started. Press Ctrl+C to stop."
-	else
-		log "✅ Services started in detached mode."
-		log "   Use './start_dev_env.sh logs' to view app logs."
-	fi
+    if [ -z "$detach_option" ]; then
+        log "✅ Services started. Press Ctrl+C to stop."
+    else
+        log "✅ Services started in detached mode."
+        log "   Run '$0 logs' or '$0 logs app' to view app logs."
+        log "   Run '$0 diagnostics' to check service health after a few moments."
+    fi
 }
 
 stop_services() {
-	log "🛑 Stopping services..."
-	docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" down
-	log "✅ Services stopped."
+    log "🛑 Stopping development services..."
+    docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans
+    log "✅ Development services stopped."
 }
 
 show_logs() {
-	local service_name="app" # Default service to log
-	if [ -n "$1" ]; then
-		service_name="$1"
-	fi
-	log "👀 Tailing logs for service: $service_name..."
-	docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" logs -f "$service_name"
+    local service_name="${1:-app}" # Default service to log
+    log "👀 Tailing logs for service: $service_name..."
+    docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" logs -f "$service_name"
 }
 
 run_diagnostics() {
-	log "🔍 Running diagnostic checks..."
+    log "🔍 Running diagnostic checks..."
 
-	# Check if all services are running
-	log "Checking container status..."
-	docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" ps
+    log "--- Container Status ---"
+    docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" ps
+    echo "" # Newline for readability
 
-	# Check database connectivity
-	log "Checking database connectivity..."
-	docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" exec app python /app/check_docker_services_simple.py || {
-		log "⚠️ Database connectivity check failed! Copying diagnostic script to container..."
-		docker cp "$PROJECT_ROOT/check_docker_services_simple.py" "redbarsushi-app:/app/"
-		docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" exec app python /app/check_docker_services_simple.py
-	}
+    # Define your app service name as it appears in docker-compose.yml
+    local app_service_name="app" # Adjust if your service name is different
 
-	# Check OpenAI API
-	log "Checking OpenAI API connectivity..."
-	docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" exec app python /app/verify_openai_api_simple.py || {
-		log "⚠️ OpenAI API check failed! Copying verification script to container..."
-		docker cp "$PROJECT_ROOT/verify_openai_api_simple.py" "redbarsushi-app:/app/"
-		docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" exec app python /app/verify_openai_api_simple.py
-	}
+    # Check database connectivity from within the app container
+    log "--- Database Connectivity (from app container) ---"
+    docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" exec -T "$app_service_name" python /app/check_docker_services_simple.py || {
+        log "⚠️ Database connectivity check failed! Copying diagnostic script to container..."
+        # Try to copy the script if not found in container
+        docker cp "$PROJECT_ROOT/check_docker_services_simple.py" "redbarsushi-app:/app/" 2>/dev/null
+        docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" exec -T "$app_service_name" python /app/check_docker_services_simple.py
+    }
+    echo ""
 
-	log "✅ Diagnostics completed"
+    # Check OpenAI API connectivity from within the app container
+    log "--- OpenAI API Connectivity (from app container) ---"
+    docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" exec -T "$app_service_name" python /app/verify_openai_api_simple.py || {
+        log "⚠️ OpenAI API check failed! Copying verification script to container..."
+        # Try to copy the script if not found in container
+        docker cp "$PROJECT_ROOT/verify_openai_api_simple.py" "redbarsushi-app:/app/" 2>/dev/null
+        docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" exec -T "$app_service_name" python /app/verify_openai_api_simple.py
+    }
+    echo ""
+    log "✅ Diagnostics completed."
 }
 
 start_ngrok_tunnel() {
-	# Check if ngrok is installed
-	if ! command -v ngrok &>/dev/null; then
-		log "❌ ngrok not found! Please install ngrok first."
-		log "   Visit https://ngrok.com/download to download and install ngrok."
-		exit 1
-	fi
+    if ! command -v ngrok &>/dev/null; then
+        log "❌ ngrok not found! Please install ngrok first."
+        log "   Visit https://ngrok.com/download to download and install ngrok, then authenticate it."
+        exit 1
+    fi
 
-	local port="${1:-8080}" # Default to port 8080 if not specified
+    # Get APP_PORT from .env.development, default to 8080 if not set
+    local port="8080" # Default
+    if [ -f "$ENV_FILE" ]; then
+        app_port_from_env=$(grep '^APP_PORT=' "$ENV_FILE" | cut -d '=' -f2)
+        if [ -n "$app_port_from_env" ]; then
+            port="$app_port_from_env"
+        fi
+    fi
+    # Allow overriding with an argument
+    port="${1:-$port}"
 
-	log "🚇 Starting ngrok tunnel for localhost:$port..."
-	ngrok http "$port" &
-
-	log "✅ ngrok tunnel started"
-	log "⚠️ Note: You will need to update your Twilio webhook URL with the ngrok URL."
-	log "   The ngrok URL can be found in the ngrok console or at http://localhost:4040"
+    log "🚇 Starting ngrok tunnel for localhost:$port..."
+    log "   Make sure your app service in Docker Compose maps to host port $port."
+    
+    # Run ngrok
+    ngrok http "$port"
 }
 
 show_help() {
-	echo "RedBarSushiAI Development Environment Manager"
-	echo "=============================================="
-	echo "Usage: $0 [command] [options]"
-	echo ""
-	echo "Commands:"
-	echo "  up [--build] [-d]   Start services. --build to rebuild images, -d for detached mode."
-	echo "  down                Stop all running services"
-	echo "  restart [--build]   Restart all services. --build to rebuild images."
-	echo "  build               Build or rebuild all images without starting services"
-	echo "  logs [service]      View logs for services (default: app)"
-	echo "  clean               Remove all containers, volumes, and networks"
-	echo "  diagnostics         Run diagnostic checks on running containers"
-	echo "  ngrok [port]        Start an ngrok tunnel to expose local services to the internet"
-	echo "                      Default port is 8080 if not specified"
-	echo "  help                Show this help message"
-	echo ""
-	echo "Examples:"
-	echo "  $0 up               Start all services in interactive mode"
-	echo "  $0 up --build -d    Rebuild images, start services in detached mode"
-	echo "  $0 logs postgres    View logs for the postgres service"
-	echo "  $0 ngrok 8080       Start an ngrok tunnel for port 8080"
-	echo ""
+    echo "RedBarSushiAI Development Environment Manager"
+    echo "=============================================="
+    echo "Usage: $0 [command] [options]"
+    echo ""
+    echo "Manages the Docker Compose environment defined in '$DOCKER_COMPOSE_FILE'"
+    echo "using environment variables from '$ENV_FILE'."
+    echo ""
+    echo "Commands:"
+    echo "  up [--build] [-d]   Start services. --build to rebuild images. -d for detached mode."
+    echo "                        (Default action if no command is given: runs 'up --build')"
+    echo "  down                Stop all running services defined in the compose file."
+    echo "  restart [--build]   Restart all services. --build to rebuild images."
+    echo "  build               Build or rebuild all service images."
+    echo "  logs [service]      View logs for 'app' (default) or a specified service."
+    echo "  clean               Stop and REMOVE all containers, project-specific volumes, and networks."
+    echo "  diagnostics         Run diagnostic checks (container status, DB/OpenAI connectivity from app)."
+    echo "  ngrok [port]        Start an ngrok tunnel. Uses APP_PORT from .env.development or defaults to 8080."
+    echo "                      (Requires ngrok installed and authenticated)."
+    echo "  help                Show this help message."
+    echo ""
+    echo "Examples:"
+    echo "  $0                    (Defaults to: $0 up --build)"
+    echo "  $0 up --build -d      Rebuild and start services in detached mode."
+    echo "  $0 logs postgres      View logs for the postgres service."
+    echo ""
+    echo "Ensure '$ENV_FILE' is present and correctly configured before running."
 }
 
 # --- Main Execution ---
-# Check command
+
+# Default action if no command is given
 if [ $# -eq 0 ]; then
-	log "❓ No command specified. Use './start_dev_env.sh help' for usage information."
-	show_help
-	exit 1
+    log "No command provided. Defaulting to 'up --build'."
+    check_files
+    start_services "--build"
+    exit 0
 fi
 
 # Process commands
 case "$1" in
 "up")
-	shift
-	check_files
-	start_services "$@"
-	;;
+    shift
+    check_files
+    start_services "$@"
+    ;;
 "down")
-	check_files
-	stop_services
-	;;
+    check_files
+    stop_services
+    ;;
 "restart")
-	shift
-	check_files
-	stop_services
-	start_services "$@"
-	;;
+    shift
+    check_files
+    stop_services
+    start_services "$@"
+    ;;
 "build")
-	check_files
-	log "🛠️ Building images..."
-	docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" build
-	log "✅ Images built."
-	;;
+    check_files
+    log "🛠️ Building images..."
+    docker-compose -f "$DOCKER_COMPOSE_FILE" --env-file "$ENV_FILE" build
+    log "✅ Images built."
+    ;;
 "logs")
-	check_files
-	shift
-	show_logs "$@"
-	;;
+    shift
+    show_logs "$@"
+    ;;
 "clean")
-	check_files
-	clean_environment
-	;;
+    check_files
+    clean_environment
+    ;;
 "diagnostics")
-	check_files
-	run_diagnostics
-	;;
+    check_files
+    run_diagnostics
+    ;;
 "ngrok")
-	shift
-	start_ngrok_tunnel "$@"
-	;;
+    shift
+    start_ngrok_tunnel "$@"
+    ;;
 "help")
-	show_help
-	;;
+    show_help
+    ;;
 *)
-	log "❌ Unknown command: $1"
-	show_help
-	exit 1
-	;;
+    log "❌ Unknown command: $1"
+    show_help
+    exit 1
+    ;;
 esac
 
 exit 0

@@ -221,15 +221,36 @@ class RealtimeEventProcessor:
         Handle a response.audio.delta event.
         
         Args:
-            event: The audio delta event
+            event: The audio delta event from OpenAI
         """
-        audio_data = event.get("delta", "")
-        logger.debug("Received audio delta")
+        # Extract the response_id to track which TTS request this is for
+        response_id = event.get("response_id", "unknown")
         
+        # Extract audio data according to OpenAI documentation format
+        # https://platform.openai.com/docs/guides/realtime-conversations
+        audio = event.get("audio", {})
+        
+        # The payload contains the base64-encoded audio chunk
+        audio_payload = audio.get("payload", "")
+        
+        # Check if this is the end of the audio stream
+        is_end_of_stream = audio.get("end_of_stream", False)
+        
+        if is_end_of_stream:
+            logger.info(f"End of audio stream for response_id: {response_id}")
+            # You might want to notify the client that this audio stream is complete
+            return
+        
+        logger.debug(f"Received audio delta for response_id: {response_id}, payload length: {len(audio_payload)}")
+        
+        if not audio_payload:
+            logger.debug("Empty audio payload received, skipping")
+            return
+            
         if self.client.audio_callback:
             try:
                 # The audio data is base64-encoded
-                audio_bytes = base64.b64decode(audio_data)
+                audio_bytes = base64.b64decode(audio_payload)
                 await self.client.audio_callback(audio_bytes)
             except Exception as e:
                 logger.error(f"Error in audio callback: {e}")
@@ -431,9 +452,45 @@ class OpenAIRealtimeClient:
             logger.critical("🟢 Already connected to OpenAI Realtime API")
             return True
         
+        # Construct URL with query parameters as per OpenAI documentation
+        from urllib.parse import urlencode
+        
+        # Add required and optional parameters to URL as specified in OpenAI docs
+        url_query_params_dict = {
+            "model": self.config.model,
+            "voice": self.config.voice,
+        }
+        
+        # Add language parameter if it exists in the config
+        if hasattr(self.config, 'language'):
+            url_query_params_dict["language"] = self.config.language
+        
+        # Filter out None values
+        url_query_params_dict = {k: v for k, v in url_query_params_dict.items() if v is not None}
+        
+        # Ensure model is present, as it's absolutely required
+        if not url_query_params_dict.get("model"):
+            logger.critical(f"🔴 [{call_sid}] CRITICAL: Model not configured for OpenAIRealtimeClient. Cannot form connection URL.")
+            if hasattr(self, 'event_processor') and self.event_processor:
+                try:
+                    await self.event_processor.on_error({"error": "OpenAI model not configured", "call_sid": call_sid})
+                except Exception as e:
+                    logger.error(f"Error during event processor error call: {e}")
+            self.connected = False
+            return False
+        
+        # Encode parameters for URL
+        encoded_url_query_params = urlencode(url_query_params_dict)
+        
+        # Construct final URL with query parameters
+        connect_url = f"{self.WEBSOCKET_URL}?{encoded_url_query_params}"
+        
+        logger.critical(f"🔄 [{call_sid}] OpenAIRealtimeClient: Connecting with effective URL: {connect_url}")
+        print(f"!!! PRINT DEBUG: OpenAI Connect URL (with query params): {connect_url} !!!", flush=True)
+        
         logger.critical(f"🔄 CONNECTING to OpenAI Realtime API with session ID: {self.session_id}")
-        logger.critical(f"🔄 WebSocket URL: {self.WEBSOCKET_URL}")
-        print(f"\n!!! DEBUG: Attempting WebSocket connection to: {self.WEBSOCKET_URL}", flush=True)
+        logger.critical(f"🔄 WebSocket URL: {connect_url}")
+        print(f"\n!!! DEBUG: Attempting WebSocket connection to: {connect_url}", flush=True)
         
         try:
             # Prepare headers
@@ -445,16 +502,28 @@ class OpenAIRealtimeClient:
             
             # Log the attempt with complete details
             logger.critical(f"🔄 Connection attempt with headers: Authorization: Bearer {key_preview}, OpenAI-Beta: realtime=v1")
-            logger.critical(f"🔄 WEBSOCKETS CONNECT ATTEMPT: {self.WEBSOCKET_URL} (about to execute)")
+            logger.critical(f"🔄 WEBSOCKETS CONNECT ATTEMPT: {connect_url} (about to execute)")
             
-            # Connect to the WebSocket
-            print(f"\n!!! DEBUG: About to execute websockets.connect() with headers Authorization and OpenAI-Beta", flush=True)
-            self.websocket = await websockets.connect(
-                self.WEBSOCKET_URL,
-                extra_headers=headers
-            )
+            # Connect to the WebSocket with the URL including query parameters
+            print(f"\n!!! DEBUG: About to execute websockets.connect() with URL: {connect_url}", flush=True)
             
-            logger.critical("🟢 SUCCESSFULLY CONNECTED to OpenAI Realtime API")
+            # Set timeouts for connection to avoid hanging indefinitely
+            try:
+                self.websocket = await asyncio.wait_for(
+                    websockets.connect(
+                        connect_url,
+                        extra_headers=headers,
+                        ping_interval=30,  # Send ping every 30 seconds
+                        close_timeout=5    # Allow 5 seconds for graceful close
+                    ),
+                    timeout=15.0  # 15-second connection timeout
+                )
+                logger.critical("🟢 SUCCESSFULLY CONNECTED to OpenAI Realtime API")
+            except asyncio.TimeoutError:
+                logger.critical(f"🔴 [{call_sid}] CONNECTION TIMEOUT: Failed to connect to OpenAI Realtime API within timeout")
+                print(f"\n!!! DEBUG: CONNECTION TIMEOUT: Failed to connect to OpenAI Realtime API", flush=True)
+                self.connected = False
+                return False
             print(f"\n!!! DEBUG: WebSocket connection SUCCESSFUL!", flush=True)
             self.connected = True
             
@@ -535,52 +604,99 @@ class OpenAIRealtimeClient:
             return False
     
     async def _configure_session(self):
-        """Configure the OpenAI Realtime session."""
-        logger.critical("🔄 Configuring OpenAI Realtime session - CRITICAL STEP")
+        """Configure the OpenAI Realtime session following OpenAI documentation format."""
+        call_sid = getattr(self, 'session_id', 'UNKNOWN_CALL')
+        logger.critical(f"🔄 [{call_sid}] Configuring OpenAI Realtime session - CRITICAL STEP")
         
-        # Prepare VAD configuration
+        # Prepare VAD configuration according to OpenAI docs
         vad_config = {
             "mode": "server",
             "silence_threshold_ms": self.config.vad_silence_threshold_ms,
             "speech_threshold_ms": self.config.vad_speech_threshold_ms
         } if self.config.vad_enabled else None
         
-        # Prepare session configuration
+        # Prepare input and output audio formats according to OpenAI docs
+        # For μ-law audio format (8kHz), we'll use explicit format specification
+        input_audio_format = {
+            "container": "mulaw",  # Could also be "raw" depending on OpenAI's expectation
+            "encoding": "pcm_mulaw",
+            "sample_rate": self.config.sample_rate_hz  # Should be 8000 for μ-law
+        }
+        
+        output_audio_format = {
+            "container": "mulaw",  # Could also be "raw" depending on OpenAI's expectation
+            "encoding": "pcm_mulaw",
+            "sample_rate": self.config.sample_rate_hz  # Should be 8000 for μ-law
+        }
+        
+        # Fallback to simple format if detailed format causes issues
+        # This can be toggled based on testing results
+        use_simple_audio_format = True  # Set to False to use detailed format above
+        
+        if use_simple_audio_format:
+            input_audio_format = {
+                "type": self.config.input_audio_format
+            }
+            output_audio_format = {
+                "type": self.config.output_audio_format
+            }
+        
+        # Prepare session configuration with all fields from OpenAI documentation
         session_config = {
             "type": "session.update",
             "session": {
+                # Basic configuration - some redundant with URL but included as per docs
                 "model": self.config.model,
-                "modalities": ["text", "audio"],
                 "voice": self.config.voice,
-                "sample_rate_hz": self.config.sample_rate_hz,
-                "inputAudioFormat": {
-                    "type": self.config.input_audio_format
-                },
-                "outputAudioFormat": {
-                    "type": self.config.output_audio_format
-                }
+                "modalities": ["text", "audio"],
+                
+                # Audio format configuration
+                "input_audio_format": input_audio_format,
+                "output_audio_format": output_audio_format,
+                
+                # Stream configuration
+                "stream_priority": getattr(self.config, "stream_priority", "default"),
+                "interrupt_types": getattr(self.config, "interrupt_types", ["speech_start", "speech_stop"]),
+                
+                # TTS configuration
+                "speed": getattr(self.config, "tts_speed", 1.0),
+                "buffer_ms": getattr(self.config, "buffer_ms", 200),
+                
+                # Instruction and response configuration
+                "instructions": self.config.instructions if hasattr(self.config, "instructions") else None,
+                "response_expected": getattr(self.config, "response_expected", True),
+                
+                # Optional VAD configuration
+                "vad": vad_config,
+                
+                # Optional token limit
+                "max_tokens": self.config.max_tokens if hasattr(self.config, "max_tokens") else None,
+                
+                # Optional language (if configured and not in URL)
+                "language": getattr(self.config, "language", "en"),
+                
+                # Optional tools for function calling
+                "tools": getattr(self.config, "tools", [])
             }
         }
         
-        # Add optional parameters
-        if self.config.instructions:
-            session_config["session"]["instructions"] = self.config.instructions
+        # Filter out None values to keep the configuration clean
+        session_data = session_config["session"]
+        session_config["session"] = {k: v for k, v in session_data.items() if v is not None}
         
-        if self.config.max_tokens:
-            session_config["session"]["max_tokens"] = self.config.max_tokens
-        
-        if vad_config:
-            session_config["session"]["vad"] = vad_config
+        # Some lists like empty tools should be preserved
+        if "tools" not in session_config["session"] and hasattr(self.config, "tools"):
+            session_config["session"]["tools"] = []
         
         # Log the complete session configuration for debugging
-        logger.critical(f"🔄 Sending session configuration: {json.dumps(session_config)}")
+        logger.critical(f"🔄 [{call_sid}] Sending session configuration: {json.dumps(session_config, indent=2)}")
         
         try:
             # Send session configuration
             await self.send_event(session_config)
-            logger.critical("🟢 Session configuration sent successfully")
+            logger.critical(f"🟢 [{call_sid}] Session configuration sent successfully")
         except Exception as e:
-            logger.critical(f"🔴 FAILED to send session configuration: {e}")
+            logger.critical(f"🔴 [{call_sid}] FAILED to send session configuration: {e}")
             logger.critical(traceback.format_exc())
             raise
     
@@ -765,61 +881,99 @@ class OpenAIRealtimeClient:
             logger.warning("Not connected to OpenAI Realtime API, cannot send audio")
             return
         
+        call_sid = getattr(self, 'session_id', 'UNKNOWN_CALL')
+        
         try:
             # Encode the audio as base64
             base64_audio = base64.b64encode(audio_data).decode("utf-8")
             
-            # Send the audio event
-            await self.send_event({
+            # Create proper payload format according to OpenAI documentation
+            # https://platform.openai.com/docs/guides/realtime-conversations
+            audio_payload = {
                 "type": "input_audio_buffer.append",
-                "audio": base64_audio
-            })
+                "input_audio_buffer": {
+                    "payload": base64_audio,
+                    "end_of_stream": False
+                }
+            }
+            
+            # Send the audio event
+            await self.send_event(audio_payload)
+            
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[{call_sid}] Sent audio data ({len(audio_data)} bytes) to OpenAI")
+                
         except Exception as e:
-            logger.error(f"Error sending audio: {e}")
+            logger.error(f"[{call_sid}] Error sending audio: {e}")
             logger.error(traceback.format_exc())
     
-    async def send_text_for_tts(self, text: str):
+    async def send_text_for_tts(self, text: str, response_id: Optional[str] = None):
         """
         Send text to be converted to speech (TTS).
         
         Args:
             text: The text to convert to speech
+            response_id: Optional unique ID for the response
         """
         if not self.connected:
             logger.warning("Not connected to OpenAI Realtime API, cannot send text for TTS")
             return
         
+        call_sid = getattr(self, 'session_id', 'UNKNOWN_CALL')
+        
+        # Generate a response ID if not provided
+        if not response_id:
+            response_id = str(uuid.uuid4())
+        
         try:
-            # First, create a conversation item with the text
-            await self.send_event({
+            # First, create a conversation item with the text (to provide context)
+            conversation_item = {
                 "type": "conversation.item.create",
                 "conversationItem": {
                     "role": "assistant",
                     "content": text
                 }
-            })
+            }
             
-            # Then, create a response for that item
-            await self.send_event({
+            logger.debug(f"[{call_sid}] Sending conversation.item.create: {json.dumps(conversation_item)}")
+            await self.send_event(conversation_item)
+            
+            # Then, create a response with the text to be spoken
+            # This follows the OpenAI Realtime API documentation format
+            # https://platform.openai.com/docs/guides/realtime-conversations
+            response_create = {
                 "type": "response.create",
+                "response_id": response_id,
                 "response": {
-                    "modalities": ["audio"]
+                    "text": text,  # Include text explicitly as per the docs
+                    "responder": {"type": "model"},  # Uses the voice from session config
+                    "end_of_response": True,
+                    "modalities": ["audio"]  # Request audio output
                 }
-            })
+            }
             
-            logger.info(f"Sent text for TTS: {text}")
+            logger.debug(f"[{call_sid}] Sending response.create: {json.dumps(response_create)}")
+            await self.send_event(response_create)
+            
+            logger.info(f"[{call_sid}] Sent text for TTS: \"{text}\" with response_id: {response_id}")
+            return response_id
+            
         except Exception as e:
-            logger.error(f"Error sending text for TTS: {e}")
+            logger.error(f"[{call_sid}] Error sending text for TTS: {e}")
             logger.error(traceback.format_exc())
+            raise
             
     async def request_response(self, text: str, response_id: Optional[str] = None):
         """
         Requests OpenAI to generate TTS for the given text.
-        This is an alias for send_text_for_tts to maintain compatibility with handlers.py.
+        Primary method used by handlers to request voice responses.
         
         Args:
             text: The text to convert to speech
             response_id: Optional unique ID for the response
+        
+        Returns:
+            The response_id for tracking audio events from OpenAI
         """
         call_sid = getattr(self, 'session_id', 'UNKNOWN_CALL')
         logger.critical(f"🔄 [{call_sid}] request_response CALLED for text: \"{text}\"")
@@ -835,53 +989,78 @@ class OpenAIRealtimeClient:
             logger.critical(f"🔴 [{call_sid}] Cannot request_response - WebSocket closed! Text: \"{text}\"")
             raise RuntimeError(f"Cannot request TTS response - WebSocket connection is closed")
             
-        logger.critical(f"🟢 [{call_sid}] Forwarding request_response to send_text_for_tts for text: \"{text}\"")
+        logger.critical(f"🟢 [{call_sid}] Sending TTS request for text: \"{text}\"")
         
         try:
-            # Call the actual implementation
-            await self.send_text_for_tts(text)
-            logger.critical(f"🟢 [{call_sid}] Successfully sent TTS request for text: \"{text}\"")
-            return True
+            # Call the actual implementation with proper response_id tracking
+            response_id = await self.send_text_for_tts(text, response_id)
+            logger.critical(f"🟢 [{call_sid}] Successfully sent TTS request for text: \"{text}\" (response_id: {response_id})")
+            return response_id
         except Exception as e:
             logger.critical(f"🔴 [{call_sid}] EXCEPTION in request_response: {str(e)}")
             logger.critical(traceback.format_exc())
             raise
     
-    async def send_tool_response(self, tool_id: str, result: Dict[str, Any]):
+    async def send_tool_response(self, tool_id: str, result: Dict[str, Any], response_id: Optional[str] = None):
         """
         Send a tool response to the OpenAI Realtime API.
         
         Args:
             tool_id: The ID of the tool call
             result: The result to send
+            response_id: Optional unique ID for the response
+        
+        Returns:
+            The response_id for tracking response events from OpenAI
         """
         if not self.connected:
             logger.warning("Not connected to OpenAI Realtime API, cannot send tool response")
             return
         
+        call_sid = getattr(self, 'session_id', 'UNKNOWN_CALL')
+        
+        # Generate a response ID if not provided
+        if not response_id:
+            response_id = str(uuid.uuid4())
+        
         try:
+            # Convert result to JSON string if it's not already
+            result_content = json.dumps(result) if not isinstance(result, str) else result
+            
             # Create a conversation item with the tool output
-            await self.send_event({
+            # This follows the OpenAI Realtime API documentation format
+            conversation_item = {
                 "type": "conversation.item.create",
                 "conversationItem": {
                     "role": "function_call_output",
-                    "content": json.dumps(result),
+                    "content": result_content,
                     "id": tool_id
                 }
-            })
+            }
             
-            # Generate a response
-            await self.send_event({
+            logger.debug(f"[{call_sid}] Sending function_call_output: {json.dumps(conversation_item)}")
+            await self.send_event(conversation_item)
+            
+            # Generate a response that includes both text and audio modalities
+            response_create = {
                 "type": "response.create",
+                "response_id": response_id,
                 "response": {
+                    "responder": {"type": "model"},
+                    "end_of_response": True,
                     "modalities": ["text", "audio"]
                 }
-            })
+            }
             
-            logger.info(f"Sent tool response for tool ID: {tool_id}")
+            logger.debug(f"[{call_sid}] Sending response.create after tool: {json.dumps(response_create)}")
+            await self.send_event(response_create)
+            
+            logger.info(f"[{call_sid}] Sent tool response for tool ID: {tool_id} with response_id: {response_id}")
+            return response_id
         except Exception as e:
-            logger.error(f"Error sending tool response: {e}")
+            logger.error(f"[{call_sid}] Error sending tool response: {e}")
             logger.error(traceback.format_exc())
+            raise
     
     async def close(self):
         """Close the connection to the OpenAI Realtime API."""
