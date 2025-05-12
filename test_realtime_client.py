@@ -71,7 +71,7 @@ async def main():
     
     # Create a client with a test configuration
     config = RealtimeConfig(
-        model="gpt-4o-realtime-preview-2024-10-01",
+        model="gpt-4o-realtime-preview-2024-12-17",  # Updated to latest model version
         voice="shimmer",
         instructions="You are a helpful assistant",
         vad_enabled=True

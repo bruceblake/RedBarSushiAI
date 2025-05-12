@@ -122,10 +122,22 @@ async def handle_media_stream(
                 
             elif event == "start":
                 # Handle start event - this is where we start processing
+                logger.critical(f"[{call_sid}] FULL START EVENT MESSAGE: {json.dumps(message)}")
+                print(f"\n!!! DEBUG: [{call_sid}] FULL START EVENT: {json.dumps(message)}", flush=True)
+                
+                # Extract and log any custom parameters that might be in the start event
+                if "start" in message and isinstance(message["start"], dict):
+                    start_data = message["start"]
+                    custom_params = start_data.get("customParameters", {})
+                    logger.critical(f"[{call_sid}] CUSTOM PARAMETERS FROM START EVENT: {json.dumps(custom_params)}")
+                    print(f"\n!!! DEBUG: CUSTOM PARAMETERS: {json.dumps(custom_params)}", flush=True)
+                
+                # Update connection data with stream SID
                 logger.info(f"[{call_sid}] Received start event, stream SID: {message.get('streamSid')}")
                 await connection_mgr.update_call_data(call_sid, {
                     "stream_sid": message.get("streamSid"),
-                    "started_at": time.time()
+                    "started_at": time.time(),
+                    "custom_parameters": message.get("start", {}).get("customParameters", {})
                 })
                 
                 # Start a new conversation with the FSM
@@ -177,9 +189,15 @@ async def handle_media_stream(
                     print(f"\n!!! DEBUG: {traceback.format_exc()}", flush=True)
                     raise
                 
-                # Start the OpenAI WebSocket processing task
-                logger.critical(f"🔄 [{call_sid}] Starting OpenAI message processing task...")
-                openai_task = asyncio.create_task(openai_client.process_messages())
+                # Start the OpenAI WebSocket processing task, checking if already running
+                if hasattr(openai_client, '_event_processing_task') and openai_client._event_processing_task is not None and not openai_client._event_processing_task.done():
+                    logger.critical(f"🔶 [{call_sid}] OpenAI message processing task ALREADY RUNNING, not starting a new one")
+                    openai_task = openai_client._event_processing_task
+                else:
+                    logger.critical(f"🔄 [{call_sid}] Starting OpenAI message processing task...")
+                    openai_task = asyncio.create_task(openai_client.process_messages())
+                    # Store reference to the task in the client
+                    openai_client._event_processing_task = openai_task
                 
                 # Start the transcript and event processing tasks
                 transcript_task = asyncio.create_task(

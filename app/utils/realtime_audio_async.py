@@ -52,7 +52,7 @@ logger.critical("======= ASYNC REALTIME AUDIO CLIENT LOGGING INITIALIZED WITH FO
 class RealtimeConfig:
     """Configuration for the OpenAI Realtime API."""
     
-    model: str = "gpt-4o-realtime-preview-2024-10-01"
+    model: str = "gpt-4o-realtime-preview-2024-12-17"
     instructions: Optional[str] = None
     voice: str = "shimmer"
     sample_rate_hz: int = 8000
@@ -263,12 +263,34 @@ class RealtimeEventProcessor:
         Args:
             event: The tool call event
         """
-        tool_name = event.get("name", "")
-        arguments = event.get("arguments", {})
-        tool_id = event.get("id", "")
+        # Log the entire event for debugging - to understand exactly how OpenAI sends tool calls
+        logger.critical(f"Received tool_call event: {json.dumps(event)}")
         
-        logger.info(f"Tool call: {tool_name} with ID {tool_id}")
-        logger.debug(f"Tool arguments: {arguments}")
+        # Extract tool call information, handling both possible formats from OpenAI
+        # Format 1: {type: "tool_call", id: "...", name: "...", arguments: {...}}
+        # Format 2: {type: "tool_call", tool_call: {id: "...", name: "...", arguments: {...}}}
+        
+        if "tool_call" in event:
+            # Use the nested tool_call structure if present
+            tool_data = event.get("tool_call", {})
+            tool_name = tool_data.get("name", "")
+            arguments = tool_data.get("arguments", {})
+            tool_id = tool_data.get("id", "")
+        else:
+            # Use the flat structure
+            tool_name = event.get("name", "")
+            arguments = event.get("arguments", {})
+            tool_id = event.get("id", "")
+        
+        # Convert arguments from string to dict if needed
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                logger.warning(f"Couldn't parse tool arguments as JSON: {arguments}")
+                
+        logger.critical(f"Tool call: {tool_name} with ID {tool_id}")
+        logger.critical(f"Tool arguments: {arguments}")
         
         if self.client.tool_call_callback:
             try:
@@ -391,6 +413,9 @@ class OpenAIRealtimeClient:
         self._event_processing_task = None
         self.is_processing_loop_active = False
         
+        # Error tracking
+        self.last_error = None
+        
         # Callbacks
         self.transcript_callback = None
         self.audio_callback = None
@@ -485,8 +510,12 @@ class OpenAIRealtimeClient:
         # Construct final URL with query parameters
         connect_url = f"{self.WEBSOCKET_URL}?{encoded_url_query_params}"
         
-        logger.critical(f"🔄 [{call_sid}] OpenAIRealtimeClient: Connecting with effective URL: {connect_url}")
+        # Add extremely visible logging for the connection URL
+        logger.critical(f"🔄 [{call_sid}] CONNECTING TO OPENAI WITH URL: {connect_url}")
+        logger.critical(f"🔄 [{call_sid}] QUERY PARAMETERS: {url_query_params_dict}")
+        logger.critical(f"🔄 [{call_sid}] MODEL: {url_query_params_dict.get('model', 'NOT_SET')}")
         print(f"!!! PRINT DEBUG: OpenAI Connect URL (with query params): {connect_url} !!!", flush=True)
+        print(f"!!! PRINT DEBUG: OpenAI model in URL: {url_query_params_dict.get('model', 'NOT_SET')} !!!", flush=True)
         
         logger.critical(f"🔄 CONNECTING to OpenAI Realtime API with session ID: {self.session_id}")
         logger.critical(f"🔄 WebSocket URL: {connect_url}")
@@ -608,75 +637,53 @@ class OpenAIRealtimeClient:
         call_sid = getattr(self, 'session_id', 'UNKNOWN_CALL')
         logger.critical(f"🔄 [{call_sid}] Configuring OpenAI Realtime session - CRITICAL STEP")
         
-        # Prepare VAD configuration according to OpenAI docs
-        vad_config = {
-            "mode": "server",
-            "silence_threshold_ms": self.config.vad_silence_threshold_ms,
-            "speech_threshold_ms": self.config.vad_speech_threshold_ms
+        # Prepare turn_detection configuration according to OpenAI docs
+        # Updated from "vad" to the correct "turn_detection" parameter
+        turn_detection_config = {
+            "type": "server_vad",  # "server_vad" is the correct type for server-side VAD
+            "silence_duration_ms": self.config.vad_silence_threshold_ms,  # Using the existing config value
+            "create_response": True  # Automatically generate a response when turn is detected
         } if self.config.vad_enabled else None
         
-        # Prepare input and output audio formats according to OpenAI docs
-        # For μ-law audio format (8kHz), we'll use explicit format specification
+        # Using explicit format specification for μ-law audio
         input_audio_format = {
-            "container": "mulaw",  # Could also be "raw" depending on OpenAI's expectation
+            "container": "raw",
             "encoding": "pcm_mulaw",
-            "sample_rate": self.config.sample_rate_hz  # Should be 8000 for μ-law
+            "sample_rate": self.config.sample_rate_hz  # 8000 for μ-law
         }
         
         output_audio_format = {
-            "container": "mulaw",  # Could also be "raw" depending on OpenAI's expectation
+            "container": "raw",
             "encoding": "pcm_mulaw",
-            "sample_rate": self.config.sample_rate_hz  # Should be 8000 for μ-law
+            "sample_rate": self.config.sample_rate_hz  # 8000 for μ-law
         }
         
-        # Fallback to simple format if detailed format causes issues
-        # This can be toggled based on testing results
-        use_simple_audio_format = True  # Set to False to use detailed format above
-        
-        if use_simple_audio_format:
-            input_audio_format = {
-                "type": self.config.input_audio_format
-            }
-            output_audio_format = {
-                "type": self.config.output_audio_format
-            }
-        
-        # Prepare session configuration with all fields from OpenAI documentation
+        # Create a minimal session configuration strictly following OpenAI docs
+        # IMPORTANT: Model and voice are only in the URL query params
         session_config = {
             "type": "session.update",
             "session": {
-                # Basic configuration - some redundant with URL but included as per docs
-                "model": self.config.model,
-                "voice": self.config.voice,
+                # ONLY include essential fields documented by OpenAI
                 "modalities": ["text", "audio"],
                 
                 # Audio format configuration
                 "input_audio_format": input_audio_format,
                 "output_audio_format": output_audio_format,
                 
-                # Stream configuration
-                "stream_priority": getattr(self.config, "stream_priority", "default"),
-                "interrupt_types": getattr(self.config, "interrupt_types", ["speech_start", "speech_stop"]),
+                # Essential TTS configuration
+                # "speed": 1.0,  # Removed - use default
                 
-                # TTS configuration
-                "speed": getattr(self.config, "tts_speed", 1.0),
-                "buffer_ms": getattr(self.config, "buffer_ms", 200),
-                
-                # Instruction and response configuration
+                # Instructions for the model
                 "instructions": self.config.instructions if hasattr(self.config, "instructions") else None,
-                "response_expected": getattr(self.config, "response_expected", True),
                 
-                # Optional VAD configuration
-                "vad": vad_config,
+                # Using turn_detection instead of vad (correct parameter per OpenAI docs)
+                "turn_detection": turn_detection_config,
                 
-                # Optional token limit
-                "max_tokens": self.config.max_tokens if hasattr(self.config, "max_tokens") else None,
+                # "interrupt_types" is not in the basic docs example - removing
+                # "stream_priority" is triggering an unknown_parameter error - removing
                 
-                # Optional language (if configured and not in URL)
-                "language": getattr(self.config, "language", "en"),
-                
-                # Optional tools for function calling
-                "tools": getattr(self.config, "tools", [])
+                # Include tools only if needed
+                "tools": getattr(self.config, "tools", []) if hasattr(self.config, "tools") and self.config.tools else None
             }
         }
         
@@ -689,7 +696,8 @@ class OpenAIRealtimeClient:
             session_config["session"]["tools"] = []
         
         # Log the complete session configuration for debugging
-        logger.critical(f"🔄 [{call_sid}] Sending session configuration: {json.dumps(session_config, indent=2)}")
+        logger.critical(f"🔄 [{call_sid}] SENDING SESSION CONFIG (model/voice ONLY in URL): {json.dumps(session_config, indent=2)}")
+        logger.critical(f"🔄 [{call_sid}] NOTE: Model '{self.config.model}' and voice '{self.config.voice}' are ONLY in the URL params, not in session.update")
         
         try:
             # Send session configuration
@@ -745,6 +753,17 @@ class OpenAIRealtimeClient:
             logger.critical(f"🔄 [{call_sid}] Entering main event loop")
             print(f"\n!!! DEBUG: Entering main event processing loop", flush=True)
             
+            # Enhanced safety for WebSocket processing with better error handling
+            # First check if already active to prevent duplicate receivers
+            if not self.is_processing_loop_active:
+                self.is_processing_loop_active = True
+                logger.critical(f"🟢 [{call_sid}] Processing loop becoming ACTIVE")
+            else:
+                logger.critical(f"🔴 [{call_sid}] ERROR: Processing loop already active! Cannot have multiple concurrent receivers")
+                logger.critical(f"🔴 [{call_sid}] This would cause 'cannot call recv while another coroutine is already waiting'")
+                logger.critical(f"🔴 [{call_sid}] Skipping duplicate process_messages() call")
+                return
+                
             # Using async for is safer to prevent multiple recv() calls
             # However, we need to handle the case where the connection is closed forcibly
             async for message in self.websocket:
@@ -768,15 +787,42 @@ class OpenAIRealtimeClient:
                         if "error" in event:
                             error_info = event.get("error", {})
                             error_code = error_info.get("code", "")
+                            error_message = error_info.get("message", "")
+                            error_param = error_info.get("param", "")
                             
-                            if error_code == "invalid_api_key":
-                                logger.critical(f"🔴 [{call_sid}] INVALID API KEY ERROR FROM OPENAI - Signaling stop and will close connection.")
-                                self.is_processing_loop_active = False
-                                
-                                # Don't call self.close_connection() directly from here
-                                # Let the loop exit cleanly and handle the cleanup in finally
-                                # Breaking here ensures we don't try to process more messages
-                                break
+                            # List of ALL error types that should terminate the connection
+                            fatal_errors = [
+                                "invalid_api_key", "missing_model", "insufficient_quota", 
+                                "invalid_request_error", "model_not_found", "unknown_parameter", 
+                                "missing_required_parameter", "authentication_error",
+                                "server_error", "rate_limit_exceeded", "invalid_model"
+                            ]
+                            
+                            # Log detailed information about the error
+                            logger.critical(f"🔴 [{call_sid}] FATAL ERROR FROM OPENAI: {error_code} - {error_message}")
+                            if error_param:
+                                logger.critical(f"🔴 [{call_sid}] Error parameter: {error_param}")
+                            logger.critical(f"🔴 [{call_sid}] Full error info: {json.dumps(error_info)}")
+                            logger.critical(f"🔴 [{call_sid}] Terminating OpenAI Realtime connection due to fatal error")
+                            
+                            # Print debug message to console
+                            print(f"\n!!! DEBUG: FATAL ERROR FROM OPENAI: {error_code} - {error_message}", flush=True)
+                            
+                            # Signal termination
+                            self.is_processing_loop_active = False
+                            self.running = False  # Also set running to false to ensure cleanup
+                            
+                            # Store error information for the client to access
+                            self.last_error = {
+                                "code": error_code,
+                                "message": error_message,
+                                "param": error_param
+                            }
+                            
+                            # Don't call self.close_connection() directly from here
+                            # Let the loop exit cleanly and handle the cleanup in finally
+                            # Breaking here ensures we don't try to process more messages
+                            break
                             
                     elif event_type == "session.update":
                         status = event.get("status", "unknown")
@@ -926,33 +972,32 @@ class OpenAIRealtimeClient:
             response_id = str(uuid.uuid4())
         
         try:
-            # First, create a conversation item with the text (to provide context)
+            # Create a conversation item with the text, exactly following OpenAI docs format
+            # Note: "item" is the correct key, not "conversationItem"
             conversation_item = {
                 "type": "conversation.item.create",
-                "conversationItem": {
-                    "role": "assistant",
-                    "content": text
+                "item": {
+                    "type": "assistant.message",
+                    "text_content": text
                 }
             }
             
-            logger.debug(f"[{call_sid}] Sending conversation.item.create: {json.dumps(conversation_item)}")
+            logger.critical(f"[{call_sid}] Sending conversation.item.create: {json.dumps(conversation_item)}")
             await self.send_event(conversation_item)
             
-            # Then, create a response with the text to be spoken
-            # This follows the OpenAI Realtime API documentation format
-            # https://platform.openai.com/docs/guides/realtime-conversations
+            # Create a response with the text to be spoken, precisely matching OpenAI docs
             response_create = {
                 "type": "response.create",
                 "response_id": response_id,
                 "response": {
-                    "text": text,  # Include text explicitly as per the docs
-                    "responder": {"type": "model"},  # Uses the voice from session config
-                    "end_of_response": True,
-                    "modalities": ["audio"]  # Request audio output
+                    "text": text,  # Text to be spoken
+                    "responder": {"type": "model"},
+                    "end_of_response": True
+                    # Removed "modalities" as it might not be needed or expected here
                 }
             }
             
-            logger.debug(f"[{call_sid}] Sending response.create: {json.dumps(response_create)}")
+            logger.critical(f"[{call_sid}] Sending response.create: {json.dumps(response_create)}")
             await self.send_event(response_create)
             
             logger.info(f"[{call_sid}] Sent text for TTS: \"{text}\" with response_id: {response_id}")
@@ -1001,6 +1046,21 @@ class OpenAIRealtimeClient:
             logger.critical(traceback.format_exc())
             raise
     
+    # Alias method to ensure API compatibility
+    async def return_tool_result(self, tool_id: str, result: Dict[str, Any], response_id: Optional[str] = None):
+        """
+        Alias for send_tool_response to maintain API compatibility with different modules.
+        
+        Args:
+            tool_id: The ID of the tool call
+            result: The result to send
+            response_id: Optional unique ID for the response
+        
+        Returns:
+            The response_id for tracking response events from OpenAI
+        """
+        return await self.send_tool_response(tool_id, result, response_id)
+    
     async def send_tool_response(self, tool_id: str, result: Dict[str, Any], response_id: Optional[str] = None):
         """
         Send a tool response to the OpenAI Realtime API.
@@ -1027,32 +1087,32 @@ class OpenAIRealtimeClient:
             # Convert result to JSON string if it's not already
             result_content = json.dumps(result) if not isinstance(result, str) else result
             
-            # Create a conversation item with the tool output
-            # This follows the OpenAI Realtime API documentation format
+            # Create a conversation item with the tool output, exactly following OpenAI docs
+            # Note: "item" is the correct key, not "conversationItem"
             conversation_item = {
                 "type": "conversation.item.create",
-                "conversationItem": {
-                    "role": "function_call_output",
-                    "content": result_content,
-                    "id": tool_id
+                "item": {
+                    "type": "tool_result",
+                    "tool_call_id": tool_id,
+                    "content": result_content
                 }
             }
             
-            logger.debug(f"[{call_sid}] Sending function_call_output: {json.dumps(conversation_item)}")
+            logger.critical(f"[{call_sid}] Sending tool_result: {json.dumps(conversation_item)}")
             await self.send_event(conversation_item)
             
-            # Generate a response that includes both text and audio modalities
+            # Generate a response using the exact structure from OpenAI docs
             response_create = {
                 "type": "response.create",
                 "response_id": response_id,
                 "response": {
                     "responder": {"type": "model"},
-                    "end_of_response": True,
-                    "modalities": ["text", "audio"]
+                    "end_of_response": True
+                    # Removed modalities as it might not be needed or expected here
                 }
             }
             
-            logger.debug(f"[{call_sid}] Sending response.create after tool: {json.dumps(response_create)}")
+            logger.critical(f"[{call_sid}] Sending response.create after tool: {json.dumps(response_create)}")
             await self.send_event(response_create)
             
             logger.info(f"[{call_sid}] Sent tool response for tool ID: {tool_id} with response_id: {response_id}")
@@ -1169,7 +1229,7 @@ class RealtimeClientManager:
         
         # Default configuration
         self.default_config = RealtimeConfig(
-            model="gpt-4o-realtime-preview-2024-10-01",
+            model="gpt-4o-realtime-preview-2024-12-17",  # Updated to the latest model version
             voice="shimmer",
             sample_rate_hz=8000,
             input_audio_format="mulaw",
@@ -1288,9 +1348,9 @@ async def process_realtime_audio(
     """
     logger.info(f"Starting real-time audio processing for call: {call_sid}")
     
-    # Create client configuration
+    # Create client configuration with updated model name
     config = RealtimeConfig(
-        model="gpt-4o-realtime-preview-2024-10-01",
+        model="gpt-4o-realtime-preview-2024-12-17",  # Updated to latest model version
         instructions=instructions,
         voice="shimmer",
         sample_rate_hz=8000,

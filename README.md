@@ -1,9 +1,9 @@
-RedBarSushiAI
-![alt text](https://img.shields.io/github/actions/workflow/status/yourusername/RedBarSushiAI/ci.yml?branch=main)
+# RedBarSushiAI
 
-![alt text](https://img.shields.io/badge/python-3.11%2B-blue)
-
-![alt text](https://img.shields.io/badge/license-Proprietary-red)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688)
+![License](https://img.shields.io/badge/license-Proprietary-red)
+![OpenAI](https://img.shields.io/badge/OpenAI%20Realtime-GPT--4o-brightgreen)
 
 RedBarSushiAI is an AI-powered voice ordering system for Red Bar Sushi, enabling customers to place orders and get menu information over the phone. It integrates with Twilio for telephony, OpenAI's Realtime API for advanced speech-to-speech interaction, Deliverect for POS/menu management, and leverages a modern async architecture with FastAPI and multi-agent design for complex conversation handling.
 
@@ -15,8 +15,8 @@ RedBarSushiAI is an AI-powered voice ordering system for Red Bar Sushi, enabling
 - **Async Database-Backed**: Uses PostgreSQL with SQLAlchemy 2.0 and asyncpg for non-blocking data access.
 - **State Management**: Uses Redis for caching and managing conversation state during calls.
 - **Asynchronous Tasks**: Uses background tasks for processing (e.g., SMS confirmations).
-- **Resilience**: Includes fallback mechanisms for caching and comprehensive error handling patterns.
-- **Detailed Logging & Monitoring**: Comprehensive logging for diagnostics and tracing.
+- **Resilient WebSocket Handling**: Optimized WebSocket communication with OpenAI's Realtime API, featuring comprehensive error handling and connection recovery.
+- **Advanced Logging & Monitoring**: Enhanced diagnostic logging for tracing complex WebSocket interactions and Realtime API events.
 
 🛠️ Quick Start
 ## Prerequisites
@@ -24,7 +24,7 @@ RedBarSushiAI is an AI-powered voice ordering system for Red Bar Sushi, enabling
 - Docker & Docker Compose
 - PostgreSQL (Managed via Docker Compose)
 - Redis (Managed via Docker Compose)
-- OpenAI API key (with access to Realtime API, e.g., GPT-4o Realtime models)
+- OpenAI API key (with access to the latest Realtime API models, specifically `gpt-4o-realtime-preview-2024-12-17`)
 - Twilio Account & Phone Number configured for Voice/Media Streams
 - Deliverect Account & API Credentials (including a configured Menu Update Webhook URL pointing to this service)
 - ngrok or similar tunneling service for local development testing with Twilio webhooks.
@@ -121,26 +121,46 @@ Use Docker Compose for a consistent development and production environment inclu
 # First time or after major config changes:
 ./force_rebuild.sh
 
-# Start/Restart containers using the built image:
-./restart_docker.sh
+# Start/Restart containers using the fixed configuration:
+./restart_docker_fixed.sh 
+
+# For local testing with Twilio, start with ngrok tunneling:
+./start_docker_with_ngrok.sh
 
 # Check health:
 ./check_docker_health.sh
 
 # View logs:
-docker-compose logs -f redbarsushi-app  # Adjust service name if needed
+docker logs -f redbarsushi-app
+
+# Monitor WebSocket activity:
+docker logs -f redbarsushi-app | grep "OPENAI\|WebSocket\|ERROR"
 ```
 
 ## Docker Compose Commands
 ```bash
-# Start all services detached:
-docker-compose up -d
+# Start all services with the fixed configuration:
+docker-compose -f docker-compose.fixed.yml up -d
 
 # Stop services:
-docker-compose down
+docker-compose -f docker-compose.fixed.yml down
 
 # Force rebuild image and restart:
-docker-compose up -d --build
+docker-compose -f docker-compose.fixed.yml up -d --build
+
+# View logs in real-time:
+docker-compose -f docker-compose.fixed.yml logs -f
+```
+
+## Environment Setup
+Make sure your `.env.development` file contains the following key settings:
+```
+# OpenAI Settings (Critical for Realtime API)
+OPENAI_API_KEY=your_valid_api_key
+OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview-2024-12-17
+OPENAI_REALTIME_VOICE=shimmer
+
+# Database and Redis settings are handled by docker-compose.fixed.yml
 ```
 
 ## 🚦 CI/CD Pipeline
@@ -214,19 +234,25 @@ The system uses a sophisticated multi-agent architecture with an Async Finite St
 1. **Customer Call:** Customer calls the Twilio number.
 2. **TwiML & WS Connect:** FastAPI endpoint returns TwiML instructing Twilio to `<Connect>` to the app's `/ws/media/{call_sid}` WebSocket endpoint.
 3. **Async Realtime Session:** The async WebSocket handler:
-   * Accepts Twilio WebSocket.
-   * Connects to OpenAI Realtime API WebSocket with aiohttp.
-   * Sends `session.update` to configure OpenAI.
+   * Accepts Twilio WebSocket connection.
+   * Connects to OpenAI Realtime API WebSocket using `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17&voice=shimmer`.
+   * Sends `session.update` with audio format configuration and system instructions.
    * Creates asyncio tasks to manage bidirectional audio streams.
-   * Uses asyncio queues for event processing.
+   * Uses asyncio queues for event processing with robust error handling.
 4. **Conversation Loop:**
    * User speaks; audio streamed Twilio -> App WS -> OpenAI WS.
    * OpenAI VAD detects end of speech.
    * OpenAI sends transcript event.
    * App WS handler receives transcript, passes it to FSM and agent orchestrator.
 5. **Async Agent Orchestration:** FSM determines the current state and appropriate agent, processes input, potentially calls tools, and generates a text response.
-6. **TTS Response:** App WS handler sends agent's text to OpenAI for TTS.
-7. **Audio Output:** OpenAI streams back TTS audio. App WS handler forwards this to Twilio WS. User hears response.
+6. **TTS Response:** App WS handler:
+   * Creates a conversation item with agent's response text
+   * Sends `conversation.item.create` message with the `item` containing the response 
+   * Requests TTS with a `response.create` message with a unique response_id
+7. **Audio Output:** OpenAI generates TTS audio, then:
+   * Streams audio chunks via `response.audio.delta` events
+   * App WS handler forwards these audio chunks to Twilio WS
+   * User hears the spoken response in real-time
 8. **Order Processing:** Cart building, validation, and Deliverect submission occur based on FSM state.
 9. **Call End:** User or system hangs up, WebSockets close, tasks are properly cancelled, and resources are cleaned up.
 
@@ -250,6 +276,9 @@ Each state has a specialized async handler, and transitions are triggered by eve
 - [CONVERSATION_STORE.md](CONVERSATION_STORE.md) — Conversation state management
 - [ADVANCED_AGENTIC_PATTERNS.md](ADVANCED_AGENTIC_PATTERNS.md) — Agent orchestration patterns
 - [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) — Detailed system architecture documentation
+- [OPENAI_REALTIME_FIX_UPDATED.md](OPENAI_REALTIME_FIX_UPDATED.md) — Fixes for OpenAI Realtime API integration
+- [OPENAI_REALTIME_PAYLOAD_FIXES.md](OPENAI_REALTIME_PAYLOAD_FIXES.md) — Details on OpenAI Realtime payload format updates
+- [TEST_AFTER_API_KEY_FIX.md](TEST_AFTER_API_KEY_FIX.md) — Testing instructions after API key and WebSocket fixes
 
 ## 🤝 Contributing
 Please read our contribution guidelines before submitting pull requests.
@@ -328,9 +357,9 @@ CELERY_RESULT_BACKEND=redis://host:port/1
 
 # OpenAI
 OPENAI_API_KEY=sk-...
-OPENAI_REALTIME_MODEL="gpt-4o-realtime-preview-..." # Specify model
+OPENAI_REALTIME_MODEL="gpt-4o-realtime-preview-2024-12-17" # Latest model version
 OPENAI_REALTIME_VOICE="shimmer" # Or alloy, nova, etc.
-OPENAI_REALTIME_SYSTEM_MESSAGE="You are..." # Your full system prompt
+OPENAI_REALTIME_INSTRUCTIONS="You are..." # Your full system prompt
 
 # Twilio
 TWILIO_ACCOUNT_SID=AC...

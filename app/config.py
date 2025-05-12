@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     
     # OpenAI settings
     OPENAI_API_KEY: Optional[str] = Field("USING_DEFAULT_FALLBACK_KEY", env="OPENAI_API_KEY")
-    OPENAI_REALTIME_MODEL: str = Field("gpt-4o-realtime-preview-2024-10-01", env="OPENAI_REALTIME_MODEL")
+    OPENAI_REALTIME_MODEL: str = Field("gpt-4o-realtime-preview-2024-12-17", env="OPENAI_REALTIME_MODEL")
     OPENAI_REALTIME_VOICE: str = Field("shimmer", env="OPENAI_REALTIME_VOICE")
     OPENAI_REALTIME_INSTRUCTIONS: str = Field(
         """

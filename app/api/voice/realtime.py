@@ -161,11 +161,22 @@ async def process_transcripts(
                 call_sid, transcript
             )
             
-            # Send response text to OpenAI for TTS
+            # Send response text to OpenAI for TTS - check client connection first
             response_text = response.get("text", "")
             if response_text:
                 logger.critical(f"🔄 [{call_sid}] Sending response to TTS: {response_text}")
-                await openai_client.request_response(response_text)
+                
+                # Check if client is still connected before sending
+                if hasattr(openai_client, 'connected') and openai_client.connected:
+                    try:
+                        await openai_client.request_response(response_text)
+                        logger.critical(f"🟢 [{call_sid}] Successfully sent response to TTS")
+                    except Exception as e:
+                        logger.critical(f"🔴 [{call_sid}] Error sending response to TTS: {str(e)}")
+                        logger.critical(traceback.format_exc())
+                else:
+                    logger.warning(f"🔴 [{call_sid}] Cannot send response to TTS - OpenAI client not connected")
+                    print(f"\n!!! DEBUG: [{call_sid}] Cannot send to TTS - client disconnected", flush=True)
             
             # Mark task as done
             transcript_queue.task_done()
@@ -202,6 +213,12 @@ async def process_events(
             event_data = await event_queue.get()
             logger.debug(f"[{call_sid}] Processing event: {event_data.get('type')}")
             
+            # Check if client is still connected before processing
+            if not hasattr(openai_client, 'connected') or not openai_client.connected:
+                logger.warning(f"[{call_sid}] Cannot process event - OpenAI client not connected")
+                event_queue.task_done()
+                continue
+                
             if event_data.get("type") == "tool_call":
                 # Extract tool call details
                 tool_call = event_data.get("data", {})
@@ -215,10 +232,14 @@ async def process_events(
                         call_sid, tool_name, tool_args
                     )
                     
-                    # Return the result to OpenAI
-                    await openai_client.return_tool_result(
-                        tool_call.get("id", ""), result.get("result", {})
-                    )
+                    # Check again if client is still connected before sending response
+                    if hasattr(openai_client, 'connected') and openai_client.connected:
+                        # Return the result to OpenAI
+                        await openai_client.return_tool_result(
+                            tool_call.get("id", ""), result.get("result", {})
+                        )
+                    else:
+                        logger.warning(f"[{call_sid}] Cannot return tool result - OpenAI client disconnected")
             
             # Mark task as done
             event_queue.task_done()
