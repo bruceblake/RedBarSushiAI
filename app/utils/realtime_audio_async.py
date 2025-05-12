@@ -567,10 +567,19 @@ class OpenAIRealtimeClient:
             logger.error(traceback.format_exc())
             raise
     
+    async def process_messages(self):
+        """
+        Process messages from the OpenAI Realtime API.
+        This runs as a background task while the client is connected.
+        Public method called by handlers.py.
+        """
+        return await self._process_events()
+    
     async def _process_events(self):
         """
         Process events from the OpenAI Realtime API.
         This runs as a background task while the client is connected.
+        Internal implementation used by process_messages.
         """
         if not self.websocket:
             logger.critical("🔴 WebSocket not connected, cannot process events - CRITICAL FAILURE")
