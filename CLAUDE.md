@@ -802,3 +802,36 @@ The WebSocket implementation for voice processing follows these key patterns:
    - Handles audio format conversion between Twilio and OpenAI
    - Manages OpenAI Realtime API session configuration
    - Processes events from OpenAI and converts them to application events
+
+### WebSocket Stability Enhancements (May 2025)
+
+Several critical fixes have been implemented to enhance WebSocket stability:
+
+1. **Method Naming Consistency**:
+   - Added robust `request_response` method to ensure compatibility between handlers and the OpenAI client
+   - Implemented connection state validation before TTS requests
+   - Added detailed logging with call SID context for improved debugging
+
+2. **WebSocket Connection Management**:
+   - Fixed the "cannot call recv while another coroutine is already waiting" error by using the safe `async for message in self.websocket` pattern
+   - Implemented proper task tracking with the `is_processing_loop_active` flag
+   - Separated connection closure handling for normal vs. abnormal disconnects
+   - Added specific handling for OpenAI API key errors
+
+3. **Task Lifecycle Management**:
+   - Enhanced task tracking to prevent resource leaks
+   - Implemented graceful task termination with timeout
+   - Added state flags for clean loop termination
+   - Improved error classification for different error scenarios
+
+4. **API Key Validation**:
+   - Added proactive detection for test/dummy API keys
+   - Enhanced error reporting for invalid keys
+   - Improved logging to clearly identify key-related issues
+
+5. **Testing & Verification**:
+   - Added comprehensive test script (`test_realtime_client.py`) to verify WebSocket implementation
+   - Created detailed documentation in `FIX_SUMMARY.md` and `WEBSOCKET_FIX_CHANGES.md`
+   - Added step-by-step debugging instructions for WebSocket issues
+
+These improvements ensure a more reliable WebSocket connection between Twilio, the FastAPI server, and the OpenAI Realtime API, addressing previous issues with connection handling, method naming, and task management.

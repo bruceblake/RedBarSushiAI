@@ -407,13 +407,22 @@ class OpenAIRealtimeClient:
         if self.api_key:
             key_preview = self.api_key[:4] + '...' + self.api_key[-4:] if len(self.api_key) > 8 else '[TOO SHORT]'
             key_length = len(self.api_key)
-            logger.critical(f"🔶 OpenAI API Key configured, preview: {key_preview}, length: {key_length}")
-            logger.critical(f"🔶 OpenAI API Key source: {'INSTANCE PARAMETER' if hasattr(self, '_explicit_api_key_provided') else 'SETTINGS'}")
+            logger.critical(f"🔶 [{self.session_id}] OpenAI API Key configured, preview: {key_preview}, length: {key_length}")
+            logger.critical(f"🔶 [{self.session_id}] OpenAI API Key source: {'INSTANCE PARAMETER' if hasattr(self, '_explicit_api_key_provided') else 'SETTINGS'}")
             print(f"\n!!! DEBUG: OpenAI API Key present (preview: {key_preview}, length: {key_length})", flush=True)
             
+            # Advanced key validation checks
             if not self.api_key.startswith('sk-'):
-                logger.critical(f"🔴 WARNING: API key doesn't start with 'sk-', may be invalid: {key_preview}")
+                logger.critical(f"🔴 [{self.session_id}] WARNING: API key doesn't start with 'sk-', may be invalid: {key_preview}")
                 print(f"\n!!! DEBUG: API key format warning - doesn't start with 'sk-'", flush=True)
+                
+            # Check for test/dummy key patterns
+            test_key_patterns = ['mytestapikey', 'test', 'dummy', 'sample', 'example']
+            if any(pattern in self.api_key.lower() for pattern in test_key_patterns):
+                logger.critical(f"🔴 [{self.session_id}] CRITICAL WARNING: API key appears to be a test/dummy key: {key_preview}")
+                logger.critical(f"🔴 [{self.session_id}] This key will NOT work with OpenAI. Please use a real API key!")
+                print(f"\n!!! DEBUG: CRITICAL WARNING: API key appears to be a test/dummy key!", flush=True)
+                print(f"\n!!! DEBUG: Connection will initially succeed but then be rejected by OpenAI!", flush=True)
         
         if self.connected:
             logger.critical("🟢 Already connected to OpenAI Realtime API")
@@ -599,26 +608,32 @@ class OpenAIRealtimeClient:
         This runs as a background task while the client is connected.
         Public method called by handlers.py.
         """
+        # Call SID for logging context
+        call_sid = getattr(self, 'session_id', 'UNKNOWN_CALL')
+        
         if not self.websocket or not self.connected:
-            logger.critical("🔴 WebSocket not connected, cannot process messages - CRITICAL FAILURE")
+            logger.critical(f"🔴 [{call_sid}] WebSocket not connected, cannot process messages - CRITICAL FAILURE")
             print(f"\n!!! DEBUG: WebSocket not connected, cannot process messages", flush=True)
             self.is_processing_loop_active = False
             return
         
-        logger.critical("🟢 Starting event processing loop - CONNECTION SUCCESSFUL")
+        logger.critical(f"🟢 [{call_sid}] Starting event processing loop - CONNECTION SUCCESSFUL")
         print(f"\n!!! DEBUG: Event processing loop STARTING", flush=True)
         
+        self.is_processing_loop_active = True
+        
         try:
-            logger.critical("🔄 Entering main event loop")
+            logger.critical(f"🔄 [{call_sid}] Entering main event loop")
             print(f"\n!!! DEBUG: Entering main event processing loop", flush=True)
             
             # Using async for is safer to prevent multiple recv() calls
+            # However, we need to handle the case where the connection is closed forcibly
             async for message in self.websocket:
                 if not self.is_processing_loop_active or not self.running:
-                    logger.info("Event loop flagged to stop, breaking")
+                    logger.info(f"[{call_sid}] Event loop flagged to stop, breaking")
                     break
                 
-                logger.debug(f"🟢 Received WebSocket message")
+                logger.debug(f"🟢 [{call_sid}] Received WebSocket message")
                 
                 try:
                     # Parse the message as JSON
@@ -627,15 +642,26 @@ class OpenAIRealtimeClient:
                     
                     # Log the event (with different log levels based on type)
                     if event_type in ["error", "session.error"]:
-                        logger.critical(f"🔴 RECEIVED ERROR EVENT: {json.dumps(event)}")
+                        logger.critical(f"🔴 [{call_sid}] RECEIVED ERROR EVENT: {json.dumps(event)}")
                         print(f"\n!!! DEBUG: RECEIVED ERROR EVENT: {json.dumps(event)}", flush=True)
+                        
+                        # Check for specific error types that should trigger a clean shutdown
+                        if "error" in event:
+                            error_info = event.get("error", {})
+                            error_code = error_info.get("code", "")
+                            
+                            if error_code == "invalid_api_key":
+                                logger.critical(f"🔴 [{call_sid}] INVALID API KEY ERROR - Stopping processing loop")
+                                self.is_processing_loop_active = False
+                                break
+                            
                     elif event_type == "session.update":
                         status = event.get("status", "unknown")
                         if status == "error":
-                            logger.critical(f"🔴 SESSION UPDATE ERROR: {json.dumps(event)}")
+                            logger.critical(f"🔴 [{call_sid}] SESSION UPDATE ERROR: {json.dumps(event)}")
                             print(f"\n!!! DEBUG: SESSION UPDATE ERROR: {json.dumps(event)}", flush=True)
                         else:
-                            logger.critical(f"🟢 SESSION UPDATE SUCCESS: {status}")
+                            logger.critical(f"🟢 [{call_sid}] SESSION UPDATE SUCCESS: {status}")
                             print(f"\n!!! DEBUG: SESSION UPDATE SUCCESS: {status}", flush=True)
                     elif event_type == "transcript.final":
                         # Extract the transcript text from the correct location in the structure
@@ -645,40 +671,51 @@ class OpenAIRealtimeClient:
                         if not transcript_text and "data" in event:
                             transcript_text = event.get("data", {}).get("text", "")
                         
-                        logger.critical(f"🟢 RECEIVED TRANSCRIPT: {transcript_text}")
+                        logger.critical(f"🟢 [{call_sid}] RECEIVED TRANSCRIPT: {transcript_text}")
                         print(f"\n!!! DEBUG: RECEIVED TRANSCRIPT: {transcript_text}", flush=True)
                     elif event_type.startswith("response.audio"):
-                        logger.debug(f"Received audio event: {event_type}")
+                        logger.debug(f"[{call_sid}] Received audio event: {event_type}")
                     else:
-                        logger.info(f"Received event: {event_type}")
-                        logger.debug(f"Event details: {json.dumps(event)}")
+                        logger.info(f"[{call_sid}] Received event: {event_type}")
+                        logger.debug(f"[{call_sid}] Event details: {json.dumps(event)}")
                     
                     # Process the event
                     await self.event_processor.process_event(event)
                     
                 except json.JSONDecodeError as e:
-                    logger.critical(f"🔴 ERROR DECODING JSON: {e}")
-                    logger.critical(f"🔴 Raw message: {message}")
+                    logger.critical(f"🔴 [{call_sid}] ERROR DECODING JSON: {e}")
+                    logger.critical(f"🔴 [{call_sid}] Raw message: {message}")
                     print(f"\n!!! DEBUG: ERROR DECODING JSON: {e}", flush=True)
                 except Exception as e:
-                    logger.critical(f"🔴 ERROR PROCESSING EVENT: {e}")
+                    logger.critical(f"🔴 [{call_sid}] ERROR PROCESSING EVENT: {e}")
                     logger.critical(traceback.format_exc())
                     print(f"\n!!! DEBUG: ERROR PROCESSING EVENT: {e}", flush=True)
                     print(f"\n!!! DEBUG: {traceback.format_exc()}", flush=True)
-        except websockets.exceptions.ConnectionClosed as e:
-            logger.critical(f"🔴 WebSocket CONNECTION CLOSED: code={e.code}, reason={e.reason}")
-            print(f"\n!!! DEBUG: WebSocket CONNECTION CLOSED: code={e.code}, reason={e.reason}", flush=True)
+        except websockets.exceptions.ConnectionClosedOK as e:
+            # Normal closure - log at info level
+            logger.info(f"[{call_sid}] WebSocket CONNECTION CLOSED NORMALLY: code={e.code}, reason={e.reason}")
+            print(f"\n!!! DEBUG: WebSocket CONNECTION CLOSED NORMALLY: code={e.code}, reason={e.reason}", flush=True)
+            await self.event_processor.on_close({"code": e.code, "reason": e.reason})
+        except websockets.exceptions.ConnectionClosedError as e:
+            # Abnormal closure - log at critical level
+            logger.critical(f"🔴 [{call_sid}] WebSocket CONNECTION CLOSED WITH ERROR: code={e.code}, reason={e.reason}")
+            print(f"\n!!! DEBUG: WebSocket CONNECTION CLOSED WITH ERROR: code={e.code}, reason={e.reason}", flush=True)
             await self.event_processor.on_close({"code": e.code, "reason": e.reason})
         except asyncio.CancelledError:
-            logger.info("OpenAI WebSocket task cancelled.")
+            logger.info(f"[{call_sid}] OpenAI WebSocket task cancelled.")
             await self.event_processor.on_close({"code": 1000, "reason": "Task cancelled"})
         except Exception as e:
-            logger.critical(f"🔴 ERROR IN PROCESS_MESSAGES: {e}")
+            logger.critical(f"🔴 [{call_sid}] ERROR IN PROCESS_MESSAGES: {e}")
             logger.critical(traceback.format_exc())
             print(f"\n!!! DEBUG: ERROR IN PROCESS_MESSAGES: {e}", flush=True)
+            
+            # Specifically catch and log the recv() error
+            if isinstance(e, RuntimeError) and "cannot call recv while another coroutine is already waiting" in str(e):
+                logger.critical(f"🔴 [{call_sid}] DETECTED MULTIPLE RECV CALLS ERROR. This indicates a problem with the websockets library handling. The event loop will be terminated.")
+            
             await self.event_processor.on_close({"code": 1011, "reason": str(e)})
         finally:
-            logger.critical("🔴 EVENT PROCESSING STOPPED - Connection may have been lost")
+            logger.critical(f"🔴 [{call_sid}] EVENT PROCESSING STOPPED - Connection may have been lost")
             print(f"\n!!! DEBUG: EVENT PROCESSING STOPPED - Connection may have been lost", flush=True)
             self.running = False
             self.connected = False
@@ -751,8 +788,31 @@ class OpenAIRealtimeClient:
             text: The text to convert to speech
             response_id: Optional unique ID for the response
         """
-        logger.critical(f"Requesting response for text: {text}")
-        return await self.send_text_for_tts(text)
+        call_sid = getattr(self, 'session_id', 'UNKNOWN_CALL')
+        logger.critical(f"🔄 [{call_sid}] request_response CALLED for text: \"{text}\"")
+        
+        # Verify connection state first
+        if not self.connected or not self.websocket:
+            logger.critical(f"🔴 [{call_sid}] Cannot request_response - WebSocket not connected! Text: \"{text}\"")
+            raise RuntimeError(f"Cannot request TTS response - WebSocket not connected to OpenAI")
+        
+        # Check if websocket is open
+        is_open = getattr(self.websocket, 'open', False)
+        if not is_open:
+            logger.critical(f"🔴 [{call_sid}] Cannot request_response - WebSocket closed! Text: \"{text}\"")
+            raise RuntimeError(f"Cannot request TTS response - WebSocket connection is closed")
+            
+        logger.critical(f"🟢 [{call_sid}] Forwarding request_response to send_text_for_tts for text: \"{text}\"")
+        
+        try:
+            # Call the actual implementation
+            await self.send_text_for_tts(text)
+            logger.critical(f"🟢 [{call_sid}] Successfully sent TTS request for text: \"{text}\"")
+            return True
+        except Exception as e:
+            logger.critical(f"🔴 [{call_sid}] EXCEPTION in request_response: {str(e)}")
+            logger.critical(traceback.format_exc())
+            raise
     
     async def send_tool_response(self, tool_id: str, result: Dict[str, Any]):
         """
@@ -792,32 +852,52 @@ class OpenAIRealtimeClient:
     
     async def close(self):
         """Close the connection to the OpenAI Realtime API."""
-        logger.info("Closing OpenAI Realtime client")
+        call_sid = getattr(self, 'session_id', 'UNKNOWN_CALL')
+        logger.info(f"[{call_sid}] Closing OpenAI Realtime client")
         
-        # Signal the event loop to stop
+        # Signal the processing loop to stop FIRST
         self.running = False
         self.is_processing_loop_active = False
+        logger.info(f"[{call_sid}] Signaled processing loop to stop: is_processing_loop_active={self.is_processing_loop_active}")
         
-        # Cancel the event processing task
+        # Give the loop a chance to exit gracefully (with a short timeout)
         if self._event_processing_task and not self._event_processing_task.done():
-            logger.info("Cancelling event processing task")
-            self._event_processing_task.cancel()
+            logger.info(f"[{call_sid}] Waiting briefly for event processing task to exit gracefully")
             try:
-                await self._event_processing_task
-            except asyncio.CancelledError:
-                logger.info("Event processing task successfully cancelled during close")
+                # Wait a short time for the loop to exit gracefully
+                await asyncio.wait_for(asyncio.shield(self._event_processing_task), timeout=0.5)
+                logger.info(f"[{call_sid}] Event processing task exited gracefully")
+            except asyncio.TimeoutError:
+                # If it doesn't exit within the timeout, cancel it
+                logger.info(f"[{call_sid}] Graceful exit timed out, cancelling event processing task")
+                self._event_processing_task.cancel()
+                try:
+                    await self._event_processing_task
+                    logger.info(f"[{call_sid}] Event processing task successfully cancelled during close")
+                except asyncio.CancelledError:
+                    logger.info(f"[{call_sid}] Event processing task successfully cancelled during close")
+                except Exception as e:
+                    logger.error(f"[{call_sid}] Error awaiting cancelled event task: {e}")
+                    logger.error(traceback.format_exc())
             except Exception as e:
-                logger.error(f"Error awaiting cancelled event task: {e}")
+                logger.error(f"[{call_sid}] Error while waiting for task to complete: {e}")
+                logger.error(traceback.format_exc())
         
-        # Close the WebSocket connection
-        if self.websocket and self.connected:
+        # Now close the WebSocket connection
+        if self.websocket:
             try:
-                await self.websocket.close(1000, "Closing connection normally")
+                is_open = getattr(self.websocket, 'open', False)
+                if is_open:
+                    logger.info(f"[{call_sid}] Closing WebSocket connection")
+                    await self.websocket.close(1000, "Closing connection normally")
+                else:
+                    logger.info(f"[{call_sid}] WebSocket already closed")
             except Exception as e:
-                logger.error(f"Error closing WebSocket: {e}")
+                logger.error(f"[{call_sid}] Error closing WebSocket: {e}")
+                logger.error(traceback.format_exc())
         
         self.connected = False
-        logger.info("OpenAI Realtime client closed")
+        logger.info(f"[{call_sid}] OpenAI Realtime client closed")
     
     def register_callbacks(
         self,
