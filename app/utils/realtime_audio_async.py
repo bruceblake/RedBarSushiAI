@@ -741,6 +741,20 @@ class OpenAIRealtimeClient:
         except Exception as e:
             logger.error(f"Error sending text for TTS: {e}")
             logger.error(traceback.format_exc())
+            
+    async def request_response(self, text: str, response_id: Optional[str] = None):
+        """
+        Requests OpenAI to generate TTS for the given text.
+        This is an alias for send_text_for_tts to maintain compatibility with handlers.py.
+        
+        Args:
+            text: The text to convert to speech
+            response_id: Optional unique ID for the response
+        """
+        logger.critical(f"Requesting response for text: {text}")
+        return await self.send_text_for_tts(text)
+        logger.critical(f"Requesting response for text: {text}")
+        return await self.send_text_for_tts(text)
     
     async def send_tool_response(self, tool_id: str, result: Dict[str, Any]):
         """
