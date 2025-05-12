@@ -120,12 +120,23 @@ async def websocket_test_page():
 # Add a simple test WebSocket endpoint directly on the app
 @app.websocket("/ws-test/{client_id}")
 async def websocket_test_endpoint(websocket: WebSocket, client_id: str):
-    # Log detailed connection information including query parameters
+    # Log detailed connection information including query parameters and headers
     query_params = dict(websocket.query_params)
+    headers = dict(websocket.headers)
+    
+    # Extract custom parameters from either query params or headers
+    debug_param = query_params.get("debug", headers.get("debug", "false"))
+    client_param = query_params.get("client", headers.get("client", "unknown"))
+    time_param = query_params.get("time", headers.get("time", "0"))
+    
+    # Log all connection details
     ws_test_logger.critical(f"❗❗❗ /ws-test: WebSocket Connection ATTEMPTED for client_id: {client_id} ❗❗❗")
     ws_test_logger.critical(f"❗❗❗ Query Parameters: {query_params} ❗❗❗")
+    ws_test_logger.critical(f"❗❗❗ Headers: {headers} ❗❗❗")
+    ws_test_logger.critical(f"❗❗❗ Custom Parameters: debug={debug_param}, client={client_param}, time={time_param} ❗❗❗")
+    
     print(f"!!! PRINT DEBUG: /ws-test: ATTEMPTING ACCEPT for {client_id} !!!", flush=True)
-    print(f"!!! PRINT DEBUG: Query Parameters: {query_params} !!!", flush=True)
+    print(f"!!! PRINT DEBUG: Debug Params: debug={debug_param}, client={client_param}, time={time_param} !!!", flush=True)
     
     try:
         # Try to accept the WebSocket connection

@@ -163,22 +163,24 @@ async def receive_call(request: Request) -> PlainTextResponse:
         logger.critical(f"ATTENTION: Using browser-proven generic WebSocket endpoint!")
         
         # Create Stream parameters with production settings
-        # Add parameters to help with debugging (they'll be passed as query params)
-        from urllib.parse import urlencode
-        debug_params = {
-            "debug": "true",  
-            "client": "twilio",  # Mark this as from Twilio
-            "time": str(int(time.time()))  # Timestamp to trace this specific request
-        }
+        # Define parameters to help with debugging
+        timestamp = str(int(time.time()))
+        custom_params = [
+            {"name": "debug", "value": "true"},
+            {"name": "client", "value": "twilio"},  # Mark this as from Twilio
+            {"name": "time", "value": timestamp}  # Timestamp to trace this specific request
+        ]
         
-        # Add the query parameters to the URL
-        websocket_url_with_params = f"{websocket_url}?{urlencode(debug_params)}"
-        logger.critical(f"❗❗❗ FINAL WEBSOCKET URL WITH QUERY PARAMS: {websocket_url_with_params} ❗❗❗")
+        # Log the base WebSocket URL and parameters
+        logger.critical(f"❗❗❗ BASE WEBSOCKET URL: {websocket_url} ❗❗❗")
+        logger.critical(f"❗❗❗ PARAMETERS: debug=true, client=twilio, time={timestamp} ❗❗❗")
         
+        # Create the TwimlStreamParameter with custom parameters as child elements
         stream_params = TwimlStreamParameter(
-            url=websocket_url_with_params,
+            url=websocket_url,  # Use the base URL without query parameters
             track="both",  # Use both tracks for bidirectional streaming
-            name="media_stream"  # Consistent name for stream tracking
+            name="media_stream",  # Consistent name for stream tracking
+            custom_parameters=custom_params  # Pass the parameters as Parameter child elements
         )
         
         # Create welcome message based on environment

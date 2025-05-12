@@ -24,7 +24,7 @@ class TwimlStreamParameter(BaseModel):
     url: str
     track: Optional[str] = "both"  # inbound, outbound, or both
     name: Optional[str] = None
-    # parameters field removed - query parameters should be added to the URL instead
+    custom_parameters: Optional[List[Dict[str, str]]] = None  # List of parameter objects for <Parameter> elements
 
 class TwimlParameter(BaseModel):
     """Common parameters for TwiML generation."""
@@ -59,9 +59,25 @@ def generate_media_streams_twiml(params: TwimlParameter) -> str:
         track = params.stream_params.track
         stream_name = params.stream_params.name or "media_stream"
         
-        # Parameters should already be included in the URL from the caller
-        # We no longer modify the URL here since the query parameters are
-        # already added to the URL when the TwimlStreamParameter is created
+        # Build the Stream element with Parameter child elements if provided
+        # Start with the basic Stream opening tag
+        stream_tag = f'<Stream url="{stream_url}" track="{track}" name="{stream_name}"'
+        
+        # If there are custom parameters, add them as Parameter child elements
+        parameter_tags = ""
+        if params.stream_params.custom_parameters:
+            stream_tag += ">"  # Close the opening tag with > instead of />
+            
+            # Add Parameter elements for each custom parameter
+            for param in params.stream_params.custom_parameters:
+                if "name" in param and "value" in param:
+                    parameter_tags += f'\n        <Parameter name="{param["name"]}" value="{param["value"]}" />'
+            
+            # Close the Stream tag
+            stream_tag += f'{parameter_tags}\n        </Stream>'
+        else:
+            # No parameters, so close the tag as self-closing
+            stream_tag += " />"
         
         # Generate TwiML
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -69,7 +85,7 @@ def generate_media_streams_twiml(params: TwimlParameter) -> str:
     <Say voice="{params.voice}" language="{params.language}">{params.greeting_text}</Say>
     <Pause length="1"/>
     <Connect>
-        <Stream url="{stream_url}" track="{track}" name="{stream_name}" />
+        {stream_tag}
     </Connect>
     <Say voice="{params.voice}" language="{params.language}">{params.fallback_text}</Say>
 </Response>
