@@ -753,8 +753,6 @@ class OpenAIRealtimeClient:
         """
         logger.critical(f"Requesting response for text: {text}")
         return await self.send_text_for_tts(text)
-        logger.critical(f"Requesting response for text: {text}")
-        return await self.send_text_for_tts(text)
     
     async def send_tool_response(self, tool_id: str, result: Dict[str, Any]):
         """
