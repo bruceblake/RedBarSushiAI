@@ -178,7 +178,7 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # Create the TwimlStreamParameter with custom parameters as child elements
         stream_params = TwimlStreamParameter(
             url=websocket_url,  # Use the base URL without query parameters
-            track="both",  # Use both tracks for bidirectional streaming
+            track="inbound_track",  # For <Connect><Stream>, use inbound_track according to Twilio docs
             name="media_stream",  # Consistent name for stream tracking
             custom_parameters=custom_params  # Pass the parameters as Parameter child elements
         )

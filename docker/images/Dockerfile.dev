@@ -1,0 +1,43 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    gcc \
+    git \
+    libpq-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first to leverage Docker cache
+COPY requirements.txt .
+COPY requirements-core.txt .
+
+# Install Pydantic v1 first to ensure compatibility
+RUN pip install pydantic==1.10.13 && \
+    # Then install the rest of the dependencies
+    pip install -r requirements.txt --no-cache-dir
+
+# Install development dependencies
+RUN pip install pytest pytest-asyncio ipython
+
+# Copy application code
+COPY . .
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Create necessary directories
+RUN mkdir -p /app/logs
+
+# Install pydantic-settings for Pydantic v2 compatibility
+RUN pip install pydantic-settings
+
+# Expose the port
+EXPOSE 8080
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]

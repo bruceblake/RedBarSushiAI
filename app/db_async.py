@@ -12,7 +12,25 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import inspect, event, text
 
-from app.config import settings
+# Handle both Pydantic v1 and v2
+try:
+    from app.config import settings
+except ImportError as e:
+    # If there's an issue with the config import, try to use environment variables directly
+    import os
+    logger = logging.getLogger(__name__)
+    logger.error(f"Error importing settings from app.config: {e}")
+    logger.warning("Falling back to direct environment variable usage")
+    
+    # Get DATABASE_URL directly from the environment
+    database_url = os.environ.get("DATABASE_URL", "sqlite:///app.db")
+    
+    # Define a minimal settings object with just what we need
+    class MinimalSettings:
+        DATABASE_URL = database_url
+        ENVIRONMENT = os.environ.get("FASTAPI_ENV", "development")
+    
+    settings = MinimalSettings()
 
 # Set up logging
 logger = logging.getLogger(__name__)

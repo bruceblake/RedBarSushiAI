@@ -22,7 +22,7 @@ class TwimlStreamParameter(BaseModel):
     """
     
     url: str
-    track: Optional[str] = "both"  # inbound, outbound, or both
+    track: Optional[str] = "inbound_track"  # For <Connect><Stream>, use inbound_track
     name: Optional[str] = None
     custom_parameters: Optional[List[Dict[str, str]]] = None  # List of parameter objects for <Parameter> elements
 

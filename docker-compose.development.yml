@@ -4,7 +4,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/images/Dockerfile
+      dockerfile: docker/images/Dockerfile.dev
     container_name: redbarsushi-app-dev
     ports:
       - "${APP_PORT:-8080}:8080"
@@ -29,7 +29,7 @@ services:
       - redbarsushi-dev-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["/bin/bash", "-c", "cd /app && ./docker/fix_pydantic_version.sh && uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1 --log-level debug"]
+    command: ["/bin/bash", "-c", "echo '🚀 Starting RedBarSushiAI development environment...' && echo '📦 Pydantic version:' && pip show pydantic | grep Version && pip install pydantic==1.10.13 && echo '📦 Updated Pydantic version:' && pip show pydantic | grep Version && cd /app && python docker/main_simplified.py"]
 
   postgres:
     image: postgres:14
