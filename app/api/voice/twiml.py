@@ -164,17 +164,21 @@ async def receive_call(request: Request) -> PlainTextResponse:
         
         # Create Stream parameters with production settings
         # Add parameters to help with debugging (they'll be passed as query params)
-        stream_parameters = {
+        from urllib.parse import urlencode
+        debug_params = {
             "debug": "true",  
             "client": "twilio",  # Mark this as from Twilio
             "time": str(int(time.time()))  # Timestamp to trace this specific request
         }
         
+        # Add the query parameters to the URL
+        websocket_url_with_params = f"{websocket_url}?{urlencode(debug_params)}"
+        logger.critical(f"❗❗❗ FINAL WEBSOCKET URL WITH QUERY PARAMS: {websocket_url_with_params} ❗❗❗")
+        
         stream_params = TwimlStreamParameter(
-            url=websocket_url,
+            url=websocket_url_with_params,
             track="both",  # Use both tracks for bidirectional streaming
-            name="media_stream",     # Consistent name for stream tracking
-            parameters=stream_parameters  # Add debug parameters
+            name="media_stream"  # Consistent name for stream tracking
         )
         
         # Create welcome message based on environment

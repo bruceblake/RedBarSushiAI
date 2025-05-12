@@ -24,7 +24,7 @@ class TwimlStreamParameter(BaseModel):
     url: str
     track: Optional[str] = "both"  # inbound, outbound, or both
     name: Optional[str] = None
-    parameters: Optional[Dict[str, str]] = None
+    # parameters field removed - query parameters should be added to the URL instead
 
 class TwimlParameter(BaseModel):
     """Common parameters for TwiML generation."""
@@ -59,13 +59,9 @@ def generate_media_streams_twiml(params: TwimlParameter) -> str:
         track = params.stream_params.track
         stream_name = params.stream_params.name or "media_stream"
         
-        # Add parameters as URL query parameters instead of attributes
-        params_attr = ""
-        if params.stream_params.parameters:
-            from urllib.parse import urlencode
-            query_params = urlencode(params.stream_params.parameters)
-            # Modify the stream_url to include query parameters
-            stream_url = f"{stream_url}?{query_params}"
+        # Parameters should already be included in the URL from the caller
+        # We no longer modify the URL here since the query parameters are
+        # already added to the URL when the TwimlStreamParameter is created
         
         # Generate TwiML
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
