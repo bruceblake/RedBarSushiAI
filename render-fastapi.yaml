@@ -1,0 +1,179 @@
+###############################################################################
+# render-fastapi.yaml - RedBar Sushi AI with FastAPI (production + staging)  #
+###############################################################################
+
+services:
+  # ─────────────────────────  PRODUCTION STACK  ───────────────────────── #
+  - type: web
+    name: redbarsushi-web
+    runtime: python
+    buildCommand: |
+      # Install ALL dependencies using our comprehensive script
+      chmod +x ./install_all_dependencies.sh
+      ./install_all_dependencies.sh
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 4 --log-level info
+    envVars:
+      - key: PROCESS
+        value: web
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: FORCE_HEADLESS
+        value: "true"
+      - key: FASTAPI_ENV
+        value: production
+      - key: VOICE_HANDLER
+        value: realtime
+      - key: DB_MAX_RETRIES
+        value: "5"
+      - key: DB_INITIAL_RETRY_DELAY
+        value: "1.0"
+      - key: DB_MAX_RETRY_DELAY
+        value: "30.0"
+      - key: REDIS_URL
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+
+  - type: worker
+    name: redbarsushi-celery
+    runtime: python
+    buildCommand: |
+      # Install ALL dependencies using our comprehensive script
+      chmod +x ./install_all_dependencies.sh
+      ./install_all_dependencies.sh
+    startCommand: ./fix_celery.sh
+    envVars:
+      - key: PROCESS
+        value: worker
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: FORCE_HEADLESS
+        value: "true"
+      - key: DB_MAX_RETRIES
+        value: "5"
+      - key: DB_INITIAL_RETRY_DELAY
+        value: "1.0"
+      - key: DB_MAX_RETRY_DELAY
+        value: "30.0"
+      - key: REDIS_URL
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: redbarsushi-redis
+          type: redis
+          property: connectionString
+
+  - type: redis
+    name: redbarsushi-redis
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+
+  # ───────────────────────────  STAGING STACK  ────────────────────────── #
+  - type: web
+    name: redbarsushi-staging
+    branch: staging
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    buildCommand: ./fix_render_deploy.sh
+    envVars:
+      - key: PROCESS
+        value: web
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: FORCE_HEADLESS
+        value: "true"
+      - key: FASTAPI_ENV
+        value: staging
+      - key: IS_STAGING
+        value: "true"
+      - key: VOICE_HANDLER
+        value: realtime
+      - key: DB_MAX_RETRIES
+        value: "5"
+      - key: DB_INITIAL_RETRY_DELAY
+        value: "1.0"
+      - key: DB_MAX_RETRY_DELAY
+        value: "30.0"
+      - key: REDIS_URL
+        fromService:
+          name: redbarsushi-staging-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: redbarsushi-staging-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: redbarsushi-staging-redis
+          type: redis
+          property: connectionString
+
+  - type: worker
+    name: redbarsushi-staging-celery
+    branch: staging
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    buildCommand: ./fix_render_deploy.sh
+    envVars:
+      - key: PROCESS
+        value: worker
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: FORCE_HEADLESS
+        value: "true"
+      - key: FASTAPI_ENV
+        value: staging
+      - key: IS_STAGING
+        value: "true"
+      - key: DB_MAX_RETRIES
+        value: "5"
+      - key: DB_INITIAL_RETRY_DELAY
+        value: "1.0"
+      - key: DB_MAX_RETRY_DELAY
+        value: "30.0"
+      - key: REDIS_URL
+        fromService:
+          name: redbarsushi-staging-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: redbarsushi-staging-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: redbarsushi-staging-redis
+          type: redis
+          property: connectionString
+
+  - type: redis
+    name: redbarsushi-staging-redis
+    plan: starter
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
