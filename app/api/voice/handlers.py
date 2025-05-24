@@ -225,10 +225,10 @@ async def handle_media_stream(
                 payload = media.get("payload", "")
                 
                 # Forward the audio data to OpenAI Realtime API if connected
-                if payload and openai_task and not openai_task.done():
+                if payload and openai_task and not openai_task.done() and 'openai_client' in locals():
                     # Send audio data to the OpenAI client
                     from app.api.voice.audio import forward_audio_to_openai
-                    await forward_audio_to_openai(call_sid, payload, openai_task)
+                    await forward_audio_to_openai(call_sid, payload, openai_client)
             
             elif event == "stop":
                 # Handle stop event

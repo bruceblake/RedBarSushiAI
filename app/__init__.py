@@ -8,10 +8,22 @@ import os
 import logging
 import sys
 import traceback
-import stripe
-from twilio.rest import Client
-from app.config import *
 from datetime import datetime
+
+# Optional imports for services that might not be configured
+try:
+    import stripe
+except ImportError:
+    stripe = None
+    logging.warning("Stripe module not found - payment functionality will be disabled")
+
+try:
+    from twilio.rest import Client
+except ImportError:
+    Client = None
+    logging.warning("Twilio module not found - SMS functionality will be disabled")
+
+from app.config import *
 
 # Set up module-level logger
 logger = logging.getLogger(__name__)
@@ -180,11 +192,14 @@ except Exception as e:
 
     twilio_client = DummyTwilioClient()
 
-try:
-    # Initialize Stripe with timeout
-    stripe.api_key = STRIPE_API_KEY
-    stripe.max_network_retries = 2
-    stripe.default_http_client = stripe.http_client.RequestsClient(timeout=10)
-    logging.info("Stripe client initialized successfully")
-except Exception as e:
-    logging.error(f"Error initializing Stripe client: {e}")
+if stripe:
+    try:
+        # Initialize Stripe with timeout
+        stripe.api_key = STRIPE_API_KEY
+        stripe.max_network_retries = 2
+        stripe.default_http_client = stripe.http_client.RequestsClient(timeout=10)
+        logging.info("Stripe client initialized successfully")
+    except Exception as e:
+        logging.error(f"Error initializing Stripe client: {e}")
+else:
+    logging.warning("Stripe not available - payment functionality disabled")

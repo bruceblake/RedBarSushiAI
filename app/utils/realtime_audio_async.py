@@ -977,24 +977,24 @@ class OpenAIRealtimeClient:
             conversation_item = {
                 "type": "conversation.item.create",
                 "item": {
-                    "type": "assistant.message",
-                    "text_content": text
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": text
+                        }
+                    ]
                 }
             }
             
             logger.critical(f"[{call_sid}] Sending conversation.item.create: {json.dumps(conversation_item)}")
             await self.send_event(conversation_item)
             
-            # Create a response with the text to be spoken, precisely matching OpenAI docs
+            # Create a response with the text to be spoken
+            # This triggers OpenAI to generate audio for the conversation item we just created
             response_create = {
-                "type": "response.create",
-                "response_id": response_id,
-                "response": {
-                    "text": text,  # Text to be spoken
-                    "responder": {"type": "model"},
-                    "end_of_response": True
-                    # Removed "modalities" as it might not be needed or expected here
-                }
+                "type": "response.create"
             }
             
             logger.critical(f"[{call_sid}] Sending response.create: {json.dumps(response_create)}")

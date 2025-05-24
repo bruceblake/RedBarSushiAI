@@ -64,4 +64,3 @@ ON CONFLICT DO NOTHING;
 INSERT INTO menu_items (name, description, price, plu, category_id) 
 VALUES ('California Roll', 'Crab, avocado, and cucumber', 12.99, 'CALROLL', 1) 
 ON CONFLICT DO NOTHING;
-EOF < /dev/null

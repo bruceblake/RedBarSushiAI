@@ -9,15 +9,23 @@ import os
 import logging
 from typing import Dict, Any, Optional, List
 # Try import for Pydantic v2 first, fall back to v1 if needed
+# Check Pydantic version and import accordingly
 try:
-    # Pydantic v2 imports
-    from pydantic_settings import BaseSettings
-    from pydantic import Field, field_validator as validator, AnyHttpUrl
-    PYDANTIC_V2 = True
+    import pydantic
+    pydantic_version = tuple(map(int, pydantic.VERSION.split('.')[:2]))
+    if pydantic_version >= (2, 0):
+        # Pydantic v2 imports
+        from pydantic_settings import BaseSettings
+        from pydantic import Field, field_validator as validator, AnyHttpUrl
+        PYDANTIC_V2 = True
+    else:
+        # Pydantic v1 imports
+        from pydantic import BaseSettings, Field, validator, AnyHttpUrl
+        PYDANTIC_V2 = False
 except ImportError:
-    # Pydantic v1 imports for backward compatibility
-    from pydantic import BaseSettings, Field, validator, AnyHttpUrl
-    PYDANTIC_V2 = False
+    # Fallback if pydantic is not installed at all
+    logger.error("Pydantic is not installed!")
+    raise
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Ensure this logger is verbose
@@ -103,7 +111,11 @@ class Settings(BaseSettings):
     DELIVERECT_CLIENT_SECRET: Optional[str] = Field(None, env="DELIVERECT_CLIENT_SECRET")
     
     # Voice config
-    VOICE_HANDLER: str = Field("realtime", env="VOICE_HANDLER")
+    VOICE_HANDLER: str = Field("media_streams", env="VOICE_HANDLER")
+    
+    # Twilio ConversationRelay settings
+    TWILIO_CONVERSATION_SERVICE_SID: Optional[str] = Field(None, env="TWILIO_CONVERSATION_SERVICE_SID")
+    TWILIO_CONNECTOR_NAME: Optional[str] = Field(None, env="TWILIO_CONNECTOR_NAME")
 
     # Agent IDs
     OPENAI_FRONTLINE_AGENT_ID: Optional[str] = Field(None, env="OPENAI_FRONTLINE_AGENT_ID")
@@ -123,8 +135,9 @@ class Settings(BaseSettings):
     # Validators
     @validator('VOICE_HANDLER')
     def validate_voice_handler(cls, v, **kwargs):
-        if v != "realtime":
-            raise ValueError(f"Unsupported VOICE_HANDLER value: {v}, only 'realtime' is supported")
+        allowed_values = ["media_streams", "conversation_relay"]
+        if v not in allowed_values:
+            raise ValueError(f"Unsupported VOICE_HANDLER value: {v}, allowed values: {allowed_values}")
         return v
     
     if PYDANTIC_V2:

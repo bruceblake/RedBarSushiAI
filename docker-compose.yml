@@ -1,0 +1,171 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: redbarsushi-app
+    ports:
+      - "${APP_PORT:-8000}:8080"
+    environment:
+      # Database
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/redbarsushi
+      POSTGRES_PASSWORD: postgres
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      
+      # Application settings
+      FASTAPI_ENV: ${FASTAPI_ENV:-development}
+      FORCE_HEADLESS: "true"
+      OPENAI_REALTIME_NO_DISPLAY: "1"
+      CONTAINER_MODE: "1"
+      VOICE_HANDLER: realtime
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PYTHONUNBUFFERED: "1"
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-for-development}
+      
+      # Base URL for webhooks (required)
+      BASE_URL: ${BASE_URL:-http://localhost:8000}
+      
+      # API Keys (must be provided via .env file)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_REALTIME_MODEL: ${OPENAI_REALTIME_MODEL:-gpt-4o-realtime-preview-2024-10-01}
+      OPENAI_REALTIME_VOICE: ${OPENAI_REALTIME_VOICE:-shimmer}
+      
+      # Twilio (optional for local testing)
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      
+      # Deliverect (optional for local testing)
+      DELIVERECT_CHANNEL_NAME: ${DELIVERECT_CHANNEL_NAME:-redbarsushi}
+      DELIVERECT_API_KEY: ${DELIVERECT_API_KEY:-}
+      DELIVERECT_CLIENT_ID: ${DELIVERECT_CLIENT_ID:-}
+      DELIVERECT_CLIENT_SECRET: ${DELIVERECT_CLIENT_SECRET:-}
+      DELIVERECT_BASE_URL: ${DELIVERECT_BASE_URL:-https://api.staging.deliverect.com}
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+      - ./menu_data.json:/app/menu_data.json
+    networks:
+      - redbarsushi-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: redbarsushi-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: redbarsushi
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/init/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - redbarsushi-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: redbarsushi-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - redbarsushi-network
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: redbarsushi-celery
+    command: celery -A celery_app_fastapi worker --loglevel=INFO --max-memory-per-child=200000
+    environment:
+      # Same environment as app
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/redbarsushi
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      FORCE_HEADLESS: "true"
+      PYTHONUNBUFFERED: "1"
+      
+      # API Keys (from .env)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      DELIVERECT_API_KEY: ${DELIVERECT_API_KEY:-}
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    networks:
+      - redbarsushi-network
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: redbarsushi-celery-beat
+    command: celery -A celery_app_fastapi beat --loglevel=INFO
+    environment:
+      # Same environment as celery
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/redbarsushi
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      FORCE_HEADLESS: "true"
+      PYTHONUNBUFFERED: "1"
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    networks:
+      - redbarsushi-network
+    restart: unless-stopped
+
+networks:
+  redbarsushi-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:

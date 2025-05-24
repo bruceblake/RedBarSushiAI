@@ -329,12 +329,11 @@ async def handle_media_stream(
                 
                 async def on_audio_delta(audio_data):
                     """Handle audio delta events from OpenAI."""
-                    audio_chunk = audio_data.get("audio", "")
-                    if audio_chunk:
-                        # Base64 decode and send to Twilio
+                    # The event processor already decodes the audio for us
+                    if audio_data:
+                        # Send raw audio bytes to Twilio (Twilio expects raw bytes, not JSON)
                         try:
-                            audio_bytes = base64.b64decode(audio_chunk)
-                            await websocket.send_bytes(audio_bytes)
+                            await websocket.send_bytes(audio_data)
                         except Exception as e:
                             logger.error(f"[{call_sid}] Error sending audio to Twilio: {e}")
                 
@@ -528,8 +527,11 @@ async def handle_media_stream(
                 
                 # Forward the audio data to OpenAI Realtime API if connected
                 if payload and openai_task and not openai_task.done():
-                    # In a real implementation, this would send the audio to OpenAI
-                    pass
+                    try:
+                        # Send the audio to OpenAI
+                        await openai_client.send_audio(base64.b64decode(payload))
+                    except Exception as e:
+                        logger.error(f"[{call_sid}] Error forwarding audio to OpenAI: {e}")
                 
             elif event == "stop":
                 # Handle stop event

@@ -13,31 +13,25 @@ from typing import Any, Dict
 # Set up logging
 logger = logging.getLogger(__name__)
 
-async def forward_audio_to_openai(call_sid: str, payload: str, openai_task: asyncio.Task) -> None:
+async def forward_audio_to_openai(call_sid: str, payload: str, openai_client: Any) -> None:
     """
     Forward audio data from Twilio to OpenAI Realtime API.
     
     Args:
         call_sid: The Twilio call SID
         payload: The base64-encoded audio data
-        openai_task: The active OpenAI processing task
+        openai_client: The OpenAI Realtime client instance
     """
-    if not payload or not openai_task or openai_task.done():
+    if not payload or not openai_client:
         return
         
     try:
         # Decode base64 payload
         audio_data = base64.b64decode(payload)
         
-        # Access the OpenAI client via attribute on the task's coro
-        # This is a hack to get the client object from the running task
-        openai_client = getattr(openai_task.get_coro(), 'openai_client', None)
-        
-        if openai_client:
-            # Send the audio data to OpenAI
-            await openai_client.send_audio(audio_data)
-        else:
-            logger.warning(f"[{call_sid}] Cannot forward audio: OpenAI client not available")
+        # Send the audio data to OpenAI
+        await openai_client.send_audio(audio_data)
+        logger.debug(f"[{call_sid}] Forwarded {len(audio_data)} bytes of audio to OpenAI")
             
     except Exception as e:
         logger.error(f"[{call_sid}] Error forwarding audio: {str(e)}")

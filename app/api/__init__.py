@@ -41,6 +41,15 @@ try:
     # Mount testing endpoints
     api_router.include_router(testing_router, prefix="/voice/test", tags=["Voice Testing"])
     
+    # Import and mount ConversationRelay router if available
+    try:
+        from app.api.conversation_relay import conversation_relay_router
+        api_router.include_router(conversation_relay_router, prefix="/api", tags=["ConversationRelay"])
+        logger.info("Successfully registered ConversationRelay router")
+        logger.critical("❗❗❗ ConversationRelay endpoint: /api/conversation-relay ❗❗❗")
+    except ImportError:
+        logger.info("ConversationRelay module not available yet")
+    
     logger.info("Successfully registered voice routers from structured voice module")
     logger.critical("❗❗❗ USING STRUCTURED VOICE MODULE ❗❗❗")
     logger.critical("❗❗❗ TwiML endpoint: /voice/ and /voice/webhook ❗❗❗")
