@@ -43,17 +43,16 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
             True if initialization successful, False otherwise
         """
         # Try to get from cache first
-        cache_key = f"{self.cache_key_prefix}data"
-        cached_data = menu_cache.get(cache_key)
+        cached_data = menu_cache.get_all_menu()
         
         if cached_data:
             try:
-                menu_data = json.loads(cached_data)
-                self.menu_data = menu_data
-                self.items = menu_data.get("items", [])
-                self.modifiers = menu_data.get("modifiers", [])
-                self.modifier_groups = menu_data.get("modifier_groups", [])
-                self.variants = menu_data.get("variants", [])
+                # cached_data is already a dict from get_all_menu()
+                self.menu_data = cached_data
+                self.items = cached_data.get("items", [])
+                self.modifiers = cached_data.get("modifiers", [])
+                self.modifier_groups = cached_data.get("modifier_groups", [])
+                self.variants = cached_data.get("variants", [])
                 logger.info(f"AsyncCachedMenuMatcher loaded from cache with {len(self.items)} items")
                 return True
             except Exception as e:
@@ -68,12 +67,8 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
             if success and self.menu_data:
                 # Store in cache for next time
                 try:
-                    menu_cache.set(
-                        cache_key, 
-                        json.dumps(self.menu_data),
-                        expiry=self.cache_ttl
-                    )
-                    logger.info(f"Stored menu data in cache with key {cache_key}")
+                    menu_cache.set_all_menu(self.menu_data, ttl=self.cache_ttl)
+                    logger.info(f"Stored menu data in cache")
                 except Exception as e:
                     logger.error(f"Error storing menu data in cache: {e}")
             
@@ -92,32 +87,14 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
         Returns:
             Tuple of (best matching item or None, confidence score)
         """
-        # Create a cache key for this specific query
-        cache_key = f"{self.cache_key_prefix}item:{description}"
-        cached_result = menu_cache.get(cache_key)
-        
-        if cached_result:
-            try:
-                result_data = json.loads(cached_result)
-                return result_data.get("item"), result_data.get("score", 0.0)
-            except Exception as e:
-                logger.error(f"Error loading match result from cache: {e}")
-                # Fall through to normal matching
+        # Skip individual match caching for now since menu_cache doesn't have a generic get method
+        # TODO: Implement proper caching using redis client directly
         
         # No cache hit, use normal matching
         item, score = await super().match_item(description)
         
-        # Cache the result
-        if item is not None:
-            try:
-                result_data = {"item": item, "score": score}
-                menu_cache.set(
-                    cache_key,
-                    json.dumps(result_data),
-                    expiry=self.cache_ttl
-                )
-            except Exception as e:
-                logger.error(f"Error caching match result: {e}")
+        # Skip caching individual results for now
+        # TODO: Implement proper caching using redis client directly
         
         return item, score
 

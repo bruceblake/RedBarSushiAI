@@ -21,6 +21,23 @@ from app.api.menu import menu_router
 api_router.include_router(order_router, prefix="/order")  # Order routes
 api_router.include_router(menu_router, prefix="/menu")  # Menu routes
 
+# Import and include Deliverect routers
+try:
+    from app.api.deliverect import router as deliverect_router
+    from app.api.deliverect_menu import router as deliverect_menu_router
+    from app.api.deliverect_webhooks import router as deliverect_webhooks_router
+    
+    # Mount Deliverect routers under /api/deliverect
+    api_router.include_router(deliverect_router, prefix="/api/deliverect", tags=["Deliverect"])
+    api_router.include_router(deliverect_menu_router, prefix="/api/deliverect", tags=["Deliverect Menu"])
+    api_router.include_router(deliverect_webhooks_router, prefix="/api/deliverect", tags=["Deliverect Webhooks"])
+    
+    logger.info("Successfully registered Deliverect routers")
+    logger.info("Deliverect registration endpoint: /api/deliverect/register")
+    logger.info("Deliverect menu webhook: /api/deliverect/menu/update")
+except ImportError as e:
+    logger.error(f"Failed to import Deliverect routers: {str(e)}")
+
 # Import voice routers from the structured module
 try:
     from app.api.voice import http_twiml_router, testing_router

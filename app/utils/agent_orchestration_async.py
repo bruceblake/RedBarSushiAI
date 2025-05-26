@@ -518,8 +518,8 @@ class AsyncAgentOrchestrator:
         # Log interruption event in conversation history
         await self.conversation_store.add_message(
             call_sid,
-            speaker="system",
-            text="[User interrupted TTS playback]"
+            role="system",
+            content="[User interrupted TTS playback]"
         )
         
         logger.info(f"Interruption handled for call {call_sid}")

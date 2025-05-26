@@ -1,81 +1,112 @@
 """
-TwiML generation for ConversationRelay.
+ConversationRelay TwiML generation.
+
+This module generates TwiML for Twilio's ConversationRelay feature,
+which provides improved latency and reliability for voice interactions.
 """
 
 import logging
 from typing import Optional
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 def generate_conversation_relay_twiml(
     call_sid: str,
+    greeting_text: str,
     service_sid: Optional[str] = None,
     connector_name: Optional[str] = None,
-    greeting_text: Optional[str] = None,
-    websocket_url: Optional[str] = None,
-    host: Optional[str] = None
+    host: Optional[str] = None,
+    tts_provider: str = "ElevenLabs",
+    tts_voice: Optional[str] = None,
+    language: str = "en-US",
+    transcription_provider: str = "Google",
+    speech_model: str = "telephony",
+    interruptible: str = "any",
+    dtmf_detection: bool = False
 ) -> str:
     """
-    Generate TwiML response with Twilio ConversationRelay using direct URL approach.
+    Generate TwiML for ConversationRelay.
     
     Args:
         call_sid: The Twilio call SID
-        service_sid: Optional - Twilio Conversation Service SID (for service-based approach)
-        connector_name: Optional - Connector name (for service-based approach)
-        greeting_text: Optional greeting text (not used in ConversationRelay TwiML)
-        websocket_url: Optional custom WebSocket URL
-        host: Optional host for WebSocket URL generation
+        greeting_text: Initial greeting message
+        service_sid: The Twilio Conversation Service SID (for service/connector mode)
+        connector_name: The name of the configured connector (for service/connector mode)
+        host: The host for URL mode
+        tts_provider: TTS provider ("ElevenLabs", "Google", "Amazon")
+        tts_voice: Voice ID for the TTS provider
+        language: Language code (e.g., "en-US")
+        transcription_provider: STT provider ("Google", "Deepgram")
+        speech_model: Speech model for transcription
+        interruptible: When AI can be interrupted ("any", "speech", "dtmf", "never")
+        dtmf_detection: Whether to detect DTMF tones
         
     Returns:
         TwiML XML string
     """
-    # Check if we're using the service-based approach (with serviceSid and connectorName)
-    service_sid = service_sid or getattr(settings, 'TWILIO_CONVERSATION_SERVICE_SID', '')
-    connector_name = connector_name or getattr(settings, 'TWILIO_CONNECTOR_NAME', '')
     
     if service_sid and connector_name:
-        # Service-based approach
-        logger.info(f"Generating ConversationRelay TwiML with service approach for call {call_sid}")
-        logger.info(f"Service SID: {service_sid}, Connector: {connector_name}")
+        # Service/Connector mode (not commonly used)
+        logger.info(f"Generating ConversationRelay TwiML with serviceSid={service_sid}, connectorName={connector_name}")
         
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <ConversationRelay serviceSid="{service_sid}" connectorName="{connector_name}" />
+        <ConversationRelay 
+            serviceSid="{service_sid}" 
+            connectorName="{connector_name}"
+            welcomeGreeting="{greeting_text}"
+            language="{language}"
+            ttsProvider="{tts_provider}"
+            {"voice='" + tts_voice + "'" if tts_voice else ""}
+            transcriptionProvider="{transcription_provider}"
+            speechModel="{speech_model}"
+            interruptible="{interruptible}"
+            {"dtmfDetection='true'" if dtmf_detection else ""}
+        />
     </Connect>
 </Response>"""
     else:
-        # Direct URL approach (simpler, recommended for TwiML Apps)
-        if not websocket_url:
-            # Generate WebSocket URL
-            if not host:
-                # Try to get from settings or use default
-                base_url = getattr(settings, 'BASE_URL', '')
-                if base_url:
-                    host = base_url.replace('http://', '').replace('https://', '')
-                else:
-                    # Fallback to localhost for development
-                    host = 'localhost:8000'
-                    logger.warning(f"No BASE_URL configured, using {host}")
-            
-            # Use wss for production/ngrok, ws for local development
-            ws_scheme = "wss" if ("localhost" not in host and "127.0.0.1" not in host) or "ngrok" in host else "ws"
-            
-            # Point to our ConversationRelay WebSocket endpoint
-            websocket_url = f"{ws_scheme}://{host}/api/conversation-relay"
+        # URL mode (primary method)
+        logger.info("Generating ConversationRelay TwiML with URL mode")
         
-        logger.info(f"Generating ConversationRelay TwiML with direct URL for call {call_sid}")
-        logger.info(f"WebSocket URL: {websocket_url}")
+        # Construct WebSocket URL
+        ws_scheme = "wss" if "ngrok" in host or "render" in host or "https" in host else "ws"
+        websocket_url = f"{ws_scheme}://{host}/api/conversation-relay"
+        
+        # Build attributes
+        attributes = [
+            f'url="{websocket_url}"',
+            f'welcomeGreeting="{greeting_text}"',
+            f'language="{language}"',
+            f'ttsProvider="{tts_provider}"',
+            f'transcriptionProvider="{transcription_provider}"',
+            f'speechModel="{speech_model}"',
+            f'interruptible="{interruptible}"'
+        ]
+        
+        # Add optional attributes
+        if tts_voice:
+            attributes.append(f'voice="{tts_voice}"')
+        if dtmf_detection:
+            attributes.append('dtmfDetection="true"')
+            
+        # For ElevenLabs, we might want to enable text normalization
+        if tts_provider == "ElevenLabs":
+            attributes.append('elevenlabsTextNormalization="true"')
+        
+        # Join attributes with proper spacing
+        attributes_str = "\n            ".join(attributes)
         
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <ConversationRelay url="{websocket_url}" />
+        <ConversationRelay 
+            {attributes_str}
+        />
     </Connect>
 </Response>"""
     
-    logger.debug(f"Generated TwiML: {twiml}")
-    
+    logger.debug(f"Generated ConversationRelay TwiML: {twiml}")
     return twiml

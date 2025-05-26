@@ -1,19 +1,18 @@
 """
 WebSocket handler for Twilio ConversationRelay.
 
-This module handles bidirectional audio streaming between Twilio and the AI system
-using the ConversationRelay protocol.
+This module handles text-based communication with Twilio ConversationRelay.
+When using <ConversationRelay url="...">, Twilio handles all audio processing:
+- Twilio performs STT and sends transcribed text in "prompt" events
+- We send text responses back, and Twilio performs TTS
 """
 
 import json
 import logging
-import base64
 import asyncio
-import time
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.utils.agent_orchestration_async import async_agent_orchestrator
-from .audio import AudioProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -23,203 +22,201 @@ router = APIRouter(tags=["ConversationRelay"])
 class ConversationRelayHandler:
     """Handles a ConversationRelay WebSocket connection."""
     
-    def __init__(self, websocket: WebSocket, audio_processor: AudioProcessor):
+    def __init__(self, websocket: WebSocket):
         self.websocket = websocket
-        self.audio_processor = audio_processor
-        self.relay_id: Optional[str] = None
+        self.session_id: Optional[str] = None
         self.call_sid: Optional[str] = None
-        self.stream_sid: Optional[str] = None
         self.is_running = False
-        self.is_playing_tts = False
-        self.current_tts_task: Optional[asyncio.Task] = None
-        self.last_mark_name: Optional[str] = None
+        self.is_agent_speaking = False
         
-    async def handle_start(self, message: Dict[str, Any]):
-        """Handle the start event from Twilio ConversationRelay."""
-        # ConversationRelay sends these fields directly in the message
-        self.relay_id = message.get("relayId")
+    async def handle_setup(self, message: Dict[str, Any]):
+        """Handle the setup event from Twilio ConversationRelay."""
+        self.session_id = message.get("sessionId")
         self.call_sid = message.get("callSid")
-        self.stream_sid = message.get("streamSid")
+        self.from_number = message.get("from")
+        self.to_number = message.get("to")
+        self.call_status = message.get("callStatus")
         
-        # Additional fields from ConversationRelay
-        self.account_sid = message.get("accountSid")
-        audio_config = message.get("audio", {})
-        self.content_type = audio_config.get("contentType", "audio/x-mulaw")  # Should be audio/x-mulaw
-        self.sample_rate = audio_config.get("sampleRate", 8000)  # Should be 8000
-        self.channels = audio_config.get("channels", 1)  # Should be 1 (mono)
+        logger.info(f"ConversationRelay setup - Session: {self.session_id}, Call: {self.call_sid}, Status: {self.call_status}")
         
-        logger.info(f"ConversationRelay started - Relay: {self.relay_id}, Call: {self.call_sid}")
-        logger.debug(f"Full start message: {json.dumps(message, indent=2)}")
-        
-        # Start a new conversation
-        greeting_response = await async_agent_orchestrator.start_new_conversation(
-            self.call_sid,
-            {"first_interaction": True}
-        )
-        
-        greeting_text = greeting_response.get("text", "Welcome to Red Bar Sushi. How can I help you today?")
-        
-        # Send greeting with tracking for barge-in
-        self.current_tts_task = asyncio.create_task(
-            self._send_tts_with_tracking(greeting_text)
-        )
+        try:
+            # Start a new conversation with the agent system
+            # Note: If using welcomeGreeting in TwiML, this may not be needed
+            await async_agent_orchestrator.start_new_conversation(
+                self.call_sid or self.session_id,
+                {"first_interaction": True}
+            )
+            logger.info(f"Agent orchestrator initialized for {self.call_sid}")
+        except Exception as e:
+            logger.error(f"Error initializing agent for {self.call_sid}: {e}", exc_info=True)
     
-    async def handle_media(self, message: Dict[str, Any]):
-        """Handle media events containing audio from the caller."""
-        media = message.get("media", {})
-        audio_payload = media.get("payload", "")
+    async def handle_prompt(self, message: Dict[str, Any]):
+        """Handle prompt events containing transcribed caller speech."""
+        voice_prompt = message.get("voicePrompt", "")
+        lang = message.get("lang", "en-US")
+        is_last = message.get("last", False)
         
-        if not audio_payload:
+        logger.info(f"Caller said: '{voice_prompt}' (lang: {lang}, last: {is_last})")
+        
+        if not voice_prompt:
             return
+            
+        try:
+            # Process the transcribed text with the agent
+            response = await async_agent_orchestrator.process_voice_input(
+                self.call_sid, voice_prompt
+            )
+            
+            response_text = response.get("text", "")
+            if response_text:
+                logger.info(f"Agent response: {response_text[:100]}...")
+                # Send the text response back to Twilio for TTS
+                await self.send_text(response_text)
+            else:
+                logger.warning(f"No response from agent for {self.call_sid}")
+                
+        except Exception as e:
+            logger.error(f"Error processing prompt: {e}", exc_info=True)
+            # Send a fallback message
+            await self.send_text("I'm sorry, I'm having trouble understanding. Could you please repeat that?")
+    
+    async def handle_interrupt(self, message: Dict[str, Any]):
+        """Handle interrupt events when caller speaks during TTS playback."""
+        reason = message.get("reason")
+        utterance_until_interrupt = message.get("utteranceUntilInterrupt", "")
         
-        # Check for barge-in: if we receive media while TTS is playing
-        if self.is_playing_tts:
-            logger.info(f"Barge-in detected for call {self.call_sid}")
-            
-            # Cancel current TTS task if it exists
-            if self.current_tts_task and not self.current_tts_task.done():
-                self.current_tts_task.cancel()
-                logger.info(f"Cancelled ongoing TTS for call {self.call_sid}")
-            
-            # Signal the agent orchestrator about barge-in
+        logger.info(f"Interrupt received - reason: {reason}, AI said up to: '{utterance_until_interrupt}'")
+        
+        # Signal the agent system about the interruption
+        try:
             await async_agent_orchestrator.handle_interruption(self.call_sid)
-            
-            self.is_playing_tts = False
-            
-        try:
-            # Decode base64 audio
-            audio_bytes = base64.b64decode(audio_payload)
-            
-            # Process audio through STT
-            transcript = await self.audio_processor.speech_to_text(audio_bytes)
-            
-            if transcript:
-                logger.info(f"Transcript received for {self.call_sid}: {transcript}")
-                
-                # Process with agent
-                logger.debug(f"Sending transcript to agent orchestrator for {self.call_sid}")
-                response = await async_agent_orchestrator.process_voice_input(
-                    self.call_sid, transcript
-                )
-                logger.debug(f"Agent response for {self.call_sid}: {json.dumps(response, indent=2)}")
-                
-                response_text = response.get("text", "")
-                if response_text:
-                    logger.info(f"Sending TTS response for {self.call_sid}: {response_text[:100]}...")
-                    # Convert to speech and send in a cancellable task
-                    self.current_tts_task = asyncio.create_task(
-                        self._send_tts_with_tracking(response_text)
-                    )
-                else:
-                    logger.warning(f"No response text from agent for {self.call_sid}")
-                        
         except Exception as e:
-            logger.error(f"Error processing media: {e}")
-    
-    async def handle_mark(self, message: Dict[str, Any]):
-        """Handle mark events indicating speech playback completion."""
-        mark = message.get("mark", {})
-        mark_name = mark.get("name", "")
-        logger.debug(f"Mark received: {mark_name}")
+            logger.error(f"Error handling interruption: {e}")
         
-        # If this mark matches our last TTS mark, TTS playback is complete
-        if mark_name == self.last_mark_name:
-            self.is_playing_tts = False
-            logger.info(f"TTS playback completed for mark: {mark_name}")
+        self.is_agent_speaking = False
     
-    async def handle_stop(self, message: Dict[str, Any]):
-        """Handle stop event when the call ends."""
-        logger.info(f"ConversationRelay stopped for call {self.call_sid}")
-        self.is_running = False
+    async def handle_dtmf(self, message: Dict[str, Any]):
+        """Handle DTMF (touch-tone) events."""
+        digit = message.get("digit")
+        logger.info(f"DTMF digit received: {digit}")
+        
+        # Process DTMF input if needed
+        # For now, just log it
     
-    async def send_audio(self, audio_data: bytes):
-        """Send audio data to Twilio as binary frames."""
+    async def handle_error(self, message: Dict[str, Any]):
+        """Handle error events from Twilio."""
+        error_code = message.get("errorCode")
+        error_message = message.get("errorMessage")
+        logger.error(f"Twilio error - Code: {error_code}, Message: {error_message}")
+    
+    async def send_text(self, text: str, is_last: bool = True):
+        """
+        Send text to Twilio for TTS conversion.
+        
+        Args:
+            text: The text to be spoken
+            is_last: Whether this is the last token for this response
+        """
         try:
-            # Send raw audio as binary WebSocket message
-            await self.websocket.send_bytes(audio_data)
-        except Exception as e:
-            logger.error(f"Error sending audio: {e}")
-    
-    async def send_mark(self, mark_name: str):
-        """Send a mark event to track speech segments."""
-        if not self.relay_id:
-            return
-            
-        mark_message = {
-            "event": "mark",
-            "relayId": self.relay_id,
-            "mark": {
-                "name": mark_name
+            text_message = {
+                "type": "text",
+                "token": text,
+                "last": is_last
             }
-        }
-        
-        try:
-            await self.websocket.send_json(mark_message)
+            
+            logger.info(f"Sending text to Twilio: '{text[:50]}...' (last: {is_last})")
+            await self.websocket.send_json(text_message)
+            
+            if is_last:
+                self.is_agent_speaking = False
+            else:
+                self.is_agent_speaking = True
+                
         except Exception as e:
-            logger.error(f"Error sending mark: {e}")
+            logger.error(f"Error sending text: {e}", exc_info=True)
     
-    async def _send_tts_with_tracking(self, text: str):
-        """Send TTS audio with tracking for barge-in detection."""
+    async def send_language_change(self, language: str, tts_language: str = None):
+        """Change the language settings mid-call."""
         try:
-            # Mark TTS as playing
-            self.is_playing_tts = True
-            
-            # Generate unique mark name
-            mark_name = f"tts_{int(time.time() * 1000)}"
-            self.last_mark_name = mark_name
-            
-            # Convert text to speech
-            audio_data = await self.audio_processor.text_to_speech(text)
-            if audio_data:
-                # Send audio
-                await self.send_audio(audio_data)
+            language_message = {
+                "type": "language",
+                "language": language
+            }
+            if tts_language:
+                language_message["ttsLanguage"] = tts_language
                 
-                # Send mark to track when playback completes
-                await self.send_mark(mark_name)
-                
-        except asyncio.CancelledError:
-            logger.info(f"TTS task cancelled due to barge-in for call {self.call_sid}")
-            self.is_playing_tts = False
-            raise
+            await self.websocket.send_json(language_message)
+            logger.info(f"Changed language to: {language}")
         except Exception as e:
-            logger.error(f"Error in TTS tracking: {e}")
-            self.is_playing_tts = False
+            logger.error(f"Error changing language: {e}")
+    
+    async def send_play_audio(self, audio_url: str):
+        """Play an audio file (MP3/WAV) from a URL."""
+        try:
+            play_message = {
+                "type": "play",
+                "audioUrl": audio_url
+            }
+            await self.websocket.send_json(play_message)
+            logger.info(f"Playing audio: {audio_url}")
+        except Exception as e:
+            logger.error(f"Error playing audio: {e}")
+    
+    async def send_end(self):
+        """End the conversation gracefully."""
+        try:
+            end_message = {
+                "type": "end"
+            }
+            await self.websocket.send_json(end_message)
+            logger.info("Sent end message to close conversation")
+        except Exception as e:
+            logger.error(f"Error sending end message: {e}")
     
     async def run(self):
         """Main event loop for handling ConversationRelay messages."""
         self.is_running = True
         
         try:
-            async for message in self.websocket.iter_json():
-                if not self.is_running:
+            logger.info(f"Starting ConversationRelay handler for {self.call_sid}")
+            
+            while self.is_running:
+                try:
+                    # Receive JSON messages from Twilio
+                    message = await self.websocket.receive_json()
+                    
+                    # Log the message for debugging
+                    logger.debug(f"Received: {json.dumps(message)}")
+                    
+                    # Route based on message type
+                    message_type = message.get("type")
+                    
+                    if message_type == "setup":
+                        await self.handle_setup(message)
+                    elif message_type == "prompt":
+                        await self.handle_prompt(message)
+                    elif message_type == "interrupt":
+                        await self.handle_interrupt(message)
+                    elif message_type == "dtmf":
+                        await self.handle_dtmf(message)
+                    elif message_type == "error":
+                        await self.handle_error(message)
+                    else:
+                        logger.warning(f"Unknown message type: {message_type}")
+                        
+                except WebSocketDisconnect:
+                    logger.info(f"WebSocket disconnected for {self.call_sid}")
                     break
-                
-                # Log the raw message for debugging
-                logger.debug(f"Received message: {json.dumps(message)}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON received: {e}")
+                except Exception as e:
+                    logger.error(f"Error in message loop: {e}", exc_info=True)
                     
-                event_type = message.get("event")
-                
-                if event_type == "connected":
-                    logger.info(f"WebSocket connected event received")
-                elif event_type == "start":
-                    await self.handle_start(message)
-                elif event_type == "media":
-                    await self.handle_media(message)
-                elif event_type == "mark":
-                    await self.handle_mark(message)
-                elif event_type == "stop":
-                    await self.handle_stop(message)
-                elif event_type == "error":
-                    logger.error(f"Twilio error: {message}")
-                else:
-                    logger.warning(f"Unknown event type: {event_type}, full message: {json.dumps(message)}")
-                    
-        except WebSocketDisconnect:
-            logger.info(f"WebSocket disconnected for call {self.call_sid}")
         except Exception as e:
-            logger.error(f"Error in ConversationRelay handler: {e}")
+            logger.error(f"Error in ConversationRelay handler: {e}", exc_info=True)
         finally:
             self.is_running = False
+            logger.info(f"ConversationRelay handler finished for {self.call_sid}")
 
 
 @router.websocket("/conversation-relay")
@@ -227,15 +224,19 @@ async def conversation_relay_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for Twilio ConversationRelay.
     
-    This endpoint handles bidirectional audio streaming using the
-    ConversationRelay protocol, providing lower latency and better
-    reliability than Media Streams.
+    This endpoint handles text-based communication with Twilio's
+    ConversationRelay service, where Twilio manages all audio
+    processing (STT/TTS).
     """
-    await websocket.accept()
-    
-    # Create audio processor
-    audio_processor = AudioProcessor()
-    
-    # Create and run handler
-    handler = ConversationRelayHandler(websocket, audio_processor)
-    await handler.run()
+    try:
+        await websocket.accept()
+        logger.info("ConversationRelay WebSocket connection accepted")
+        
+        # Create and run handler
+        handler = ConversationRelayHandler(websocket)
+        await handler.run()
+        
+    except Exception as e:
+        logger.error(f"Error in WebSocket endpoint: {e}", exc_info=True)
+    finally:
+        logger.info("ConversationRelay WebSocket endpoint finished")

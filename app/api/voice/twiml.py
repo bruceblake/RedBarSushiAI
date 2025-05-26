@@ -198,14 +198,20 @@ async def receive_call(request: Request) -> PlainTextResponse:
             # Import ConversationRelay TwiML generator
             from app.api.conversation_relay.twiml import generate_conversation_relay_twiml
             
-            # Generate ConversationRelay TwiML
-            # Service SID and Connector Name are configured in Twilio Console
+            # Generate ConversationRelay TwiML with proper STT/TTS configuration
             twiml = generate_conversation_relay_twiml(
                 call_sid=call_sid,
                 greeting_text=greeting_msg,
                 service_sid=getattr(settings, 'TWILIO_CONVERSATION_SERVICE_SID', None),
                 connector_name=getattr(settings, 'TWILIO_CONNECTOR_NAME', None),
-                host=host  # Pass the host we determined above
+                host=host,  # Pass the host we determined above
+                tts_provider=getattr(settings, 'CONVERSATION_RELAY_TTS_PROVIDER', 'ElevenLabs'),
+                tts_voice=getattr(settings, 'CONVERSATION_RELAY_TTS_VOICE', None),
+                language=getattr(settings, 'CONVERSATION_RELAY_LANGUAGE', 'en-US'),
+                transcription_provider=getattr(settings, 'CONVERSATION_RELAY_STT_PROVIDER', 'Google'),
+                speech_model=getattr(settings, 'CONVERSATION_RELAY_SPEECH_MODEL', 'telephony'),
+                interruptible=getattr(settings, 'CONVERSATION_RELAY_INTERRUPTIBLE', 'any'),
+                dtmf_detection=getattr(settings, 'CONVERSATION_RELAY_DTMF_DETECTION', False)
             )
             
             logger.info(f"Generated ConversationRelay TwiML for call {call_sid}")
