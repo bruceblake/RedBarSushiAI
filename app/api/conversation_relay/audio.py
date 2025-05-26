@@ -8,7 +8,6 @@ import logging
 import base64
 import asyncio
 from typing import Optional, List
-import numpy as np
 
 # OpenAI imports
 try:
@@ -49,8 +48,10 @@ class AudioProcessor:
             return None
             
         try:
+            logger.debug(f"Converting {len(audio_bytes)} bytes of PCMU audio to WAV for STT")
             # Convert PCMU to WAV format for Whisper
             wav_data = self._pcmu_to_wav(audio_bytes)
+            logger.debug(f"WAV data size: {len(wav_data)} bytes")
             
             # Create a temporary file-like object
             import io
@@ -58,13 +59,16 @@ class AudioProcessor:
             audio_file.name = "audio.wav"
             
             # Transcribe with Whisper
+            logger.debug("Calling OpenAI Whisper API for transcription")
             response = await self.client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
                 language="en"
             )
             
-            return response.text
+            transcript = response.text
+            logger.info(f"STT successful: {transcript}")
+            return transcript
             
         except Exception as e:
             logger.error(f"STT error: {e}")
@@ -87,9 +91,11 @@ class AudioProcessor:
         try:
             # Normalize text for natural speech
             normalized_text = normalize_for_tts(text)
-            logger.debug(f"Normalized text for TTS: {normalized_text}")
+            logger.debug(f"TTS input text: {text[:100]}...")
+            logger.debug(f"Normalized text for TTS: {normalized_text[:100]}...")
             
             # Generate speech with OpenAI TTS
+            logger.debug(f"Calling OpenAI TTS API with voice='nova', model='tts-1'")
             response = await self.client.audio.speech.create(
                 model="tts-1",
                 voice="nova",  # or "alloy", "echo", "fable", "onyx", "shimmer"
@@ -100,9 +106,12 @@ class AudioProcessor:
             
             # Get the audio content
             pcm_data = response.content
+            logger.debug(f"TTS generated {len(pcm_data)} bytes of PCM audio")
             
             # Convert PCM to PCMU for Twilio
             pcmu_data = self._pcm_to_pcmu(pcm_data)
+            logger.debug(f"Converted to {len(pcmu_data)} bytes of PCMU audio")
+            logger.info(f"TTS successful for text: {text[:50]}...")
             
             return pcmu_data
             

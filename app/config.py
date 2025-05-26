@@ -135,6 +135,10 @@ class Settings(BaseSettings):
     # Validators
     @validator('VOICE_HANDLER')
     def validate_voice_handler(cls, v, **kwargs):
+        # Map "realtime" to "media_streams" for backward compatibility
+        if v == "realtime":
+            v = "media_streams"
+        
         allowed_values = ["media_streams", "conversation_relay"]
         if v not in allowed_values:
             raise ValueError(f"Unsupported VOICE_HANDLER value: {v}, allowed values: {allowed_values}")

@@ -21,7 +21,7 @@ services:
       FORCE_HEADLESS: "true"
       OPENAI_REALTIME_NO_DISPLAY: "1"
       CONTAINER_MODE: "1"
-      VOICE_HANDLER: realtime
+      VOICE_HANDLER: conversation_relay
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       PYTHONUNBUFFERED: "1"
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-for-development}
@@ -38,6 +38,10 @@ services:
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      
+      # ConversationRelay (required when VOICE_HANDLER=conversation_relay)
+      TWILIO_CONVERSATION_SERVICE_SID: ${TWILIO_CONVERSATION_SERVICE_SID:-}
+      TWILIO_CONNECTOR_NAME: ${TWILIO_CONNECTOR_NAME:-}
       
       # Deliverect (optional for local testing)
       DELIVERECT_CHANNEL_NAME: ${DELIVERECT_CHANNEL_NAME:-redbarsushi}

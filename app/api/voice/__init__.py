@@ -1,15 +1,17 @@
 """
-Voice API module for handling Twilio voice calls and WebSocket connections.
+Voice API module for handling Twilio voice calls.
 
 This package contains modules for handling voice interactions with Twilio,
-including WebSocket connections for real-time audio streaming, and integration
-with OpenAI's Realtime API for speech-to-text and text-to-speech.
+supporting both ConversationRelay and legacy Media Streams approaches.
 """
 
 from fastapi import APIRouter
+from app.config import settings
+import logging
 
-# Import the dedicated routers
-from app.api.voice.handlers import router as media_stream_router
+logger = logging.getLogger(__name__)
+
+# Import the TwiML router (always needed for both paths)
 from app.api.voice.twiml import router as http_twiml_router
 
 # Create a router for testing/debug endpoints
@@ -33,5 +35,5 @@ testing_router.add_api_route("/fsm/{call_sid}/event", trigger_fsm_event, methods
 testing_router.add_api_route("/fsm/{call_sid}", get_fsm_state, methods=["GET"])
 testing_router.add_api_route("/sessions/{call_sid}", cleanup_session, methods=["DELETE"])
 
-# Export the routers
-__all__ = ["http_twiml_router", "media_stream_router", "testing_router"]
+# Export only the active routers
+__all__ = ["http_twiml_router", "testing_router"]

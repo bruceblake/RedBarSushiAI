@@ -5,7 +5,7 @@ This module ensures that snoozed items are not available for ordering.
 
 import logging
 from typing import Dict, Any, List
-from app.utils.menu_utils import (
+from app.utils.menu_utils_db import (
     is_item_snoozed_timebased,
     is_item_currently_available_by_schedule,
 )

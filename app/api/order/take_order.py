@@ -199,7 +199,7 @@ async def take_order(
 
         if not available_items:
             # Try to process the menu directly - it might be in Deliverect format
-            from app.utils.menu_utils import process_deliverect_menu
+            from app.utils.menu_utils_db import process_deliverect_menu
 
             if "categories" in menu_data:
                 logger.info("Attempting to process Deliverect format directly")
@@ -304,8 +304,8 @@ async def take_order(
     logger.info(f"order_items: {order_items}")
     
     # Process and mark any unavailable items
-    from app.utils.order_utils import mark_unavailable_items
-    available_items, unavailable_items = mark_unavailable_items(order_items)
+    from app.utils.order_utils_async import mark_unavailable_items_async as mark_unavailable_items
+    available_items, unavailable_items = await mark_unavailable_items(order_items)
 
     # Handle case where all items are unavailable
     if not available_items and unavailable_items:
@@ -353,9 +353,9 @@ async def take_order(
 
     # If no items need modifiers, or we couldn't generate a prompt, continue with standard flow
     # Calculate total and prepare confirmation
-    from app.utils.order_utils import calculate_bill_amount, build_order_description
-    calculate_bill_amount(order_items)
-    order_description = build_order_description(order_items)
+    from app.utils.order_utils_async import calculate_bill_amount_async as calculate_bill_amount, build_order_description_async as build_order_description
+    await calculate_bill_amount(order_items)
+    order_description = await build_order_description(order_items)
     total_price = sum(item.get("price", 0) * item.get("quantity", 1) for item in order_items)
     
     return {

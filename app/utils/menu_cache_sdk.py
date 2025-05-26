@@ -68,19 +68,8 @@ class MenuCache:
             
             # Approach 1: Using agents_sdk module (may fail outside app context)
             try:
-                # Try to get the current app context
-                from flask import current_app, has_app_context
-                
-                if has_app_context():
-                    # Inside app context, use agent_sdk directly
-                    self.redis_client = get_redis_client()
-                else:
-                    # Outside app context, create a temporary context
-                    logger.info("Creating app context for Redis initialization")
-                    from app import create_app
-                    app = create_app()
-                    with app.app_context():
-                        self.redis_client = get_redis_client()
+                # Get Redis client directly (no Flask context needed)
+                self.redis_client = get_redis_client()
                         
                 if self.redis_client:
                     self.redis_client.ping()

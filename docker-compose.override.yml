@@ -10,8 +10,14 @@ services:
       - DELIVERECT_BASE_URL=https://api.staging.deliverect.com
       - FASTAPI_ENV=development
       - LOG_LEVEL=DEBUG
-      - VOICE_HANDLER=realtime
+      - VOICE_HANDLER=conversation_relay
       - FORCE_HEADLESS=true
       - IS_STAGING=true
       - OPENAI_REALTIME_VAD_SILENCE_MS=1000
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--log-level", "debug"]
+      # Base URL for generating WebSocket URLs (update this for production)
+      # Base URL is dynamically determined from request headers
+      # - BASE_URL=http://localhost:8000
+      # Comment these out to use direct URL approach with TwiML App
+      # - TWILIO_CONVERSATION_SERVICE_SID=test_service_sid
+      # - TWILIO_CONNECTOR_NAME=test_connector
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--log-level", "info"]

@@ -5,264 +5,88 @@
 ![License](https://img.shields.io/badge/license-Proprietary-red)
 ![OpenAI](https://img.shields.io/badge/OpenAI%20Realtime-GPT--4o-brightgreen)
 
-RedBarSushiAI is an AI-powered voice ordering system for Red Bar Sushi, enabling customers to place orders and get menu information over the phone. It integrates with Twilio for telephony, OpenAI's Realtime API for advanced speech-to-speech interaction, Deliverect for POS/menu management, and leverages a modern async architecture with FastAPI and multi-agent design for complex conversation handling.
+AI-powered voice ordering system for Red Bar Sushi that enables customers to place orders and get menu information over the phone using natural language processing and real-time audio.
 
-## 🚀 Features
+## 🎯 Overview
 
-- **Real-time Voice Ordering**: Uses Twilio Media Streams, FastAPI WebSockets, and the OpenAI Realtime API for low-latency, conversational interactions
-- **Intelligent Menu Interaction**: Handles menu inquiries and recommendations via specialized agents and OpenAI function calling, backed by an async PostgreSQL database
-- **POS Integration**: Receives menu updates and submits orders via the Deliverect API
-- **Async Multi-Agent Architecture**: Employs a system of coordinated async agents (Frontline, Menu, Cart, Fulfillment, Guardrail) managed by an async FSM-based orchestrator for robust task handling
-- **Async Database-Backed**: Uses PostgreSQL with SQLAlchemy 2.0 and asyncpg for non-blocking data access
-- **State Management**: Uses Redis for caching and managing conversation state during calls
-- **Asynchronous Tasks**: Uses Celery for background task processing (e.g., SMS confirmations, order status polling)
-- **Resilient WebSocket Handling**: Optimized WebSocket communication with OpenAI's Realtime API, featuring comprehensive error handling and connection recovery
-- **Advanced Logging & Monitoring**: Enhanced diagnostic logging for tracing complex WebSocket interactions and Realtime API events
+RedBarSushiAI is a sophisticated voice ordering system that combines:
+- **Real-time voice processing** with OpenAI's Realtime API
+- **Multi-agent orchestration** for handling complex conversations
+- **POS integration** via Deliverect
+- **Robust infrastructure** using FastAPI, PostgreSQL, Redis, and Celery
+- **Production-ready deployment** on Render with Docker support
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture
 
 ### Core Components
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                          Frontend Layer                          │
-├─────────────────────────────────────────────────────────────────┤
-│  Twilio Voice  │  WebSocket Handler  │  FastAPI REST APIs       │
-├─────────────────────────────────────────────────────────────────┤
-│                      Application Layer                           │
-├─────────────────────────────────────────────────────────────────┤
-│  FSM Manager   │  Agent Orchestrator │  Conversation Store      │
-│                │                     │                          │
-│  Multi-Agent System:                                            │
-│  - Frontline Agent (Main coordinator)                           │
-│  - Menu Agent (Menu inquiries)                                  │
-│  - Cart Agent (Order management)                                │
-│  - Guardrail Agent (Validation)                                 │
-│  - Fulfillment Agent (Order submission)                         │
-│  - Escalation Agent (Human handoff)                             │
-├─────────────────────────────────────────────────────────────────┤
-│                       Integration Layer                          │
-├─────────────────────────────────────────────────────────────────┤
-│  OpenAI Realtime  │  Deliverect API  │  Twilio API             │
-├─────────────────────────────────────────────────────────────────┤
-│                         Data Layer                               │
-├─────────────────────────────────────────────────────────────────┤
-│  PostgreSQL       │  Redis           │  Celery                  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
+│   Twilio Voice      │────▶│   FastAPI Server    │────▶│  OpenAI Realtime    │
+│   Media Streams     │     │   (WebSockets)      │     │      API            │
+└─────────────────────┘     └──────────┬──────────┘     └─────────────────────┘
+                                       │
+                            ┌──────────┴──────────┐
+                            │                     │
+                    ┌───────▼────────┐   ┌───────▼────────┐
+                    │  PostgreSQL    │   │     Redis      │
+                    │  (Menu/Orders) │   │   (Caching)    │
+                    └────────────────┘   └────────────────┘
 ```
+
+### Multi-Agent System
+
+The system uses specialized agents for different aspects of the conversation:
+
+- **Frontline Agent**: Main conversation coordinator
+- **Menu Agent**: Handles menu inquiries and availability
+- **Cart Agent**: Manages order items and modifications
+- **Guardrail Agent**: Enforces business rules and validates orders
+- **Fulfillment Agent**: Processes order completion and payment
+- **Escalation Agent**: Manages handoff to human staff
 
 ### Voice Processing Flow
 
 ```
-Customer → Twilio → WebSocket → FastAPI Handler
-                                      ↓
-                              OpenAI Realtime API
-                                      ↓
-                              FSM + Agent System
-                                      ↓
-                              Business Logic
-                                      ↓
-                              Response Generation
-                                      ↓
+Customer Call → Twilio → WebSocket → FastAPI Handler
+                                           ↓
+                                   OpenAI Realtime API
+                                           ↓
+                                   FSM + Agent System
+                                           ↓
+                                    Business Logic
+                                           ↓
+                                  Response Generation
+                                           ↓
 Customer ← Twilio ← WebSocket ← TTS Audio
 ```
 
-## 🛠️ Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - Python 3.11+
-- Docker & Docker Compose
-- PostgreSQL (Managed via Docker Compose)
-- Redis (Managed via Docker Compose)
-- OpenAI API key (with access to `gpt-4o-realtime-preview-2024-10-01`)
-- Twilio Account & Phone Number configured for Voice/Media Streams
-- Deliverect Account & API Credentials
-- ngrok or similar tunneling service for local development
+- Docker and Docker Compose
+- PostgreSQL 15+
+- Redis 7+
+- Twilio account with phone number
+- OpenAI API key with Realtime API access
+- Deliverect account for POS integration
 
-### Installation
+### Environment Setup
 
-1. **Clone the repository:**
+1. Clone the repository:
 ```bash
 git clone https://github.com/yourusername/RedBarSushiAI.git
 cd RedBarSushiAI
 ```
 
-2. **Copy and configure environment file:**
+2. Create a `.env` file with required variables:
 ```bash
-cp .env.example .env
-# Edit .env with your API keys and configurations
-```
-
-3. **Start with Docker (Recommended):**
-```bash
-# First time setup or after major changes:
-./force_rebuild.sh
-
-# Start all services:
-./restart_docker.sh
-
-# For local testing with Twilio webhooks:
-./start_docker_with_ngrok.sh
-```
-
-4. **Initialize the database:**
-```bash
-# Seed menu data (run after containers are up):
-docker exec -it redbarsushi-app python seed_menu_db.py
-```
-
-### Configuration
-
-#### Twilio Webhook Configuration
-Configure your Twilio phone number's Voice webhook:
-- URL: `https://[your-domain]/voice` or `https://[your-domain]/webhook/voice`
-- HTTP Method: POST
-
-#### Deliverect Webhook Configuration
-Configure Deliverect to send menu updates:
-- URL: `https://[your-domain]/menu_update`
-- HTTP Method: POST
-
-## 📁 Project Structure
-
-```
-app/
-├── api/                    # API endpoints
-│   ├── menu/              # Menu-related endpoints
-│   ├── order/             # Order-related endpoints
-│   ├── voice/             # Voice handling components
-│   ├── realtime.py        # OpenAI Realtime API integration
-│   └── voice_async.py     # Main WebSocket handler
-│
-├── agents/                 # Multi-agent system
-│   ├── base_async.py      # Base agent class
-│   ├── cart_async.py      # Cart management agent
-│   ├── factory_async.py   # Agent factory
-│   ├── frontline_async.py # Main conversation agent
-│   ├── fulfillment_async.py # Order submission agent
-│   ├── guardrail_async.py # Validation agent
-│   ├── menu_async.py      # Menu inquiry agent
-│   └── escalation_async.py # Human handoff agent
-│
-├── db/                     # Database components
-│   ├── crud_menu_async.py # Async CRUD operations
-│   └── jsonb_helper.py    # JSONB column helper
-│
-├── models/                 # SQLAlchemy models
-│   ├── menu_async.py      # Menu-related models
-│   ├── order_async.py     # Order-related models
-│   └── location_async.py  # Location settings
-│
-├── utils/                  # Utility modules
-│   ├── agent_orchestration_async.py # Agent coordination
-│   ├── conversation_store_async.py  # Conversation state
-│   ├── deliverect_async.py         # Deliverect integration
-│   ├── fsm_async.py               # Finite State Machine
-│   ├── menu_matcher_db_async.py   # Menu matching logic
-│   └── realtime_audio_async.py    # OpenAI Realtime client
-│
-├── db_async.py            # Async database configuration
-├── dependencies.py        # FastAPI dependencies
-└── main.py               # FastAPI application entry point
-```
-
-## 🔧 Development
-
-### Running Locally
-
-```bash
-# Start FastAPI server with auto-reload:
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Start Celery worker:
-celery -A celery_app worker --loglevel=INFO
-
-# Run tests:
-pytest
-
-# Run specific test file:
-pytest tests/e2e/test_voice_flow.py
-```
-
-### Docker Commands
-
-```bash
-# View logs:
-docker logs -f redbarsushi-app
-
-# Monitor WebSocket activity:
-docker logs -f redbarsushi-app | grep -E "OPENAI|WebSocket|ERROR"
-
-# Access container shell:
-docker exec -it redbarsushi-app bash
-
-# Restart specific service:
-docker-compose restart app
-```
-
-### Code Quality
-
-```bash
-# Format code:
-black app tests
-
-# Check formatting:
-black --check app tests
-
-# Lint code:
-ruff check app tests
-
-# Fix linting issues:
-ruff check --fix app tests
-```
-
-## 🧪 Testing
-
-The project includes comprehensive test coverage:
-
-- **Unit Tests**: Test individual components and functions
-- **Integration Tests**: Test agent interactions and API endpoints
-- **E2E Tests**: Test complete voice flows and order processing
-
-```bash
-# Run all tests:
-pytest
-
-# Run with coverage:
-pytest --cov=app
-
-# Run voice flow tests:
-VOICE_HANDLER=realtime pytest tests/e2e/test_realtime_voice_flow.py
-
-# Run in CI mode (no external dependencies):
-TESTING=True DISABLE_OPENAI=True pytest
-```
-
-## 🚀 Deployment
-
-### Render Deployment
-
-The application is configured for deployment on Render with automatic CI/CD:
-
-1. **Environment Setup**: Configure all required environment variables in Render dashboard
-2. **Database**: Use Render's PostgreSQL service
-3. **Redis**: Use Render's Redis service or external provider
-4. **Build**: Automatic builds triggered on git push
-5. **Deployment**:
-   - Staging: Push to `staging` branch
-   - Production: Push to `main` branch
-
-### Required Environment Variables
-
-```env
 # Database
-DATABASE_URL=postgresql+asyncpg://user:password@host:port/redbarsushi
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/1
-CELERY_RESULT_BACKEND=redis://localhost:6379/1
+DATABASE_URL=postgresql://redbarsushi:password@localhost:5432/redbarsushi
+REDIS_URL=redis://localhost:6380/0
+REDIS_PORT=6380
 
 # OpenAI
 OPENAI_API_KEY=sk-...
@@ -275,92 +99,304 @@ TWILIO_AUTH_TOKEN=...
 TWILIO_PHONE_NUMBER=+1...
 
 # Deliverect
-DELIVERECT_CHANNEL_NAME=redbarsushi
 DELIVERECT_API_KEY=...
+DELIVERECT_CHANNEL_NAME=redbarsushi
 DELIVERECT_CLIENT_ID=...
 DELIVERECT_CLIENT_SECRET=...
 DELIVERECT_BASE_URL=https://api.staging.deliverect.com
 
 # Application
-FASTAPI_ENV=production
-FORCE_HEADLESS=true
+SECRET_KEY=your-secret-key-here
 LOG_LEVEL=INFO
 VOICE_HANDLER=realtime
+CELERY_BROKER_URL=redis://localhost:6380/1
+CELERY_RESULT_BACKEND=redis://localhost:6380/1
 ```
 
-## 📚 Key Documentation
+### Docker Development
 
-- [CLAUDE.md](CLAUDE.md) - Comprehensive project documentation and AI assistant context
-- [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) - Detailed system architecture
-- [DEVELOPMENT_ENVIRONMENT.md](DEVELOPMENT_ENVIRONMENT.md) - Development setup guide
-- [API_KEY_INSTRUCTIONS.md](API_KEY_INSTRUCTIONS.md) - API key configuration guide
+1. Start all services:
+```bash
+./start_docker.sh
+```
 
-### Implementation Documentation
+2. Initialize the database:
+```bash
+docker exec -it redbarsushi-app-1 python -m app.db_init
+docker exec -it redbarsushi-app-1 python seed_menu_db.py
+```
 
-- [VOICE_MIGRATION_COMPLETE.md](VOICE_MIGRATION_COMPLETE.md) - Voice system migration details
-- [WEBSOCKET_FIX_CHANGES.md](WEBSOCKET_FIX_CHANGES.md) - WebSocket stability improvements
-- [RENDER_DEPLOYMENT_FIXES.md](RENDER_DEPLOYMENT_FIXES.md) - Render deployment optimizations
+3. Access the application:
+- API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+- Health Check: http://localhost:8000/healthcheck
 
-## 🔍 Debugging & Monitoring
+### Local Development
 
-### Health Check Endpoints
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-- `/health` - Overall system health
-- `/routes-debug` - List all registered FastAPI routes
-- `/voice/debug/health` - Voice system specific health
+2. Start services:
+```bash
+# Terminal 1: FastAPI server
+uvicorn app.main:app --reload --port 8000
 
-### Monitoring Tools
+# Terminal 2: Celery worker
+celery -A celery_app_fastapi worker --loglevel=INFO
+
+# Terminal 3: Redis (if not using Docker)
+redis-server --port 6380
+
+# Terminal 4: PostgreSQL (if not using Docker)
+# Ensure PostgreSQL is running on port 5432
+```
+
+## 📞 Twilio Configuration
+
+### Webhook Setup
+
+1. In your Twilio Console, configure your phone number's webhook:
+   - **Voice & Fax** → **A call comes in** → **Webhook**
+   - URL: `https://your-domain.com/voice/webhook`
+   - Method: `POST`
+
+2. For local development with ngrok:
+```bash
+ngrok http 8000
+# Use the HTTPS URL provided by ngrok
+```
+
+### Media Streams Configuration
+
+The system uses Twilio Media Streams for bidirectional audio:
+- Incoming audio: μ-law 8kHz
+- Outgoing audio: μ-law 8kHz
+- WebSocket endpoint: `/ws/media/{call_sid}`
+
+## 🧪 Testing
+
+### Run All Tests
+```bash
+pytest tests/
+```
+
+### Run E2E Tests
+```bash
+pytest tests/e2e/
+```
+
+### Test Voice Flow
+```bash
+python test_websocket.py
+```
+
+### WebSocket Testing
+```bash
+python simple_websocket_test.py
+```
+
+## 📦 API Endpoints
+
+### Voice Endpoints
+- `POST /voice/webhook` - Twilio webhook for incoming calls
+- `WS /ws/media/{call_sid}` - WebSocket for media streams
+- `POST /voice/tts` - Text-to-speech generation
+- `POST /voice/process-transcript` - Process voice transcripts
+
+### Menu Endpoints
+- `GET /api/menu/categories` - List menu categories
+- `GET /api/menu/items` - List menu items
+- `GET /api/menu/items/{item_id}` - Get specific item
+- `GET /api/menu/search` - Search menu items
+
+### Order Endpoints
+- `POST /api/order/take-order` - Create new order
+- `GET /api/order/{order_id}/status` - Get order status
+- `POST /api/order/{order_id}/confirm` - Confirm order
+- `POST /api/order/{order_id}/modify` - Modify existing order
+
+### Monitoring
+- `GET /healthcheck` - System health check
+- `GET /api/monitoring/metrics` - Performance metrics
+- `GET /api/monitoring/agents` - Agent status
+
+## 🔧 Configuration
+
+### Voice Processing Modes
+
+The system supports multiple voice processing modes:
+
+1. **Realtime Mode** (default):
+   - Uses OpenAI Realtime API
+   - Low latency, high quality
+   - Set `VOICE_HANDLER=realtime`
+
+2. **ConversationRelay Mode** (experimental):
+   - Uses Twilio ConversationRelay
+   - Enhanced reliability
+   - Set `VOICE_HANDLER=conversation_relay`
+   - Requires additional Twilio configuration
+
+### Database Schema
+
+Key tables:
+- `menu_categories` - Menu category information
+- `menu_items` - Menu items with PLU codes
+- `menu_modifiers` - Item modifiers and customizations
+- `modifier_groups` - Groups of modifiers with selection rules
+- `menu_name_variants` - Natural language variants for menu items
+- `orders` - Customer orders
+- `order_items` - Items within orders
+- `locations` - Restaurant locations
+
+### Agent Configuration
+
+Agents can be configured in `app/agents/factory_async.py`:
+- Adjust temperature and model parameters
+- Customize system prompts
+- Configure tool availability
+
+## 🚢 Deployment
+
+### Render Deployment
+
+1. Connect your GitHub repository to Render
+2. Configure environment variables in Render dashboard
+3. Deploy from `main` branch for production
+4. Deploy from `staging` branch for staging
+
+The deployment process:
+- Uses `render.yaml` for service configuration
+- Runs `fix_render_deploy.sh` during build for environment fixes
+- Automatically initializes database on first deployment
+
+### Docker Production
 
 ```bash
-# Check Docker health:
-./check_docker_health.sh
-
-# Monitor agent activity:
-docker logs -f redbarsushi-app | grep "AGENT"
-
-# Watch FSM transitions:
-docker logs -f redbarsushi-app | grep "FSM"
-
-# Track OpenAI API calls:
-docker logs -f redbarsushi-app | grep "OPENAI"
+docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
 ```
 
-### Common Issues & Solutions
+### Health Monitoring
 
-1. **WebSocket Connection Issues**:
-   - Verify OpenAI API key is valid
-   - Check network connectivity
-   - Review WebSocket logs for specific errors
+Monitor system health:
+```bash
+curl http://localhost:8000/healthcheck
+```
 
-2. **Database Connection Errors**:
-   - Ensure PostgreSQL is running
+Check logs:
+```bash
+docker logs -f redbarsushi-app-1
+```
+
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+1. **WebSocket Connection Failures**
+   - Check OpenAI API key is valid
+   - Verify network connectivity
+   - Review WebSocket logs: `docker logs redbarsushi-app-1 | grep WebSocket`
+
+2. **Audio Processing Issues**
+   - Ensure audio formats match (μ-law)
+   - Check OpenAI Realtime API quotas
+   - Verify Twilio Media Streams configuration
+
+3. **Database Connection Errors**
    - Verify DATABASE_URL format
-   - Check database permissions
+   - Check PostgreSQL is running
+   - Ensure database exists: `createdb redbarsushi`
 
-3. **Twilio Integration Problems**:
-   - Verify webhook URL is accessible
-   - Check Twilio credentials
-   - Review TwiML configuration
+4. **Redis Connection Issues** (Port 6380)
+   - Confirm Redis is running on port 6380
+   - Check REDIS_URL configuration
+   - Verify no port conflicts
+
+### Debug Mode
+
+Enable debug logging:
+```bash
+LOG_LEVEL=DEBUG uvicorn app.main:app --reload
+```
+
+### Test Connections
+
+```bash
+# Test database
+python test_db_connection.py
+
+# Test Redis
+python test_redis_connection.py
+
+# Test OpenAI
+python test_openai_connection.py
+
+# Test WebSocket
+python test_websocket.py
+```
+
+## 📚 Documentation
+
+### Core Documentation
+- [CLAUDE.md](CLAUDE.md) - Comprehensive project context and AI assistant instructions
+- [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) - Detailed system architecture
+- [DEVELOPMENT_ENVIRONMENT.md](DEVELOPMENT_ENVIRONMENT.md) - Development setup guide
+- [API Documentation](http://localhost:8000/docs) - Auto-generated FastAPI docs
+
+### Implementation Guides
+- [WebSocket Architecture](README-WEBSOCKET-ARCHITECTURE.md) - WebSocket implementation details
+- [Voice Migration](VOICE_MIGRATION_COMPLETE.md) - Voice system migration guide
+- [WebSocket Fixes](WEBSOCKET_FIX_CHANGES.md) - Recent WebSocket stability improvements
+- [ConversationRelay Migration](CONVERSATION_RELAY_MIGRATION.md) - Alternative voice architecture
+
+### Deployment & Operations
+- [Render Deployment](RENDER_DEPLOYMENT_FIXES.md) - Render-specific configurations
+- [Docker Usage](DOCKER_USAGE.md) - Docker commands and troubleshooting
+- [Environment Variables](ENVIRONMENT_VARIABLE_SETUP.md) - Complete env var reference
 
 ## 🤝 Contributing
 
-1. Create a feature branch from `staging`
-2. Make your changes with appropriate tests
-3. Ensure code passes formatting and linting checks
-4. Submit a pull request to `staging`
-5. After review and staging tests, merge to `main` for production
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+### Development Guidelines
+
+- Keep files under 500 lines
+- Use async/await for I/O operations
+- Follow existing code patterns
+- Add tests for new features
+- Update documentation
+- Never implement fallbacks unless specifically asked
+- Refer to CLAUDE.md for architectural decisions
+
+### Code Quality
+
+```bash
+# Format code
+black app tests
+
+# Lint code
+ruff check app tests
+
+# Type checking
+mypy app
+```
 
 ## 📄 License
 
-This project is proprietary software. See the LICENSE file for details.
+This project is proprietary software. All rights reserved.
 
-## 🆘 Support
+## 🙏 Acknowledgments
 
-For support:
-- Check the documentation in `/docs`
-- Review debug logs and health endpoints
-- Contact the development team
-- File an issue in the GitHub repository
+- Built with [FastAPI](https://fastapi.tiangolo.com/)
+- Voice processing by [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime)
+- Phone integration via [Twilio](https://www.twilio.com/)
+- POS integration through [Deliverect](https://www.deliverect.com/)
 
 ---
 

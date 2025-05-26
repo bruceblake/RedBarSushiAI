@@ -46,8 +46,9 @@ router = APIRouter(tags=["Voice TwiML Webhooks"])
 #         self.track = track
 #         self.name = name
 
-@router.post("/", response_class=PlainTextResponse)
-@router.post("/webhook", response_class=PlainTextResponse) 
+@router.post("", response_class=PlainTextResponse)  # Handle /voice (no trailing slash)
+@router.post("/", response_class=PlainTextResponse)  # Handle /voice/ (with trailing slash)
+@router.post("/webhook", response_class=PlainTextResponse)  # Handle /voice/webhook
 async def receive_call(request: Request) -> PlainTextResponse:
     """
     Primary webhook endpoint for Twilio calls with enhanced logging and TwiML generation.
@@ -187,18 +188,43 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # Create welcome message based on environment
         greeting_msg = f"Welcome to {environment_name} Red Bar Sushi AI!"
         
-        # Create TwiML parameters
-        twiml_params = TwimlParameter(
-            voice="Polly.Amy-Neural",
-            language="en-US",
-            greeting_text=greeting_msg,
-            fallback_text="Sorry, we couldn't connect you to our AI assistant. Please try again later.",
-            stream_params=stream_params,
-            call_sid=call_sid
-        )
+        # Check voice handler configuration
+        from app.config import settings
         
-        # Generate TwiML response
-        twiml = generate_media_streams_twiml(twiml_params)
+        if settings.VOICE_HANDLER == "conversation_relay":
+            # Use ConversationRelay for improved latency and reliability
+            logger.info(f"Using ConversationRelay voice handler for call {call_sid}")
+            
+            # Import ConversationRelay TwiML generator
+            from app.api.conversation_relay.twiml import generate_conversation_relay_twiml
+            
+            # Generate ConversationRelay TwiML
+            # Service SID and Connector Name are configured in Twilio Console
+            twiml = generate_conversation_relay_twiml(
+                call_sid=call_sid,
+                greeting_text=greeting_msg,
+                service_sid=getattr(settings, 'TWILIO_CONVERSATION_SERVICE_SID', None),
+                connector_name=getattr(settings, 'TWILIO_CONNECTOR_NAME', None),
+                host=host  # Pass the host we determined above
+            )
+            
+            logger.info(f"Generated ConversationRelay TwiML for call {call_sid}")
+        else:
+            # Use traditional Media Streams approach
+            logger.info(f"Using Media Streams voice handler for call {call_sid}")
+            
+            # Create TwiML parameters
+            twiml_params = TwimlParameter(
+                voice="Polly.Amy-Neural",
+                language="en-US",
+                greeting_text=greeting_msg,
+                fallback_text="Sorry, we couldn't connect you to our AI assistant. Please try again later.",
+                stream_params=stream_params,
+                call_sid=call_sid
+            )
+            
+            # Generate TwiML response
+            twiml = generate_media_streams_twiml(twiml_params)
         
         # Log generated TwiML (truncated for readability)
         logger.info(f"Generated TwiML: {twiml[:500]}...")

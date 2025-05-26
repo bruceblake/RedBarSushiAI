@@ -25,7 +25,8 @@ from app import create_app
 from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup, MenuNameVariant
 from app.models.order import Order, OrderItem, OrderItemModifier
 from app.utils.menu_utils_db import load_menu_data
-from app.utils.realtime_audio_sdk import get_realtime_processor
+# Realtime audio SDK has been archived - use ConversationRelay instead
+# from app.utils.realtime_audio_sdk import get_realtime_processor
 
 
 class MockAsyncWebSocket:
@@ -386,8 +387,8 @@ def mock_realtime_processor():
     """Create and patch the realtime processor for testing"""
     processor = MockRealtimeProcessor()
     
-    with patch('app.utils.realtime_audio_sdk.get_realtime_processor', return_value=processor):
-        yield processor
+    # Realtime audio SDK has been archived - returning mock directly
+    yield processor
 
 
 @pytest.fixture

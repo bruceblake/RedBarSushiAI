@@ -17,8 +17,9 @@ import uuid
 from datetime import datetime
 import traceback
 
-from app.utils.monitoring import log_with_context
-from app.utils.agent_monitoring import log_agent_call, log_tool_call
+# Monitoring modules have been archived - using standard logging
+# from app.utils.monitoring import log_with_context
+# from app.utils.agent_monitoring import log_agent_call, log_tool_call
 from app.utils.conversation_store_sdk import agents_conversation_store
 
 # Configure logging
@@ -1143,18 +1144,7 @@ class FSMOrchestrator:
         )
         
         # Also log with the standard monitoring system for redundancy
-        log_with_context(
-            "info",
-            f"[{call_sid}] State change: {previous_state_value} → {state.value}",
-            {
-                "call_sid": call_sid,
-                "previous_state": previous_state_value,
-                "state": state.value,
-                "retry_count": new_retry_count,
-                "duration_ms": duration_ms,
-                "active_slot_count": len(filtered_slots)
-            }
-        )
+        logger.info(f"[{call_sid}] State change: {previous_state_value} → {state.value} (retry_count: {new_retry_count}, duration_ms: {duration_ms})")
     
     def get_retry_count(self, call_sid: str, state: FSMState) -> int:
         """
@@ -1220,16 +1210,7 @@ class FSMOrchestrator:
         )
         
         # Also log with the standard monitoring system for redundancy
-        log_with_context(
-            "info",
-            f"[{call_sid}] Slot update: {slot_name}={safe_value}",
-            {
-                "call_sid": call_sid,
-                "slot_name": slot_name,
-                "slot_value": safe_value,
-                "value_changed": previous_value != value
-            }
-        )
+        logger.info(f"[{call_sid}] Slot update: {slot_name}={safe_value} (changed: {previous_value != value})")
     
     def get_slot(self, call_sid: str, slot_name: str) -> Any:
         """
@@ -1705,15 +1686,7 @@ class ModelEscalator:
                                phase="ESCALATION")
         
         # Also log with standard monitoring system
-        log_with_context(
-            "info",
-            f"Escalating from {current_model} to {escalation_model}",
-            {
-                "original_model": current_model,
-                "escalation_model": escalation_model,
-                "call_sid": call_sid if call_sid else "unknown"
-            }
-        )
+        logger.info(f"Escalating from {current_model} to {escalation_model} (call_sid: {call_sid if call_sid else 'unknown'})")
         
         return escalated_request
 

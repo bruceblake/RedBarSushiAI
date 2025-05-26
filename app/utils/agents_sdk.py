@@ -130,7 +130,6 @@ class ToolOutput:
 
 # Import other required modules
 from redis import Redis
-from flask import current_app, g
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -170,10 +169,15 @@ else:
 # Redis configuration with improved connection handling
 REDIS_TTL = 7200  # 2 hours, matching conversation_store
 
+# Module-level Redis client
+_redis_client = None
+
 # Initialize Redis with robust connection handling
 def get_redis_client():
     """Get or initialize the Redis client with robust fallback handling."""
-    if not hasattr(g, 'redis_client'):
+    global _redis_client
+    
+    if _redis_client is None:
         try:
             # Always prioritize REDIS_URL from environment variables
             redis_url = os.environ.get("REDIS_URL")
@@ -201,15 +205,15 @@ def get_redis_client():
                 redis_url = f"redis://{redis_url}"
                 
             # Initialize Redis client with timeout
-            g.redis_client = Redis.from_url(redis_url, socket_timeout=2.0)
+            _redis_client = Redis.from_url(redis_url, socket_timeout=2.0)
             
             # Test connection
-            g.redis_client.ping()
+            _redis_client.ping()
             logger.info("Successfully connected to Redis")
         except Exception as e:
             logger.error(f"Failed to initialize Redis connection: {str(e)}")
-            g.redis_client = None
-    return g.redis_client
+            _redis_client = None
+    return _redis_client
 
 # Thread management
 def get_thread_id(call_sid: str) -> Optional[str]:

@@ -485,6 +485,44 @@ class AsyncAgentOrchestrator:
             logger.info(f"Cleaned up inactive session: {call_sid}")
         
         return len(sessions_to_remove)
+    
+    async def handle_interruption(self, call_sid: str):
+        """
+        Handle user interruption (barge-in) during TTS playback.
+        
+        This method is called when the user starts speaking while the system
+        is still playing TTS audio, indicating they want to interrupt.
+        
+        Args:
+            call_sid: The Twilio call SID for this session
+        """
+        logger.info(f"Handling interruption for call {call_sid}")
+        
+        # Update session activity
+        if call_sid in self.active_sessions:
+            self.active_sessions[call_sid]["last_activity"] = time.time()
+            self.active_sessions[call_sid]["interruption_count"] = \
+                self.active_sessions[call_sid].get("interruption_count", 0) + 1
+        
+        # Get FSM and update context
+        fsm = await self.get_fsm(call_sid)
+        fsm.update_context({
+            "user_interrupted": True,
+            "last_interruption_time": time.time()
+        })
+        
+        # Signal frontline agent about interruption if available
+        if self.frontline_agent and hasattr(self.frontline_agent, "handle_interruption"):
+            await self.frontline_agent.handle_interruption(call_sid)
+        
+        # Log interruption event in conversation history
+        await self.conversation_store.add_message(
+            call_sid,
+            speaker="system",
+            text="[User interrupted TTS playback]"
+        )
+        
+        logger.info(f"Interruption handled for call {call_sid}")
 
 # Singleton instance for easy import
 async_agent_orchestrator = AsyncAgentOrchestrator()

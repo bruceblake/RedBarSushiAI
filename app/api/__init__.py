@@ -22,21 +22,14 @@ api_router.include_router(order_router, prefix="/order")  # Order routes
 api_router.include_router(menu_router, prefix="/menu")  # Menu routes
 
 # Import voice routers from the structured module
-# This is the preferred implementation with better organized code
 try:
-    from app.api.voice import http_twiml_router, media_stream_router, testing_router
+    from app.api.voice import http_twiml_router, testing_router
     
     # Mount TwiML HTTP endpoint router at /voice
     api_router.include_router(http_twiml_router, prefix="/voice", tags=["Voice (TwiML Webhooks)"])
     # This makes your TwiML endpoint:
     # POST https://<host>/voice/ and POST https://<host>/voice/webhook
     # Ensure Twilio console points to this exact URL.
-    
-    # Mount WebSocket media endpoint router at /realtime
-    api_router.include_router(media_stream_router, prefix="/realtime", tags=["Voice (Realtime Media Stream)"])
-    # This makes your WebSocket endpoint:
-    # wss://<host>/realtime/ws/media/{call_sid}
-    # Ensure your TwiML generation creates this exact URL for the <Stream> tag.
     
     # Mount testing endpoints
     api_router.include_router(testing_router, prefix="/voice/test", tags=["Voice Testing"])
@@ -47,31 +40,20 @@ try:
         api_router.include_router(conversation_relay_router, prefix="/api", tags=["ConversationRelay"])
         logger.info("Successfully registered ConversationRelay router")
         logger.critical("❗❗❗ ConversationRelay endpoint: /api/conversation-relay ❗❗❗")
-    except ImportError:
-        logger.info("ConversationRelay module not available yet")
+    except ImportError as e:
+        logger.error(f"ConversationRelay module import failed: {str(e)}")
+    except Exception as e:
+        logger.error(f"ConversationRelay module error: {type(e).__name__}: {str(e)}")
     
-    logger.info("Successfully registered voice routers from structured voice module")
-    logger.critical("❗❗❗ USING STRUCTURED VOICE MODULE ❗❗❗")
-    logger.critical("❗❗❗ TwiML endpoint: /voice/ and /voice/webhook ❗❗❗")
-    logger.critical("❗❗❗ WebSocket endpoint: /realtime/ws/media/{call_sid} ❗❗❗")
+    logger.info("Successfully registered voice routers")
+    logger.info("TwiML endpoints: /voice/ and /voice/webhook")
+    logger.info("Voice testing endpoints: /voice/test/*")
     
 except ImportError as e:
-    logger.warning(f"Failed to import structured voice module: {str(e)}")
-    logger.warning("Falling back to legacy voice module")
-    
-    # Fall back to the legacy voice module if the structured one is not available
-    try:
-        from app.api.voice_async import router as voice_async_router
-        
-        # Mount legacy voice router
-        api_router.include_router(voice_async_router)
-        
-        logger.info("Successfully registered legacy voice router")
-        logger.critical("❗❗❗ USING LEGACY VOICE MODULE ❗❗❗")
-        logger.critical("❗❗❗ Voice endpoints: /voice/, /voice/webhook, /ws/media/{call_sid} ❗❗❗")
-    except ImportError as e2:
-        logger.error(f"Failed to import legacy voice module: {str(e2)}")
-        logger.critical("❗❗❗ NO VOICE MODULE AVAILABLE - VOICE FUNCTIONALITY WILL NOT WORK ❗❗❗")
+    logger.error(f"Failed to import structured voice module: {str(e)}")
+    logger.critical("❗❗❗ VOICE MODULE NOT AVAILABLE - Please check the error above ❗❗❗")
+    # Legacy voice_async module has been archived as part of OpenAI Realtime cleanup
+    # Use ConversationRelay with VOICE_HANDLER=conversation_relay instead
 
 # Always add Debug routes to inspect the routing
 debug_router = APIRouter(tags=["Debug"])
