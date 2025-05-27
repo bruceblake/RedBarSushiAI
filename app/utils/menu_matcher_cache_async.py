@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.menu_matcher_db_async import AsyncMenuMatcher as BaseAsyncMenuMatcher
 # Ensure we're not importing from the old menu_matcher_db module:
 # Avoid: from app.utils.menu_matcher_db import MenuMatcher
-from app.utils.menu_cache_sdk import menu_cache, with_menu_cache
+from app.redis_async import cache_menu_data, get_cached_menu_data, clear_menu_cache
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +43,11 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
             True if initialization successful, False otherwise
         """
         # Try to get from cache first
-        cached_data = menu_cache.get_all_menu()
+        cached_data = await get_cached_menu_data()
         
         if cached_data:
             try:
-                # cached_data is already a dict from get_all_menu()
+                # cached_data is already a dict from get_cached_menu_data()
                 self.menu_data = cached_data
                 self.items = cached_data.get("items", [])
                 self.modifiers = cached_data.get("modifiers", [])
@@ -67,7 +67,7 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
             if success and self.menu_data:
                 # Store in cache for next time
                 try:
-                    menu_cache.set_all_menu(self.menu_data, ttl=self.cache_ttl)
+                    await cache_menu_data(self.menu_data, ttl=self.cache_ttl)
                     logger.info(f"Stored menu data in cache")
                 except Exception as e:
                     logger.error(f"Error storing menu data in cache: {e}")
@@ -98,6 +98,15 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
         
         return item, score
 
+# Module-level cache management functions
+async def clear_cached_menu_matcher():
+    """Clear the cached menu matcher instance and menu data cache."""
+    try:
+        await clear_menu_cache()
+        logger.info("Cleared menu matcher cache")
+    except Exception as e:
+        logger.error(f"Error clearing menu matcher cache: {e}")
+
 # Create a singleton instance for easy import
 cached_async_menu_matcher = None
 
@@ -114,8 +123,31 @@ async def get_cached_async_menu_matcher(db: AsyncSession, location_id: Optional[
     """
     global cached_async_menu_matcher
     
-    if cached_async_menu_matcher is None:
+    # Always create a new matcher if db is provided
+    # This ensures we use a valid database session
+    if db is not None:
+        logger.info(f"Creating new menu matcher with database session")
         cached_async_menu_matcher = AsyncCachedMenuMatcher(db, location_id)
-        await cached_async_menu_matcher.initialize()
+        success = await cached_async_menu_matcher.initialize()
+        if not success:
+            logger.error("Failed to initialize menu matcher")
+    elif cached_async_menu_matcher is None:
+        logger.error("No database session provided and no cached matcher available")
+        raise ValueError("Database session required to initialize menu matcher")
         
     return cached_async_menu_matcher
+
+
+async def clear_cached_menu_matcher():
+    """Clear the cached menu matcher to force reload."""
+    global cached_async_menu_matcher
+    
+    if cached_async_menu_matcher:
+        logger.info("Clearing cached menu matcher")
+        cached_async_menu_matcher = None
+    
+    # Also clear the menu cache
+    try:
+        menu_cache.clear_all()
+    except Exception as e:
+        logger.error(f"Error clearing menu cache: {e}")

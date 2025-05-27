@@ -69,7 +69,9 @@ async def load_menu_data(db: AsyncSession, location_id: Optional[str] = None) ->
                    f"{len(menu_data['variants'])} variants")
         
     except Exception as e:
-        logger.error(f"Error loading menu data from database: {e}")
+        logger.error(f"Error loading menu data from database: {e}", exc_info=True)
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error args: {e.args}")
         # Return empty menu data on error
     
     return menu_data

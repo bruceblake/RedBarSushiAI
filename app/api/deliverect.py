@@ -6,6 +6,7 @@ for Deliverect integration following their official API documentation.
 """
 
 import logging
+import os
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, status, Request, Depends
 from pydantic import BaseModel, Field
@@ -63,8 +64,10 @@ async def register_channel(
         base_url = str(req.base_url).rstrip('/')
         
         # For development with ngrok or similar, check if we have a public URL configured
-        if hasattr(settings, 'PUBLIC_WEBHOOK_URL') and settings.PUBLIC_WEBHOOK_URL:
-            base_url = settings.PUBLIC_WEBHOOK_URL.rstrip('/')
+        public_webhook_url = os.environ.get('PUBLIC_WEBHOOK_URL')
+        if public_webhook_url:
+            base_url = public_webhook_url.rstrip('/')
+            logger.info(f"Using PUBLIC_WEBHOOK_URL: {base_url}")
         
         # Store the registration details in database if needed
         # TODO: Implement database storage for channel registrations

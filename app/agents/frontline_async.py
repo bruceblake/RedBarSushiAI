@@ -226,19 +226,42 @@ class AsyncFrontlineVoiceAgent(BaseAsyncAgent):
         Returns:
             Dict[str, Any]: The agent's response
         """
-        # Extract customer name if possible
-        customer_name = self._extract_name(input_text) or "there"
-        self.context["customer_name"] = customer_name
+        # If this is the first interaction, provide a warm greeting
+        if not input_text or self.context.get("first_interaction"):
+            response = {
+                "text": "Hello! Welcome to Red Bar Sushi. I'm here to help you place an order or answer any questions about our menu. May I have your name, please?",
+                "agent": self.name,
+                "handled": True,
+                "actions": []
+            }
+            self.context["first_interaction"] = False
+            return response
         
-        # Generate greeting response
-        response = {
-            "text": f"Hello {customer_name}! Welcome to Red Bar Sushi. How can I help you today?",
-            "agent": self.name,
-            "handled": True,
-            "actions": [
-                {"type": "set_customer_name", "name": customer_name}
-            ]
-        }
+        # Extract customer name if possible
+        customer_name = self._extract_name(input_text)
+        
+        if customer_name:
+            self.context["customer_name"] = customer_name
+            # Move to main menu after getting name
+            self.conversation_state = "MAIN_MENU"
+            
+            response = {
+                "text": f"Thank you, {customer_name}! What can I help you with today? I can take your order, answer questions about our menu, or help you with pickup or delivery options.",
+                "agent": self.name,
+                "handled": True,
+                "actions": [
+                    {"type": "set_customer_name", "name": customer_name},
+                    {"type": "state_change", "state": self.conversation_state}
+                ]
+            }
+        else:
+            # Couldn't extract name, ask again more clearly
+            response = {
+                "text": "I'm sorry, I didn't catch your name. Could you please tell me your name?",
+                "agent": self.name,
+                "handled": True,
+                "actions": []
+            }
         
         return response
     
@@ -569,23 +592,35 @@ class AsyncFrontlineVoiceAgent(BaseAsyncAgent):
         Returns:
             Optional[str]: Extracted name or None
         """
+        import re
+        
         # Simple name extraction - a more sophisticated approach would be used in production
         name_indicators = [
-            "my name is", "i'm", "i am", "call me", "this is"
+            r"my name is\s+(\w+)",
+            r"i'm\s+(\w+)",
+            r"i am\s+(\w+)",
+            r"call me\s+(\w+)",
+            r"this is\s+(\w+)",
+            r"it's\s+(\w+)",
+            r"^(\w+)$"  # Single word response
         ]
         
-        text_lower = text.lower()
+        text_clean = text.strip()
         
-        for indicator in name_indicators:
-            if indicator in text_lower:
-                start_idx = text_lower.find(indicator) + len(indicator)
-                name_part = text[start_idx:].strip()
-                
-                # Extract first word as name (simple approach)
-                if name_part:
-                    words = name_part.split()
-                    if words:
-                        return words[0]
+        for pattern in name_indicators:
+            match = re.search(pattern, text_clean, re.IGNORECASE)
+            if match:
+                name = match.group(1)
+                # Capitalize first letter
+                return name.capitalize()
+        
+        # If text is just 1-2 words and looks like a name, accept it
+        words = text_clean.split()
+        if 1 <= len(words) <= 2:
+            # Check if it's likely a name (starts with capital letter or all letters)
+            first_word = words[0]
+            if first_word.isalpha() and len(first_word) > 1:
+                return first_word.capitalize()
         
         return None
     
@@ -600,8 +635,9 @@ class AsyncFrontlineVoiceAgent(BaseAsyncAgent):
             bool: True if text has ordering intent
         """
         order_keywords = [
-            "order", "place an order", "get", "have", "want", "like", "i'll take", 
-            "give me", "can i get", "can i have"
+            "order", "place an order", "i'll take", "i will take",
+            "give me", "can i get", "can i have", "i'd like to order",
+            "i want to order", "let me get", "i'll have"
         ]
         
         text_lower = text.lower()

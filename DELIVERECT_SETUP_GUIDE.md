@@ -84,25 +84,43 @@ lt --port 8000
 # Copy the URL provided
 ```
 
-## Step 5: Register Webhook with Deliverect
+## Step 5: Configure Deliverect to Use Your Registration Endpoint
 
-### Method 1: Using Deliverect Dashboard (Recommended)
+### In Deliverect Dashboard:
 
 1. Log into Deliverect Dashboard
-2. Navigate to: **Settings > Webhooks**
-3. Click **Add Webhook**
-4. Configure:
-   - **URL**: `https://your-ngrok-url.ngrok.io/api/menu/webhook/deliverect/menu`
-   - **Event Type**: Menu Update
-   - **Active**: Yes
-5. Save the webhook
+2. Navigate to your channel settings
+3. Set the **Registration URL**: `https://your-ngrok-url.ngrok.io/api/deliverect/register`
+4. Save the configuration
 
-### Method 2: Using Deliverect API
+### What Happens Next:
 
-```bash
-# Register webhook programmatically
-python test_deliverect_menu.py --register --public-url https://your-ngrok-url.ngrok.io
-```
+1. Deliverect will call your `/api/deliverect/register` endpoint with:
+   ```json
+   {
+     "status": "register",
+     "channelLocationId": "...",
+     "channelLinkId": "...",
+     "locationId": "...",
+     "channelLinkName": "..."
+   }
+   ```
+
+2. Your app responds with webhook URLs:
+   ```json
+   {
+     "statusUpdateURL": "https://your-ngrok-url.ngrok.io/api/deliverect/order/status",
+     "menuUpdateURL": "https://your-ngrok-url.ngrok.io/api/deliverect/menu/update",
+     "snoozeUnsnoozeURL": "https://your-ngrok-url.ngrok.io/api/deliverect/menu/snooze",
+     "busyModeURL": "https://your-ngrok-url.ngrok.io/api/deliverect/location/busy",
+     "updatePrepTimeURL": "https://your-ngrok-url.ngrok.io/api/deliverect/location/preptime",
+     "courierUpdateURL": "https://your-ngrok-url.ngrok.io/api/deliverect/order/courier",
+     "paymentUpdateURL": "https://your-ngrok-url.ngrok.io/api/deliverect/order/payment",
+     "menuUrl": "https://your-ngrok-url.ngrok.io"
+   }
+   ```
+
+3. Deliverect stores these URLs and uses them for future webhook calls
 
 ## Step 6: Trigger a Menu Update
 
@@ -129,12 +147,42 @@ curl http://localhost:8000/api/menu/categories
 
 ## Webhook Endpoint Details
 
-### Endpoint URL
+### Registration Endpoint
 ```
-POST /api/menu/webhook/deliverect/menu
+POST /api/deliverect/register
 ```
 
-### Expected Payload Structure
+**Request from Deliverect:**
+```json
+{
+  "status": "register|active|inactive",
+  "channelLocationId": "merchant-id-in-channel",
+  "channelLinkId": "deliverect-channel-link-id",
+  "locationId": "deliverect-location-id",
+  "channelLinkName": "Channel Display Name"
+}
+```
+
+**Your Response:**
+```json
+{
+  "statusUpdateURL": "https://your-domain.com/api/deliverect/order/status",
+  "menuUpdateURL": "https://your-domain.com/api/deliverect/menu/update",
+  "snoozeUnsnoozeURL": "https://your-domain.com/api/deliverect/menu/snooze",
+  "busyModeURL": "https://your-domain.com/api/deliverect/location/busy",
+  "updatePrepTimeURL": "https://your-domain.com/api/deliverect/location/preptime",
+  "courierUpdateURL": "https://your-domain.com/api/deliverect/order/courier",
+  "paymentUpdateURL": "https://your-domain.com/api/deliverect/order/payment",
+  "menuUrl": "https://your-domain.com"
+}
+```
+
+### Menu Update Endpoint
+```
+POST /api/deliverect/menu/update
+```
+
+**Deliverect sends:**
 ```json
 {
   "menu": {
@@ -148,16 +196,10 @@ POST /api/menu/webhook/deliverect/menu
 }
 ```
 
-### Response
+**Your Response:**
 ```json
 {
-  "status": "success",
-  "message": "Menu updated successfully",
-  "stats": {
-    "categories": 3,
-    "items": 10,
-    "modifier_groups": 5
-  }
+  "status": "ONLINE"  // or "FAILED"
 }
 ```
 

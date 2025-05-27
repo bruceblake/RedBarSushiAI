@@ -370,8 +370,13 @@ async def startup_event():
     # Initialize async agent orchestrator
     try:
         from app.utils.agent_orchestration_async import async_agent_orchestrator
-        await async_agent_orchestrator.initialize()
-        logger.info("Async agent orchestrator initialized successfully")
+        from app.db_async import get_db
+        
+        # Get a database session for agent initialization
+        async for db in get_db():
+            await async_agent_orchestrator.initialize(db=db)
+            logger.info("Async agent orchestrator initialized successfully with database session")
+            break
     except Exception as e:
         logger.error(f"Error initializing async agent orchestrator: {e}")
 

@@ -11,7 +11,9 @@ import json
 import logging
 import asyncio
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db_async import get_db
 from app.utils.agent_orchestration_async import async_agent_orchestrator
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,18 @@ class ConversationRelayHandler:
                 {"first_interaction": True}
             )
             logger.info(f"Agent orchestrator initialized for {self.call_sid}")
+            
+            # Send initial greeting if not using welcomeGreeting in TwiML
+            greeting_response = await async_agent_orchestrator.process_voice_input(
+                self.call_sid or self.session_id, 
+                "", 
+                {"first_interaction": True}
+            )
+            
+            greeting_text = greeting_response.get("text", "")
+            if greeting_text:
+                await self.send_text(greeting_text)
+                logger.info(f"Sent greeting: {greeting_text[:100]}...")
         except Exception as e:
             logger.error(f"Error initializing agent for {self.call_sid}: {e}", exc_info=True)
     

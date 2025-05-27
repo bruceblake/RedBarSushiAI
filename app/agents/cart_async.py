@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional, Union, Callable
 from app.agents.base_async import BaseAsyncAgent
 from app.utils.menu_matcher_cache_async import get_cached_async_menu_matcher
 from app.utils.menu_db_store_async import async_menu_db_store
-from app.utils.menu_cache_sdk import menu_cache
+# Menu caching is handled by Redis
 from app.utils.conversation_store_sdk_async import async_agents_conversation_store
 from app.config import settings
 
@@ -500,6 +500,13 @@ class AsyncCartAgent(BaseAsyncAgent):
             Details about the menu item if found
         """
         logger.info(f"Looking up menu item: {item_name}")
+        logger.info(f"Cart agent database session available: {self.db is not None}")
+        
+        # Get a fresh database session if we don't have one
+        if self.db is None:
+            from app.db_async import async_session_factory
+            self.db = async_session_factory()
+            logger.info("Created new database session for cart agent")
         
         # Use the async menu matcher to find the item
         async_matcher = await get_cached_async_menu_matcher(self.db)

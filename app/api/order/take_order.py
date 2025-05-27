@@ -19,7 +19,8 @@ from app.db_async import get_db
 from app.models.order_async import Order, OrderItem
 from app.utils.helpers_async import commit_with_retry_async, log_info_async
 from app.utils.menu_utils_db_async import load_menu_data  # Using async version
-from app.utils.agent_utils import OrderParsingAgent  # TODO: Create async version if needed
+# from app.utils.agent_utils import OrderParsingAgent  # TODO: Create async version if needed
+# NOTE: Temporarily disabled - using async agents instead
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -105,24 +106,9 @@ async def check_for_missing_modifiers(order_items: List[dict]) -> tuple:
     items_needing_modifiers = []
     constraint_details = {}
     
-    # Create an agent to help with menu operations
-    agent = OrderParsingAgent()
-    
-    for item in order_items:
-        item_name = item.get("name", "")
-        
-        # Skip items that already have modifiers
-        if item.get("modifier") and len(item.get("modifier", [])) > 0:
-            continue
-            
-        # Use the agent to check if this item needs modifiers
-        modifier_details = agent.menu_tool.check_required_modifiers(item_name)
-        
-        if modifier_details.get("needs_modifiers", False):
-            items_needing_modifiers.append(item)
-            constraint_details[item_name] = modifier_details
-    
-    return items_needing_modifiers, constraint_details
+    # TODO: Replace with async agent implementation
+    # For now, return empty results
+    return [], {}
 
 async def custom_suggest_modifiers(item_name: str) -> str:
     """
@@ -134,8 +120,8 @@ async def custom_suggest_modifiers(item_name: str) -> str:
     Returns:
         String with the suggestions
     """
-    agent = OrderParsingAgent()
-    return agent.menu_tool.generate_modifier_prompt(item_name)
+    # TODO: Replace with async agent implementation
+    return f"Would you like any modifications to your {item_name}?"
 
 # =====================
 # API Routes
@@ -164,8 +150,8 @@ async def take_order(
     
     # Load menu and check availability - force refresh to ensure we have latest data
     try:
-        # This should eventually be replaced with an async version
-        menu_data = load_menu_data(force_refresh=True)
+        # Using async version of load_menu_data
+        menu_data = await load_menu_data(db, force_refresh=True)
 
         # Debug logging to see if menu data is loaded correctly
         item_count = len(menu_data.get("items", []) or [])

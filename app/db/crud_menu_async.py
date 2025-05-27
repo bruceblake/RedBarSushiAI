@@ -800,8 +800,7 @@ async def create_modifier(db: AsyncSession, modifier: MenuModifierCreate) -> Men
         price_change=modifier.price_change,
         plu=modifier.plu,
         deliverect_modifier_id=modifier.deliverect_modifier_id,
-        is_available=modifier.is_available,
-        modifier_group_id=modifier.modifier_group_id
+        is_available=modifier.is_available
     )
     db.add(db_modifier)
     await db.commit()
@@ -1098,7 +1097,7 @@ async def create_modifier_group(
         name=group.name,
         min_selection=group.min_selection,
         max_selection=group.max_selection,
-        multi_max=group.multi_max,
+        multiMax=group.multiMax if hasattr(group, 'multiMax') else 1,
         plu=group.plu,
         is_variant_group=group.is_variant_group,
         deliverect_group_id=group.deliverect_group_id,
@@ -1282,3 +1281,107 @@ async def remove_modifier_group_from_item(
             break
             
     return db_item
+
+# Helper functions for menu update operations
+async def link_modifier_to_group(db: AsyncSession, modifier_id: int, group_id: int) -> bool:
+    """
+    Link a modifier to a modifier group using the group_modifiers junction table.
+    
+    Args:
+        db: Database session
+        modifier_id: ID of the modifier
+        group_id: ID of the modifier group
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    from sqlalchemy import text
+    
+    try:
+        # Insert into the junction table
+        stmt = text("""
+            INSERT INTO group_modifier (modifier_group_id, menu_modifier_id)
+            VALUES (:group_id, :modifier_id)
+            ON CONFLICT DO NOTHING
+        """)
+        
+        await db.execute(stmt, {"group_id": group_id, "modifier_id": modifier_id})
+        await db.commit()
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error linking modifier {modifier_id} to group {group_id}: {e}")
+        await db.rollback()
+        return False
+
+async def link_item_to_modifier_group(db: AsyncSession, item_id: int, group_id: int) -> bool:
+    """
+    Link a menu item to a modifier group using the item_modifier_groups junction table.
+    
+    Args:
+        db: Database session
+        item_id: ID of the menu item
+        group_id: ID of the modifier group
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    from sqlalchemy import text
+    
+    try:
+        # Insert into the junction table
+        stmt = text("""
+            INSERT INTO item_modifier_group (menu_item_id, modifier_group_id)
+            VALUES (:item_id, :group_id)
+            ON CONFLICT DO NOTHING
+        """)
+        
+        await db.execute(stmt, {"item_id": item_id, "group_id": group_id})
+        await db.commit()
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error linking item {item_id} to modifier group {group_id}: {e}")
+        await db.rollback()
+        return False
+
+
+# Alias functions for compatibility with enhanced menu agent
+async def get_all_categories(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[MenuCategory]:
+    """Get all menu categories (alias for get_categories)."""
+    return await get_categories(db, skip=skip, limit=limit)
+
+
+async def search_menu_items(db: AsyncSession, query: str, limit: int = 10) -> List[MenuItem]:
+    """
+    Search for menu items by name or description.
+    
+    Args:
+        db: Database session
+        query: Search query
+        limit: Maximum number of results
+        
+    Returns:
+        List of matching MenuItem objects
+    """
+    from sqlalchemy import or_, select
+    
+    try:
+        # Create search pattern
+        search_pattern = f"%{query}%"
+        
+        # Build query
+        stmt = select(MenuItem).where(
+            or_(
+                MenuItem.name.ilike(search_pattern),
+                MenuItem.description.ilike(search_pattern)
+            )
+        ).limit(limit)
+        
+        # Execute query
+        result = await db.execute(stmt)
+        return result.scalars().all()
+        
+    except Exception as e:
+        logger.error(f"Error searching menu items: {e}")
+        return []

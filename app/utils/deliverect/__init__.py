@@ -13,24 +13,24 @@ from app.utils.deliverect.auth import (
 )
 
 # Menu processing
-from app.utils.deliverect.menu import (
-    process_deliverect_menu,
+from app.utils.deliverect.menu_async import (
+    process_deliverect_menu_async as process_deliverect_menu,
 )
 
 # Order management
-from app.utils.deliverect.orders import (
+from app.utils.deliverect.orders_async import (
     build_deliverect_order,
-    send_order_to_deliverect,
-    get_order_status,
-    process_order_status_update,
+    send_order_to_deliverect_async as send_order_to_deliverect,
+    get_order_status_async as get_order_status,
+    process_order_status_update_async as process_order_status_update,
     generate_order_id,
 )
 
 # Location management
-from app.utils.deliverect.locations import (
-    register_new_location,
-    update_location_status,
-    get_location_webhook_urls,
+from app.utils.deliverect.locations_async import (
+    register_new_location_async as register_new_location,
+    update_location_status_async as update_location_status,
+    get_location_webhook_urls_async as get_location_webhook_urls,
 )
 
 # Make sure to maintain the same API as the original module

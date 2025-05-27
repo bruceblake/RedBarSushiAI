@@ -25,6 +25,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       PYTHONUNBUFFERED: "1"
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-for-development}
+      APP_SECRET_KEY: ${SECRET_KEY:-your-secret-key-for-development}
+      USE_AI_AGENTS: "true"
       
       # Base URL for webhooks (required)
       BASE_URL: ${BASE_URL:-http://localhost:8000}

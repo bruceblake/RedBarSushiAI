@@ -56,7 +56,7 @@ class MenuItemBase(BaseModel):
     is_combo: bool = False
     is_variant: bool = False
     image_url: Optional[str] = None
-    category_id: Optional[str] = None
+    category_id: Optional[int] = None
     properties: Optional[Dict[str, Any]] = None
 
 
@@ -76,7 +76,7 @@ class MenuItemUpdate(BaseModel):
     is_combo: Optional[bool] = None
     is_variant: Optional[bool] = None
     image_url: Optional[str] = None
-    category_id: Optional[str] = None
+    category_id: Optional[int] = None
     properties: Optional[Dict[str, Any]] = None
 
 
@@ -104,7 +104,6 @@ class MenuModifierBase(BaseModel):
     plu: Optional[str] = None
     deliverect_modifier_id: Optional[str] = None
     is_available: bool = True
-    modifier_group_id: Optional[str] = None
 
 
 class MenuModifierCreate(MenuModifierBase):
@@ -144,7 +143,7 @@ class MenuModifierGroupBase(BaseModel):
     name: str
     min_selection: int = 0
     max_selection: int = 1
-    multi_max: Optional[int] = None
+    multiMax: Optional[int] = None
     plu: Optional[str] = None
     is_variant_group: bool = False
     deliverect_group_id: Optional[str] = None

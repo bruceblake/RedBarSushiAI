@@ -94,6 +94,9 @@ async def get_redis() -> aioredis.Redis:
         
     return _redis_client
 
+# Alias for backward compatibility
+get_redis_client = get_redis
+
 async def redis_get(key: str) -> Optional[bytes]:
     """
     Get a value from Redis with error handling.
@@ -226,4 +229,148 @@ def memory_cache_set(key: str, value: Any) -> bool:
         return True
     except Exception as e:
         logger.error(f"Error storing in memory cache: {e}")
+        return False
+
+# Menu-specific caching functions
+async def cache_menu_data(menu_data: Dict[str, Any], ttl: int = 3600) -> bool:
+    """
+    Cache complete menu data.
+    
+    Args:
+        menu_data: Dictionary containing items, modifiers, modifier_groups, variants
+        ttl: Time to live in seconds (default: 1 hour)
+        
+    Returns:
+        bool: True if successful
+    """
+    import json
+    
+    try:
+        # Cache the complete menu data
+        menu_json = json.dumps(menu_data)
+        success = await redis_set("menu:complete", menu_json, expire=ttl)
+        
+        # Also cache individual components for quick lookups
+        if menu_data.get("items"):
+            items_json = json.dumps(menu_data["items"])
+            await redis_set("menu:items", items_json, expire=ttl)
+            
+        if menu_data.get("modifiers"):
+            modifiers_json = json.dumps(menu_data["modifiers"])
+            await redis_set("menu:modifiers", modifiers_json, expire=ttl)
+            
+        if menu_data.get("modifier_groups"):
+            groups_json = json.dumps(menu_data["modifier_groups"])
+            await redis_set("menu:modifier_groups", groups_json, expire=ttl)
+            
+        if menu_data.get("variants"):
+            variants_json = json.dumps(menu_data["variants"])
+            await redis_set("menu:variants", variants_json, expire=ttl)
+            
+        logger.info(f"Cached menu data with {len(menu_data.get('items', []))} items")
+        return success
+        
+    except Exception as e:
+        logger.error(f"Error caching menu data: {e}")
+        # Fallback to memory cache
+        memory_cache_set("menu:complete", menu_data)
+        return False
+
+async def get_cached_menu_data() -> Optional[Dict[str, Any]]:
+    """
+    Get complete menu data from cache.
+    
+    Returns:
+        Optional[Dict[str, Any]]: Menu data or None if not cached
+    """
+    import json
+    
+    try:
+        # Try Redis first
+        menu_json = await redis_get("menu:complete")
+        if menu_json:
+            return json.loads(menu_json.decode('utf-8'))
+            
+    except Exception as e:
+        logger.error(f"Error getting cached menu data: {e}")
+        
+    # Fallback to memory cache
+    return memory_cache_get("menu:complete")
+
+async def cache_menu_item(plu: str, item_data: Dict[str, Any], ttl: int = 3600) -> bool:
+    """
+    Cache individual menu item by PLU.
+    
+    Args:
+        plu: Item PLU code
+        item_data: Item data dictionary
+        ttl: Time to live in seconds
+        
+    Returns:
+        bool: True if successful
+    """
+    import json
+    
+    try:
+        item_json = json.dumps(item_data)
+        return await redis_set(f"menu:item:{plu}", item_json, expire=ttl)
+    except Exception as e:
+        logger.error(f"Error caching menu item {plu}: {e}")
+        memory_cache_set(f"menu:item:{plu}", item_data)
+        return False
+
+async def get_cached_menu_item(plu: str) -> Optional[Dict[str, Any]]:
+    """
+    Get cached menu item by PLU.
+    
+    Args:
+        plu: Item PLU code
+        
+    Returns:
+        Optional[Dict[str, Any]]: Item data or None if not cached
+    """
+    import json
+    
+    try:
+        item_json = await redis_get(f"menu:item:{plu}")
+        if item_json:
+            return json.loads(item_json.decode('utf-8'))
+    except Exception as e:
+        logger.error(f"Error getting cached menu item {plu}: {e}")
+        
+    # Fallback to memory cache
+    return memory_cache_get(f"menu:item:{plu}")
+
+async def clear_menu_cache() -> bool:
+    """
+    Clear all menu-related cache entries.
+    
+    Returns:
+        bool: True if successful
+    """
+    try:
+        redis_client = await get_redis()
+        
+        # Find all menu-related keys
+        keys = []
+        async for key in redis_client.scan_iter(match="menu:*"):
+            keys.append(key)
+            
+        # Delete all found keys
+        if keys:
+            await redis_client.delete(*keys)
+            logger.info(f"Cleared {len(keys)} menu cache entries")
+            
+        # Clear memory cache too
+        keys_to_remove = [k for k in _memory_cache.keys() if k.startswith("menu:")]
+        for key in keys_to_remove:
+            if key in _memory_cache:
+                del _memory_cache[key]
+            if key in _memory_cache_timestamps:
+                del _memory_cache_timestamps[key]
+                
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error clearing menu cache: {e}")
         return False

@@ -35,13 +35,19 @@ except ImportError as e:
 # Set up logging
 logger = logging.getLogger(__name__)
 
-# Convert the synchronous SQLAlchemy DATABASE_URL to async version
+# Convert the synchronous SQLAlchemy DATABASE_URL to async version if needed
 # Example: postgresql://user:pass@localhost/dbname -> postgresql+asyncpg://user:pass@localhost/dbname
 database_url = settings.DATABASE_URL
 if database_url.startswith('postgresql://'):
     DATABASE_URL = database_url.replace('postgresql://', 'postgresql+asyncpg://')
+elif database_url.startswith('postgresql+asyncpg://'):
+    # Already in async format
+    DATABASE_URL = database_url
 elif database_url.startswith('sqlite://'):
     DATABASE_URL = database_url.replace('sqlite://', 'sqlite+aiosqlite://')
+elif database_url.startswith('sqlite+aiosqlite://'):
+    # Already in async format
+    DATABASE_URL = database_url
 else:
     DATABASE_URL = database_url
     logger.warning(f"Unrecognized database URL format: {database_url}")

@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, List, Union
 
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, ForeignKey, DateTime, Table
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy import text, event, inspect
 
 from app.db_async import Base
@@ -138,7 +138,9 @@ class MenuCategory(BaseModel):
     
     # Relationships
     items = relationship("MenuItem", back_populates="category")
-    sub_categories = relationship("MenuCategory", backref="parent")
+    sub_categories = relationship("MenuCategory", 
+                                 backref=backref("parent", remote_side="MenuCategory.id"),
+                                 cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<MenuCategory {self.name}>"
@@ -146,9 +148,8 @@ class MenuCategory(BaseModel):
     def to_dict(self):
         result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         
-        # Add relationships
-        result['items'] = [item.to_dict() for item in self.items] if self.items else []
-        result['sub_categories'] = [cat.to_dict() for cat in self.sub_categories] if self.sub_categories else []
+        # Don't access relationships to avoid lazy loading issues
+        # Items and sub_categories can be added later if needed
         
         # Sanitize properties
         if hasattr(self, 'properties'):
@@ -205,8 +206,8 @@ class MenuModifierGroup(BaseModel):
     def to_dict(self):
         result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         
-        # Add relationships
-        result['modifiers'] = [modifier.to_dict() for modifier in self.modifiers] if self.modifiers else []
+        # Don't access relationships to avoid lazy loading issues
+        # Modifiers can be added later if needed
         
         # Sanitize properties
         if hasattr(self, 'properties'):
@@ -311,12 +312,8 @@ class MenuItem(BaseModel):
     def to_dict(self):
         result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         
-        # Add category name if available
-        if self.category:
-            result['category_name'] = self.category.name
-        
-        # Add modifier groups
-        result['modifier_groups'] = [group.to_dict() for group in self.modifier_groups] if self.modifier_groups else []
+        # Don't access relationships to avoid lazy loading issues
+        # Category name can be added later if needed
         
         # Sanitize properties
         if hasattr(self, 'properties'):

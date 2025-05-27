@@ -40,12 +40,17 @@ class AsyncAgentOrchestrator:
         self.active_sessions = {}
         self.conversation_store = async_conversation_store
     
-    async def initialize(self):
-        """Initialize the orchestrator and its agents."""
+    async def initialize(self, db=None):
+        """Initialize the orchestrator and its agents.
+        
+        Args:
+            db: Optional database session to pass to agents that need it
+        """
+        logger.info(f"Initializing orchestrator with database session: {db is not None}")
         # Create the complete voice agent system and get specialist agents
-        self.frontline_agent = await async_agent_factory.create_voice_agent_system()
-        self.menu_agent = await async_agent_factory.get_agent("menu")
-        self.cart_agent = await async_agent_factory.get_agent("cart")
+        self.frontline_agent = await async_agent_factory.create_voice_agent_system(db=db)
+        self.menu_agent = await async_agent_factory.get_agent("menu", db=db)
+        self.cart_agent = await async_agent_factory.get_agent("cart", db=db)
         self.guardrail_agent = await async_agent_factory.get_agent("guardrail")
         self.fulfillment_agent = await async_agent_factory.get_agent("fulfillment")
         self.escalation_agent = await async_agent_factory.get_agent("escalation")
@@ -95,7 +100,11 @@ class AsyncAgentOrchestrator:
             The agent's response
         """
         if not self.frontline_agent:
-            await self.initialize()
+            # Get a database session for initialization
+            from app.db_async import get_db
+            async for db in get_db():
+                await self.initialize(db=db)
+                break
         
         # Ensure we have a context object
         if context is None:
@@ -276,7 +285,11 @@ class AsyncAgentOrchestrator:
             The tool execution result
         """
         if not self.frontline_agent:
-            await self.initialize()
+            # Get a database session for initialization
+            from app.db_async import get_db
+            async for db in get_db():
+                await self.initialize(db=db)
+                break
         
         # Ensure we have a context object
         if context is None:
@@ -400,7 +413,11 @@ class AsyncAgentOrchestrator:
             The initial greeting response
         """
         if not self.frontline_agent:
-            await self.initialize()
+            # Get a database session for initialization
+            from app.db_async import get_db
+            async for db in get_db():
+                await self.initialize(db=db)
+                break
         
         # Create a new session
         self.active_sessions[call_sid] = {

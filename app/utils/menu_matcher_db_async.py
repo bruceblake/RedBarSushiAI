@@ -54,7 +54,7 @@ class AsyncMenuMatcher:
                        f"{len(self.variants)} variants")
             return True
         except Exception as e:
-            logger.error(f"Error initializing AsyncMenuMatcher: {e}")
+            logger.error(f"Error initializing AsyncMenuMatcher: {e}", exc_info=True)
             return False
             
     async def match_item(self, description: str) -> Tuple[Optional[Dict[str, Any]], float]:

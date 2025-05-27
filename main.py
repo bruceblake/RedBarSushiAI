@@ -412,8 +412,8 @@ async def index():
 @app.get("/menu-check")
 async def menu_check():
     """Diagnostic endpoint to check menu status from database."""
-    from app.utils.menu_utils_db import load_menu_data_async
-    from app.utils.menu_db_store import menu_db_store_async
+    from app.utils.menu_utils_db_async import load_menu_data
+    from app.utils.menu_db_store_async import async_menu_db_store
 
     result = {
         "database": True,
@@ -528,9 +528,13 @@ async def healthcheck():
 
     # Check menu data
     try:
-        from app.utils.menu_utils_db import load_menu_data_async
+        from app.utils.menu_utils_db_async import load_menu_data
 
-        menu = await load_menu_data_async()
+        # Need to get a database session for async version
+        from app.db_async import get_db
+        async for db in get_db():
+            menu = await load_menu_data(db)
+            break
         items_count = len(menu.get("items", []))
         health_info["checks"]["menu"] = f"ok ({items_count} items)"
     except Exception as e:

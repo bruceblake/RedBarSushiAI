@@ -9,7 +9,7 @@ import traceback
 from typing import Dict, List, Any, Optional
 import openai
 
-from app.utils.menu_db_store import menu_db_store
+from app.utils.menu_db_store_async import async_menu_db_store as menu_db_store
 from app.utils.agent_utils.logging import log_openai_request, log_openai_response
 
 # Configure logger

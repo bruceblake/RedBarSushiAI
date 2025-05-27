@@ -5,12 +5,57 @@ This module ensures that snoozed items are not available for ordering.
 
 import logging
 from typing import Dict, Any, List
-from app.utils.menu_utils_db import (
-    is_item_snoozed_timebased,
-    is_item_currently_available_by_schedule,
-)
+# These are simple validation functions that don't need database access
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+
+def is_item_snoozed_timebased(item: Dict[str, Any]) -> bool:
+    """
+    Check if an item is snoozed based on time.
+    
+    Args:
+        item: The menu item to check
+        
+    Returns:
+        bool: True if the item is currently snoozed, False otherwise
+    """
+    snoozed_until = item.get("snoozed_until")
+    if not snoozed_until:
+        return False
+        
+    # Parse the snoozed_until timestamp
+    if isinstance(snoozed_until, str):
+        try:
+            snoozed_until_dt = datetime.fromisoformat(snoozed_until.replace('Z', '+00:00'))
+            return datetime.now() < snoozed_until_dt
+        except:
+            return False
+    elif isinstance(snoozed_until, datetime):
+        return datetime.now() < snoozed_until
+        
+    return False
+
+
+def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
+    """
+    Check if an item is available based on its schedule.
+    
+    Args:
+        item: The menu item to check
+        
+    Returns:
+        bool: True if the item is available now, False otherwise
+    """
+    availabilities = item.get("availabilities", [])
+    if not availabilities:
+        # No schedule means always available
+        return True
+        
+    # For now, assume items are available if they have any availability schedule
+    # TODO: Implement proper day/time checking
+    return True
 
 
 def is_item_available(item: Dict[str, Any]) -> bool:

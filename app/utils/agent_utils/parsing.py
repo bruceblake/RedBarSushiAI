@@ -13,7 +13,7 @@ from typing import Dict, List, Any, Optional
 # Local imports
 from app.utils.agent_utils.logging import log_openai_request, log_openai_response
 from app.utils.agent_utils.tools import find_menu_item_tool, extract_modifiers_from_item
-from app.utils.menu_db_store import menu_db_store
+from app.utils.menu_db_store_async import async_menu_db_store as menu_db_store
 
 # Configure logger
 logger = logging.getLogger(__name__)

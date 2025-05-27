@@ -8,6 +8,10 @@ with validation and type conversion.
 import os
 import logging
 from typing import Dict, Any, Optional, List
+
+# Set up logger first
+logger = logging.getLogger(__name__)
+
 # Try import for Pydantic v2 first, fall back to v1 if needed
 # Check Pydantic version and import accordingly
 try:
@@ -26,8 +30,6 @@ except ImportError:
     # Fallback if pydantic is not installed at all
     logger.error("Pydantic is not installed!")
     raise
-
-logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Ensure this logger is verbose
 # Add handler if still no output from this logger
 if not logger.handlers:
@@ -60,7 +62,7 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(False, env="DEBUG")
     PORT: int = Field(5000, env="PORT")
     BASE_URL: str = Field("https://redbarsushiai.onrender.com", env="BASE_URL")
-    SECRET_KEY: str = Field(..., env="APP_SECRET_KEY")
+    SECRET_KEY: str = Field(..., env="SECRET_KEY")
     
     # Environment
     ENVIRONMENT: str = Field("development", env="FLASK_ENV")  # Keep FLASK_ENV for compatibility
@@ -112,6 +114,9 @@ class Settings(BaseSettings):
     
     # Voice config
     VOICE_HANDLER: str = Field("media_streams", env="VOICE_HANDLER")
+    
+    # AI agent configuration
+    USE_AI_AGENTS: bool = Field(True, env="USE_AI_AGENTS")
     
     # Twilio ConversationRelay settings
     TWILIO_CONVERSATION_SERVICE_SID: Optional[str] = Field(None, env="TWILIO_CONVERSATION_SERVICE_SID")

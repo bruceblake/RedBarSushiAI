@@ -8,8 +8,10 @@ from typing import Dict, Any, Type, Optional
 
 from app.agents.base_async import BaseAsyncAgent
 from app.agents.menu_async import AsyncMenuAgent
+from app.agents.menu_async_enhanced import AsyncMenuAgentEnhanced
 from app.agents.cart_async import AsyncCartAgent
 from app.agents.frontline_async import AsyncFrontlineVoiceAgent
+from app.agents.frontline_async_ai import AsyncFrontlineVoiceAgentAI
 from app.agents.guardrail_async import AsyncGuardrailAgent
 from app.agents.fulfillment_async import AsyncFulfillmentAgent
 from app.agents.escalation_async import AsyncEscalationAgent
@@ -32,8 +34,20 @@ class AsyncAgentFactory:
         self.agents: Dict[str, BaseAsyncAgent] = {}
         
         # Register standard agents
-        self.register_agent_class("frontline", AsyncFrontlineVoiceAgent)
-        self.register_agent_class("menu", AsyncMenuAgent)
+        # Use AI-enhanced frontline agent if enabled
+        use_ai_agents = getattr(settings, 'USE_AI_AGENTS', True)
+        if use_ai_agents:
+            self.register_agent_class("frontline", AsyncFrontlineVoiceAgentAI)
+            logger.info("Using AI-enhanced frontline agent")
+        else:
+            self.register_agent_class("frontline", AsyncFrontlineVoiceAgent)
+            logger.info("Using rule-based frontline agent")
+            
+        # Use enhanced menu agent if AI is enabled
+        if use_ai_agents:
+            self.register_agent_class("menu", AsyncMenuAgentEnhanced)
+        else:
+            self.register_agent_class("menu", AsyncMenuAgent)
         self.register_agent_class("cart", AsyncCartAgent)
         self.register_agent_class("guardrail", AsyncGuardrailAgent)
         self.register_agent_class("fulfillment", AsyncFulfillmentAgent)
@@ -70,6 +84,9 @@ class AsyncAgentFactory:
         
         # Check if we already have this agent
         if cache_key in self.agents:
+            # Update the db if it's a menu or cart agent
+            if (agent_type == "menu" or agent_type == "cart") and db is not None:
+                self.agents[cache_key].db = db
             return self.agents[cache_key]
         
         # Create a new agent

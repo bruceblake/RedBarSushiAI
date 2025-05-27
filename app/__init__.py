@@ -23,7 +23,7 @@ except ImportError:
     Client = None
     logging.warning("Twilio module not found - SMS functionality will be disabled")
 
-from app.config import *
+from app.config import settings
 
 # Set up module-level logger
 logger = logging.getLogger(__name__)
@@ -149,21 +149,15 @@ try:
         # Remove any alpha/beta/etc. suffixes for version comparison
         import re
 
-        version_match = re.match(r"^(\d+)\.(\d+)\.(\d+)", twilio_version)
-        if version_match:
-            major, minor, patch = map(int, version_match.groups())
-
-            if major >= 7:
-                # Newer versions support timeout in the constructor
-                twilio_client = Client(
-                    TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, timeout=10
-                )
-            else:
-                # Older versions don't support timeout in constructor
-                twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        else:
-            # Fallback if version can't be parsed
-            twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        # Try to create client with timeout first, fall back if not supported
+        try:
+            # Try with timeout parameter (supported in some versions)
+            twilio_client = Client(
+                settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN, timeout=10
+            )
+        except TypeError as e:
+            # If timeout parameter is not supported, create without it
+            twilio_client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
 
         logging.info(
             f"Twilio client initialized successfully (version {twilio_version})"
@@ -173,7 +167,7 @@ try:
         logging.warning(
             f"Error parsing Twilio version: {parse_error}, creating client without timeout"
         )
-        twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        twilio_client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
 
 except Exception as e:
     logging.error(f"Error initializing Twilio client: {e}")
@@ -195,7 +189,7 @@ except Exception as e:
 if stripe:
     try:
         # Initialize Stripe with timeout
-        stripe.api_key = STRIPE_API_KEY
+        stripe.api_key = settings.STRIPE_API_KEY
         stripe.max_network_retries = 2
         stripe.default_http_client = stripe.http_client.RequestsClient(timeout=10)
         logging.info("Stripe client initialized successfully")

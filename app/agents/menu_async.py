@@ -12,8 +12,8 @@ from typing import Dict, List, Any, Optional, Union, Callable
 from app.agents.base_async import BaseAsyncAgent
 from app.utils.menu_matcher_cache_async import get_cached_async_menu_matcher
 from app.utils.menu_db_store_async import async_menu_db_store
-from app.utils.menu_cache_sdk import menu_cache
-from app.utils.agents_sdk import guardrail
+# Menu caching is handled by Redis
+# Guardrail functionality is handled by the guardrail agent
 from app.utils.conversation_store_async import async_conversation_store
 from app.config import settings
 
