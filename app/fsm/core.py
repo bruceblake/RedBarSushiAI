@@ -17,6 +17,11 @@ from app.utils.conversation_store_async import async_conversation_store
 # Set up logging
 logger = logging.getLogger(__name__)
 
+
+class FSMError(Exception):
+    """Base exception for FSM-related errors."""
+    pass
+
 class ConversationState(Enum):
     """Enum representing the states in the voice conversation FSM."""
     

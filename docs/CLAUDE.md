@@ -28,54 +28,56 @@ celery -A celery_app_fastapi worker --loglevel=INFO
 docker logs -f redbarsushi-app-1
 ```
 
-### Database Operations
-```bash
-# Initialize database (Docker)
-docker exec -it redbarsushi-app-1 python init_db.py
-
-# Seed menu data
-docker exec -it redbarsushi-app-1 python seed_menu_db.py
-
-# Check database connection
-docker exec -it redbarsushi-app-1 python test_db_connection.py
-```
-
 ### Testing Commands
 ```bash
-# Run unit and integration tests
-pytest tests/unit tests/integration -v
+# Run all tests in Docker (recommended)
+./run-tests-docker.sh
 
-# Run a specific test file
-pytest tests/integration/test_fsm_orchestration.py -v
+# Run tests locally
+./run-tests.sh
 
-# Run E2E tests (staging environment only)
-export FASTAPI_ENV=staging
-pytest tests/e2e -v
+# Run specific test categories
+./run-tests.sh true false false  # Unit tests only
+./run-tests.sh false true false  # Integration tests only
+./run-tests.sh false false true  # E2E tests only
 
-# Run a single test
-pytest tests/e2e/test_conversationrelay_fsm.py::test_complete_order_flow -v -s
-```
+# Run a single test file
+pytest tests/unit/test_agents.py -v
 
-### Linting and Type Checking
-```bash
-# Run linter (if configured)
-ruff check app/
-
-# Run type checker (if configured)  
-mypy app/
+# Run tests with coverage
+coverage run -m pytest tests/ -v
+coverage report
+coverage html
 ```
 
 ### Docker Management
 ```bash
-# Rebuild and restart
-./force_rebuild.sh && ./restart_docker.sh
+# Start all services with Docker
+./start_docker.sh
 
-# Clean volumes and restart
-./clean_docker_volumes.sh
+# Start with ngrok for external testing
+./start_docker_with_ngrok.sh
+
+# Rebuild containers
+./force_rebuild.sh
+
+# Restart containers
 ./restart_docker.sh
 
 # Stop all containers
 docker-compose down
+
+# View logs
+docker logs -f redbarsushi-app-1
+
+# Access container shell
+docker exec -it redbarsushi-app-1 bash
+
+# Initialize database in Docker
+docker exec -it redbarsushi-app-1 python init_db.py
+
+# Seed menu data
+docker exec -it redbarsushi-app-1 python seed_menu_db.py
 ```
 
 ### Deployment
@@ -114,8 +116,7 @@ The system follows a multi-agent architecture where specialized AI agents handle
   - Many-to-many between items and modifier groups
   - One-to-many between orders and order items
   - Cascade deletes for data integrity
-- **Compatibility**: `app/compat_models.py` handles Flask-SQLAlchemy legacy code
-- **CRUD Operations**: `app/db/crud_menu_async.py` and `crud_order_async.py` for async DB operations
+- **CRUD Operations**: `app/db/crud_menu_async.py` for async DB operations
 
 #### Multi-Agent Architecture
 Specialized AI agents handle different conversation aspects:
@@ -515,6 +516,8 @@ The application is deployed on Render with these features:
      - `STRIPE_API_KEY` (if payment processing is enabled)
 
 2. **Docker Configuration**:
+   - **Staging environment uses**: `Dockerfile` (production Dockerfile)
+   - **Docker Command**: `/docker-entrypoint.sh`
    - FastAPI with Uvicorn and async workers
    - Support for non-blocking WebSocket operations
    - PostgreSQL and Redis containers
@@ -539,32 +542,34 @@ The application is deployed on Render with these features:
 ```
 app/
 ├── api/                    # API endpoints
-│   ├── api_v1/             # API version 1 routes
-│   │   ├── endpoints/      # Endpoint modules
-│   │   └── api.py          # API router
-│   └── voice_async.py      # Voice WebSocket handler
-├── agents/                 # Agent components
-│   ├── base_async.py       # Base async agent implementation
-│   ├── cart_async.py       # Async cart management agent
-│   ├── factory_async.py    # Async agent factory
-│   └── ...                 # Other specialized async agents
-├── db/                     # Database components
-│   ├── crud_menu_async.py  # Async CRUD operations for menu
-│   ├── session_async.py    # Async database session setup
-│   └── ...                 # Other CRUD modules
-├── models/                 # Database models
-│   ├── menu_async.py       # Async menu models
-│   ├── order_async.py      # Async order models
-│   └── ...                 # Other model modules
+│   ├── conversation_relay/ # ConversationRelay webhook handling
+│   ├── menu/              # Menu API endpoints
+│   ├── order/             # Order API endpoints
+│   └── voice/             # Voice WebSocket and TwiML
+├── agents/                 # Multi-agent system
+│   ├── base_async.py      # Base agent class
+│   ├── frontline_async_ai.py  # Main coordinator
+│   ├── menu_async_enhanced.py  # Menu specialist
+│   ├── cart_async.py      # Cart management
+│   ├── guardrail_async.py # Order validation
+│   ├── fulfillment_async.py  # Order submission
+│   └── escalation_async.py    # Human handoff
+├── db/                     # Database layer
+│   └── crud_menu_async.py # Async CRUD operations
+├── fsm/                    # Finite State Machine
+│   ├── core.py            # FSM implementation
+│   └── handlers/          # State-specific handlers
+├── models/                 # SQLAlchemy models
+│   ├── menu_async.py      # Menu models
+│   ├── order_async.py     # Order models
+│   └── location_async.py  # Location model
 ├── schemas/                # Pydantic schemas
-│   ├── menu.py             # Menu schemas
-│   ├── order.py            # Order schemas
-│   └── ...                 # Other schema modules
-└── utils/                  # Shared utilities
-    ├── fsm_async.py        # Async finite state machine
-    ├── agent_orchestration_async.py  # Async agent orchestration
-    ├── realtime_audio_async.py  # Async OpenAI Realtime client
-    └── ...                 # Other utility modules
+│   └── menu.py            # Menu schemas
+└── utils/                  # Utilities
+    ├── agent_orchestration_async.py  # Agent coordination
+    ├── intent_detector_async.py      # LLM intent detection
+    ├── menu_matcher_cache_async.py   # Menu matching
+    └── deliverect/        # Deliverect integration
 ```
 
 ### FastAPI Implementation
@@ -575,7 +580,7 @@ app/
    - Lifespan events for startup/shutdown
    - Router registration
 
-2. **app/api/voice_async.py**:
+2. **app/api/voice/websocket.py**:
    - WebSocket handler for Twilio media streams
    - Manages bidirectional audio between Twilio and OpenAI
    - Processes transcripts and handles agent responses
@@ -585,16 +590,67 @@ app/
    - Handles audio format conversion
    - Manages session lifecycle
 
-### Common Tasks
+### Common Development Tasks
 
 - **Run in Development**: `uvicorn app.main:app --reload`
-- **Run Tests**: `pytest tests/e2e/test_async_voice_flow.py`
-- **Rebuild Docker**: `./force_rebuild.sh && ./restart_docker.sh`
 - **Check Logs**: `docker logs -f redbarsushi-app-1`
 - **Deploy to Staging**: Push changes to the `staging` branch
 - **Deploy to Production**: Push changes to the `main` branch
 - **Fix Render Deployment Issues**: `./fix_render_deploy.sh`
-- **Check WebSocket Connections**: `python websocket_test_client.py`
+
+### Quick Docker Development Workflow
+
+1. **Initial Setup**:
+   ```bash
+   # Create environment file
+   cp .env.example .env.development
+   # Edit .env.development with your API keys
+   
+   # Start everything
+   docker-compose up -d
+   
+   # Initialize database (first time only)
+   docker exec -it redbarsushi-app-1 python init_db.py
+   docker exec -it redbarsushi-app-1 python seed_menu_db.py
+   ```
+
+2. **Daily Development**:
+   ```bash
+   # Start services
+   docker-compose up -d
+   
+   # Watch logs
+   docker-compose logs -f app
+   
+   # Code changes auto-reload (volumes are mounted)
+   ```
+
+3. **Testing with ngrok** (for Twilio webhooks):
+   ```bash
+   # Use the simple script
+   ./start-with-ngrok.sh
+   
+   # Or manually:
+   docker-compose up -d
+   ngrok http 8000
+   ```
+
+4. **Quick Testing**:
+   ```bash
+   # Unit tests only (fastest)
+   docker exec redbarsushi-app-1 python -m pytest tests/unit -v
+   
+   # Specific test
+   docker exec redbarsushi-app-1 python -m pytest tests/unit/test_agents.py::test_menu_agent -v
+   
+   # Interactive shell
+   docker exec -it redbarsushi-app-1 python
+   ```
+
+5. **Container Names**:
+   - App: `redbarsushi-app-1`
+   - PostgreSQL: `redbarsushi-postgres-1`
+   - Redis: `redbarsushi-redis-1`
 
 ### Deployment and Fixes
 
@@ -606,7 +662,6 @@ app/
 
 2. **Known Issues and Fixes**:
    - **Database Connectivity**: Ensure `DATABASE_URL` is properly set and formatted
-   - **SQLAlchemy Compatibility**: Use `compat_models.py` for transitioning from Flask-SQLAlchemy to async SQLAlchemy
    - **JSONB Detection**: Use `jsonb_helper.py` for database-dialect aware JSONB column configuration
    - **WebSocket Handling**: Carefully manage task cancellation and resource cleanup
    - **Environment Variables**: Ensure Twilio, OpenAI, and Deliverect credentials are set
@@ -801,7 +856,7 @@ The application can be started with the following commands:
 2. **Start the Celery worker**:
 
    ```
-   celery -A app.celery_app worker --loglevel=INFO
+   celery -A celery_app_fastapi worker --loglevel=INFO
    ```
 
 3. **Start with Docker**:
@@ -811,11 +866,7 @@ The application can be started with the following commands:
 
 ### Database Initialization
 
-On first run, the database needs to be initialized:
-
-1. Create the database: `createdb redbarsushi`
-2. Run migrations: `python -m app.db.init_db`
-3. Initialize menu data: `python -m app.db.seed_db`
+The database is automatically initialized on first run via Docker. Menu data is populated through Deliverect webhooks or can be manually loaded via the API endpoints.
 
 ## WebSocket Implementation Details
 
@@ -873,9 +924,8 @@ Several critical fixes have been implemented to enhance WebSocket stability:
    - Improved logging to clearly identify key-related issues
 
 5. **Testing & Verification**:
-   - Added comprehensive test script (`test_realtime_client.py`) to verify WebSocket implementation
-   - Created detailed documentation in `FIX_SUMMARY.md` and `WEBSOCKET_FIX_CHANGES.md`
-   - Added step-by-step debugging instructions for WebSocket issues
+   - Enhanced error handling and logging for WebSocket connections
+   - Added detailed debugging instructions for WebSocket issues
 
 These improvements ensure a more reliable WebSocket connection between Twilio, the FastAPI server, and the OpenAI Realtime API, addressing previous issues with connection handling, method naming, and task management.
 
@@ -920,30 +970,7 @@ These improvements ensure a more reliable WebSocket connection between Twilio, t
 
 ## Testing Strategy
 
-### 1. Unit Tests (`tests/unit/`)
-- Test individual components in isolation
-- Mock external dependencies
-- Fast execution (<1s per test)
-- High code coverage target (>80%)
-
-### 2. Integration Tests (`tests/integration/`)
-- Test component interactions
-- Use test database and Redis
-- Mock external APIs (OpenAI, Twilio, Deliverect)
-- Verify data flow and transformations
-
-### 3. E2E Tests (`tests/e2e/`)
-- Complete workflow testing
-- Real services in staging environment
-- Voice flow simulation
-- Order submission verification
-- Performance benchmarking
-
-### 4. Test Fixtures (`tests/conftest.py`)
-- Async test client setup
-- Database migrations and seeding
-- Mock services configuration
-- Cleanup after tests
+The codebase includes comprehensive test coverage across unit, integration, and E2E tests. Tests are located in the `tests/` directory and can be run using pytest. The test infrastructure includes fixtures for async operations, mock services, and database setup.
 
 ## Performance Optimizations
 
@@ -1004,7 +1031,6 @@ These improvements ensure a more reliable WebSocket connection between Twilio, t
 - Check OpenAI API key validity
 - Verify network connectivity
 - Review WebSocket logs for errors
-- Test with `websocket_test_client.py`
 - Check task lifecycle management
 
 ### 2. Menu Matching Problems

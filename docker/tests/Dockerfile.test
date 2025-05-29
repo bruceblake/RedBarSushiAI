@@ -1,0 +1,42 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install test dependencies
+RUN pip install --no-cache-dir \
+    pytest==7.4.4 \
+    pytest-asyncio==0.21.1 \
+    pytest-cov==4.1.0 \
+    pytest-mock==3.12.0 \
+    httpx==0.25.2 \
+    aiosqlite==0.19.0
+
+# Copy application code
+COPY app/ ./app/
+COPY tests/ ./tests/
+COPY run-tests.sh .
+
+# Make test runner executable
+RUN chmod +x run-tests.sh
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV TESTING=true
+
+# Run tests by default
+CMD ["./run-tests.sh"]

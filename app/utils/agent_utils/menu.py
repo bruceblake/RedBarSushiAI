@@ -8,7 +8,7 @@ import json
 from typing import Dict, List, Any, Optional
 import traceback
 
-from app.utils.menu_db_store_fastapi import menu_db_store
+from app.utils.menu_db_store_async import async_menu_db_store as menu_db_store
 
 # Configure logger
 logger = logging.getLogger(__name__)

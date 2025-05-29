@@ -150,3 +150,7 @@ async def get_cached_async_menu_matcher(db: AsyncSession, location_id: Optional[
     return cached_async_menu_matcher
 
 
+
+
+# Alias for backward compatibility
+AsyncMenuMatcher = AsyncCachedMenuMatcher

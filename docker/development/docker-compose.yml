@@ -67,7 +67,6 @@ services:
       - ./app:/app/app
       - ./tests:/app/tests
       - ./logs:/app/logs
-      - ./menu_data.json:/app/menu_data.json
     networks:
       - redbarsushi-network
     restart: unless-stopped

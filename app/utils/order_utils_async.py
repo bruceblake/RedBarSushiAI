@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.menu_utils_db_async import (
     load_menu_data,  # Using async version
 )
-from app.utils.menu_matcher_db_async import AsyncMenuMatcher
+from app.utils.menu_matcher_cache_async import AsyncMenuMatcher
 from app.utils.menu_matcher_cache_async import AsyncCachedMenuMatcher, get_cached_async_menu_matcher
 from app.utils.snooze_validator import is_item_available, validate_items_availability  # These don't do DB operations
 

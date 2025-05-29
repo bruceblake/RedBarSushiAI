@@ -252,14 +252,29 @@ FASTAPI_ENV=development
 # Start all services
 ./start_docker.sh
 
-# Initialize database
+# Start with ngrok for external testing
+./start_docker_with_ngrok.sh
+
+# Rebuild containers
+./force_rebuild.sh
+
+# Restart containers
+./restart_docker.sh
+
+# Stop all containers
+docker-compose down
+
+# View logs
+docker logs -f redbarsushi-app-1
+
+# Access container shell
+docker exec -it redbarsushi-app-1 bash
+
+# Initialize database in Docker
 docker exec -it redbarsushi-app-1 python init_db.py
 
 # Seed menu data
 docker exec -it redbarsushi-app-1 python seed_menu_db.py
-
-# View logs
-docker logs -f redbarsushi-app-1
 ```
 
 ### Local Development
@@ -501,44 +516,72 @@ The menu matcher (`app/utils/menu_matcher_cache_async.py`) uses a three-tier app
 ### Running Tests
 
 ```bash
-# Unit and integration tests (development)
-pytest tests/unit tests/integration -v
+# Run all tests in Docker (recommended)
+./run-tests-docker.sh
 
-# E2E tests (staging only)
-export FASTAPI_ENV=staging
-pytest tests/e2e -v
+# Run tests locally
+./run-tests.sh
 
-# Specific test file
-pytest tests/integration/test_fsm_orchestration.py -v
+# Run specific test categories
+./run-tests.sh true false false  # Unit tests only
+./run-tests.sh false true false  # Integration tests only
+./run-tests.sh false false true  # E2E tests only
+
+# Run a single test file
+pytest tests/unit/test_agents.py -v
+
+# Run tests with coverage
+coverage run -m pytest tests/ -v
+coverage report
+coverage html
 ```
 
 ## 🚢 Deployment
 
 ### Render Deployment
 
-1. **Environment Variables** (Set in Render Dashboard):
-   - All variables from `.env.development`
-   - Set `FASTAPI_ENV=staging` or `production`
+The application is deployed on Render with these features:
 
-2. **Deployment Process**:
-   ```yaml
-   # render.yaml
-   services:
-     - type: web
-       name: redbarsushi-api
-       env: python
-       buildCommand: "./fix_render_deploy.sh"
-       startCommand: "./fastapi_render_entrypoint.sh"
-   ```
+1. **Environment Configuration**:
+   - Production vs. Staging environments
+   - Automatic database initialization
+   - Redis connection handling
+   - Essential environment variables (must be set in Render dashboard):
+     - `DATABASE_URL`: PostgreSQL connection string
+     - `OPENAI_API_KEY`: For OpenAI Realtime API access
+     - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`: For Twilio integration
+     - `DELIVERECT_API_KEY`: For Deliverect POS integration
+     - `STRIPE_API_KEY` (if payment processing is enabled)
 
-3. **Database Initialization**:
-   - Automatic on first deploy
-   - Uses `init_db.py` and `seed_menu_db.py`
+2. **Docker Configuration**:
+   - FastAPI with Uvicorn and async workers
+   - Support for non-blocking WebSocket operations
+   - PostgreSQL and Redis containers
+   - Custom Dockerfile with multi-stage build for optimized deployments
 
-### Docker Production
+3. **CI/CD Pipeline**:
+   - Tests run on PR and push
+   - Deploys to staging from `staging` branch
+   - Deploys to production from `main` branch
+   - Automated fixes applied during build via `fix_render_deploy.sh`
+
+4. **Render-specific Adaptations**:
+   - Custom `fastapi_render_entrypoint.sh` script to handle initialization
+   - Environment-aware database URL transformation for asyncpg
+   - Compatibility layer for SQLAlchemy models (see `compat_models.py`)
+   - Headless mode enforcement for server environments
+
+### Deployment Commands
 
 ```bash
-docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
+# Deploy to staging
+git push origin staging
+
+# Deploy to production  
+git push origin main
+
+# Fix Render deployment issues
+./fix_render_deploy.sh
 ```
 
 ## 🔧 Configuration Details
@@ -604,11 +647,13 @@ class ConversationState(Enum):
 
 ## 📚 Important Files for AI Agent Understanding
 
+**Note**: For comprehensive architecture documentation, development guidelines, and detailed implementation details, refer to **CLAUDE.md**.
+
 ### Core Application Files
 
 1. **app/main.py** - FastAPI application setup and initialization
 2. **app/config.py** - All configuration management
-3. **CLAUDE.md** - Comprehensive project documentation
+3. **CLAUDE.md** - Comprehensive project documentation and development guide
 
 ### Agent System Files
 
@@ -644,7 +689,7 @@ class ConversationState(Enum):
 
 ## 🤝 Contributing
 
-1. Keep files under 500 lines
+1. Keep files under 1000 lines
 2. Use async/await throughout
 3. Follow existing patterns
 4. Add comprehensive tests
