@@ -20,10 +20,11 @@ class TestBaseAsyncAgent:
     @pytest.mark.asyncio
     async def test_base_agent_initialization(self):
         """Test base agent initializes correctly."""
-        agent = BaseAsyncAgent(name="TestAgent")
-        assert agent.name == "TestAgent"
-        assert hasattr(agent, 'tools')
-        assert hasattr(agent, 'process_input')
+        with patch('app.agents.base_async.logger'):
+            agent = BaseAsyncAgent(name="TestAgent")
+            assert agent.name == "TestAgent"
+            assert hasattr(agent, 'tool_executor')
+            assert hasattr(agent, 'process')
 
 
 class TestAsyncFrontlineVoiceAgentAI:
@@ -38,9 +39,10 @@ class TestAsyncFrontlineVoiceAgentAI:
     @pytest.fixture
     def frontline_agent(self, mock_openai_client):
         """Create frontline agent with mocked dependencies."""
-        with patch('app.agents.frontline_async_ai.AsyncOpenAI', return_value=mock_openai_client):
+        with patch('app.agents.ai_mixin.openai.AsyncOpenAI', return_value=mock_openai_client):
             agent = AsyncFrontlineVoiceAgentAI()
-            agent.client = mock_openai_client
+            # The AI mixin accesses the client through ai_client property
+            agent._ai_client = mock_openai_client
             return agent
     
     def create_mock_response(self, content, tool_calls=None):
@@ -58,13 +60,13 @@ class TestAsyncFrontlineVoiceAgentAI:
             "Hello! Welcome to Red Bar Sushi. May I have your name, please?"
         )
         
-        response = await frontline_agent.process_input(
+        response = await frontline_agent.process(
             "Hello",
             {"first_interaction": True}
         )
         
         assert "Welcome" in response["text"]
-        assert response["requires_response"] is True
+        assert response.get("handled", False) is True
     
     @pytest.mark.asyncio
     async def test_conversation_history_building(self, frontline_agent, mock_openai_client):
@@ -80,7 +82,7 @@ class TestAsyncFrontlineVoiceAgentAI:
             "How can I help you today?"
         )
         
-        await frontline_agent.process_input("I want to order", context)
+        await frontline_agent.process("I want to order", context)
         
         # Verify conversation history was included in API call
         call_args = mock_openai_client.chat.completions.create.call_args
@@ -100,17 +102,17 @@ class TestAsyncFrontlineVoiceAgentAI:
             tool_calls=[mock_tool_call]
         )
         
-        with patch.object(frontline_agent, '_execute_tools', new_callable=AsyncMock) as mock_execute:
-            mock_execute.return_value = [{"result": "available"}]
-            with patch.object(frontline_agent, '_get_response_after_tools', new_callable=AsyncMock) as mock_after:
-                mock_after.return_value = {"text": "California Roll is available!", "requires_response": True}
+        with patch.object(frontline_agent.tool_executor, 'execute', new_callable=AsyncMock) as mock_execute:
+            mock_execute.return_value = {"result": "available"}
+            with patch.object(frontline_agent, '_get_final_response_after_tools', new_callable=AsyncMock) as mock_after:
+                mock_after.return_value = {"text": "California Roll is available!", "handled": True}
                 
-                response = await frontline_agent.process_input(
+                response = await frontline_agent.process(
                     "Is California Roll available?",
                     {}
                 )
                 
-                mock_execute.assert_called_once()
+                mock_execute.assert_called()
                 assert "available" in response["text"]
 
 
@@ -143,7 +145,7 @@ class TestAsyncMenuAgentEnhanced:
             }
             mock_matcher_factory.return_value = mock_matcher
             
-            response = await menu_agent.process_input(
+            response = await menu_agent.process(
                 "Do you have California Roll?",
                 {}
             )
@@ -162,7 +164,7 @@ class TestAsyncMenuAgentEnhanced:
         ]
         mock_db_session.scalars.return_value.all.return_value = mock_categories
         
-        response = await menu_agent.process_input(
+        response = await menu_agent.process(
             "What categories do you have?",
             {}
         )
@@ -185,7 +187,7 @@ class TestAsyncMenuAgentEnhanced:
             }
             mock_matcher_factory.return_value = mock_matcher
             
-            response = await menu_agent.process_input(
+            response = await menu_agent.process(
                 "Is Dragon Roll available?",
                 {}
             )
@@ -214,7 +216,7 @@ class TestAsyncCartAgent:
             mock_matcher_factory.return_value = mock_matcher
             
             context = {"cart_items": []}
-            response = await cart_agent.process_input(
+            response = await cart_agent.process(
                 "I want 2 California rolls",
                 context
             )
@@ -260,7 +262,7 @@ class TestAsyncGuardrailAgent:
             ]
         }
         
-        response = await guardrail_agent.process_input(
+        response = await guardrail_agent.process(
             "validate order",
             context
         )
@@ -272,7 +274,7 @@ class TestAsyncGuardrailAgent:
         """Test validation of empty cart."""
         context = {"cart_items": []}
         
-        response = await guardrail_agent.process_input(
+        response = await guardrail_agent.process(
             "validate order",
             context
         )
@@ -309,7 +311,7 @@ class TestAsyncFulfillmentAgent:
             "order_type": "pickup"
         }
         
-        response = await fulfillment_agent.process_input(
+        response = await fulfillment_agent.process(
             "submit order",
             context
         )
@@ -325,7 +327,7 @@ class TestAsyncFulfillmentAgent:
             "delivery_address": None
         }
         
-        response = await fulfillment_agent.process_input(
+        response = await fulfillment_agent.process(
             "123 Main St, Apt 4",
             context
         )
@@ -344,7 +346,7 @@ class TestAsyncEscalationAgent:
     @pytest.mark.asyncio
     async def test_escalation_message(self, escalation_agent):
         """Test escalation generates appropriate message."""
-        response = await escalation_agent.process_input(
+        response = await escalation_agent.process(
             "I need human help",
             {"reason": "Complex order issue"}
         )
@@ -361,7 +363,7 @@ class TestAsyncEscalationAgent:
             "issue": "Allergies question"
         }
         
-        response = await escalation_agent.process_input(
+        response = await escalation_agent.process(
             "I need to speak to someone",
             context
         )

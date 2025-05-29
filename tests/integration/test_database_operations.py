@@ -12,7 +12,7 @@ from app.models.menu_async import MenuItem, MenuCategory, MenuModifier, MenuModi
 from app.models.order_async import Order, OrderItem, OrderItemModifier
 from app.db.crud_menu_async import (
     create_category, create_item, create_modifier, create_modifier_group,
-    get_item_by_plu, get_all_available_items, link_item_to_modifier_group
+    get_item_by_plu, get_items
 )
 from app.schemas.menu import MenuCategoryCreate, MenuItemCreate, MenuModifierCreate, MenuModifierGroupCreate
 
@@ -166,7 +166,8 @@ class TestMenuDatabaseOperations:
         )
         
         # Get available items
-        available_items = await get_all_available_items(db_session)
+        all_items = await get_items(db_session)
+        available_items = [item for item in all_items if item.is_available]
         available_pluts = [item.plu for item in available_items]
         
         assert "PLU_AVAIL" in available_pluts
@@ -222,8 +223,12 @@ class TestMenuDatabaseOperations:
         )
         
         # Link both groups to item
-        await link_item_to_modifier_group(db_session, item.id, spice_group.id)
-        await link_item_to_modifier_group(db_session, item.id, addon_group.id)
+        from app.models.menu_async import ItemModifierGroup
+        link1 = ItemModifierGroup(menu_item_id=item.id, modifier_group_id=spice_group.id)
+        link2 = ItemModifierGroup(menu_item_id=item.id, modifier_group_id=addon_group.id)
+        db_session.add(link1)
+        db_session.add(link2)
+        await db_session.commit()
         
         # Verify relationships
         await db_session.refresh(item)

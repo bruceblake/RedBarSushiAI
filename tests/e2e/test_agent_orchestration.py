@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger("e2e_agent_orchestration_tests")
 
 # Import the agent orchestration components
-from app.utils.agent_orchestration import (
+from app.utils.agent_orchestration_async import (
     AgentGraph, 
     FSMOrchestrator, 
     FSMPromptTemplate, 
@@ -481,7 +481,7 @@ def test_full_orchestration_workflow():
 @pytest.mark.unit
 def test_initialize_orchestrators():
     """Test the initialization of orchestrators."""
-    from app.utils.agent_orchestration import initialize_orchestrators
+    from app.utils.agent_orchestration_async import initialize_orchestrators
     
     # Mock Redis to ensure test doesn't depend on actual Redis connection
     with mock.patch('app.utils.agent_orchestration.Redis') as mock_redis:

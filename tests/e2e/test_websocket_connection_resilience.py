@@ -22,7 +22,7 @@ os.environ["NO_X11"] = "1"  # Disable X11 requirement for headless testing
 os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"  # Disable display for OpenAI Realtime
 
 # Import app components
-from app import create_app
+from app.main import app
 from app.routes.voice.utils.connection_manager import ConnectionState
 
 

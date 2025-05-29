@@ -7,16 +7,19 @@ echo "🐳 Starting Docker services..."
 docker-compose up -d postgres redis
 
 echo "⏳ Waiting for services to be healthy..."
-docker-compose run --rm app bash -c "
-  until pg_isready -h postgres -U postgres; do
-    echo 'Waiting for postgres...'
-    sleep 1
-  done
-  until redis-cli -h redis ping; do
-    echo 'Waiting for redis...'
-    sleep 1
-  done
-"
+# Wait for PostgreSQL
+until docker-compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1; do
+  echo "Waiting for postgres..."
+  sleep 2
+done
+echo "✅ PostgreSQL is ready"
+
+# Wait for Redis
+until docker-compose exec -T redis redis-cli ping > /dev/null 2>&1; do
+  echo "Waiting for redis..."
+  sleep 2
+done
+echo "✅ Redis is ready"
 
 echo "🗄️ Creating test database..."
 docker-compose exec -T postgres psql -U postgres -c "CREATE DATABASE redbarsushi_test;" 2>/dev/null || true

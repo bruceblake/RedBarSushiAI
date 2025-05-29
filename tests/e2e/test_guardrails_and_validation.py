@@ -13,7 +13,7 @@ os.environ["TESTING"] = "True"
 os.environ["FLASK_ENV"] = "testing"
 
 # Import app components
-from app import create_app
+from app.main import app
 from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup, MenuNameVariant
 from app.models.order import Order, OrderItem, OrderItemModifier
 

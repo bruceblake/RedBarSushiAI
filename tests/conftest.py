@@ -22,6 +22,12 @@ os.environ["NO_X11"] = "1"
 os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"
 os.environ["FORCE_HEADLESS"] = "true"
 
+# Set required environment variables if not present
+if not os.environ.get("SECRET_KEY"):
+    os.environ["SECRET_KEY"] = "test-secret-key"
+if not os.environ.get("APP_SECRET_KEY"):
+    os.environ["APP_SECRET_KEY"] = "test-secret-key"
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

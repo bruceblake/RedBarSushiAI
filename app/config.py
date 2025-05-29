@@ -43,7 +43,7 @@ if not logger.handlers:
 logger.info(f"Using Pydantic v2: {PYDANTIC_V2}")
 
 # Default environment variables path
-ENV_FILE = ".env.development"  # Make sure this matches your Docker Compose env_file
+ENV_FILE = ".env"  # Use main .env file
 
 # Display raw environment variables for debugging
 logger.critical("--- app.config.py: Checking raw environment variables ---")

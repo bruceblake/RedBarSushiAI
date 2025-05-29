@@ -22,7 +22,7 @@ from app.models.order_async import Order, OrderItem
 from app.agents.factory_async import AsyncAgentFactory
 from app.utils.agent_orchestration_async import AsyncAgentOrchestrator
 from app.utils.fsm_async import AsyncConversationFSM, ConversationState
-from app.redis_async import RedisConnectionPool
+from app.redis_async import get_redis_client
 
 
 @pytest.fixture

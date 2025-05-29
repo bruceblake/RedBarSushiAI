@@ -21,7 +21,7 @@ os.environ["NO_X11"] = "1"  # Disable X11 requirement for headless testing
 os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"  # Disable display for OpenAI Realtime
 
 # Import app components after setting test environment
-from app import create_app
+from app.main import app
 from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup, MenuNameVariant
 from app.models.order import Order, OrderItem, OrderItemModifier
 from app.utils.menu_utils_db import load_menu_data

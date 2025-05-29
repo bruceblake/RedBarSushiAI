@@ -19,7 +19,7 @@ os.environ["NO_X11"] = "1"  # Disable X11 requirement for headless testing
 os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"  # Disable display for OpenAI Realtime
 
 # Import app components after setting test environment
-from app import create_app
+from app.main import app
 from app.models.menu import MenuItem, MenuModifier, MenuModifierGroup, MenuNameVariant
 from app.models.order import Order, OrderItem, OrderItemModifier
 from app.models.location import Location
@@ -450,7 +450,7 @@ async def test_order_with_phone_number_from_caller(app, mock_deliverect_api):
     with app.app_context():
         from app.db import db
         from app.agents.fulfillment import process_order
-        from app.utils.agent_orchestration import SlotStore
+        from app.utils.agent_orchestration_async import SlotStore
         
         # Create a session ID
         session_id = str(uuid.uuid4())
