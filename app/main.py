@@ -250,6 +250,14 @@ from app.api import api_router
 # Include the main API router
 app.include_router(api_router)
 
+# Import and register WebSocket router separately (not under api_router prefix)
+try:
+    from app.api.voice import websocket_router
+    app.include_router(websocket_router)
+    logger.info("Successfully registered WebSocket router for /realtime/ws/media/{call_sid}")
+except ImportError as e:
+    logger.error(f"Failed to import WebSocket router: {e}")
+
 # Add the /routes endpoint AFTER including the API router
 # This ensures it can see all routes including the ones from api_router
 @app.get("/routes", include_in_schema=False)

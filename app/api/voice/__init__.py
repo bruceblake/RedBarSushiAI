@@ -35,5 +35,17 @@ testing_router.add_api_route("/fsm/{call_sid}/event", trigger_fsm_event, methods
 testing_router.add_api_route("/fsm/{call_sid}", get_fsm_state, methods=["GET"])
 testing_router.add_api_route("/sessions/{call_sid}", cleanup_session, methods=["DELETE"])
 
-# Export only the active routers
-__all__ = ["http_twiml_router", "testing_router"]
+# Create WebSocket router for media streams
+websocket_router = APIRouter(tags=["Voice WebSocket"])
+
+# Import WebSocket handler
+from app.api.voice.websocket import handle_media_stream
+
+# Register WebSocket endpoint
+@websocket_router.websocket("/realtime/ws/media/{call_sid}")
+async def websocket_endpoint(websocket, call_sid: str, debug: bool = False, client: str = "twilio", time: str = ""):
+    """WebSocket endpoint for Twilio Media Streams."""
+    await handle_media_stream(websocket, call_sid, debug, client, time)
+
+# Export all routers
+__all__ = ["http_twiml_router", "testing_router", "websocket_router"]
