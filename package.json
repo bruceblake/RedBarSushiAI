@@ -1,6 +1,0 @@
-{
-  "devDependencies": {
-    "@anthropic-ai/claude-code": "^0.2.100",
-    "prettier": "3.5.3"
-  }
-}
