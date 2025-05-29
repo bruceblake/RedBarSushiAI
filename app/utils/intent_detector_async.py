@@ -1,0 +1,240 @@
+"""
+LLM-based intent detection for FSM state transitions.
+
+This module uses OpenAI to detect user intents from transcripts,
+replacing keyword-based detection with intelligent understanding.
+"""
+
+import logging
+from typing import Optional, Dict, Any
+from openai import AsyncOpenAI
+from app.config import settings
+from app.fsm.core import ConversationState, ConversationEvent
+
+logger = logging.getLogger(__name__)
+
+class AsyncIntentDetector:
+    """Detects user intents using LLM for FSM state transitions."""
+    
+    def __init__(self):
+        """Initialize the intent detector with OpenAI client."""
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        self.model = "gpt-4o-mini"  # Fast model for intent detection
+        
+    async def detect_intent(
+        self, 
+        transcript: str, 
+        current_state: ConversationState,
+        context: Dict[str, Any]
+    ) -> Optional[ConversationEvent]:
+        """
+        Detect user intent from transcript using LLM.
+        
+        Args:
+            transcript: User's spoken text
+            current_state: Current FSM state
+            context: Conversation context
+            
+        Returns:
+            ConversationEvent to trigger, or None
+        """
+        if not transcript.strip():
+            return None
+            
+        # Build state-specific prompt
+        system_prompt = self._build_system_prompt(current_state)
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": transcript}
+                ],
+                temperature=0.1,  # Low temperature for consistent intent detection
+                max_tokens=50
+            )
+            
+            intent = response.choices[0].message.content.strip().upper()
+            logger.info(f"LLM Intent Detection - State: {current_state.name}, Transcript: '{transcript[:50]}...', Detected: {intent}")
+            
+            # Map intent to event
+            event = self._map_intent_to_event(intent, current_state)
+            if event:
+                logger.info(f"Intent '{intent}' mapped to event: {event.name}")
+            else:
+                logger.info(f"Intent '{intent}' has no event mapping in state {current_state.name}")
+            
+            return event
+            
+        except Exception as e:
+            logger.error(f"Error detecting intent: {e}")
+            return None
+    
+    def _build_system_prompt(self, current_state: ConversationState) -> str:
+        """Build state-specific system prompt for intent detection."""
+        base_prompt = """You are an intent classifier for a restaurant phone ordering system.
+Analyze the user's message and return ONLY ONE of the allowed intents listed below.
+Do not explain or add any other text - just return the intent name.
+
+Current conversation state: {state}
+
+"""
+        
+        state_prompts = {
+            ConversationState.GREETING: """
+Allowed intents:
+- PROVIDE_NAME: User is giving their name or responding to name request
+- SKIP_NAME: User wants to skip giving name or proceed without it
+- REQUEST_HELP: User is confused or asking for help
+
+Examples:
+"John" -> PROVIDE_NAME
+"My name is Sarah" -> PROVIDE_NAME  
+"I don't want to give my name" -> SKIP_NAME
+"What?" -> REQUEST_HELP
+""",
+            
+            ConversationState.MAIN_MENU: """
+Allowed intents:
+- START_ORDER: User wants to place an order or add items
+- REQUEST_MENU: User wants to know about menu/items/prices
+- REQUEST_HOURS: User asking about hours or location
+- REQUEST_HUMAN: User wants to speak to a person
+- GENERAL_QUESTION: User has a question not covered above
+
+Examples:
+"I'd like to order something" -> START_ORDER
+"Can I get two salmon rolls" -> START_ORDER
+"What kind of sushi do you have?" -> REQUEST_MENU
+"Are you open now?" -> REQUEST_HOURS
+"I need to speak to someone" -> REQUEST_HUMAN
+"Do you deliver?" -> GENERAL_QUESTION
+""",
+            
+            ConversationState.ORDERING: """
+Allowed intents:
+- ADD_ITEM: User is adding items to their order
+- REMOVE_ITEM: User wants to remove something
+- MODIFY_ITEM: User wants to change something (quantity, preparation)
+- REQUEST_MENU: User asking about menu items while ordering
+- COMPLETE_ORDER: User is done ordering
+- CANCEL_ORDER: User wants to cancel everything
+
+Examples:
+"Add a tuna roll" -> ADD_ITEM
+"Remove the tempura" -> REMOVE_ITEM
+"Make that 3 instead" -> MODIFY_ITEM
+"What comes with that?" -> REQUEST_MENU
+"That's all for now" -> COMPLETE_ORDER
+"Never mind, cancel everything" -> CANCEL_ORDER
+""",
+            
+            ConversationState.VALIDATION: """
+Allowed intents:
+- CONFIRM: User confirms the order is correct
+- REQUEST_CHANGE: User wants to modify something
+- REQUEST_REPEAT: User wants to hear the order again
+- CANCEL: User wants to cancel
+
+Examples:
+"Yes that's correct" -> CONFIRM
+"Actually can you change..." -> REQUEST_CHANGE
+"Can you repeat that?" -> REQUEST_REPEAT
+"No, cancel it" -> CANCEL
+""",
+            
+            ConversationState.CONFIRMATION: """
+Allowed intents:
+- CONFIRM_ORDER: User confirms and wants to proceed
+- MODIFY_ORDER: User wants to change something
+- CANCEL_ORDER: User wants to cancel
+- REQUEST_INFO: User has questions
+
+Examples:
+"Yes, place the order" -> CONFIRM_ORDER
+"Actually can I add one more thing" -> MODIFY_ORDER
+"Cancel the order" -> CANCEL_ORDER
+"How long will it take?" -> REQUEST_INFO
+""",
+            
+            ConversationState.FULFILLMENT: """
+Allowed intents:
+- PROVIDE_DELIVERY: User providing delivery information
+- CHOOSE_PICKUP: User wants pickup instead
+- PROVIDE_PAYMENT: User providing payment details
+- REQUEST_HELP: User needs assistance
+
+Examples:
+"123 Main Street" -> PROVIDE_DELIVERY
+"I'll pick it up" -> CHOOSE_PICKUP
+"I'll pay with card" -> PROVIDE_PAYMENT
+"I don't understand" -> REQUEST_HELP
+"""
+        }
+        
+        state_prompt = state_prompts.get(
+            current_state, 
+            "Allowed intents: CONTINUE, REQUEST_HELP, REQUEST_HUMAN"
+        )
+        
+        return base_prompt.format(state=current_state.name) + state_prompt
+    
+    def _map_intent_to_event(self, intent: str, current_state: ConversationState) -> Optional[ConversationEvent]:
+        """Map detected intent to FSM event based on current state."""
+        
+        # State-specific intent mappings
+        state_mappings = {
+            ConversationState.GREETING: {
+                "PROVIDE_NAME": ConversationEvent.USER_PROVIDES_NAME,
+                "SKIP_NAME": ConversationEvent.USER_PROVIDES_NAME,
+                "REQUEST_HELP": None
+            },
+            ConversationState.MAIN_MENU: {
+                "START_ORDER": ConversationEvent.START_ORDER,
+                "REQUEST_MENU": ConversationEvent.REQUEST_MENU_INFO,
+                "REQUEST_HOURS": ConversationEvent.REQUEST_MENU_INFO,
+                "REQUEST_HUMAN": ConversationEvent.REQUEST_ESCALATION,
+                "GENERAL_QUESTION": None
+            },
+            ConversationState.ORDERING: {
+                "ADD_ITEM": None,  # Handled by cart agent
+                "REMOVE_ITEM": None,  # Handled by cart agent
+                "MODIFY_ITEM": None,  # Handled by cart agent
+                "REQUEST_MENU": None,  # Stay in ordering
+                "COMPLETE_ORDER": ConversationEvent.COMPLETE_ORDER,
+                "CANCEL_ORDER": ConversationEvent.CANCEL_ORDER
+            },
+            ConversationState.VALIDATION: {
+                "CONFIRM": ConversationEvent.VALIDATE_ORDER,
+                "REQUEST_CHANGE": ConversationEvent.MODIFY_ORDER,
+                "REQUEST_REPEAT": None,
+                "CANCEL": ConversationEvent.CANCEL_ORDER
+            },
+            ConversationState.CONFIRMATION: {
+                "CONFIRM_ORDER": ConversationEvent.CONFIRM_ORDER,
+                "MODIFY_ORDER": ConversationEvent.MODIFY_ORDER,
+                "CANCEL_ORDER": ConversationEvent.REJECT_ORDER,
+                "REQUEST_INFO": None
+            },
+            ConversationState.FULFILLMENT: {
+                "PROVIDE_DELIVERY": ConversationEvent.PROVIDE_DELIVERY_INFO,
+                "CHOOSE_PICKUP": ConversationEvent.CHOOSE_PICKUP,
+                "PROVIDE_PAYMENT": ConversationEvent.PROVIDE_PAYMENT_INFO,
+                "REQUEST_HELP": ConversationEvent.REQUEST_HELP
+            }
+        }
+        
+        # Get mapping for current state
+        mapping = state_mappings.get(current_state, {})
+        event = mapping.get(intent)
+        
+        if event:
+            logger.info(f"Mapped intent {intent} to event {event.name}")
+        else:
+            logger.info(f"No event mapping for intent {intent} in state {current_state.name}")
+            
+        return event
+
+# Singleton instance
+intent_detector = AsyncIntentDetector()

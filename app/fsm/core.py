@@ -385,7 +385,7 @@ class AsyncConversationFSM:
     
     async def _extract_event_from_transcript(self, transcript: str) -> Optional[ConversationEvent]:
         """
-        Extract an event from a transcript based on the current state.
+        Extract an event from a transcript using LLM-based intent detection.
         
         Args:
             transcript: The transcript to analyze
@@ -393,129 +393,27 @@ class AsyncConversationFSM:
         Returns:
             The extracted event, or None if no event could be determined
         """
-        transcript_lower = transcript.lower()
-        
-        # Common phrases for different events
-        greeting_phrases = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening"]
-        name_phrases = ["my name is", "i'm", "i am", "call me", "this is"]
-        order_phrases = ["i want to order", "i'd like to order", "can i order", "i want", "i would like", "give me", "i'll have"]
-        menu_phrases = ["what's on the menu", "what do you have", "tell me about", "what's your", "do you have"]
-        complete_phrases = ["that's all", "that's it", "i'm done", "finish my order", "complete my order", "place my order"]
-        confirm_phrases = ["yes", "confirm", "sounds good", "correct", "that's right", "yeah", "yep", "please", "sure"]
-        reject_phrases = ["no", "cancel", "change", "modify", "wrong", "incorrect", "that's not right", "nope"]
-        follow_up_phrases = ["anything else", "what else", "more information", "tell me more", "another question"]
-        escalation_phrases = ["manager", "human", "person", "staff", "talk to someone", "speak to someone", "help me"]
-        
-        # State-specific event extraction
-        if self.current_state == ConversationState.GREETING:
-            for phrase in name_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.USER_PROVIDES_NAME
+        try:
+            # Use LLM-based intent detection
+            from app.utils.intent_detector_async import intent_detector
             
-            # Default to providing name even if no explicit phrase
-            return ConversationEvent.USER_PROVIDES_NAME
-        
-        elif self.current_state == ConversationState.MAIN_MENU:
-            for phrase in order_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.START_ORDER
+            event = await intent_detector.detect_intent(
+                transcript=transcript,
+                current_state=self.current_state,
+                context=self.context
+            )
             
-            for phrase in menu_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.REQUEST_MENU_INFO
+            if event:
+                logger.info(f"LLM detected event {event.name} from transcript: '{transcript[:50]}...'")
+            else:
+                logger.info(f"No event detected by LLM for transcript: '{transcript[:50]}...'")
+                
+            return event
             
-            for phrase in escalation_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.REQUEST_ESCALATION
-            
-            # If ordering phrases are detected, start order
-            if "order" in transcript_lower:
-                return ConversationEvent.START_ORDER
-            
-            # Default to starting an order if no specific intent
-            return ConversationEvent.START_ORDER
-        
-        elif self.current_state == ConversationState.ORDERING:
-            for phrase in complete_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.COMPLETE_ORDER
-            
-            for phrase in escalation_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.REQUEST_ESCALATION
-            
-            # If there are items in the cart and they say "that's it", complete the order
-            if (self.context.get("cart", {}).get("items", []) and 
-                ("that's it" in transcript_lower or "that is it" in transcript_lower)):
-                return ConversationEvent.COMPLETE_ORDER
-            
-            # Default: no specific event, stay in current state with ADD_ITEM
-            return ConversationEvent.ADD_ITEM
-        
-        elif self.current_state == ConversationState.VALIDATION:
-            for phrase in escalation_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.REQUEST_ESCALATION
-            
-            # No default event for validation, let the validation handler determine
+        except Exception as e:
+            logger.error(f"Error in LLM intent detection: {e}")
+            # Don't fall back to keyword detection - let agents handle the transcript
             return None
-        
-        elif self.current_state == ConversationState.CONFIRMATION:
-            for phrase in confirm_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.CONFIRM_ORDER
-            
-            for phrase in reject_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.REJECT_ORDER
-            
-            for phrase in escalation_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.REQUEST_ESCALATION
-            
-            # If transcript looks like a confirmation, confirm the order
-            if "okay" in transcript_lower or "k" == transcript_lower:
-                return ConversationEvent.CONFIRM_ORDER
-            
-            # No default event for confirmation
-            return None
-        
-        elif self.current_state == ConversationState.FULFILLMENT:
-            for phrase in escalation_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.REQUEST_ESCALATION
-            
-            # No default event for fulfillment
-            return None
-        
-        elif self.current_state == ConversationState.COMPLETION:
-            for phrase in follow_up_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.REQUEST_FOLLOW_UP
-            
-            # Default to follow-up
-            return ConversationEvent.REQUEST_FOLLOW_UP
-        
-        elif self.current_state == ConversationState.FOLLOW_UP:
-            for phrase in order_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.START_ORDER
-            
-            for phrase in escalation_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.REQUEST_ESCALATION
-            
-            # If they say "goodbye" or similar, complete the interaction
-            goodbye_phrases = ["goodbye", "bye", "thank you", "thanks", "done"]
-            for phrase in goodbye_phrases:
-                if phrase in transcript_lower:
-                    return ConversationEvent.COMPLETE_INTERACTION
-            
-            # No default event for follow-up
-            return None
-        
-        # Default fallback
-        return None
 
 
 class AsyncFSMManager:

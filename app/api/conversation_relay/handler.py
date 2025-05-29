@@ -43,24 +43,27 @@ class ConversationRelayHandler:
         
         try:
             # Start a new conversation with the agent system
-            # Note: If using welcomeGreeting in TwiML, this may not be needed
             await async_agent_orchestrator.start_new_conversation(
                 self.call_sid or self.session_id,
                 {"first_interaction": True}
             )
             logger.info(f"Agent orchestrator initialized for {self.call_sid}")
             
-            # Send initial greeting if not using welcomeGreeting in TwiML
-            greeting_response = await async_agent_orchestrator.process_voice_input(
-                self.call_sid or self.session_id, 
-                "", 
-                {"first_interaction": True}
-            )
-            
-            greeting_text = greeting_response.get("text", "")
-            if greeting_text:
-                await self.send_text(greeting_text)
-                logger.info(f"Sent greeting: {greeting_text[:100]}...")
+            # Check if we're using welcomeGreeting in TwiML
+            # If not, send initial greeting
+            if not message.get("welcomeGreeting"):
+                greeting_response = await async_agent_orchestrator.process_voice_input(
+                    self.call_sid or self.session_id, 
+                    "", 
+                    {"first_interaction": True}
+                )
+                
+                greeting_text = greeting_response.get("text", "")
+                if greeting_text:
+                    await self.send_text(greeting_text)
+                    logger.info(f"Sent initial greeting: {greeting_text[:100]}...")
+            else:
+                logger.info("Using welcomeGreeting from TwiML, skipping initial greeting")
         except Exception as e:
             logger.error(f"Error initializing agent for {self.call_sid}: {e}", exc_info=True)
     
@@ -76,10 +79,22 @@ class ConversationRelayHandler:
             return
             
         try:
+            # Get FSM state before processing
+            fsm = await async_agent_orchestrator.get_fsm(self.call_sid)
+            state_before = fsm.current_state.name if fsm else "UNKNOWN"
+            logger.info(f"FSM State BEFORE prompt: {state_before}")
+            
             # Process the transcribed text with the agent
             response = await async_agent_orchestrator.process_voice_input(
                 self.call_sid, voice_prompt
             )
+            
+            # Get FSM state after processing
+            fsm = await async_agent_orchestrator.get_fsm(self.call_sid)
+            state_after = fsm.current_state.name if fsm else "UNKNOWN"
+            current_agent = response.get("agent", "Unknown")
+            
+            logger.info(f"FSM State AFTER prompt: {state_after} (handled by {current_agent})")
             
             response_text = response.get("text", "")
             if response_text:

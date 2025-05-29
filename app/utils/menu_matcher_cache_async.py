@@ -101,32 +101,44 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
 # Module-level cache management functions
 async def clear_cached_menu_matcher():
     """Clear the cached menu matcher instance and menu data cache."""
+    global cached_async_menu_matcher
+    
     try:
+        # Clear the singleton instance
+        if cached_async_menu_matcher:
+            logger.info("Clearing cached menu matcher singleton")
+            cached_async_menu_matcher = None
+        
+        # Clear the Redis cache
         await clear_menu_cache()
-        logger.info("Cleared menu matcher cache")
+        
+        # Clear memory cache
+        menu_cache.clear_all()
+        
+        logger.info("Cleared all menu caches successfully")
     except Exception as e:
         logger.error(f"Error clearing menu matcher cache: {e}")
 
 # Create a singleton instance for easy import
 cached_async_menu_matcher = None
 
-async def get_cached_async_menu_matcher(db: AsyncSession, location_id: Optional[str] = None) -> AsyncCachedMenuMatcher:
+async def get_cached_async_menu_matcher(db: AsyncSession, location_id: Optional[str] = None, force_refresh: bool = False) -> AsyncCachedMenuMatcher:
     """
     Get or create the cached menu matcher singleton.
     
     Args:
         db: AsyncSession for database access
         location_id: Optional location ID to filter menu items
+        force_refresh: Force creation of a new matcher instance
         
     Returns:
         AsyncCachedMenuMatcher instance
     """
     global cached_async_menu_matcher
     
-    # Always create a new matcher if db is provided
-    # This ensures we use a valid database session
-    if db is not None:
-        logger.info(f"Creating new menu matcher with database session")
+    # Force refresh or create new if db is provided
+    if force_refresh or db is not None:
+        logger.info(f"Creating new menu matcher with database session (force_refresh={force_refresh})")
         cached_async_menu_matcher = AsyncCachedMenuMatcher(db, location_id)
         success = await cached_async_menu_matcher.initialize()
         if not success:
@@ -138,16 +150,3 @@ async def get_cached_async_menu_matcher(db: AsyncSession, location_id: Optional[
     return cached_async_menu_matcher
 
 
-async def clear_cached_menu_matcher():
-    """Clear the cached menu matcher to force reload."""
-    global cached_async_menu_matcher
-    
-    if cached_async_menu_matcher:
-        logger.info("Clearing cached menu matcher")
-        cached_async_menu_matcher = None
-    
-    # Also clear the menu cache
-    try:
-        menu_cache.clear_all()
-    except Exception as e:
-        logger.error(f"Error clearing menu cache: {e}")

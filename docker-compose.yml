@@ -65,6 +65,7 @@ services:
       start_period: 40s
     volumes:
       - ./app:/app/app
+      - ./tests:/app/tests
       - ./logs:/app/logs
       - ./menu_data.json:/app/menu_data.json
     networks:
