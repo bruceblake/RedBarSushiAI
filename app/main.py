@@ -241,14 +241,8 @@ async def environment_info() -> Dict[str, Any]:
 
     return info
 
-# Remove existing /routes endpoint before adding API router
-# It will be re-added below
-routes_to_keep = []
-for route in app.routes:
-    # Skip the /routes endpoint, we'll re-add it below
-    if getattr(route, "path", None) != "/routes":
-        routes_to_keep.append(route)
-app.routes = routes_to_keep
+# Note: We'll add the /routes endpoint after including the API router
+# FastAPI doesn't allow modifying routes directly
 
 # Import and include API routers
 from app.api import api_router

@@ -1,0 +1,45 @@
+# Multi-stage Dockerfile for testing
+FROM python:3.11-slim as base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements files
+COPY requirements.txt requirements-dev.txt ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r requirements-dev.txt
+
+# Test stage
+FROM base as test
+
+# Copy application code
+COPY . /app
+
+# Create directories for test output
+RUN mkdir -p /app/test-results /app/htmlcov /app/logs
+
+# Set Python path
+ENV PYTHONPATH=/app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install test-specific tools
+RUN pip install --no-cache-dir \
+    pytest-xdist \
+    pytest-timeout \
+    pytest-docker \
+    pytest-html \
+    pytest-json-report
+
+# Default command runs all tests
+CMD ["pytest", "-v", "--tb=short"]

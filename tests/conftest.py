@@ -118,13 +118,17 @@ def reset_singletons():
     """Reset singleton instances between tests."""
     # Reset any singleton instances to ensure test isolation
     from app.utils.agent_orchestration_async import async_agent_orchestrator
-    from app.utils.fsm_async import async_fsm_manager
+    from app.fsm.core import async_fsm_manager
     
     # Clear FSM instances
-    async_fsm_manager._instances.clear()
+    if hasattr(async_fsm_manager, 'fsm_instances'):
+        async_fsm_manager.fsm_instances.clear()
     
     # Reset agent orchestrator state
-    async_agent_orchestrator._initialized = False
+    if hasattr(async_agent_orchestrator, 'active_sessions'):
+        async_agent_orchestrator.active_sessions.clear()
+    if hasattr(async_agent_orchestrator, 'conversations'):
+        async_agent_orchestrator.conversations.clear()
 
 
 # Skip markers for different test categories
@@ -140,3 +144,73 @@ requires_twilio = pytest.mark.skipif(
     not os.getenv("TWILIO_ACCOUNT_SID"),
     reason="Twilio credentials not available"
 )
+requires_deliverect = pytest.mark.skipif(
+    not os.getenv("DELIVERECT_API_KEY"),
+    reason="Deliverect credentials not available"
+)
+
+
+def pytest_configure(config):
+    """Configure pytest with custom markers."""
+    config.addinivalue_line(
+        "markers", "e2e: mark test as end-to-end test (only runs in staging)"
+    )
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration test"
+    )
+    config.addinivalue_line(
+        "markers", "unit: mark test as unit test"
+    )
+    config.addinivalue_line(
+        "markers", "requires_twilio: test requires Twilio credentials"
+    )
+    config.addinivalue_line(
+        "markers", "requires_openai: test requires OpenAI API access"
+    )
+    config.addinivalue_line(
+        "markers", "requires_deliverect: test requires Deliverect access"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip e2e tests in development environment."""
+    if os.getenv("FASTAPI_ENV", "development") != "staging":
+        skip_e2e = pytest.mark.skip(reason="E2E tests only run in staging environment")
+        for item in items:
+            if "e2e" in item.keywords:
+                item.add_marker(skip_e2e)
+
+
+# Environment-specific test data
+@pytest.fixture
+def test_phone_number():
+    """Get appropriate test phone number based on environment."""
+    env = os.getenv("FASTAPI_ENV", "development")
+    if env == "staging":
+        # Use real Twilio test number in staging
+        return os.getenv("TWILIO_TEST_PHONE_NUMBER", "+15005550006")
+    else:
+        # Use mock number in development
+        return "+15555551234"
+
+
+@pytest.fixture
+def test_openai_model():
+    """Get appropriate OpenAI model for testing."""
+    env = os.getenv("FASTAPI_ENV", "development")
+    if env == "staging":
+        # Use cheaper/faster model for staging tests
+        return "gpt-3.5-turbo"
+    else:
+        # Mock in development
+        return "mock-model"
+
+
+@pytest.fixture
+def deliverect_test_mode():
+    """Determine Deliverect test mode."""
+    env = os.getenv("FASTAPI_ENV", "development")
+    if env == "staging":
+        return "sandbox"  # Use Deliverect sandbox
+    else:
+        return "mock"  # Use mocked responses
