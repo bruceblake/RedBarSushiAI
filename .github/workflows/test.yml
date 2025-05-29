@@ -1,0 +1,118 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio pytest-cov
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/unit -v --cov=app --cov-report=xml
+      env:
+        TESTING: true
+        DATABASE_URL: sqlite+aiosqlite:///:memory:
+        REDIS_URL: redis://localhost:6379
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: redbarsushi
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: redbarsushi_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio
+    
+    - name: Run integration tests
+      run: |
+        pytest tests/integration -v
+      env:
+        TESTING: true
+        DATABASE_URL: postgresql+asyncpg://redbarsushi:testpass@localhost:5432/redbarsushi_test
+        REDIS_URL: redis://localhost:6379/0
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_TEST_SID }}
+        TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_TEST_TOKEN }}
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging'  # Only run on staging branch
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio
+    
+    - name: Run E2E tests against staging
+      run: |
+        pytest tests/e2e -v -m "not slow"
+      env:
+        TESTING: true
+        FASTAPI_ENV: staging
+        STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_TEST_SID }}
+        TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_TEST_TOKEN }}
+        DELIVERECT_API_KEY: ${{ secrets.DELIVERECT_SANDBOX_KEY }}

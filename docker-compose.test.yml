@@ -1,114 +1,49 @@
 version: '3.8'
 
 services:
-  # Test application container
-  app-test:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: test
-    container_name: redbarsushi-test-app
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://redbarsushi:redbarsushi@postgres-test:5432/redbarsushi_test
-      - REDIS_URL=redis://redis-test:6379/0
-      - REDIS_PORT=6379
-      - TESTING=True
-      - FASTAPI_ENV=test
-      - PYTHONPATH=/app
-      - LOG_LEVEL=DEBUG
-      # Test API Keys (can be mocked or test keys)
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-test-key}
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-ACtest}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-test-token}
-      - DELIVERECT_API_KEY=${DELIVERECT_API_KEY:-test-key}
-      - DELIVERECT_BASE_URL=https://api.staging.deliverect.com
-    volumes:
-      - ./app:/app/app
-      - ./tests:/app/tests
-      - ./test-results:/app/test-results
-      - ./htmlcov:/app/htmlcov
-      - ./.coverage:/app/.coverage
-    depends_on:
-      postgres-test:
-        condition: service_healthy
-      redis-test:
-        condition: service_healthy
-    networks:
-      - test-network
-    command: sleep infinity  # Keep container running for test execution
-
-  # Test PostgreSQL
+  # Simple test setup with PostgreSQL and Redis
   postgres-test:
     image: postgres:15-alpine
-    container_name: redbarsushi-test-postgres
     environment:
-      - POSTGRES_USER=redbarsushi
-      - POSTGRES_PASSWORD=redbarsushi
-      - POSTGRES_DB=redbarsushi_test
+      POSTGRES_USER: redbarsushi
+      POSTGRES_PASSWORD: redbarsushi
+      POSTGRES_DB: redbarsushi_test
     ports:
-      - "5433:5432"  # Different port to avoid conflicts
-    volumes:
-      - test-postgres-data:/var/lib/postgresql/data
+      - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U redbarsushi -d redbarsushi_test"]
+      test: ["CMD-SHELL", "pg_isready -U redbarsushi"]
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - test-network
 
-  # Test Redis
   redis-test:
     image: redis:7-alpine
-    container_name: redbarsushi-test-redis
     ports:
-      - "6381:6379"  # Different port to avoid conflicts
+      - "6381:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - test-network
 
-  # Test runner - executes tests
-  test-runner:
+  app-test:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: test
-    container_name: redbarsushi-test-runner
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://redbarsushi:redbarsushi@postgres-test:5432/redbarsushi_test
-      - REDIS_URL=redis://redis-test:6379/0
-      - TESTING=True
-      - FASTAPI_ENV=test
-      - PYTHONPATH=/app
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-test-key}
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-ACtest}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-test-token}
-      - DELIVERECT_API_KEY=${DELIVERECT_API_KEY:-test-key}
-    volumes:
-      - ./app:/app/app
-      - ./tests:/app/tests
-      - ./test-results:/app/test-results
-      - ./htmlcov:/app/htmlcov
-      - ./.coverage:/app/.coverage
+      dockerfile: Dockerfile.dev
     depends_on:
-      app-test:
-        condition: service_started
       postgres-test:
         condition: service_healthy
       redis-test:
         condition: service_healthy
-    networks:
-      - test-network
-    profiles:
-      - test-run
-
-networks:
-  test-network:
-    driver: bridge
-
-volumes:
-  test-postgres-data:
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://redbarsushi:redbarsushi@postgres-test:5432/redbarsushi_test
+      - REDIS_URL=redis://redis-test:6379/0
+      - TESTING=true
+      - OPENAI_API_KEY=sk-test-key
+      - TWILIO_ACCOUNT_SID=ACtest
+      - TWILIO_AUTH_TOKEN=test-token
+      - DELIVERECT_API_KEY=test-key
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+    command: pytest tests/unit -v

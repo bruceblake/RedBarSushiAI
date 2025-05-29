@@ -26,19 +26,24 @@ class TestConfig(BaseSettings):
         env="FASTAPI_ENV"
     )
     
-    # Feature flags
-    use_mock_services: bool = Field(
-        default=True,
-        env="USE_MOCK_SERVICES"
-    )
-    use_real_database: bool = Field(
-        default=False,
-        env="USE_REAL_DATABASE"
-    )
-    use_real_redis: bool = Field(
-        default=False,
-        env="USE_REAL_REDIS"
-    )
+    # Feature flags - automatically determined by environment
+    @property
+    def use_mock_services(self) -> bool:
+        """Use mocks in development/testing, real services in staging/production."""
+        if self.environment in [TestEnvironment.DEVELOPMENT, TestEnvironment.TESTING]:
+            return os.getenv("USE_MOCK_SERVICES", "true").lower() == "true"
+        # Staging and production use real services
+        return False
+    
+    @property
+    def use_real_database(self) -> bool:
+        """Use test database locally, real database in staging/production."""
+        return self.environment in [TestEnvironment.STAGING, TestEnvironment.PRODUCTION]
+    
+    @property
+    def use_real_redis(self) -> bool:
+        """Use test Redis locally, real Redis in staging/production."""
+        return self.environment in [TestEnvironment.STAGING, TestEnvironment.PRODUCTION]
     
     # Mock server
     mock_server_url: str = Field(
@@ -70,16 +75,28 @@ class TestConfig(BaseSettings):
     # Database configuration
     @property
     def database_url(self) -> str:
+        # Always use DATABASE_URL from environment if available (Render sets this)
+        db_url = os.getenv("DATABASE_URL")
+        if db_url:
+            return db_url
+            
+        # Fallback for local testing
         if self.environment == TestEnvironment.TESTING:
             return "postgresql+asyncpg://redbarsushi:redbarsushi@localhost:5433/redbarsushi_test"
-        return os.getenv("DATABASE_URL", "postgresql+asyncpg://localhost/redbarsushi")
+        return "postgresql+asyncpg://localhost/redbarsushi"
     
     # Redis configuration
     @property
     def redis_url(self) -> str:
+        # Always use REDIS_URL from environment if available (Render sets this)
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            return redis_url
+            
+        # Fallback for local testing
         if self.environment == TestEnvironment.TESTING:
             return "redis://localhost:6381/0"
-        return os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        return "redis://localhost:6379/0"
     
     # Test data
     test_phone_number: str = Field(
