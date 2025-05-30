@@ -1,0 +1,63 @@
+[run]
+source = app
+omit = 
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */venv/*
+    */.venv/*
+    */migrations/*
+    */config.py
+    */settings.py
+    app/main.py
+    app/celery_app_fastapi.py
+
+branch = True
+parallel = True
+concurrency = multiprocessing,thread,greenlet
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+skip_empty = True
+
+exclude_lines =
+    # Have to re-enable the standard pragma
+    pragma: no cover
+    
+    # Don't complain about missing debug-only code:
+    def __repr__
+    if self\.debug
+    
+    # Don't complain if tests don't hit defensive assertion code:
+    raise AssertionError
+    raise NotImplementedError
+    
+    # Don't complain if non-runnable code isn't run:
+    if 0:
+    if __name__ == .__main__.:
+    
+    # Don't complain about abstract methods
+    @(abc\.)?abstractmethod
+    
+    # Ignore type checking imports
+    if TYPE_CHECKING:
+    
+    # Ignore ... (ellipsis) in abstract methods
+    \.\.\.
+
+ignore_errors = True
+
+[html]
+directory = htmlcov
+title = RedBarSushiAI Test Coverage Report
+show_contexts = True
+
+[xml]
+output = coverage/coverage.xml
+
+[json]
+output = coverage/coverage.json
+pretty_print = True
+show_contexts = True

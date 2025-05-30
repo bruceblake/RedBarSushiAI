@@ -1,0 +1,42 @@
+# Docker Compose Override for Local Test Development
+# This file allows developers to customize test environment locally
+# Usage: docker-compose -f docker-compose.test.yml -f docker-compose.test.override.yml up
+
+services:
+  app-test:
+    # Override for local development - mount source as read-write
+    volumes:
+      # Application code (read-write for development)
+      - ./app:/app/app:rw
+      - ./tests:/app/tests:rw
+      
+      # Additional development tools
+      - ./scripts:/app/scripts:rw
+      - ./.git:/app/.git:ro  # For test coverage reports
+      
+    # Enable stdin and tty for debugging
+    stdin_open: true
+    tty: true
+    
+    # Override command for interactive development
+    # command: /bin/bash
+    
+    # Additional environment for development
+    environment:
+      - PYTEST_ADDOPTS=--verbose --tb=short --strict-markers
+      - PYTEST_TIMEOUT=600  # Longer timeout for debugging
+      - LOG_LEVEL=DEBUG
+      - PYTHONDONTWRITEBYTECODE=1
+      
+  # Optional: Add test database UI
+  # pgadmin-test:
+  #   image: dpage/pgadmin4:latest
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@test.local
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #   ports:
+  #     - "5050:80"
+  #   networks:
+  #     - test-network
+  #   depends_on:
+  #     - postgres-test

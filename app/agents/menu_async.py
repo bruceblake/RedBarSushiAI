@@ -4,12 +4,12 @@ Async menu agent for handling menu-related queries.
 import logging
 from typing import Dict, Any, Optional, List
 
-from app.agents.base_async import AsyncBaseAgent
+from app.agents.base_async import BaseAsyncAgent
 
 logger = logging.getLogger(__name__)
 
 
-class AsyncMenuAgent(AsyncBaseAgent):
+class AsyncMenuAgent(BaseAsyncAgent):
     """Agent responsible for menu-related queries and operations."""
     
     def __init__(self, **kwargs):

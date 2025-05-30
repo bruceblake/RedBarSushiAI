@@ -1,0 +1,60 @@
+# Test-specific dockerignore
+# Exclude unnecessary files from test build context
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+
+# Test outputs (from previous runs)
+test-results/
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.pytest_cache/
+.tox/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.*
+!.env.test
+
+# Build artifacts
+build/
+dist/
+*.whl
+
+# Node modules (if any frontend)
+node_modules/
+
+# Other unnecessary files
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile
+!Dockerfile.test

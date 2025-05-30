@@ -1,8 +1,8 @@
 services:
   app:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ../..
+      dockerfile: docker/development/Dockerfile.dev
     container_name: redbarsushi-app
     ports:
       - "${APP_PORT:-8000}:8080"
@@ -64,9 +64,9 @@ services:
       retries: 5
       start_period: 40s
     volumes:
-      - ./app:/app/app
-      - ./tests:/app/tests
-      - ./logs:/app/logs
+      - ../.../../app:/app/app
+      - ../.../../tests:/app/tests
+      - ../.../../logs:/app/logs
     networks:
       - redbarsushi-network
     restart: unless-stopped
@@ -82,7 +82,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./db/init/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ../../db/init/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -110,8 +110,8 @@ services:
 
   celery:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ../..
+      dockerfile: docker/development/Dockerfile.dev
     container_name: redbarsushi-celery
     command: celery -A celery_app_fastapi worker --loglevel=INFO --max-memory-per-child=200000
     environment:
@@ -135,16 +135,16 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./app:/app/app
-      - ./logs:/app/logs
+      - ../../app:/app/app
+      - ../../logs:/app/logs
     networks:
       - redbarsushi-network
     restart: unless-stopped
 
   celery-beat:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ../..
+      dockerfile: docker/development/Dockerfile.dev
     container_name: redbarsushi-celery-beat
     command: celery -A celery_app_fastapi beat --loglevel=INFO
     environment:
@@ -162,16 +162,16 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./app:/app/app
-      - ./logs:/app/logs
+      - ../../app:/app/app
+      - ../../logs:/app/logs
     networks:
       - redbarsushi-network
     restart: unless-stopped
 
   test:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ../..
+      dockerfile: docker/development/Dockerfile.dev
     container_name: redbarsushi-test
     command: pytest -v --tb=short --cov=app --cov-report=term-missing
     environment:
@@ -207,9 +207,9 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./app:/app/app
-      - ./tests:/app/tests
-      - ./pytest.ini:/app/pytest.ini
+      - ../../app:/app/app
+      - ../../tests:/app/tests
+      - ../../pytest.ini:/app/pytest.ini
     networks:
       - redbarsushi-network
     profiles:

@@ -4,6 +4,7 @@ Simplified version that avoids importing the main app to prevent circular import
 """
 
 import os
+import sys
 import pytest
 import pytest_asyncio
 from typing import AsyncGenerator, Generator
@@ -11,6 +12,13 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.pool import NullPool
 import redis.asyncio as aioredis
 from unittest.mock import Mock, AsyncMock, MagicMock
+import logging
+
+# Add tests directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import health check
+from health_check import wait_for_services
 
 # Set test environment
 os.environ["TESTING"] = "1"
@@ -18,6 +26,45 @@ os.environ["LOG_LEVEL"] = "DEBUG"
 
 # Test database URL
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql+asyncpg://postgres:password@localhost:5432/redbarsushi_test")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# Pytest configuration
+def pytest_configure(config):
+    """Configure pytest with custom markers."""
+    config.addinivalue_line("markers", "unit: mark test as a unit test")
+    config.addinivalue_line("markers", "integration: mark test as an integration test")
+    config.addinivalue_line("markers", "e2e: mark test as an end-to-end test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
+    config.addinivalue_line("markers", "requires_redis: mark test as requiring Redis")
+    config.addinivalue_line("markers", "requires_db: mark test as requiring database")
+
+
+# Session-scoped fixture to check services once per test session
+@pytest.fixture(scope="session", autouse=True)
+async def ensure_services_healthy():
+    """
+    Ensure all required services are healthy before running any tests.
+    This runs once per test session.
+    """
+    # Skip health check if explicitly disabled
+    if os.getenv("SKIP_HEALTH_CHECK", "").lower() == "true":
+        logger.info("Skipping health check (SKIP_HEALTH_CHECK=true)")
+        return
+    
+    # Skip for unit tests
+    if os.getenv("PYTEST_CURRENT_TEST", "").find("unit") != -1:
+        logger.info("Skipping health check for unit tests")
+        return
+    
+    # Run health check
+    try:
+        await wait_for_services(timeout=60)
+    except Exception as e:
+        pytest.exit(f"Service health check failed: {e}", returncode=1)
 
 
 @pytest.fixture(scope="session")
@@ -162,3 +209,25 @@ def sample_location():
             }
         }
     }
+
+
+# Performance tracking
+@pytest.fixture(autouse=True)
+def track_test_duration(request):
+    """Track test execution time and log slow tests."""
+    import time
+    start_time = time.time()
+    
+    def finalizer():
+        duration = time.time() - start_time
+        # Different thresholds for different test types
+        if "unit" in request.node.keywords and duration > 1:
+            logger.warning(f"Slow unit test: {request.node.nodeid} took {duration:.2f}s")
+        elif "integration" in request.node.keywords and duration > 5:
+            logger.warning(f"Slow integration test: {request.node.nodeid} took {duration:.2f}s")
+        elif "e2e" in request.node.keywords and duration > 10:
+            logger.warning(f"Slow e2e test: {request.node.nodeid} took {duration:.2f}s")
+        elif duration > 3:  # Default threshold
+            logger.warning(f"Slow test: {request.node.nodeid} took {duration:.2f}s")
+    
+    request.addfinalizer(finalizer)

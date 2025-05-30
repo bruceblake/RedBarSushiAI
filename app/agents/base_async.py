@@ -192,16 +192,18 @@ class BaseAsyncAgent:
         Args:
             context: New context information to merge
         """
-        self.context.update(context)
+        if context is not None and isinstance(context, dict):
+            self.context.update(context)
     
     def get_context(self) -> Dict[str, Any]:
         """
         Get the agent's current context.
         
         Returns:
-            Dict[str, Any]: The agent's context
+            Dict[str, Any]: A deep copy of the agent's context
         """
-        return self.context.copy()
+        import copy
+        return copy.deepcopy(self.context)
     
     def get_tools(self) -> List[Dict[str, Any]]:
         """

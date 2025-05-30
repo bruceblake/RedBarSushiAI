@@ -4,12 +4,12 @@ Unit tests for AI agents.
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from app.agents.base_async import BaseAsyncAgent
-from app.agents.menu_async_enhanced import AsyncMenuAgent
+from app.agents.menu_async_enhanced import AsyncMenuAgentEnhanced as AsyncMenuAgent
 from app.agents.cart_async import AsyncCartAgent
 from app.agents.guardrail_async import AsyncGuardrailAgent
 from app.agents.fulfillment_async import AsyncFulfillmentAgent
 from app.agents.escalation_async import AsyncEscalationAgent
-from app.agents.frontline_async_ai import AsyncFrontlineVoiceAgent
+from app.agents.frontline_async_ai import AsyncFrontlineVoiceAgentAI as AsyncFrontlineVoiceAgent
 
 
 class TestBaseAgent:
@@ -21,283 +21,305 @@ class TestBaseAgent:
         agent = BaseAsyncAgent(name="TestAgent")
         
         assert agent.name == "TestAgent"
-        assert agent.tools == {}
-        assert agent.logger is not None
+        assert agent.agent_name == "TestAgent"  # Test the alias
+        assert agent.specialists == {}
+        assert agent.context == {}
+        assert agent.agent_id is not None
     
     @pytest.mark.asyncio
-    async def test_base_agent_tool_registration(self):
-        """Test tool registration."""
-        agent = BaseAsyncAgent(name="TestAgent")
+    async def test_base_agent_specialist_registration(self):
+        """Test specialist registration."""
+        agent = BaseAsyncAgent(name="MainAgent")
+        specialist = BaseAsyncAgent(name="SpecialistAgent")
         
-        async def test_tool():
-            return "tool_result"
+        agent.register_specialist("menu", specialist)
         
-        agent.register_tool("test_tool", test_tool)
-        
-        assert "test_tool" in agent.tools
-        assert agent.tools["test_tool"] == test_tool
+        assert "menu" in agent.specialists
+        assert agent.specialists["menu"] == specialist
     
     @pytest.mark.asyncio
-    async def test_base_agent_tool_execution(self):
-        """Test tool execution."""
+    async def test_base_agent_context_management(self):
+        """Test context management."""
         agent = BaseAsyncAgent(name="TestAgent")
         
-        async def add_numbers(a: int, b: int):
-            return a + b
+        # Test initial context
+        assert agent.get_context() == {}
         
-        agent.register_tool("add", add_numbers)
-        
-        result = await agent.execute_tool("add", {"a": 5, "b": 3})
-        assert result == 8
+        # Test updating context
+        agent.update_context({"user": "John", "session": "123"})
+        context = agent.get_context()
+        assert context["user"] == "John"
+        assert context["session"] == "123"
     
     @pytest.mark.asyncio
-    async def test_base_agent_invalid_tool(self):
-        """Test executing invalid tool."""
+    async def test_base_agent_process_input(self):
+        """Test processing input."""
         agent = BaseAsyncAgent(name="TestAgent")
         
-        with pytest.raises(ValueError, match="Unknown tool"):
-            await agent.execute_tool("nonexistent", {})
+        result = await agent.process_input("Hello", {"session": "123"})
+        
+        assert "text" in result
+        assert result["agent"] == "TestAgent"
+        assert result["handled"] is True
+        
+    @pytest.mark.asyncio 
+    async def test_base_agent_execute_tool(self):
+        """Test tool execution returns error for unimplemented tools."""
+        agent = BaseAsyncAgent(name="TestAgent")
+        
+        result = await agent.execute_tool("nonexistent", {})
+        
+        assert result["status"] == "error"
+        assert "not implemented" in result["message"]
 
 
 class TestMenuAgent:
     """Test menu agent functionality."""
     
     @pytest.mark.asyncio
-    async def test_menu_agent_initialization(self, db_session):
+    async def test_menu_agent_initialization(self):
         """Test menu agent initialization."""
-        agent = AsyncMenuAgent(db_session=db_session)
+        agent = AsyncMenuAgent(db=None)
         
-        assert agent.name == "MenuAgent"
-        assert "get_menu_items" in agent.tools
-        assert "check_availability" in agent.tools
-        assert "search_menu" in agent.tools
+        assert agent.name == "MenuEnhanced"
+        assert agent.db is None
+        assert hasattr(agent, '_menu_cache')
+        assert hasattr(agent, 'instructions')
     
     @pytest.mark.asyncio
-    async def test_menu_agent_get_items(self, db_session, sample_menu_data):
-        """Test getting menu items."""
-        agent = AsyncMenuAgent(db_session=db_session)
+    async def test_menu_agent_process_input(self):
+        """Test processing menu-related input."""
+        agent = AsyncMenuAgent(db=None)
         
-        result = await agent.execute_tool("get_menu_items", {"category": "Sushi Rolls"})
+        # Test without database (should handle gracefully)
+        result = await agent.process_input("What sushi do you have?")
         
-        assert "items" in result
-        assert len(result["items"]) == 2
-        assert any(item["name"] == "California Roll" for item in result["items"])
-        assert any(item["name"] == "Spicy Tuna Roll" for item in result["items"])
+        assert "text" in result
+        assert result["agent"] == "MenuEnhanced"
     
     @pytest.mark.asyncio
-    async def test_menu_agent_check_availability(self, db_session, sample_menu_data):
-        """Test checking item availability."""
-        agent = AsyncMenuAgent(db_session=db_session)
+    async def test_menu_agent_list_categories(self):
+        """Test listing categories without database."""
+        agent = AsyncMenuAgent(db=None)
         
-        result = await agent.execute_tool(
-            "check_availability", 
-            {"item_name": "California Roll"}
-        )
+        # Without db, should handle gracefully
+        result = await agent._list_categories()
         
-        assert result["available"] is True
-        assert result["item"]["plu"] == "CALI_001"
-    
-    @pytest.mark.asyncio
-    async def test_menu_agent_search(self, db_session, sample_menu_data):
-        """Test menu search functionality."""
-        agent = AsyncMenuAgent(db_session=db_session)
-        
-        result = await agent.execute_tool("search_menu", {"query": "spicy"})
-        
-        assert "results" in result
-        assert len(result["results"]) >= 1
-        assert any("Spicy" in item["name"] for item in result["results"])
-    
-    @pytest.mark.asyncio
-    async def test_menu_agent_process_input(self, db_session, sample_menu_data, mock_openai_client):
-        """Test processing natural language input."""
-        agent = AsyncMenuAgent(db_session=db_session, llm_client=mock_openai_client)
-        
-        mock_openai_client.chat.completions.create.return_value.choices[0].message.content = (
-            "The California Roll is available for $12.95. It contains crab, avocado, and cucumber."
-        )
-        
-        response = await agent.process_input("Do you have California rolls?")
-        
-        assert "response" in response
-        assert "California Roll" in response["response"]
-        assert "$12.95" in response["response"]
+        assert "categories" in result
+        assert isinstance(result["categories"], list)
 
 
 class TestCartAgent:
     """Test cart agent functionality."""
     
     @pytest.mark.asyncio
-    async def test_cart_agent_initialization(self, db_session, mock_redis):
+    async def test_cart_agent_initialization(self, db_session):
         """Test cart agent initialization."""
         agent = AsyncCartAgent(
-            db_session=db_session,
-            redis_client=mock_redis,
-            session_id="test_session"
+            agent_id="test-123",
+            db=db_session
         )
         
-        assert agent.name == "CartAgent"
-        assert "add_to_cart" in agent.tools
-        assert "remove_from_cart" in agent.tools
-        assert "update_quantity" in agent.tools
-        assert "get_cart" in agent.tools
+        assert agent.name == "Cart"
+        assert agent.agent_name == "Cart"  # Test the alias
+        assert agent.db == db_session
+        assert agent.agent_id == "test-123"
+        
+        # Check tools
+        assert hasattr(agent, 'tools')
+        assert len(agent.tools) > 0
+        
+        # Check specific tools exist
+        tool_names = [t["function"]["name"] for t in agent.tools]
+        assert "add_item_to_cart" in tool_names
+        assert "remove_from_cart" in tool_names
+        assert "modify_cart_item" in tool_names
+        assert "lookup_menu_item" in tool_names
+        assert "get_current_cart" in tool_names
+        assert "suggest_additions" in tool_names
+        assert "clear_cart" in tool_names
     
     @pytest.mark.asyncio
-    async def test_cart_agent_add_item(self, db_session, mock_redis, sample_menu_data):
+    async def test_cart_agent_add_item(self, db_session, sample_menu_data):
         """Test adding item to cart."""
-        agent = AsyncCartAgent(
-            db_session=db_session,
-            redis_client=mock_redis,
-            session_id="test_session"
-        )
+        agent = AsyncCartAgent(db=db_session)
         
-        result = await agent.execute_tool(
-            "add_to_cart",
-            {
-                "item_plu": "CALI_001",
-                "quantity": 2,
-                "modifiers": []
+        # Set a call SID for context
+        agent.set_current_call("test_call_sid")
+        
+        # Mock the menu_db_store to return an item
+        with patch('app.agents.cart_async.menu_db_store.get_item_by_plu') as mock_get_item:
+            mock_get_item.return_value = {
+                "plu": "CALI_001",
+                "name": "California Roll",
+                "price": 1295
             }
-        )
-        
-        assert result["success"] is True
-        assert mock_redis.hset.called
+            
+            # Mock the conversation store
+            with patch('app.agents.cart_async.async_agents_conversation_store.add_to_cart') as mock_add:
+                mock_add.return_value = {
+                    "items": [{
+                        "plu": "CALI_001",
+                        "name": "California Roll",
+                        "quantity": 2,
+                        "price": 1295
+                    }],
+                    "total_price": 2590
+                }
+                
+                result = await agent.execute_tool(
+                    "add_item_to_cart",
+                    {
+                        "plu": "CALI_001",
+                        "quantity": 2,
+                        "modifiers": []
+                    }
+                )
+                
+                assert result["success"] is True
+                assert result["total_price"] == 2590
+                assert len(result["items"]) == 1
     
     @pytest.mark.asyncio
-    async def test_cart_agent_parse_order(self, db_session, sample_menu_data, mock_openai_client):
-        """Test parsing natural language order."""
-        agent = AsyncCartAgent(
-            db_session=db_session,
-            llm_client=mock_openai_client
-        )
+    async def test_cart_agent_process_input(self, db_session):
+        """Test processing natural language order."""
+        agent = AsyncCartAgent(db=db_session)
         
-        mock_openai_client.chat.completions.create.return_value.choices[0].message.content = (
-            '{"items": [{"name": "California Roll", "quantity": 2, "modifiers": ["Extra Avocado"]}]}'
-        )
-        
-        parsed = await agent._parse_order_text("I want two California rolls with extra avocado")
-        
-        assert len(parsed["items"]) == 1
-        assert parsed["items"][0]["name"] == "California Roll"
-        assert parsed["items"][0]["quantity"] == 2
-        assert "Extra Avocado" in parsed["items"][0]["modifiers"]
+        # Mock the necessary methods
+        with patch.object(agent, '_generate_cart_response') as mock_generate:
+            mock_generate.return_value = "I've added 2 California Rolls to your cart."
+            
+            with patch('app.agents.cart_async.async_agents_conversation_store.get_cart') as mock_get_cart:
+                mock_get_cart.return_value = {
+                    "items": [{"name": "California Roll", "quantity": 2}],
+                    "total_price": 2590
+                }
+                
+                result = await agent.process_input(
+                    "I want two California rolls",
+                    {"call_sid": "test_call_sid"}
+                )
+                
+                assert result["text"] == "I've added 2 California Rolls to your cart."
+                assert result["agent"] == "Cart"
+                assert result["handled"] is True
+                assert "cart" in result
 
 
 class TestGuardrailAgent:
     """Test guardrail agent functionality."""
     
     @pytest.mark.asyncio
-    async def test_guardrail_initialization(self, db_session):
+    async def test_guardrail_initialization(self):
         """Test guardrail agent initialization."""
-        agent = AsyncGuardrailAgent(db_session=db_session)
+        agent = AsyncGuardrailAgent(agent_name="GuardrailAgent")
         
-        assert agent.name == "GuardrailAgent"
-        assert "validate_order" in agent.tools
-        assert "check_modifier_rules" in agent.tools
-        assert "calculate_total" in agent.tools
+        assert agent.agent_name == "GuardrailAgent"
+        assert agent.name == "GuardrailAgent"  # Test the alias
+        assert hasattr(agent, 'validate_order')
+        assert hasattr(agent, 'validate_modifiers')
     
     @pytest.mark.asyncio
-    async def test_guardrail_validate_order(self, db_session, sample_menu_data):
+    async def test_guardrail_validate_order(self):
         """Test order validation."""
-        agent = AsyncGuardrailAgent(db_session=db_session)
+        agent = AsyncGuardrailAgent()
         
-        cart_data = {
+        order_details = {
             "items": [
                 {
                     "plu": "CALI_001",
+                    "name": "California Roll",
                     "quantity": 2,
                     "modifiers": []
                 }
             ]
         }
         
-        result = await agent.execute_tool("validate_order", {"cart": cart_data})
-        
-        assert result["valid"] is True
-        assert "errors" in result
-        assert len(result["errors"]) == 0
-    
-    @pytest.mark.asyncio
-    async def test_guardrail_modifier_validation(self, db_session, sample_menu_data):
-        """Test modifier rule validation."""
-        agent = AsyncGuardrailAgent(db_session=db_session)
-        
-        result = await agent.execute_tool(
-            "check_modifier_rules",
-            {
-                "item_plu": "CALI_001",
-                "modifiers": ["MOD_AVO", "MOD_MAYO"]
-            }
-        )
-        
-        assert result["valid"] is True
-    
-    @pytest.mark.asyncio
-    async def test_guardrail_price_calculation(self, db_session, sample_menu_data):
-        """Test price calculation."""
-        agent = AsyncGuardrailAgent(db_session=db_session)
-        
-        cart_data = {
-            "items": [
-                {
-                    "plu": "CALI_001",
-                    "quantity": 2,
-                    "modifiers": [{"plu": "MOD_AVO"}]
-                }
-            ]
+        fsm_context = {
+            "call_specific_data": {}
         }
         
-        result = await agent.execute_tool("calculate_total", {"cart": cart_data})
+        result = await agent.validate_order(
+            "test_call_sid",
+            order_details,
+            fsm_context
+        )
         
-        # California Roll: $12.95 * 2 = $25.90
-        # Extra Avocado: $2.00 * 2 = $4.00
-        # Total: $29.90 = 2990 cents
-        expected_total = (1295 * 2) + (200 * 2)
-        assert result["total"] == expected_total
-        assert result["breakdown"] is not None
+        assert result["is_valid"] is True
+        assert "issues" in result
+        assert len(result["issues"]) == 0
+        assert result["handled"] is True
+    
+    @pytest.mark.asyncio
+    async def test_guardrail_empty_order_validation(self):
+        """Test validation of empty order."""
+        agent = AsyncGuardrailAgent()
+        
+        order_details = {
+            "items": []
+        }
+        
+        fsm_context = {
+            "call_specific_data": {}
+        }
+        
+        result = await agent.validate_order(
+            "test_call_sid",
+            order_details,
+            fsm_context
+        )
+        
+        assert result["is_valid"] is False
+        assert len(result["issues"]) > 0
+        assert "empty" in result["issues"][0].lower()
 
 
 class TestFulfillmentAgent:
     """Test fulfillment agent functionality."""
     
     @pytest.mark.asyncio
-    async def test_fulfillment_initialization(self, db_session, mock_deliverect_client):
+    async def test_fulfillment_initialization(self):
         """Test fulfillment agent initialization."""
-        agent = AsyncFulfillmentAgent(
-            db_session=db_session,
-            deliverect_client=mock_deliverect_client
-        )
+        agent = AsyncFulfillmentAgent(agent_name="FulfillmentAgent")
         
-        assert agent.name == "FulfillmentAgent"
-        assert "submit_order" in agent.tools
-        assert "get_order_status" in agent.tools
+        assert agent.agent_name == "FulfillmentAgent"
+        assert agent.name == "FulfillmentAgent"  # Test the alias
+        assert hasattr(agent, 'submit_order')
+        assert hasattr(agent, 'process_input')
     
     @pytest.mark.asyncio
-    async def test_fulfillment_submit_order(self, db_session, mock_deliverect_client, sample_menu_data):
+    async def test_fulfillment_submit_order(self):
         """Test order submission."""
-        agent = AsyncFulfillmentAgent(
-            db_session=db_session,
-            deliverect_client=mock_deliverect_client
-        )
+        agent = AsyncFulfillmentAgent()
         
-        order_data = {
+        order_details = {
             "customer_name": "John Doe",
             "customer_phone": "+1234567890",
             "order_type": "pickup",
             "items": [
                 {
                     "plu": "CALI_001",
+                    "name": "California Roll",
                     "quantity": 1,
                     "modifiers": []
                 }
             ]
         }
         
-        result = await agent.execute_tool("submit_order", {"order": order_data})
+        fsm_context = {
+            "call_specific_data": {}
+        }
+        
+        result = await agent.submit_order(
+            "test_call_sid",
+            order_details,
+            fsm_context
+        )
         
         assert result["success"] is True
         assert "order_id" in result
-        assert mock_deliverect_client.create_order.called
+        assert result["handled"] is True
+        assert fsm_context["call_specific_data"]["next_fsm_event_name"] == "ORDER_SUBMITTED"
 
 
 class TestEscalationAgent:
@@ -308,66 +330,88 @@ class TestEscalationAgent:
         """Test escalation agent initialization."""
         agent = AsyncEscalationAgent()
         
-        assert agent.name == "EscalationAgent"
-        assert "transfer_to_human" in agent.tools
-        assert "send_context" in agent.tools
+        assert agent.agent_name == "EscalationAgent"
+        assert agent.name == "EscalationAgent"  # Test the alias
+        assert hasattr(agent, 'handle_escalation')
+        assert hasattr(agent, 'process_input')
     
     @pytest.mark.asyncio
-    async def test_escalation_transfer(self, mock_twilio_client):
+    async def test_escalation_transfer(self):
         """Test human transfer."""
-        agent = AsyncEscalationAgent(twilio_client=mock_twilio_client)
+        agent = AsyncEscalationAgent()
         
-        result = await agent.execute_tool(
-            "transfer_to_human",
-            {
-                "reason": "Customer request",
-                "context": {"order_status": "in_progress"}
+        context = {
+            "call_specific_data": {
+                "order_status": "in_progress"
             }
+        }
+        
+        result = await agent.handle_escalation(
+            "test_call_sid",
+            "Customer request",
+            context
         )
         
-        assert result["success"] is True
-        assert "message" in result
+        assert result["handled"] is True
+        assert "text" in result
+        assert "escalation_reason" in result
+        assert context["call_specific_data"]["next_fsm_event_name"] == "ESCALATION_INITIATED"
 
 
 class TestFrontlineAgent:
     """Test frontline agent functionality."""
     
     @pytest.mark.asyncio
-    async def test_frontline_initialization(self, mock_openai_client):
+    async def test_frontline_initialization(self):
         """Test frontline agent initialization."""
-        agent = AsyncFrontlineVoiceAgent(llm_client=mock_openai_client)
+        agent = AsyncFrontlineVoiceAgent(agent_id="test-123")
         
-        assert agent.name == "FrontlineVoiceAgent"
-        assert "handoff_to_specialist" in agent.tools
-        assert "escalate_to_human" in agent.tools
+        assert agent.name == "FrontlineVoiceAI"
+        assert agent.agent_name == "FrontlineVoiceAI"  # Test the alias
+        assert hasattr(agent, 'tools')
+        assert len(agent.tools) > 0
+        
+        # Check specific tools exist
+        tool_names = [t["function"]["name"] for t in agent.tools]
+        assert "lookup_menu_item" in tool_names
+        assert "get_menu_categories" in tool_names
+        assert "add_to_cart" in tool_names
+        assert "update_customer_info" in tool_names
     
     @pytest.mark.asyncio
-    async def test_frontline_greeting(self, mock_openai_client):
-        """Test greeting generation."""
-        agent = AsyncFrontlineVoiceAgent(llm_client=mock_openai_client)
+    async def test_frontline_process_input(self):
+        """Test processing user input."""
+        agent = AsyncFrontlineVoiceAgent()
         
-        mock_openai_client.chat.completions.create.return_value.choices[0].message.content = (
-            "Hello! Welcome to Red Bar Sushi. May I have your name please?"
-        )
-        
-        response = await agent.generate_greeting()
-        
-        assert "Welcome" in response
-        assert "name" in response
+        # Mock the AI response generation
+        with patch.object(agent, '_generate_ai_response') as mock_generate:
+            mock_generate.return_value = {
+                "text": "Hello! Welcome to Red Bar Sushi. May I have your name please?",
+                "tool_calls": [],
+                "state_change": None
+            }
+            
+            result = await agent.process_input(
+                "Hello",
+                {"call_sid": "test_call_sid"}
+            )
+            
+            assert "Welcome" in result["text"]
+            assert result["agent"] == "FrontlineVoiceAI"
     
     @pytest.mark.asyncio
-    async def test_frontline_intent_detection(self, mock_openai_client):
-        """Test intent detection for handoff."""
-        agent = AsyncFrontlineVoiceAgent(llm_client=mock_openai_client)
+    async def test_frontline_state_management(self):
+        """Test conversation state management."""
+        agent = AsyncFrontlineVoiceAgent()
         
-        # Test menu inquiry
-        result = await agent.determine_handoff("What sushi do you have?")
-        assert result["agent"] == "menu"
+        # Test initial state
+        assert agent.conversation_state == "GREETING"
+        assert agent.greeting_done is False
         
-        # Test order intent
-        result = await agent.determine_handoff("I want to order two California rolls")
-        assert result["agent"] == "cart"
+        # Test context updates
+        agent.update_context({"customer_name": "John"})
+        assert agent.context["customer_name"] == "John"
         
-        # Test human request
-        result = await agent.determine_handoff("I need to speak to a person")
-        assert result["agent"] == "escalation"
+        # Test state transitions
+        agent.conversation_state = "MAIN_MENU"
+        assert agent.conversation_state == "MAIN_MENU"

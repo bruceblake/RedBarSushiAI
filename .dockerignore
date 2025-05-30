@@ -50,7 +50,7 @@ logs/
 backups/
 
 # Test files
-tests/
+# tests/  # Commented out - needed for test container
 test_*.py
 test_*_*.py
 pytest.ini

@@ -10,8 +10,9 @@ from app.agents.base_async import BaseAsyncAgent
 from app.agents.menu_async import AsyncMenuAgent
 from app.agents.menu_async_enhanced import AsyncMenuAgentEnhanced
 from app.agents.cart_async import AsyncCartAgent
-from app.agents.frontline_async import AsyncFrontlineVoiceAgent
 from app.agents.frontline_async_ai import AsyncFrontlineVoiceAgentAI
+# Legacy import removed - using AI version only
+AsyncFrontlineVoiceAgent = AsyncFrontlineVoiceAgentAI  # Alias for backward compatibility
 from app.agents.guardrail_async import AsyncGuardrailAgent
 from app.agents.fulfillment_async import AsyncFulfillmentAgent
 from app.agents.escalation_async import AsyncEscalationAgent

@@ -40,16 +40,13 @@ except ImportError as e:
 
 # Import voice routers from the structured module
 try:
-    from app.api.voice import http_twiml_router, testing_router
+    from app.api.voice import http_twiml_router
     
     # Mount TwiML HTTP endpoint router at /voice
     api_router.include_router(http_twiml_router, prefix="/voice", tags=["Voice (TwiML Webhooks)"])
     # This makes your TwiML endpoint:
     # POST https://<host>/voice/ and POST https://<host>/voice/webhook
     # Ensure Twilio console points to this exact URL.
-    
-    # Mount testing endpoints
-    api_router.include_router(testing_router, prefix="/voice/test", tags=["Voice Testing"])
     
     # Import and mount ConversationRelay router if available
     try:

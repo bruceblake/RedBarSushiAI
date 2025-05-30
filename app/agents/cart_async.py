@@ -13,7 +13,7 @@ from app.agents.base_async import BaseAsyncAgent
 from app.utils.menu_matcher_cache_async import get_cached_async_menu_matcher
 from app.utils.menu_db_store_async import async_menu_db_store
 # Menu caching is handled by Redis
-from app.utils.conversation_store_sdk_async import async_agents_conversation_store
+from app.utils.conversation_store_async import async_agents_conversation_store
 from app.config import settings
 
 # Set up logging

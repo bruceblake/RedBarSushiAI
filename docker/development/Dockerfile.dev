@@ -10,11 +10,16 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements and install
-COPY requirements-dev.txt .
-RUN pip install --no-cache-dir -r requirements-dev.txt
+COPY ./requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional dev dependencies
+RUN pip install --no-cache-dir pytest pytest-asyncio pytest-cov pytest-mock pydantic-settings
 
 # Copy application
-COPY . .
+COPY ./app /app/app
+COPY ./celery_app_fastapi.py /app/
+# Tests will be mounted as volume instead
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/data
@@ -22,6 +27,9 @@ RUN mkdir -p /app/logs /app/data
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/healthcheck || exit 1
+
+# Set Python path
+ENV PYTHONPATH=/app
 
 EXPOSE 8080
 

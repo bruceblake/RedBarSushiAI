@@ -1,243 +1,605 @@
 """
 Unit tests for Finite State Machine (FSM).
+
+This module contains comprehensive tests for the FSM core functionality,
+state transitions, event handling, persistence, and handlers.
 """
 import pytest
-from app.fsm.core import ConversationState, ConversationEvent, FSMError
-from app.utils.fsm_async import AsyncConversationFSM, AsyncFSMManager
-from app.fsm.handlers.greeting import GreetingHandler
-from app.fsm.handlers.main_menu import MainMenuHandler
-from app.fsm.handlers.ordering import OrderingHandler
+import asyncio
+import json
+from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from typing import Dict, Any
+
+from app.fsm.core import (
+    ConversationState, 
+    ConversationEvent, 
+    FSMError,
+    AsyncConversationFSM,
+    AsyncStateHandler
+)
+from app.utils.fsm_async import AsyncFSMManager
 
 
 class TestFSMCore:
-    """Test FSM core functionality."""
+    """Test FSM core functionality - Task 2.2.1: State transitions and event handling."""
     
-    @pytest.mark.asyncio
-    async def test_fsm_initialization(self, mock_redis):
-        """Test FSM initialization."""
-        fsm = AsyncConversationFSM(
-            session_id="test_session",
-            redis_client=mock_redis
-        )
+    @pytest.fixture
+    def fsm(self):
+        """Create a basic FSM instance for testing."""
+        return AsyncConversationFSM(call_sid="test_session_123")
+    
+    @pytest.fixture
+    def mock_conversation_store(self):
+        """Mock the conversation store."""
+        with patch('app.fsm.core.async_conversation_store') as mock_store:
+            mock_store.get_conversation.return_value = asyncio.coroutine(lambda: {})()
+            mock_store.save_conversation.return_value = asyncio.coroutine(lambda: None)()
+            yield mock_store
+    
+    def test_fsm_initialization(self):
+        """Test FSM initialization with correct defaults."""
+        fsm = AsyncConversationFSM(call_sid="test_123")
         
-        assert fsm.session_id == "test_session"
-        assert fsm.current_state == ConversationState.GREETING
-        assert fsm.context == {}
-        assert fsm.history == []
+        assert fsm.call_sid == "test_123"
+        assert fsm.current_state == ConversationState.INITIAL
+        assert fsm.context["call_sid"] == "test_123"
+        assert len(fsm.handlers) == 11  # All states should have handlers
+        assert len(fsm.transitions) == 10  # All states with transitions
     
     @pytest.mark.asyncio
-    async def test_fsm_state_transitions(self, mock_redis):
-        """Test valid state transitions."""
-        fsm = AsyncConversationFSM(
-            session_id="test_session",
-            redis_client=mock_redis
-        )
+    async def test_fsm_start(self, fsm):
+        """Test FSM start transitions to GREETING state."""
+        assert fsm.current_state == ConversationState.INITIAL
+        
+        await fsm.start()
+        
+        assert fsm.current_state == ConversationState.GREETING
+    
+    @pytest.mark.asyncio
+    async def test_valid_state_transitions(self, fsm):
+        """Test all valid state transitions work correctly."""
+        # Start conversation
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        assert fsm.current_state == ConversationState.GREETING
         
         # Greeting -> Main Menu
-        await fsm.transition(ConversationState.MAIN_MENU)
+        await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
         assert fsm.current_state == ConversationState.MAIN_MENU
-        assert len(fsm.history) == 1
         
         # Main Menu -> Ordering
-        await fsm.transition(ConversationState.ORDERING)
+        await fsm.trigger(ConversationEvent.START_ORDER)
         assert fsm.current_state == ConversationState.ORDERING
-        assert len(fsm.history) == 2
         
         # Ordering -> Validation
-        await fsm.transition(ConversationState.VALIDATION)
+        await fsm.trigger(ConversationEvent.COMPLETE_ORDER)
         assert fsm.current_state == ConversationState.VALIDATION
-        assert len(fsm.history) == 3
+        
+        # Validation -> Confirmation
+        await fsm.trigger(ConversationEvent.ORDER_VALID)
+        assert fsm.current_state == ConversationState.CONFIRMATION
+        
+        # Confirmation -> Fulfillment
+        await fsm.trigger(ConversationEvent.CONFIRM_ORDER)
+        assert fsm.current_state == ConversationState.FULFILLMENT
+        
+        # Fulfillment -> Completion
+        await fsm.trigger(ConversationEvent.COMPLETE_INTERACTION)
+        assert fsm.current_state == ConversationState.COMPLETION
     
     @pytest.mark.asyncio
-    async def test_fsm_invalid_transition(self, mock_redis):
-        """Test invalid state transition."""
-        fsm = AsyncConversationFSM(
-            session_id="test_session",
-            redis_client=mock_redis
-        )
+    async def test_invalid_event_for_state(self, fsm):
+        """Test that invalid events for current state are ignored."""
+        # Start in INITIAL state
+        assert fsm.current_state == ConversationState.INITIAL
         
-        # Try to go directly from Greeting to Fulfillment (invalid)
-        with pytest.raises(FSMError):
-            await fsm.transition(ConversationState.FULFILLMENT)
+        # Try invalid event for INITIAL state
+        await fsm.trigger(ConversationEvent.CONFIRM_ORDER)
+        
+        # Should remain in INITIAL state
+        assert fsm.current_state == ConversationState.INITIAL
+        
+        # Move to GREETING
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        assert fsm.current_state == ConversationState.GREETING
+        
+        # Try invalid event for GREETING
+        await fsm.trigger(ConversationEvent.COMPLETE_ORDER)
+        
+        # Should remain in GREETING
+        assert fsm.current_state == ConversationState.GREETING
     
     @pytest.mark.asyncio
-    async def test_fsm_context_management(self, mock_redis):
-        """Test FSM context management."""
-        fsm = AsyncConversationFSM(
-            session_id="test_session",
-            redis_client=mock_redis
-        )
+    async def test_event_handling_with_handlers(self, fsm):
+        """Test that state handlers are called during transitions."""
+        # Mock handlers
+        mock_greeting_handler = Mock(spec=['on_enter', 'on_exit'])
+        mock_greeting_handler.on_enter = AsyncMock()
+        mock_greeting_handler.on_exit = AsyncMock()
         
-        # Update context
-        await fsm.update_context({"customer_name": "John Doe"})
-        assert fsm.context["customer_name"] == "John Doe"
+        mock_menu_handler = Mock(spec=['on_enter', 'on_exit'])
+        mock_menu_handler.on_enter = AsyncMock()
+        mock_menu_handler.on_exit = AsyncMock()
         
-        # Add more context
-        await fsm.update_context({"order_type": "pickup"})
-        assert fsm.context["customer_name"] == "John Doe"
-        assert fsm.context["order_type"] == "pickup"
+        fsm.handlers[ConversationState.GREETING] = mock_greeting_handler
+        fsm.handlers[ConversationState.MAIN_MENU] = mock_menu_handler
+        
+        # Trigger transition INITIAL -> GREETING
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        
+        # Verify greeting handler's on_enter was called
+        mock_greeting_handler.on_enter.assert_called_once()
+        
+        # Trigger transition GREETING -> MAIN_MENU
+        await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
+        
+        # Verify handlers were called
+        mock_greeting_handler.on_exit.assert_called_once()
+        mock_menu_handler.on_enter.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_fsm_event_processing(self, mock_redis):
-        """Test FSM event processing."""
-        fsm = AsyncConversationFSM(
-            session_id="test_session",
-            redis_client=mock_redis
-        )
-        
-        # Process greeting completed event
-        await fsm.process_event(ConversationEvent.CUSTOMER_GREETED)
+    async def test_error_state_transitions(self, fsm):
+        """Test transitions to ERROR state from various states."""
+        # Start conversation and move to MAIN_MENU
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
         assert fsm.current_state == ConversationState.MAIN_MENU
         
-        # Process order started event
-        await fsm.process_event(ConversationEvent.ORDER_STARTED)
+        # Trigger error
+        await fsm.trigger(ConversationEvent.ERROR_OCCURRED)
+        assert fsm.current_state == ConversationState.ERROR
+        
+        # Can recover from error to ordering
+        await fsm.trigger(ConversationEvent.START_ORDER)
         assert fsm.current_state == ConversationState.ORDERING
+        
+        # Error from ordering
+        await fsm.trigger(ConversationEvent.ERROR_OCCURRED)
+        assert fsm.current_state == ConversationState.ERROR
     
     @pytest.mark.asyncio
-    async def test_fsm_persistence(self, mock_redis):
-        """Test FSM state persistence."""
-        fsm = AsyncConversationFSM(
-            session_id="test_session",
-            redis_client=mock_redis
-        )
+    async def test_escalation_transitions(self, fsm):
+        """Test REQUEST_ESCALATION event from various states."""
+        # Test escalation from MAIN_MENU
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
+        await fsm.trigger(ConversationEvent.REQUEST_ESCALATION)
+        assert fsm.current_state == ConversationState.ESCALATION
         
-        # Update state and context
-        await fsm.transition(ConversationState.MAIN_MENU)
-        await fsm.update_context({"customer_name": "Jane Doe"})
+        # Reset and test from ORDERING
+        fsm.current_state = ConversationState.ORDERING
+        await fsm.trigger(ConversationEvent.REQUEST_ESCALATION)
+        assert fsm.current_state == ConversationState.ESCALATION
         
-        # Save state
-        await fsm.save()
-        assert mock_redis.hset.called
+        # Reset and test from CONFIRMATION
+        fsm.current_state = ConversationState.CONFIRMATION
+        await fsm.trigger(ConversationEvent.REQUEST_ESCALATION)
+        assert fsm.current_state == ConversationState.ESCALATION
+    
+    @pytest.mark.asyncio
+    async def test_context_preservation_during_transitions(self, fsm):
+        """Test that context is preserved during state transitions."""
+        # Add context data
+        fsm.context.update({
+            "customer_name": "John Doe",
+            "order_type": "delivery",
+            "items": ["sushi", "miso soup"]
+        })
         
-        # Load state
-        await fsm.load()
-        assert mock_redis.hgetall.called
+        # Perform transitions
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
+        await fsm.trigger(ConversationEvent.START_ORDER)
+        
+        # Verify context is preserved
+        assert fsm.context["customer_name"] == "John Doe"
+        assert fsm.context["order_type"] == "delivery"
+        assert fsm.context["items"] == ["sushi", "miso soup"]
+        assert fsm.context["call_sid"] == "test_session_123"
 
 
-class TestFSMHandlers:
-    """Test FSM state handlers."""
+class TestFSMInvalidTransitionPrevention:
+    """Test invalid transition prevention - Task 2.2.2."""
+    
+    @pytest.fixture
+    def fsm(self):
+        """Create FSM instance for testing."""
+        return AsyncConversationFSM(call_sid="test_invalid_123")
     
     @pytest.mark.asyncio
-    async def test_greeting_handler(self):
-        """Test greeting state handler."""
-        handler = GreetingHandler()
-        context = {}
+    async def test_invalid_transitions_from_initial(self, fsm):
+        """Test that only START_CONVERSATION is valid from INITIAL."""
+        assert fsm.current_state == ConversationState.INITIAL
         
-        result = await handler.handle(
-            context,
-            user_input="My name is John"
+        # These should all be ignored (no state change)
+        invalid_events = [
+            ConversationEvent.USER_PROVIDES_NAME,
+            ConversationEvent.COMPLETE_ORDER,
+            ConversationEvent.CONFIRM_ORDER,
+            ConversationEvent.ORDER_VALID
+        ]
+        
+        for event in invalid_events:
+            await fsm.trigger(event)
+            assert fsm.current_state == ConversationState.INITIAL
+    
+    @pytest.mark.asyncio
+    async def test_cannot_skip_states(self, fsm):
+        """Test that we cannot skip intermediate states."""
+        # Start conversation
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        assert fsm.current_state == ConversationState.GREETING
+        
+        # Cannot go directly to FULFILLMENT
+        await fsm.trigger(ConversationEvent.CONFIRM_ORDER)
+        assert fsm.current_state == ConversationState.GREETING  # No change
+        
+        # Cannot go to VALIDATION
+        await fsm.trigger(ConversationEvent.ORDER_VALID)
+        assert fsm.current_state == ConversationState.GREETING  # No change
+    
+    @pytest.mark.asyncio
+    async def test_terminal_state_restrictions(self, fsm):
+        """Test restrictions on terminal states."""
+        # Move to ESCALATION
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
+        await fsm.trigger(ConversationEvent.REQUEST_ESCALATION)
+        assert fsm.current_state == ConversationState.ESCALATION
+        
+        # ESCALATION only allows ERROR_OCCURRED
+        await fsm.trigger(ConversationEvent.START_ORDER)
+        assert fsm.current_state == ConversationState.ESCALATION  # No change
+        
+        await fsm.trigger(ConversationEvent.COMPLETE_ORDER)
+        assert fsm.current_state == ConversationState.ESCALATION  # No change
+    
+    @pytest.mark.asyncio
+    async def test_validation_state_binary_outcomes(self, fsm):
+        """Test VALIDATION state only allows ORDER_VALID or ORDER_INVALID."""
+        # Navigate to VALIDATION
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
+        await fsm.trigger(ConversationEvent.START_ORDER)
+        await fsm.trigger(ConversationEvent.COMPLETE_ORDER)
+        assert fsm.current_state == ConversationState.VALIDATION
+        
+        # These events should be ignored
+        invalid_events = [
+            ConversationEvent.START_CONVERSATION,
+            ConversationEvent.USER_PROVIDES_NAME,
+            ConversationEvent.CONFIRM_ORDER,
+            ConversationEvent.COMPLETE_INTERACTION
+        ]
+        
+        for event in invalid_events:
+            await fsm.trigger(event)
+            assert fsm.current_state == ConversationState.VALIDATION
+    
+    @pytest.mark.asyncio
+    async def test_boundary_conditions(self, fsm):
+        """Test FSM behavior at boundary conditions."""
+        # Test None event
+        await fsm.trigger(None)
+        assert fsm.current_state == ConversationState.INITIAL
+        
+        # Test with invalid event type (if not caught by type system)
+        try:
+            await fsm.trigger("INVALID_EVENT")
+        except (AttributeError, TypeError):
+            pass
+        assert fsm.current_state == ConversationState.INITIAL
+    
+    @pytest.mark.asyncio
+    async def test_completion_state_limited_options(self, fsm):
+        """Test COMPLETION state has limited transition options."""
+        # Navigate to COMPLETION
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
+        await fsm.trigger(ConversationEvent.START_ORDER)
+        await fsm.trigger(ConversationEvent.COMPLETE_ORDER)
+        await fsm.trigger(ConversationEvent.ORDER_VALID)
+        await fsm.trigger(ConversationEvent.CONFIRM_ORDER)
+        await fsm.trigger(ConversationEvent.COMPLETE_INTERACTION)
+        assert fsm.current_state == ConversationState.COMPLETION
+        
+        # Only REQUEST_FOLLOW_UP and ERROR_OCCURRED are valid
+        await fsm.trigger(ConversationEvent.START_ORDER)
+        assert fsm.current_state == ConversationState.COMPLETION  # No change
+        
+        await fsm.trigger(ConversationEvent.REQUEST_FOLLOW_UP)
+        assert fsm.current_state == ConversationState.FOLLOW_UP  # Valid transition
+
+
+class TestFSMPersistenceAndRecovery:
+    """Test FSM persistence and recovery - Task 2.2.3."""
+    
+    @pytest.fixture
+    def mock_conversation_store(self):
+        """Mock the conversation store for testing persistence."""
+        with patch('app.fsm.core.async_conversation_store') as mock_store:
+            # Configure mock
+            mock_store.update_conversation = AsyncMock()
+            mock_store.get_conversation = AsyncMock()
+            yield mock_store
+    
+    @pytest.fixture
+    def fsm(self):
+        """Create FSM instance."""
+        return AsyncConversationFSM(call_sid="persist_123")
+    
+    @pytest.mark.asyncio
+    async def test_state_saving_after_transitions(self, fsm, mock_conversation_store):
+        """Test that state is saved after each transition."""
+        # Mock the _save_state method
+        with patch.object(fsm, '_save_state', new=AsyncMock()) as mock_save:
+            # Perform transitions
+            await fsm.trigger(ConversationEvent.START_CONVERSATION)
+            await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
+            await fsm.trigger(ConversationEvent.START_ORDER)
+            
+            # Verify save was called after each transition
+            assert mock_save.call_count == 3
+    
+    @pytest.mark.asyncio
+    async def test_context_serialization(self, fsm):
+        """Test that context is properly serialized for storage."""
+        # Add various data types to context
+        fsm.context.update({
+            "string": "value",
+            "number": 123,
+            "float": 45.67,
+            "boolean": True,
+            "null": None,
+            "list": [1, 2, 3],
+            "dict": {"nested": "data"},
+            "agent": Mock()  # Non-serializable
+        })
+        
+        # Get serializable context
+        with patch('app.fsm.core.async_conversation_store') as mock_store:
+            mock_store.update_conversation = AsyncMock()
+            
+            # This should trigger serialization
+            await fsm._save_state()
+            
+            # Get the saved data
+            saved_args = mock_store.update_conversation.call_args[0]
+            assert saved_args[0] == "persist_123"  # call_sid
+            
+            saved_data = mock_store.update_conversation.call_args[0][1]
+            assert "fsm_state" in saved_data
+            assert "fsm_context" in saved_data
+            
+            # Parse the serialized context
+            import json
+            context_data = json.loads(saved_data["fsm_context"])
+            
+            # Verify serializable data is preserved
+            assert context_data["string"] == "value"
+            assert context_data["number"] == 123
+            
+            # Non-serializable objects should be excluded
+            assert "agent" not in context_data
+    
+    @pytest.mark.asyncio
+    async def test_state_loading_from_store(self, mock_conversation_store):
+        """Test loading FSM state from conversation store."""
+        # Setup mock data
+        context_data = {
+            "customer_name": "John Doe",
+            "order_type": "delivery",
+            "cart": {"items": ["sushi", "tempura"]}
+        }
+        stored_data = {
+            "fsm_state": "ORDERING",
+            "fsm_context": json.dumps(context_data)
+        }
+        mock_conversation_store.get_conversation.return_value = stored_data
+        
+        # Create FSM and load state
+        fsm = AsyncConversationFSM(call_sid="load_123")
+        await fsm.load_state()
+        
+        # Verify state was loaded
+        assert fsm.current_state == ConversationState.ORDERING
+        assert fsm.context["customer_name"] == "John Doe"
+        assert fsm.context["order_type"] == "delivery"
+        assert fsm.context["cart"]["items"] == ["sushi", "tempura"]
+    
+    @pytest.mark.asyncio
+    async def test_recovery_after_service_restart(self, mock_conversation_store):
+        """Test FSM recovery after service restart."""
+        # Simulate existing conversation in storage
+        context_data = {
+            "call_sid": "restart_123",
+            "customer_name": "Jane Smith",
+            "order_total": 45.99,
+            "items": [{"name": "California Roll", "quantity": 2}]
+        }
+        stored_data = {
+            "fsm_state": "CONFIRMATION",
+            "fsm_context": json.dumps(context_data)
+        }
+        mock_conversation_store.get_conversation.return_value = stored_data
+        
+        # Create new FSM instance (simulating restart)
+        fsm = AsyncConversationFSM(call_sid="restart_123")
+        await fsm.load_state()
+        
+        # Verify recovery
+        assert fsm.current_state == ConversationState.CONFIRMATION
+        assert fsm.context["customer_name"] == "Jane Smith"
+        assert fsm.context["order_total"] == 45.99
+        
+        # Should be able to continue from recovered state
+        await fsm.trigger(ConversationEvent.CONFIRM_ORDER)
+        assert fsm.current_state == ConversationState.FULFILLMENT
+    
+    @pytest.mark.asyncio
+    async def test_handling_corrupted_state_data(self, mock_conversation_store):
+        """Test handling of corrupted or invalid state data."""
+        # Test with invalid state name
+        mock_conversation_store.get_conversation.return_value = {
+            "state": "INVALID_STATE",
+            "data": "corrupted"
+        }
+        
+        fsm = AsyncConversationFSM(call_sid="corrupt_123")
+        
+        # Should handle gracefully
+        try:
+            await fsm.load_state()
+        except Exception:
+            pass
+        
+        # Should remain in INITIAL state
+        assert fsm.current_state == ConversationState.INITIAL
+    
+    @pytest.mark.asyncio
+    async def test_concurrent_state_operations(self, fsm, mock_conversation_store):
+        """Test handling of concurrent state operations."""
+        # Simulate concurrent transitions
+        async def transition_1():
+            await fsm.trigger(ConversationEvent.START_CONVERSATION)
+            await asyncio.sleep(0.01)
+            await fsm.trigger(ConversationEvent.USER_PROVIDES_NAME)
+        
+        async def transition_2():
+            await asyncio.sleep(0.005)  # Start slightly after
+            await fsm.trigger(ConversationEvent.ERROR_OCCURRED)
+        
+        # Run concurrently
+        await asyncio.gather(
+            transition_1(),
+            transition_2(),
+            return_exceptions=True
         )
         
-        assert result["next_state"] == ConversationState.MAIN_MENU
-        assert result["context"]["customer_name"] == "John"
-        assert "response" in result
+        # FSM should be in a valid state
+        assert fsm.current_state in [
+            ConversationState.MAIN_MENU,
+            ConversationState.ERROR
+        ]
     
     @pytest.mark.asyncio
-    async def test_main_menu_handler(self):
-        """Test main menu handler."""
-        handler = MainMenuHandler()
-        context = {"customer_name": "John"}
-        
-        # Test order intent
-        result = await handler.handle(
-            context,
-            user_input="I'd like to place an order"
-        )
-        
-        assert result["next_state"] == ConversationState.ORDERING
-        assert "response" in result
-    
-    @pytest.mark.asyncio
-    async def test_ordering_handler(self):
-        """Test ordering state handler."""
-        handler = OrderingHandler()
-        context = {
-            "customer_name": "John",
-            "cart": {
-                "items": []
+    async def test_state_persistence_with_large_context(self, fsm, mock_conversation_store):
+        """Test persistence with large context data."""
+        # Add large context
+        large_list = ["item_" + str(i) for i in range(1000)]
+        fsm.context["large_data"] = large_list
+        fsm.context["nested"] = {
+            "level1": {
+                "level2": {
+                    "level3": {"data": "deep"}
+                }
             }
         }
         
-        result = await handler.handle(
-            context,
-            user_input="I want two California rolls"
-        )
+        # Save state
+        await fsm._save_state()
         
-        assert result["next_state"] in [ConversationState.ORDERING, ConversationState.VALIDATION]
-        assert "response" in result
+        # Verify save was called
+        mock_conversation_store.update_conversation.assert_called_once()
+        
+        # Verify data integrity
+        saved_data = mock_conversation_store.update_conversation.call_args[0][1]
+        context_data = json.loads(saved_data["fsm_context"])
+        assert len(context_data["large_data"]) == 1000
+        assert context_data["nested"]["level1"]["level2"]["level3"]["data"] == "deep"
+
+
+class TestFSMHandlers:
+    """Test FSM state handlers - Task 2.2.4."""
+    
+    @pytest.mark.asyncio
+    async def test_state_handler_lifecycle(self):
+        """Test handler on_enter and on_exit lifecycle methods."""
+        handler = AsyncStateHandler(ConversationState.GREETING)
+        
+        # Mock the methods to track calls
+        handler.on_enter = AsyncMock()
+        handler.on_exit = AsyncMock()
+        
+        context = {"test": "data"}
+        
+        # Test on_enter
+        await handler.on_enter(context)
+        handler.on_enter.assert_called_once_with(context)
+        
+        # Test on_exit
+        await handler.on_exit(context)
+        handler.on_exit.assert_called_once_with(context)
+    
+    @pytest.mark.asyncio
+    async def test_handler_event_processing(self):
+        """Test handler event processing returns next state."""
+        handler = AsyncStateHandler(ConversationState.GREETING)
+        
+        # Test default implementation returns None
+        result = await handler.handle_event(
+            ConversationEvent.USER_PROVIDES_NAME,
+            {"context": "data"}
+        )
+        assert result is None
+    
+    @pytest.mark.asyncio
+    async def test_greeting_handler_integration(self):
+        """Test greeting handler with FSM integration."""
+        fsm = AsyncConversationFSM(call_sid="handler_test")
+        
+        # Ensure we have greeting handler
+        assert ConversationState.GREETING in fsm.handlers
+        handler = fsm.handlers[ConversationState.GREETING]
+        assert handler is not None
+        
+        # Test transition to greeting
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        assert fsm.current_state == ConversationState.GREETING
+    
+    @pytest.mark.asyncio 
+    async def test_error_handler_recovery(self):
+        """Test error handler allows recovery."""
+        fsm = AsyncConversationFSM(call_sid="error_test")
+        
+        # Navigate to ERROR state
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        await fsm.trigger(ConversationEvent.ERROR_OCCURRED)
+        assert fsm.current_state == ConversationState.ERROR
+        
+        # Should be able to recover
+        await fsm.trigger(ConversationEvent.START_CONVERSATION)
+        assert fsm.current_state == ConversationState.GREETING
 
 
 class TestFSMManager:
     """Test FSM manager functionality."""
     
     @pytest.mark.asyncio
-    async def test_fsm_manager_initialization(self, mock_redis):
-        """Test FSM manager initialization."""
-        manager = AsyncFSMManager(redis_client=mock_redis)
+    async def test_fsm_manager_get_or_create(self):
+        """Test FSM manager get_or_create functionality."""
+        manager = AsyncFSMManager()
         
-        assert manager.fsm_instances == {}
-        assert manager.redis_client == mock_redis
+        # First call creates new FSM
+        fsm1 = await manager.get_or_create_fsm("session_001")
+        assert fsm1.call_sid == "session_001"
+        
+        # Second call returns existing FSM
+        fsm2 = await manager.get_or_create_fsm("session_001")
+        assert fsm1 is fsm2
     
     @pytest.mark.asyncio
-    async def test_fsm_manager_create_instance(self, mock_redis):
-        """Test creating FSM instance."""
-        manager = AsyncFSMManager(redis_client=mock_redis)
-        
-        fsm = await manager.create_fsm("session_123")
-        
-        assert fsm.session_id == "session_123"
-        assert "session_123" in manager.fsm_instances
-        assert manager.fsm_instances["session_123"] == fsm
-    
-    @pytest.mark.asyncio
-    async def test_fsm_manager_get_instance(self, mock_redis):
-        """Test getting existing FSM instance."""
-        manager = AsyncFSMManager(redis_client=mock_redis)
-        
-        # Create instance
-        fsm1 = await manager.create_fsm("session_456")
-        
-        # Get same instance
-        fsm2 = await manager.get_fsm("session_456")
-        
-        assert fsm1 == fsm2
-    
-    @pytest.mark.asyncio
-    async def test_fsm_manager_remove_instance(self, mock_redis):
-        """Test removing FSM instance."""
-        manager = AsyncFSMManager(redis_client=mock_redis)
-        
-        # Create and remove
-        await manager.create_fsm("session_789")
-        await manager.remove_fsm("session_789")
-        
-        assert "session_789" not in manager.fsm_instances
-        
-        # Getting removed instance creates new one
-        fsm = await manager.get_fsm("session_789")
-        assert fsm is not None
-        assert fsm.session_id == "session_789"
-    
-    @pytest.mark.asyncio
-    async def test_fsm_manager_multiple_instances(self, mock_redis):
-        """Test managing multiple FSM instances."""
-        manager = AsyncFSMManager(redis_client=mock_redis)
-        
-        # Create multiple instances
-        fsm1 = await manager.create_fsm("session_001")
-        fsm2 = await manager.create_fsm("session_002")
-        fsm3 = await manager.create_fsm("session_003")
-        
-        assert len(manager.fsm_instances) == 3
-        assert manager.fsm_instances["session_001"] == fsm1
-        assert manager.fsm_instances["session_002"] == fsm2
-        assert manager.fsm_instances["session_003"] == fsm3
-        
-        # Each has independent state
-        await fsm1.transition(ConversationState.MAIN_MENU)
-        await fsm2.transition(ConversationState.MAIN_MENU)
-        await fsm2.transition(ConversationState.ORDERING)
-        
-        assert fsm1.current_state == ConversationState.MAIN_MENU
-        assert fsm2.current_state == ConversationState.ORDERING
-        assert fsm3.current_state == ConversationState.GREETING
+    async def test_fsm_manager_with_state_recovery(self):
+        """Test FSM manager loads existing state."""
+        with patch('app.utils.fsm_async.async_conversation_store') as mock_store:
+            context_data = {"customer_name": "Test User"}
+            mock_store.get_conversation.return_value = {
+                "fsm_state": "ORDERING",
+                "fsm_context": json.dumps(context_data)
+            }
+            
+            manager = AsyncFSMManager()
+            fsm = await manager.get_or_create_fsm("existing_session")
+            
+            # Should load existing state
+            assert fsm.current_state == ConversationState.ORDERING
+            assert fsm.context["customer_name"] == "Test User"

@@ -1,0 +1,203 @@
+## Relevant Files
+
+- `docker-compose.test.yml` - Docker configuration for test environment with PostgreSQL and Redis services (enhanced with optimizations and volume mounts)
+- `docker-compose.test.override.yml` - Override file for local test development
+- `docker/tests/Dockerfile.test` - Dockerfile specifically for running tests with all dependencies (multi-stage build)
+- `docker/tests/.dockerignore` - Optimized dockerignore for test builds
+- `.env.test` - Test environment variables configuration
+- `.env.test.example` - Template for test environment variables
+- `.coveragerc` - Coverage.py configuration for test coverage reporting
+- `scripts/manage-test-secrets.sh` - Script for managing test secrets and environment
+- `scripts/clean-test-artifacts.sh` - Script for cleaning and archiving test artifacts
+- `scripts/verify-test-db.sh` - Script to verify test database setup
+- `db/init/02_test_schema.sql` - Test database schema with all tables and functions
+- `db/init/03_test_data.sql` - Test data initialization with comprehensive fixtures
+- `db/init/test-postgres-init.sh` - PostgreSQL initialization script for test environment
+- `scripts/wait-for-services.sh` - Shell script to wait for services to be healthy
+- `tests/health_check.py` - Python module for service health checks
+- `run-tests.sh` - Main test runner script with comprehensive options
+- `run-unit-tests.sh` - Quick unit test runner
+- `run-integration-tests.sh` - Integration test runner
+- `run-e2e-tests.sh` - End-to-end test runner
+- `run-quick-tests.sh` - Fast test subset for development
+- `run-coverage-tests.sh` - Test runner with coverage analysis
+- `run-ci-tests.sh` - CI/CD optimized test runner
+- `run-watch-tests.sh` - Continuous test runner for development
+- `run-docker-tests.sh` - Docker-based test runner
+- `pytest.ini` - Pytest configuration for test discovery and execution settings
+- `tests/conftest.py` - Global pytest fixtures and configuration with health checks
+- `tests/unit/conftest.py` - Unit test specific fixtures and setup
+- `tests/integration/conftest.py` - Integration test specific fixtures and setup
+- `tests/e2e/conftest.py` - E2E test specific fixtures and setup
+- `tests/fixtures/menu_data.py` - Menu test data fixtures
+- `tests/fixtures/order_data.py` - Order test data fixtures
+- `tests/fixtures/conversation_data.py` - Conversation test data fixtures
+- `Makefile` - Make commands for running different test suites
+- `.github/workflows/test.yml` - CI/CD configuration for automated testing
+- `test-results/` - Directory for storing test execution results
+- `coverage/` - Directory for storing coverage reports
+- `htmlcov/` - Directory for HTML coverage reports
+- `test-logs/` - Directory for test execution logs
+- `tests/unit/test_base_async_agent.py` - Unit tests for BaseAsyncAgent class
+- `tests/unit/test_frontline_async_ai.py` - Unit tests for AsyncFrontlineVoiceAgentAI class
+- `tests/unit/test_cart_async.py` - Unit tests for AsyncCartAgent class
+- `tests/unit/test_menu_async_enhanced.py` - Unit tests for AsyncMenuAgentEnhanced class
+- `tests/unit/test_guardrail_async.py` - Unit tests for AsyncGuardrailAgent class
+- `tests/unit/test_fulfillment_async.py` - Unit tests for AsyncFulfillmentAgent class
+- `tests/unit/test_escalation_async.py` - Unit tests for AsyncEscalationAgent class
+
+### Notes
+
+- Unit tests should typically be placed alongside the code files they are testing (e.g., `MyComponent.tsx` and `MyComponent.test.tsx` in the same directory).
+- Use `npx jest [optional/path/to/test/file]` to run tests. Running without a path executes all tests found by the Jest configuration.
+
+## Tasks
+
+- [x] 1.0 Set up test infrastructure and Docker configuration
+  - [x] 1.1 Create docker-compose.test.yml with separate PostgreSQL and Redis instances for testing
+  - [x] 1.2 Create Dockerfile.test with all test dependencies (pytest, pytest-asyncio, pytest-mock, pytest-cov, pytest-xdist)
+  - [x] 1.3 Configure test environment variables and secrets management
+  - [x] 1.4 Set up volume mounts for test code and test results/artifacts
+  - [x] 1.5 Create test database initialization scripts with proper schemas
+  - [x] 1.6 Implement health checks for test services before test execution
+  - [x] 1.7 Create shell scripts for easy test execution (run-tests.sh, run-unit-tests.sh, etc.)
+
+- [ ] 2.0 Implement unit tests for all application components
+  - [x] 2.1 Create unit tests for BaseAsyncAgent and all agent classes
+    - [x] 2.1.1 Test agent initialization and configuration
+    - [x] 2.1.2 Test agent tool execution and error handling
+    - [x] 2.1.3 Test agent context management and state
+    - [x] 2.1.4 Test specialist registration and handoffs
+  - [x] 2.2 Create unit tests for FSM core and handlers
+    - [x] 2.2.1 Test state transitions and event handling
+    - [x] 2.2.2 Test invalid transition prevention
+    - [x] 2.2.3 Test FSM persistence and recovery
+    - [x] 2.2.4 Test each FSM handler (greeting, ordering, validation, etc.)
+  - [ ] 2.3 Create unit tests for utility functions
+    - [ ] 2.3.1 Test menu matcher with exact, fuzzy, and AI matching
+    - [ ] 2.3.2 Test text normalization and parsing utilities
+    - [ ] 2.3.3 Test conversation store operations
+    - [ ] 2.3.4 Test order utils and validation helpers
+  - [ ] 2.4 Create unit tests for database models and CRUD operations
+    - [ ] 2.4.1 Test menu models (items, modifiers, categories)
+    - [ ] 2.4.2 Test order models and relationships
+    - [ ] 2.4.3 Test location and configuration models
+    - [ ] 2.4.4 Test async CRUD operations and error handling
+  - [ ] 2.5 Create unit tests for Redis operations
+    - [ ] 2.5.1 Test cache get/set/delete operations
+    - [ ] 2.5.2 Test pub/sub functionality
+    - [ ] 2.5.3 Test cache expiration and TTL
+    - [ ] 2.5.4 Test connection pooling and error recovery
+  - [ ] 2.6 Mock external services for unit tests
+    - [ ] 2.6.1 Create OpenAI API mocks for AI operations
+    - [ ] 2.6.2 Create Twilio API mocks for voice operations
+    - [ ] 2.6.3 Create Deliverect API mocks for order submission
+    - [ ] 2.6.4 Ensure mocks cover error scenarios
+
+- [ ] 3.0 Implement integration tests for component interactions
+  - [ ] 3.1 Test agent-to-agent communication and orchestration
+    - [ ] 3.1.1 Test frontline to menu agent handoff
+    - [ ] 3.1.2 Test cart agent integration with menu matcher
+    - [ ] 3.1.3 Test guardrail validation with real data
+    - [ ] 3.1.4 Test fulfillment agent with order submission
+  - [ ] 3.2 Test FSM with real Redis persistence
+    - [ ] 3.2.1 Test state persistence across disconnections
+    - [ ] 3.2.2 Test concurrent FSM operations
+    - [ ] 3.2.3 Test FSM recovery from crashes
+    - [ ] 3.2.4 Test FSM event queue handling
+  - [ ] 3.3 Test menu synchronization and updates
+    - [ ] 3.3.1 Test Deliverect webhook processing
+    - [ ] 3.3.2 Test cache invalidation on menu updates
+    - [ ] 3.3.3 Test concurrent menu read/write operations
+    - [ ] 3.3.4 Test menu versioning and rollback
+  - [ ] 3.4 Test conversation state management
+    - [ ] 3.4.1 Test conversation persistence in Redis
+    - [ ] 3.4.2 Test conversation recovery after errors
+    - [ ] 3.4.3 Test conversation expiration and cleanup
+    - [ ] 3.4.4 Test multiple concurrent conversations
+  - [ ] 3.5 Test database transactions and integrity
+    - [ ] 3.5.1 Test order creation with rollback scenarios
+    - [ ] 3.5.2 Test concurrent database operations
+    - [ ] 3.5.3 Test foreign key constraints
+    - [ ] 3.5.4 Test database connection pooling
+  - [ ] 3.6 Test WebSocket integration
+    - [ ] 3.6.1 Test WebSocket connection lifecycle
+    - [ ] 3.6.2 Test message routing and handling
+    - [ ] 3.6.3 Test WebSocket reconnection logic
+    - [ ] 3.6.4 Test WebSocket error handling
+
+- [ ] 4.0 Implement end-to-end tests for complete user flows
+  - [ ] 4.1 Test complete order flows
+    - [ ] 4.1.1 Test simple order: greeting → menu inquiry → order → confirmation
+    - [ ] 4.1.2 Test complex order with modifications and special requests
+    - [ ] 4.1.3 Test order cancellation and modification flows
+    - [ ] 4.1.4 Test pickup vs delivery order flows
+  - [ ] 4.2 Test voice call handling
+    - [ ] 4.2.1 Test Twilio webhook integration
+    - [ ] 4.2.2 Test call initiation and termination
+    - [ ] 4.2.3 Test call transfer and escalation
+    - [ ] 4.2.4 Test voice quality and latency handling
+  - [ ] 4.3 Test WebSocket audio streaming
+    - [ ] 4.3.1 Test audio packet streaming
+    - [ ] 4.3.2 Test voice activity detection
+    - [ ] 4.3.3 Test audio transcription accuracy
+    - [ ] 4.3.4 Test TTS generation and playback
+  - [ ] 4.4 Test error recovery scenarios
+    - [ ] 4.4.1 Test service restart during conversation
+    - [ ] 4.4.2 Test network failure and reconnection
+    - [ ] 4.4.3 Test database failure recovery
+    - [ ] 4.4.4 Test Redis failure recovery
+  - [ ] 4.5 Test concurrent operations
+    - [ ] 4.5.1 Test multiple simultaneous conversations
+    - [ ] 4.5.2 Test menu updates during active orders
+    - [ ] 4.5.3 Test system behavior under load
+    - [ ] 4.5.4 Test resource cleanup and memory management
+
+- [ ] 5.0 Set up test data management and fixtures
+  - [ ] 5.1 Create comprehensive test fixtures
+    - [ ] 5.1.1 Create menu fixtures with various item types
+    - [ ] 5.1.2 Create order fixtures with different states
+    - [ ] 5.1.3 Create conversation fixtures for testing flows
+    - [ ] 5.1.4 Create location and configuration fixtures
+  - [ ] 5.2 Implement fixture factories for dynamic data
+    - [ ] 5.2.1 Create menu item factory with modifiers
+    - [ ] 5.2.2 Create order factory with random configurations
+    - [ ] 5.2.3 Create conversation factory for different scenarios
+    - [ ] 5.2.4 Create customer data factory
+  - [ ] 5.3 Set up database state management
+    - [ ] 5.3.1 Implement database reset between tests
+    - [ ] 5.3.2 Create database snapshots for quick restore
+    - [ ] 5.3.3 Implement test data seeding scripts
+    - [ ] 5.3.4 Create cleanup utilities for orphaned data
+  - [ ] 5.4 Create debugging tools
+    - [ ] 5.4.1 Implement database state inspector
+    - [ ] 5.4.2 Implement Redis state viewer
+    - [ ] 5.4.3 Create conversation history analyzer
+    - [ ] 5.4.4 Build test failure diagnostic tools
+
+- [ ] 6.0 Configure test execution and reporting
+  - [ ] 6.1 Set up pytest configuration
+    - [ ] 6.1.1 Configure pytest.ini with test discovery rules
+    - [ ] 6.1.2 Set up test markers (unit, integration, e2e, slow)
+    - [ ] 6.1.3 Configure async test handling
+    - [ ] 6.1.4 Set up test parallelization rules
+  - [ ] 6.2 Implement test commands and scripts
+    - [ ] 6.2.1 Create Makefile targets for different test suites
+    - [ ] 6.2.2 Implement test filtering by markers and names
+    - [ ] 6.2.3 Create quick test command for development
+    - [ ] 6.2.4 Set up watch mode for continuous testing
+  - [ ] 6.3 Configure test reporting
+    - [ ] 6.3.1 Set up coverage reporting (HTML and XML)
+    - [ ] 6.3.2 Configure JUnit XML output for CI/CD
+    - [ ] 6.3.3 Implement slow test detection and reporting
+    - [ ] 6.3.4 Create test summary dashboard
+  - [ ] 6.4 Set up CI/CD integration
+    - [ ] 6.4.1 Create GitHub Actions workflow for tests
+    - [ ] 6.4.2 Configure test result artifacts storage
+    - [ ] 6.4.3 Set up coverage tracking and badges
+    - [ ] 6.4.4 Implement test failure notifications
+  - [ ] 6.5 Create developer documentation
+    - [ ] 6.5.1 Write testing best practices guide
+    - [ ] 6.5.2 Document test fixture usage
+    - [ ] 6.5.3 Create troubleshooting guide for test failures
+    - [ ] 6.5.4 Document test environment setup process

@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional, Union, Callable, Tuple
 
 from app.agents.factory_async import async_agent_factory
 from app.utils.conversation_store_async import async_conversation_store
-from app.utils.conversation_store_sdk_async import async_agents_conversation_store
+from app.utils.conversation_store_async import async_agents_conversation_store
 from app.utils.fsm_async import (
     async_fsm_manager, ConversationState, ConversationEvent, 
     AsyncConversationFSM

@@ -232,3 +232,5 @@ class AsyncConversationStore:
 
 # Singleton instance for easy import
 async_conversation_store = AsyncConversationStore()
+# Alias for backward compatibility
+async_agents_conversation_store = async_conversation_store
