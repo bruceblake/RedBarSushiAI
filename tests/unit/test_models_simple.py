@@ -24,7 +24,7 @@ class TestModelCreation:
         assert item.name == "Test Roll"
         assert item.price == 999
         assert item.plu == "TEST_001"
-        assert item.is_available is True
+        assert item.available is True
     
     def test_menu_modifier_creation(self):
         """Test creating a modifier instance."""

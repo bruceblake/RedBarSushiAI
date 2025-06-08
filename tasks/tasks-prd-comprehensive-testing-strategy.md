@@ -45,6 +45,21 @@
 - `tests/unit/test_guardrail_async.py` - Unit tests for AsyncGuardrailAgent class
 - `tests/unit/test_fulfillment_async.py` - Unit tests for AsyncFulfillmentAgent class
 - `tests/unit/test_escalation_async.py` - Unit tests for AsyncEscalationAgent class
+- `tests/unit/test_fsm.py` - Unit tests for FSM state transitions and handlers
+- `tests/unit/test_menu_matching.py` - Unit tests for menu matcher functionality
+- `tests/unit/test_text_normalization.py` - Unit tests for text normalization utilities
+- `tests/unit/test_conversation_store.py` - Unit tests for conversation store operations
+- `tests/unit/test_order_utils.py` - Unit tests for order utility functions
+- `tests/unit/test_models.py` - Unit tests for database models
+- `tests/unit/test_crud_menu_async.py` - Unit tests for async CRUD operations
+- `tests/unit/test_redis_async.py` - Unit tests for Redis operations
+- `tests/unit/test_external_service_mocks.py` - Mocks for external services (OpenAI, Twilio, Deliverect)
+- `tests/integration/test_agent_orchestration.py` - Integration tests for agent communication and orchestration
+- `tests/integration/test_fsm_redis_persistence.py` - Integration tests for FSM with Redis persistence
+- `tests/integration/test_menu_synchronization.py` - Integration tests for menu sync and updates
+- `tests/integration/test_conversation_state_management.py` - Integration tests for conversation persistence in Redis
+- `tests/integration/test_database_transactions.py` - Integration tests for database transactions and rollback scenarios
+- `tests/integration/test_concurrent_database_operations.py` - Integration tests for concurrent database operations and race conditions
 
 ### Notes
 
@@ -62,7 +77,7 @@
   - [x] 1.6 Implement health checks for test services before test execution
   - [x] 1.7 Create shell scripts for easy test execution (run-tests.sh, run-unit-tests.sh, etc.)
 
-- [ ] 2.0 Implement unit tests for all application components
+- [x] 2.0 Implement unit tests for all application components
   - [x] 2.1 Create unit tests for BaseAsyncAgent and all agent classes
     - [x] 2.1.1 Test agent initialization and configuration
     - [x] 2.1.2 Test agent tool execution and error handling
@@ -73,63 +88,63 @@
     - [x] 2.2.2 Test invalid transition prevention
     - [x] 2.2.3 Test FSM persistence and recovery
     - [x] 2.2.4 Test each FSM handler (greeting, ordering, validation, etc.)
-  - [ ] 2.3 Create unit tests for utility functions
-    - [ ] 2.3.1 Test menu matcher with exact, fuzzy, and AI matching
-    - [ ] 2.3.2 Test text normalization and parsing utilities
-    - [ ] 2.3.3 Test conversation store operations
-    - [ ] 2.3.4 Test order utils and validation helpers
-  - [ ] 2.4 Create unit tests for database models and CRUD operations
-    - [ ] 2.4.1 Test menu models (items, modifiers, categories)
-    - [ ] 2.4.2 Test order models and relationships
-    - [ ] 2.4.3 Test location and configuration models
-    - [ ] 2.4.4 Test async CRUD operations and error handling
-  - [ ] 2.5 Create unit tests for Redis operations
-    - [ ] 2.5.1 Test cache get/set/delete operations
-    - [ ] 2.5.2 Test pub/sub functionality
-    - [ ] 2.5.3 Test cache expiration and TTL
-    - [ ] 2.5.4 Test connection pooling and error recovery
-  - [ ] 2.6 Mock external services for unit tests
-    - [ ] 2.6.1 Create OpenAI API mocks for AI operations
-    - [ ] 2.6.2 Create Twilio API mocks for voice operations
-    - [ ] 2.6.3 Create Deliverect API mocks for order submission
-    - [ ] 2.6.4 Ensure mocks cover error scenarios
+  - [x] 2.3 Create unit tests for utility functions
+    - [x] 2.3.1 Test menu matcher with exact, fuzzy, and AI matching
+    - [x] 2.3.2 Test text normalization and parsing utilities
+    - [x] 2.3.3 Test conversation store operations
+    - [x] 2.3.4 Test order utils and validation helpers
+  - [x] 2.4 Create unit tests for database models and CRUD operations
+    - [x] 2.4.1 Test menu models (items, modifiers, categories)
+    - [x] 2.4.2 Test order models and relationships
+    - [x] 2.4.3 Test location and configuration models
+    - [x] 2.4.4 Test async CRUD operations and error handling
+  - [x] 2.5 Create unit tests for Redis operations
+    - [x] 2.5.1 Test cache get/set/delete operations
+    - [x] 2.5.2 Test pub/sub functionality
+    - [x] 2.5.3 Test cache expiration and TTL
+    - [x] 2.5.4 Test connection pooling and error recovery
+  - [x] 2.6 Mock external services for unit tests
+    - [x] 2.6.1 Create OpenAI API mocks for AI operations
+    - [x] 2.6.2 Create Twilio API mocks for voice operations
+    - [x] 2.6.3 Create Deliverect API mocks for order submission
+    - [x] 2.6.4 Ensure mocks cover error scenarios
 
 - [ ] 3.0 Implement integration tests for component interactions
-  - [ ] 3.1 Test agent-to-agent communication and orchestration
-    - [ ] 3.1.1 Test frontline to menu agent handoff
-    - [ ] 3.1.2 Test cart agent integration with menu matcher
-    - [ ] 3.1.3 Test guardrail validation with real data
-    - [ ] 3.1.4 Test fulfillment agent with order submission
-  - [ ] 3.2 Test FSM with real Redis persistence
-    - [ ] 3.2.1 Test state persistence across disconnections
-    - [ ] 3.2.2 Test concurrent FSM operations
-    - [ ] 3.2.3 Test FSM recovery from crashes
-    - [ ] 3.2.4 Test FSM event queue handling
-  - [ ] 3.3 Test menu synchronization and updates
-    - [ ] 3.3.1 Test Deliverect webhook processing
-    - [ ] 3.3.2 Test cache invalidation on menu updates
-    - [ ] 3.3.3 Test concurrent menu read/write operations
-    - [ ] 3.3.4 Test menu versioning and rollback
-  - [ ] 3.4 Test conversation state management
-    - [ ] 3.4.1 Test conversation persistence in Redis
-    - [ ] 3.4.2 Test conversation recovery after errors
-    - [ ] 3.4.3 Test conversation expiration and cleanup
-    - [ ] 3.4.4 Test multiple concurrent conversations
-  - [ ] 3.5 Test database transactions and integrity
-    - [ ] 3.5.1 Test order creation with rollback scenarios
-    - [ ] 3.5.2 Test concurrent database operations
-    - [ ] 3.5.3 Test foreign key constraints
-    - [ ] 3.5.4 Test database connection pooling
-  - [ ] 3.6 Test WebSocket integration
-    - [ ] 3.6.1 Test WebSocket connection lifecycle
-    - [ ] 3.6.2 Test message routing and handling
-    - [ ] 3.6.3 Test WebSocket reconnection logic
-    - [ ] 3.6.4 Test WebSocket error handling
+  - [x] 3.1 Test agent-to-agent communication and orchestration
+    - [x] 3.1.1 Test frontline to menu agent handoff
+    - [x] 3.1.2 Test cart agent integration with menu matcher
+    - [x] 3.1.3 Test guardrail validation with real data
+    - [x] 3.1.4 Test fulfillment agent with order submission
+  - [x] 3.2 Test FSM with real Redis persistence
+    - [x] 3.2.1 Test state persistence across disconnections
+    - [x] 3.2.2 Test concurrent FSM operations
+    - [x] 3.2.3 Test FSM recovery from crashes
+    - [x] 3.2.4 Test FSM event queue handling
+  - [x] 3.3 Test menu synchronization and updates
+    - [x] 3.3.1 Test Deliverect webhook processing
+    - [x] 3.3.2 Test cache invalidation on menu updates
+    - [x] 3.3.3 Test concurrent menu read/write operations
+    - [x] 3.3.4 Test menu versioning and rollback
+  - [x] 3.4 Test conversation state management
+    - [x] 3.4.1 Test conversation persistence in Redis
+    - [x] 3.4.2 Test conversation recovery after errors
+    - [x] 3.4.3 Test conversation expiration and cleanup
+    - [x] 3.4.4 Test multiple concurrent conversations
+  - [x] 3.5 Test database transactions and integrity
+    - [x] 3.5.1 Test order creation with rollback scenarios
+    - [x] 3.5.2 Test concurrent database operations
+    - [x] 3.5.3 Test foreign key constraints
+    - [x] 3.5.4 Test database connection pooling
+  - [x] 3.6 Test WebSocket integration
+    - [x] 3.6.1 Test WebSocket connection lifecycle
+    - [x] 3.6.2 Test message routing and handling
+    - [x] 3.6.3 Test WebSocket reconnection logic
+    - [x] 3.6.4 Test WebSocket error handling
 
 - [ ] 4.0 Implement end-to-end tests for complete user flows
   - [ ] 4.1 Test complete order flows
-    - [ ] 4.1.1 Test simple order: greeting → menu inquiry → order → confirmation
-    - [ ] 4.1.2 Test complex order with modifications and special requests
+    - [x] 4.1.1 Test simple order: greeting → menu inquiry → order → confirmation
+    - [x] 4.1.2 Test complex order with modifications and special requests
     - [ ] 4.1.3 Test order cancellation and modification flows
     - [ ] 4.1.4 Test pickup vs delivery order flows
   - [ ] 4.2 Test voice call handling

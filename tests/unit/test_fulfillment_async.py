@@ -1,6 +1,80 @@
 """
 Unit tests for AsyncFulfillmentAgent class.
 
+
+@pytest.fixture
+def fulfillment_agent():
+    """Create a fulfillment agent instance for testing."""
+    return AsyncFulfillmentAgent(agent_name="TestFulfillmentAgent")
+
+@pytest.fixture
+def valid_order():
+    """Create a valid order for submission."""
+    return {
+        "items": [
+            {
+                "plu": "CALI_001",
+                "name": "California Roll",
+                "quantity": 2,
+                "price": 12.95,
+                "modifiers": []
+            },
+            {
+                "plu": "TUNA_001",
+                "name": "Spicy Tuna Roll",
+                "quantity": 1,
+                "price": 13.95,
+                "modifiers": []
+            }
+        ],
+        "customer_name": "John Doe",
+        "customer_phone": "+1234567890",
+        "order_type": "pickup",
+        "total": 39.85,
+        "tax": 3.19,
+        "subtotal": 36.66
+    }
+
+@pytest.fixture
+def fsm_context():
+    """Create FSM context for testing."""
+    return {
+        "call_sid": "TEST_CALL_123",
+        "call_specific_data": {
+            "validated_cart": {},
+            "next_fsm_event_name": None,
+            "order_id": None,
+            "estimated_time": None
+        }
+    }
+
+@pytest.fixture
+def mock_deliverect_client():
+    """Mock Deliverect client."""
+    with patch('app.agents.fulfillment_async.deliverect_client') as mock_client:
+        mock_client.submit_order = AsyncMock(return_value={
+            "success": True,
+            "order_id": "DEL_12345",
+            "estimated_time": 25
+        })
+        yield mock_client
+
+@pytest.fixture
+def mock_db_session():
+    """Mock database session."""
+    session = MagicMock()
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    return session
+
+@pytest.fixture
+def fulfillment_with_integrations(mock_db_session, mock_deliverect_client):
+    """Create fulfillment agent with mocked integrations."""
+    agent = AsyncFulfillmentAgent()
+    agent._db_session = mock_db_session
+    return agent
+
 This module tests the fulfillment agent functionality including
 order submission, confirmation handling, and notification processing.
 """
@@ -15,52 +89,6 @@ from app.agents.fulfillment_async import AsyncFulfillmentAgent
 
 class TestAsyncFulfillmentAgent:
     """Test suite for AsyncFulfillmentAgent class."""
-    
-    @pytest.fixture
-    def fulfillment_agent(self):
-        """Create a fulfillment agent instance for testing."""
-        return AsyncFulfillmentAgent(agent_name="TestFulfillmentAgent")
-    
-    @pytest.fixture
-    def valid_order(self):
-        """Create a valid order for submission."""
-        return {
-            "items": [
-                {
-                    "plu": "CALI_001",
-                    "name": "California Roll",
-                    "quantity": 2,
-                    "price": 12.95,
-                    "modifiers": []
-                },
-                {
-                    "plu": "TUNA_001",
-                    "name": "Spicy Tuna Roll",
-                    "quantity": 1,
-                    "price": 13.95,
-                    "modifiers": []
-                }
-            ],
-            "customer_name": "John Doe",
-            "customer_phone": "+1234567890",
-            "order_type": "pickup",
-            "total": 39.85,
-            "tax": 3.19,
-            "subtotal": 36.66
-        }
-    
-    @pytest.fixture
-    def fsm_context(self):
-        """Create FSM context for testing."""
-        return {
-            "call_sid": "TEST_CALL_123",
-            "call_specific_data": {
-                "validated_cart": {},
-                "next_fsm_event_name": None,
-                "order_id": None,
-                "estimated_time": None
-            }
-        }
     
     def test_initialization(self):
         """Test fulfillment agent initialization."""
@@ -199,33 +227,6 @@ class TestAsyncFulfillmentAgent:
 class TestFulfillmentAgentWithIntegrations:
     """Test fulfillment agent with external integrations."""
     
-    @pytest.fixture
-    def mock_deliverect_client(self):
-        """Mock Deliverect client."""
-        with patch('app.agents.fulfillment_async.deliverect_client') as mock_client:
-            mock_client.submit_order = AsyncMock(return_value={
-                "success": True,
-                "order_id": "DEL_12345",
-                "estimated_time": 25
-            })
-            yield mock_client
-    
-    @pytest.fixture
-    def mock_db_session(self):
-        """Mock database session."""
-        session = MagicMock()
-        session.add = MagicMock()
-        session.commit = AsyncMock()
-        session.rollback = AsyncMock()
-        return session
-    
-    @pytest.fixture
-    async def fulfillment_with_integrations(self, mock_db_session, mock_deliverect_client):
-        """Create fulfillment agent with mocked integrations."""
-        agent = AsyncFulfillmentAgent()
-        agent._db_session = mock_db_session
-        return agent
-    
     @pytest.mark.asyncio
     async def test_future_deliverect_integration(self, fulfillment_with_integrations, valid_order, fsm_context):
         """Test placeholder for future Deliverect integration."""
@@ -264,11 +265,6 @@ class TestFulfillmentAgentWithIntegrations:
 
 class TestFulfillmentAgentErrorHandling:
     """Test error handling scenarios."""
-    
-    @pytest.fixture
-    def fulfillment_agent(self):
-        """Create fulfillment agent."""
-        return AsyncFulfillmentAgent()
     
     @pytest.mark.asyncio
     async def test_handle_missing_customer_info(self, fulfillment_agent, fsm_context):

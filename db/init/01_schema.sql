@@ -3,9 +3,13 @@
 -- Menu Categories
 CREATE TABLE IF NOT EXISTS menu_categories (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
+    name VARCHAR(255) NOT NULL,
     description TEXT,
-    deliverect_category_id VARCHAR(100),
+    deliverect_category_id VARCHAR(255),
+    location_id VARCHAR(255),
+    order_index INTEGER DEFAULT 0,
+    parent_id INTEGER REFERENCES menu_categories(id),
+    properties JSONB DEFAULT '{}',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

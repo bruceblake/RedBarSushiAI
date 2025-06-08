@@ -1,6 +1,81 @@
 """
 Unit tests for AsyncEscalationAgent class.
 
+
+@pytest.fixture
+def escalation_agent():
+    """Create an escalation agent instance for testing."""
+    return AsyncEscalationAgent(agent_name="TestEscalationAgent")
+
+@pytest.fixture
+def fsm_context():
+    """Create FSM context for testing."""
+    return {
+        "call_sid": "TEST_CALL_123",
+        "customer_name": "John Doe",
+        "call_specific_data": {
+            "escalation_reason": None,
+            "next_fsm_event_name": None,
+            "current_cart": {
+                "items": [{"name": "California Roll", "quantity": 2}]
+            },
+            "conversation_history": [
+                {"role": "customer", "content": "I need help"},
+                {"role": "agent", "content": "How can I assist you?"}
+            ]
+        }
+    }
+
+@pytest.fixture
+def rich_context():
+    """Create a rich context with order and conversation history."""
+    return {
+        "call_sid": "CALL_RICH_123",
+        "customer_name": "Jane Smith",
+        "customer_phone": "+1234567890",
+        "call_specific_data": {
+            "current_cart": {
+                "items": [
+                    {
+                        "plu": "CALI_001",
+                        "name": "California Roll",
+                        "quantity": 3,
+                        "price": 12.95
+                    },
+                    {
+                        "plu": "SPECIAL_001",
+                        "name": "Chef Special",
+                        "quantity": 1,
+                        "price": 25.95,
+                        "modifiers": [
+                            {"name": "Extra Spicy", "plu": "MOD_SPICY"}
+                        ]
+                    }
+                ],
+                "total": 64.80
+            },
+            "conversation_history": [
+                {"role": "agent", "content": "Welcome to Red Bar Sushi"},
+                {"role": "customer", "content": "I want to order"},
+                {"role": "agent", "content": "What would you like?"},
+                {"role": "customer", "content": "3 California rolls"},
+                {"role": "agent", "content": "Added to your order"},
+                {"role": "customer", "content": "Also the chef special"},
+                {"role": "agent", "content": "Would you like it spicy?"},
+                {"role": "customer", "content": "Yes, extra spicy"},
+                {"role": "customer", "content": "Actually, I have questions about allergies"}
+            ],
+            "order_type": "pickup",
+            "escalation_reason": None,
+            "next_fsm_event_name": None
+        }
+    }
+
+@pytest.fixture
+def escalation_agent():
+    """Create escalation agent."""
+    return AsyncEscalationAgent()
+
 This module tests the escalation agent functionality including
 escalation handling, human handoff, and status communication.
 """
@@ -15,30 +90,6 @@ from app.agents.escalation_async import AsyncEscalationAgent
 
 class TestAsyncEscalationAgent:
     """Test suite for AsyncEscalationAgent class."""
-    
-    @pytest.fixture
-    def escalation_agent(self):
-        """Create an escalation agent instance for testing."""
-        return AsyncEscalationAgent(agent_name="TestEscalationAgent")
-    
-    @pytest.fixture
-    def fsm_context(self):
-        """Create FSM context for testing."""
-        return {
-            "call_sid": "TEST_CALL_123",
-            "customer_name": "John Doe",
-            "call_specific_data": {
-                "escalation_reason": None,
-                "next_fsm_event_name": None,
-                "current_cart": {
-                    "items": [{"name": "California Roll", "quantity": 2}]
-                },
-                "conversation_history": [
-                    {"role": "customer", "content": "I need help"},
-                    {"role": "agent", "content": "How can I assist you?"}
-                ]
-            }
-        }
     
     def test_initialization(self):
         """Test escalation agent initialization."""
@@ -188,56 +239,6 @@ class TestAsyncEscalationAgent:
 class TestEscalationAgentWithContext:
     """Test escalation agent with rich context handling."""
     
-    @pytest.fixture
-    def rich_context(self):
-        """Create a rich context with order and conversation history."""
-        return {
-            "call_sid": "CALL_RICH_123",
-            "customer_name": "Jane Smith",
-            "customer_phone": "+1234567890",
-            "call_specific_data": {
-                "current_cart": {
-                    "items": [
-                        {
-                            "plu": "CALI_001",
-                            "name": "California Roll",
-                            "quantity": 3,
-                            "price": 12.95
-                        },
-                        {
-                            "plu": "SPECIAL_001",
-                            "name": "Chef Special",
-                            "quantity": 1,
-                            "price": 25.95,
-                            "modifiers": [
-                                {"name": "Extra Spicy", "plu": "MOD_SPICY"}
-                            ]
-                        }
-                    ],
-                    "total": 64.80
-                },
-                "conversation_history": [
-                    {"role": "agent", "content": "Welcome to Red Bar Sushi"},
-                    {"role": "customer", "content": "I want to order"},
-                    {"role": "agent", "content": "What would you like?"},
-                    {"role": "customer", "content": "3 California rolls"},
-                    {"role": "agent", "content": "Added to your order"},
-                    {"role": "customer", "content": "Also the chef special"},
-                    {"role": "agent", "content": "Would you like it spicy?"},
-                    {"role": "customer", "content": "Yes, extra spicy"},
-                    {"role": "customer", "content": "Actually, I have questions about allergies"}
-                ],
-                "order_type": "pickup",
-                "escalation_reason": None,
-                "next_fsm_event_name": None
-            }
-        }
-    
-    @pytest.fixture
-    def escalation_agent(self):
-        """Create escalation agent."""
-        return AsyncEscalationAgent()
-    
     @pytest.mark.asyncio
     async def test_escalation_with_order_context(self, escalation_agent, rich_context):
         """Test escalation preserves order context."""
@@ -271,11 +272,6 @@ class TestEscalationAgentWithContext:
 
 class TestEscalationAgentConcurrency:
     """Test escalation agent under concurrent operations."""
-    
-    @pytest.fixture
-    def escalation_agent(self):
-        """Create escalation agent."""
-        return AsyncEscalationAgent()
     
     @pytest.mark.asyncio
     async def test_concurrent_escalations(self, escalation_agent):

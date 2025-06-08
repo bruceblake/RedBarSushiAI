@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     curl \
     postgresql-client \
+    redis-tools \
     git \
     make \
     && rm -rf /var/lib/apt/lists/*
@@ -49,12 +50,10 @@ FROM base as test
 # Copy application code
 COPY app/ ./app/
 COPY tests/ ./tests/
-COPY run-tests.sh .
 COPY pytest.ini .
 COPY .coveragerc* .
 COPY Makefile* .
-
-# Make scripts executable
+COPY run-tests.sh .
 RUN chmod +x run-tests.sh
 
 # Create directories for test outputs
@@ -77,5 +76,5 @@ RUN pip install --no-cache-dir \
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import sys; sys.exit(0)" || exit 1
 
-# Run tests by default
-CMD ["./run-tests.sh"]
+# Default command - run pytest
+CMD ["pytest"]

@@ -1,6 +1,88 @@
 """
 Unit tests for AsyncGuardrailAgent class.
 
+
+@pytest.fixture
+def guardrail_agent():
+    """Create a guardrail agent instance for testing."""
+    return AsyncGuardrailAgent(agent_name="TestGuardrailAgent")
+
+@pytest.fixture
+def valid_order():
+    """Create a valid order for testing."""
+    return {
+        "items": [
+            {
+                "plu": "CALI_001",
+                "name": "California Roll",
+                "quantity": 2,
+                "price": 12.95,
+                "modifiers": []
+            },
+            {
+                "plu": "TUNA_001",
+                "name": "Spicy Tuna Roll",
+                "quantity": 1,
+                "price": 13.95,
+                "modifiers": [
+                    {
+                        "group_name": "Spice Level",
+                        "selections": [{"plu": "MILD", "name": "Mild"}]
+                    }
+                ]
+            }
+        ],
+        "customer_name": "John Doe",
+        "order_type": "pickup"
+    }
+
+@pytest.fixture
+def invalid_order():
+    """Create an invalid order for testing."""
+    return {
+        "items": [
+            {
+                "plu": "CALI_001",
+                "name": "California Roll",
+                "quantity": 0,  # Invalid quantity
+                "price": 12.95
+            },
+            {
+                "plu": "UNKNOWN",
+                "name": "Unknown Item",
+                "quantity": -1,  # Negative quantity
+                "price": 0
+            }
+        ]
+    }
+
+@pytest.fixture
+def fsm_context():
+    """Create FSM context for testing."""
+    return {
+        "call_sid": "TEST_CALL_123",
+        "call_specific_data": {
+            "current_cart": {},
+            "next_fsm_event_name": None
+        }
+    }
+
+@pytest.fixture
+def mock_db_session():
+    """Create mock database session."""
+    session = MagicMock()
+    session.execute = AsyncMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    return session
+
+@pytest.fixture
+def guardrail_with_db(mock_db_session):
+    """Create guardrail agent with database."""
+    agent = AsyncGuardrailAgent()
+    agent._db_session = mock_db_session
+    return agent
+
 This module tests the guardrail agent functionality including
 order validation, modifier checking, and business rule enforcement.
 """
@@ -15,71 +97,6 @@ from app.agents.guardrail_async import AsyncGuardrailAgent
 
 class TestAsyncGuardrailAgent:
     """Test suite for AsyncGuardrailAgent class."""
-    
-    @pytest.fixture
-    def guardrail_agent(self):
-        """Create a guardrail agent instance for testing."""
-        return AsyncGuardrailAgent(agent_name="TestGuardrailAgent")
-    
-    @pytest.fixture
-    def valid_order(self):
-        """Create a valid order for testing."""
-        return {
-            "items": [
-                {
-                    "plu": "CALI_001",
-                    "name": "California Roll",
-                    "quantity": 2,
-                    "price": 12.95,
-                    "modifiers": []
-                },
-                {
-                    "plu": "TUNA_001",
-                    "name": "Spicy Tuna Roll",
-                    "quantity": 1,
-                    "price": 13.95,
-                    "modifiers": [
-                        {
-                            "group_name": "Spice Level",
-                            "selections": [{"plu": "MILD", "name": "Mild"}]
-                        }
-                    ]
-                }
-            ],
-            "customer_name": "John Doe",
-            "order_type": "pickup"
-        }
-    
-    @pytest.fixture
-    def invalid_order(self):
-        """Create an invalid order for testing."""
-        return {
-            "items": [
-                {
-                    "plu": "CALI_001",
-                    "name": "California Roll",
-                    "quantity": 0,  # Invalid quantity
-                    "price": 12.95
-                },
-                {
-                    "plu": "UNKNOWN",
-                    "name": "Unknown Item",
-                    "quantity": -1,  # Negative quantity
-                    "price": 0
-                }
-            ]
-        }
-    
-    @pytest.fixture
-    def fsm_context(self):
-        """Create FSM context for testing."""
-        return {
-            "call_sid": "TEST_CALL_123",
-            "call_specific_data": {
-                "current_cart": {},
-                "next_fsm_event_name": None
-            }
-        }
     
     def test_initialization(self):
         """Test guardrail agent initialization."""
@@ -253,22 +270,6 @@ class TestAsyncGuardrailAgent:
 class TestGuardrailAgentWithDatabase:
     """Test guardrail agent with database integration."""
     
-    @pytest.fixture
-    def mock_db_session(self):
-        """Create mock database session."""
-        session = MagicMock()
-        session.execute = AsyncMock()
-        session.commit = AsyncMock()
-        session.rollback = AsyncMock()
-        return session
-    
-    @pytest.fixture
-    async def guardrail_with_db(self, mock_db_session):
-        """Create guardrail agent with database."""
-        agent = AsyncGuardrailAgent()
-        agent._db_session = mock_db_session
-        return agent
-    
     @pytest.mark.asyncio
     async def test_future_database_validation(self, guardrail_with_db):
         """Test placeholder for future database validation."""
@@ -294,11 +295,6 @@ class TestGuardrailAgentWithDatabase:
 
 class TestGuardrailAgentEdgeCases:
     """Test edge cases and error scenarios."""
-    
-    @pytest.fixture
-    def guardrail_agent(self):
-        """Create guardrail agent."""
-        return AsyncGuardrailAgent()
     
     @pytest.mark.asyncio
     async def test_validate_order_with_special_characters(self, guardrail_agent, fsm_context):

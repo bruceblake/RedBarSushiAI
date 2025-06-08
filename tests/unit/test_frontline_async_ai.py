@@ -1,6 +1,35 @@
 """
 Unit tests for AsyncFrontlineVoiceAgentAI class.
 
+
+@pytest.fixture
+def mock_openai_client():
+    """Mock OpenAI client for testing."""
+    with patch('app.agents.ai_mixin.openai') as mock_openai:
+        # Mock the client creation
+        mock_client = MagicMock()
+        mock_openai.AsyncOpenAI.return_value = mock_client
+        
+        # Mock chat completion response
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[0].message.content = "AI response"
+        mock_response.choices[0].message.tool_calls = None
+        
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        
+        yield mock_client
+
+@pytest.fixture
+def frontline_agent(mock_openai_client):
+    """Create a frontline agent instance for testing."""
+    with patch('app.config.settings.OPENAI_API_KEY', 'test-key'):
+        agent = AsyncFrontlineVoiceAgentAI(agent_id="test_frontline_123")
+        # Initialize the AI client
+        agent._init_ai_client()
+        return agent
+
 This module tests the AI-enhanced frontline agent functionality,
 including greeting handling, tool execution, and state management.
 """
@@ -16,34 +45,6 @@ from app.agents.ai_mixin import AIIntelligenceMixin
 
 class TestAsyncFrontlineVoiceAgentAI:
     """Test suite for AsyncFrontlineVoiceAgentAI class."""
-    
-    @pytest.fixture
-    def mock_openai_client(self):
-        """Mock OpenAI client for testing."""
-        with patch('app.agents.ai_mixin.openai') as mock_openai:
-            # Mock the client creation
-            mock_client = MagicMock()
-            mock_openai.AsyncOpenAI.return_value = mock_client
-            
-            # Mock chat completion response
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message = MagicMock()
-            mock_response.choices[0].message.content = "AI response"
-            mock_response.choices[0].message.tool_calls = None
-            
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-            
-            yield mock_client
-    
-    @pytest.fixture
-    async def frontline_agent(self, mock_openai_client):
-        """Create a frontline agent instance for testing."""
-        with patch('app.config.settings.OPENAI_API_KEY', 'test-key'):
-            agent = AsyncFrontlineVoiceAgentAI(agent_id="test_frontline_123")
-            # Initialize the AI client
-            agent._init_ai_client()
-            return agent
     
     def test_initialization(self, mock_openai_client):
         """Test agent initialization with correct attributes."""
@@ -276,7 +277,7 @@ class TestFrontlineAgentIntegration:
     """Integration tests for frontline agent with other components."""
     
     @pytest.fixture
-    async def integrated_agent(self, mock_openai_client):
+    def integrated_agent(self, mock_openai_client):
         """Create agent with mock specialists."""
         with patch('app.config.settings.OPENAI_API_KEY', 'test-key'):
             agent = AsyncFrontlineVoiceAgentAI()

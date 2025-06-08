@@ -51,9 +51,9 @@ backups/
 
 # Test files
 # tests/  # Commented out - needed for test container
-test_*.py
-test_*_*.py
-pytest.ini
+# test_*.py  # Commented out - needed for test discovery
+# test_*_*.py  # Commented out - needed for test discovery
+# pytest.ini  # Commented out - needed for test configuration
 
 # Documentation
 docs/

@@ -45,7 +45,7 @@ def pytest_configure(config):
 
 # Session-scoped fixture to check services once per test session
 @pytest.fixture(scope="session", autouse=True)
-async def ensure_services_healthy():
+def ensure_services_healthy():
     """
     Ensure all required services are healthy before running any tests.
     This runs once per test session.
@@ -60,9 +60,10 @@ async def ensure_services_healthy():
         logger.info("Skipping health check for unit tests")
         return
     
-    # Run health check
+    # Run health check synchronously
     try:
-        await wait_for_services(timeout=60)
+        import asyncio
+        asyncio.run(wait_for_services(timeout=60))
     except Exception as e:
         pytest.exit(f"Service health check failed: {e}", returncode=1)
 
@@ -76,7 +77,7 @@ def event_loop_policy():
     return asyncio.get_event_loop_policy()
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def test_db_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create a test database engine."""
     engine = create_async_engine(
@@ -107,8 +108,9 @@ async def db_session(test_db_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture
 async def redis_client() -> AsyncGenerator[aioredis.Redis, None]:
     """Create a test Redis client."""
+    redis_url = os.getenv("REDIS_URL", "redis://redis-test:6379/0")
     client = await aioredis.from_url(
-        "redis://localhost:6379/15",  # Use database 15 for tests
+        redis_url,
         decode_responses=True
     )
     

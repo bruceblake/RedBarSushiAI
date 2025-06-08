@@ -93,10 +93,9 @@ services:
       - ./tests:/app/tests:ro
       
       # Test configuration files
-      - ./run-tests.sh:/app/run-tests.sh:ro
       - ./pytest.ini:/app/pytest.ini:ro
       - ./.coveragerc:/app/.coveragerc:ro
-      - ./pyproject.toml:/app/pyproject.toml:ro
+      # - ./pyproject.toml:/app/pyproject.toml:ro  # Commented out - file doesn't exist
       
       # Test output directories (read-write)
       - ./test-results:/app/test-results:rw
@@ -113,7 +112,7 @@ services:
       
       # Logs directory for test logs
       - ./test-logs:/app/logs:rw
-    command: ./run-tests.sh
+    command: pytest
     networks:
       - test-network
     # Resource limits for test container

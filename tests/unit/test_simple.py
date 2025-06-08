@@ -14,14 +14,25 @@ class TestSimple:
     
     def test_conversation_state_enum(self):
         """Test conversation state enum."""
-        assert ConversationState.GREETING.value == "greeting"
-        assert ConversationState.MAIN_MENU.value == "main_menu"
-        assert ConversationState.ORDERING.value == "ordering"
+        # ConversationState uses auto() which assigns integer values
+        assert isinstance(ConversationState.GREETING.value, int)
+        assert isinstance(ConversationState.MAIN_MENU.value, int)
+        assert isinstance(ConversationState.ORDERING.value, int)
+        
+        # Test string representation
+        assert str(ConversationState.GREETING) == "GREETING"
+        assert str(ConversationState.MAIN_MENU) == "MAIN_MENU"
+        assert str(ConversationState.ORDERING) == "ORDERING"
     
     def test_conversation_event_enum(self):
         """Test conversation event enum."""
-        assert ConversationEvent.CUSTOMER_GREETED.value == "customer_greeted"
-        assert ConversationEvent.ORDER_STARTED.value == "order_started"
+        # ConversationEvent uses auto() which assigns integer values
+        assert isinstance(ConversationEvent.START_CONVERSATION.value, int)
+        assert isinstance(ConversationEvent.START_ORDER.value, int)
+        
+        # Test string representation
+        assert str(ConversationEvent.START_CONVERSATION) == "START_CONVERSATION"
+        assert str(ConversationEvent.START_ORDER) == "START_ORDER"
     
     @pytest.mark.asyncio
     async def test_async_function(self):

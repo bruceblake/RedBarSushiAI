@@ -1,6 +1,132 @@
 """
 Unit tests for AsyncMenuAgentEnhanced class.
 
+
+@pytest.fixture
+def mock_db_session():
+    """Create a mock database session."""
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    session.close = AsyncMock()
+    return session
+
+@pytest.fixture
+def mock_menu_matcher():
+    """Create a mock menu matcher."""
+    with patch('app.agents.menu_async_enhanced.get_cached_async_menu_matcher') as mock_get_matcher:
+        matcher = MagicMock()
+        
+        async def mock_match_item(item_name, context=None):
+            if "california roll" in item_name.lower():
+                return {
+                    "plu": "CALI_001",
+                    "name": "California Roll",
+                    "price": 12.95,
+                    "description": "Crab, avocado, cucumber"
+                }
+            return None
+        
+        matcher.match_item = mock_match_item
+        mock_get_matcher.return_value = matcher
+        yield matcher
+
+@pytest.fixture
+def mock_crud_operations():
+    """Mock CRUD operations."""
+    mocks = {
+        'get_all_categories': AsyncMock(),
+        'get_items_by_category': AsyncMock(),
+        'get_item_by_plu': AsyncMock(),
+        'search_menu_items': AsyncMock()
+    }
+    
+    with patch.multiple('app.agents.menu_async_enhanced', **mocks):
+        # Mock get_all_categories
+        mocks['get_all_categories'].return_value = [
+            {"id": 1, "name": "Rolls", "description": "Sushi rolls"},
+            {"id": 2, "name": "Sashimi", "description": "Fresh sashimi"},
+            {"id": 3, "name": "Appetizers", "description": "Starters"}
+        ]
+        
+        # Mock get_items_by_category
+        async def mock_get_items(db, category_name):
+            if category_name.lower() == "rolls":
+                return [
+                    {
+                        "plu": "CALI_001",
+                        "name": "California Roll",
+                        "price": 12.95,
+                        "description": "Crab, avocado, cucumber",
+                        "available": True
+                    },
+                    {
+                        "plu": "TUNA_001",
+                        "name": "Spicy Tuna Roll",
+                        "price": 13.95,
+                        "description": "Spicy tuna, cucumber",
+                        "available": True
+                    }
+                ]
+            return []
+        
+        mocks['get_items_by_category'].side_effect = mock_get_items
+        
+        # Mock get_item_by_plu
+        async def mock_get_by_plu(db, plu):
+            if plu == "CALI_001":
+                return {
+                    "plu": "CALI_001",
+                    "name": "California Roll",
+                    "price": 12.95,
+                    "description": "Crab, avocado, cucumber",
+                    "available": True,
+                    "modifiers": []
+                }
+            return None
+        
+        mocks['get_item_by_plu'].side_effect = mock_get_by_plu
+        
+        # Mock search_menu_items
+        async def mock_search(db, keyword, limit=5):
+            if "california" in keyword.lower():
+                return [{
+                    "plu": "CALI_001",
+                    "name": "California Roll",
+                    "price": 12.95,
+                    "score": 0.95
+                }]
+            return []
+        
+        mocks['search_menu_items'].side_effect = mock_search
+        
+        yield mocks
+
+@pytest.fixture
+def mock_openai_client():
+    """Mock OpenAI client."""
+    with patch('app.agents.ai_mixin.openai') as mock_openai:
+        mock_client = MagicMock()
+        mock_openai.AsyncOpenAI.return_value = mock_client
+        
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[0].message.content = "Here are our rolls"
+        mock_response.choices[0].message.tool_calls = None
+        
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        
+        yield mock_client
+
+@pytest.fixture
+def menu_agent(mock_db_session, mock_menu_matcher, mock_crud_operations, mock_openai_client):
+    """Create a menu agent instance for testing."""
+    with patch('app.config.settings.OPENAI_API_KEY', 'test-key'):
+        agent = AsyncMenuAgentEnhanced(agent_id="test_menu_123", db=mock_db_session)
+        agent._init_ai_client()
+        return agent
+
 This module tests the enhanced menu agent functionality including
 menu lookup, recommendations, and dietary handling.
 """
@@ -16,129 +142,6 @@ from app.models.menu_async import MenuItem, MenuCategory
 
 class TestAsyncMenuAgentEnhanced:
     """Test suite for AsyncMenuAgentEnhanced class."""
-    
-    @pytest.fixture
-    def mock_db_session(self):
-        """Create a mock database session."""
-        session = MagicMock()
-        session.commit = AsyncMock()
-        session.rollback = AsyncMock()
-        session.close = AsyncMock()
-        return session
-    
-    @pytest.fixture
-    def mock_menu_matcher(self):
-        """Create a mock menu matcher."""
-        with patch('app.agents.menu_async_enhanced.get_cached_async_menu_matcher') as mock_get_matcher:
-            matcher = MagicMock()
-            
-            async def mock_match_item(item_name, context=None):
-                if "california roll" in item_name.lower():
-                    return {
-                        "plu": "CALI_001",
-                        "name": "California Roll",
-                        "price": 12.95,
-                        "description": "Crab, avocado, cucumber"
-                    }
-                return None
-            
-            matcher.match_menu_item = mock_match_item
-            mock_get_matcher.return_value = matcher
-            yield matcher
-    
-    @pytest.fixture
-    def mock_crud_operations(self):
-        """Mock CRUD operations."""
-        with patch.multiple('app.agents.menu_async_enhanced',
-                          get_all_categories=AsyncMock(),
-                          get_items_by_category=AsyncMock(),
-                          get_item_by_plu=AsyncMock(),
-                          search_menu_items=AsyncMock()) as mocks:
-            
-            # Mock get_all_categories
-            mocks['get_all_categories'].return_value = [
-                {"id": 1, "name": "Rolls", "description": "Sushi rolls"},
-                {"id": 2, "name": "Sashimi", "description": "Fresh sashimi"},
-                {"id": 3, "name": "Appetizers", "description": "Starters"}
-            ]
-            
-            # Mock get_items_by_category
-            async def mock_get_items(db, category_name):
-                if category_name.lower() == "rolls":
-                    return [
-                        {
-                            "plu": "CALI_001",
-                            "name": "California Roll",
-                            "price": 12.95,
-                            "description": "Crab, avocado, cucumber",
-                            "available": True
-                        },
-                        {
-                            "plu": "TUNA_001",
-                            "name": "Spicy Tuna Roll",
-                            "price": 13.95,
-                            "description": "Spicy tuna, cucumber",
-                            "available": True
-                        }
-                    ]
-                return []
-            
-            mocks['get_items_by_category'].side_effect = mock_get_items
-            
-            # Mock get_item_by_plu
-            async def mock_get_by_plu(db, plu):
-                if plu == "CALI_001":
-                    return {
-                        "plu": "CALI_001",
-                        "name": "California Roll",
-                        "price": 12.95,
-                        "description": "Crab, avocado, cucumber",
-                        "available": True,
-                        "modifiers": []
-                    }
-                return None
-            
-            mocks['get_item_by_plu'].side_effect = mock_get_by_plu
-            
-            # Mock search_menu_items
-            async def mock_search(db, keyword, limit=5):
-                if "california" in keyword.lower():
-                    return [{
-                        "plu": "CALI_001",
-                        "name": "California Roll",
-                        "price": 12.95,
-                        "score": 0.95
-                    }]
-                return []
-            
-            mocks['search_menu_items'].side_effect = mock_search
-            
-            yield mocks
-    
-    @pytest.fixture
-    def mock_openai_client(self):
-        """Mock OpenAI client."""
-        with patch('app.agents.ai_mixin.openai') as mock_openai:
-            mock_client = MagicMock()
-            mock_openai.AsyncOpenAI.return_value = mock_client
-            
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message = MagicMock()
-            mock_response.choices[0].message.content = "Here are our rolls"
-            mock_response.choices[0].message.tool_calls = None
-            
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-            
-            yield mock_client
-    
-    @pytest.fixture
-    async def menu_agent(self, mock_db_session, mock_menu_matcher, mock_crud_operations, mock_openai_client):
-        """Create a menu agent instance for testing."""
-        with patch('app.config.settings.OPENAI_API_KEY', 'test-key'):
-            agent = AsyncMenuAgentEnhanced(agent_id="test_menu_123", db=mock_db_session)
-            agent._init_ai_client()
-            return agent
     
     def test_initialization(self, mock_db_session, mock_openai_client):
         """Test menu agent initialization."""
@@ -320,7 +323,7 @@ class TestMenuAgentIntegration:
     """Integration tests for menu agent with other components."""
     
     @pytest.fixture
-    async def integrated_menu_agent(self, mock_db_session, mock_openai_client):
+    def integrated_menu_agent(self, mock_db_session, mock_openai_client):
         """Create menu agent with real integrations."""
         with patch('app.config.settings.OPENAI_API_KEY', 'test-key'):
             agent = AsyncMenuAgentEnhanced(db=mock_db_session)

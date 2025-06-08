@@ -1,5 +1,42 @@
 """
 Unit tests for Finite State Machine (FSM).
+"""
+
+import pytest
+from unittest.mock import Mock, AsyncMock, patch, MagicMock
+import asyncio
+from typing import Dict, Any, List, Optional
+
+from app.fsm.core import AsyncConversationFSM
+from app.fsm.handlers import GreetingHandler, OrderingHandler
+
+
+@pytest.fixture
+def fsm():
+    """Create a basic FSM instance for testing."""
+    return AsyncConversationFSM(call_sid="test_session_123")
+
+@pytest.fixture
+def mock_conversation_store():
+    """Mock the conversation store."""
+    with patch('app.fsm.core.async_conversation_store') as mock_store:
+        mock_store.get_conversation.return_value = asyncio.coroutine(lambda: {})()
+        mock_store.save_conversation.return_value = asyncio.coroutine(lambda: None)()
+        yield mock_store
+
+@pytest.fixture
+def fsm():
+    """Create FSM instance for testing."""
+    return AsyncConversationFSM(call_sid="test_invalid_123")
+
+@pytest.fixture
+def mock_conversation_store():
+    """Mock the conversation store for testing persistence."""
+    with patch('app.fsm.core.async_conversation_store') as mock_store:
+        # Configure mock
+        mock_store.update_conversation = AsyncMock()
+        mock_store.get_conversation = AsyncMock()
+        yield mock_store
 
 This module contains comprehensive tests for the FSM core functionality,
 state transitions, event handling, persistence, and handlers.
@@ -23,19 +60,6 @@ from app.utils.fsm_async import AsyncFSMManager
 class TestFSMCore:
     """Test FSM core functionality - Task 2.2.1: State transitions and event handling."""
     
-    @pytest.fixture
-    def fsm(self):
-        """Create a basic FSM instance for testing."""
-        return AsyncConversationFSM(call_sid="test_session_123")
-    
-    @pytest.fixture
-    def mock_conversation_store(self):
-        """Mock the conversation store."""
-        with patch('app.fsm.core.async_conversation_store') as mock_store:
-            mock_store.get_conversation.return_value = asyncio.coroutine(lambda: {})()
-            mock_store.save_conversation.return_value = asyncio.coroutine(lambda: None)()
-            yield mock_store
-    
     def test_fsm_initialization(self):
         """Test FSM initialization with correct defaults."""
         fsm = AsyncConversationFSM(call_sid="test_123")
@@ -44,7 +68,7 @@ class TestFSMCore:
         assert fsm.current_state == ConversationState.INITIAL
         assert fsm.context["call_sid"] == "test_123"
         assert len(fsm.handlers) == 11  # All states should have handlers
-        assert len(fsm.transitions) == 10  # All states with transitions
+        assert len(fsm.transitions) == 11  # All states with transitions
     
     @pytest.mark.asyncio
     async def test_fsm_start(self, fsm):
@@ -200,11 +224,6 @@ class TestFSMCore:
 class TestFSMInvalidTransitionPrevention:
     """Test invalid transition prevention - Task 2.2.2."""
     
-    @pytest.fixture
-    def fsm(self):
-        """Create FSM instance for testing."""
-        return AsyncConversationFSM(call_sid="test_invalid_123")
-    
     @pytest.mark.asyncio
     async def test_invalid_transitions_from_initial(self, fsm):
         """Test that only START_CONVERSATION is valid from INITIAL."""
@@ -314,16 +333,7 @@ class TestFSMPersistenceAndRecovery:
     """Test FSM persistence and recovery - Task 2.2.3."""
     
     @pytest.fixture
-    def mock_conversation_store(self):
-        """Mock the conversation store for testing persistence."""
-        with patch('app.fsm.core.async_conversation_store') as mock_store:
-            # Configure mock
-            mock_store.update_conversation = AsyncMock()
-            mock_store.get_conversation = AsyncMock()
-            yield mock_store
-    
-    @pytest.fixture
-    def fsm(self):
+    async def fsm(self):
         """Create FSM instance."""
         return AsyncConversationFSM(call_sid="persist_123")
     
