@@ -1,0 +1,55 @@
+# Fixed requirements for Docker - using Pydantic v1 for compatibility
+# This avoids the pydantic-settings import issue
+
+# Core dependencies
+fastapi==0.115.11
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+python-dotenv==1.0.1
+
+# Pydantic v1 (more compatible, no pydantic-settings needed)
+pydantic==1.10.18
+
+# Database
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+
+# Redis
+redis==5.2.1
+
+# OpenAI
+openai==1.58.1
+
+# Twilio
+twilio==9.4.0
+
+# HTTP clients
+httpx==0.28.1
+aiohttp==3.11.13
+requests==2.32.3
+
+# WebSocket support
+websockets==14.1
+websocket-client==1.8.0
+
+# Async support
+anyio>=3.6.2,<4.0.0
+asyncio==3.4.3
+
+# Utilities
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+email-validator==2.2.0
+
+# Celery (optional)
+celery==5.4.0
+flower==2.0.1
+
+# Development
+pytest==8.3.4
+pytest-asyncio==0.25.2
+
+# Logging
+colorama==0.4.6
+python-json-logger==3.2.1
