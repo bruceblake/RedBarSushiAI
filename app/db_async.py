@@ -6,11 +6,11 @@ with asyncpg as the PostgreSQL driver.
 """
 
 import logging
-from typing import AsyncGenerator, Optional, Dict, Any
+from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import inspect, event, text
+from sqlalchemy import text
 
 # Handle both Pydantic v1 and v2
 try:
@@ -18,18 +18,19 @@ try:
 except ImportError as e:
     # If there's an issue with the config import, try to use environment variables directly
     import os
+
     logger = logging.getLogger(__name__)
     logger.error(f"Error importing settings from app.config: {e}")
     logger.warning("Falling back to direct environment variable usage")
-    
+
     # Get DATABASE_URL directly from the environment
     database_url = os.environ.get("DATABASE_URL", "sqlite:///app.db")
-    
+
     # Define a minimal settings object with just what we need
     class MinimalSettings:
         DATABASE_URL = database_url
         ENVIRONMENT = os.environ.get("FASTAPI_ENV", "development")
-    
+
     settings = MinimalSettings()
 
 # Set up logging
@@ -38,14 +39,14 @@ logger = logging.getLogger(__name__)
 # Convert the synchronous SQLAlchemy DATABASE_URL to async version if needed
 # Example: postgresql://user:pass@localhost/dbname -> postgresql+asyncpg://user:pass@localhost/dbname
 database_url = settings.DATABASE_URL
-if database_url.startswith('postgresql://'):
-    DATABASE_URL = database_url.replace('postgresql://', 'postgresql+asyncpg://')
-elif database_url.startswith('postgresql+asyncpg://'):
+if database_url.startswith("postgresql://"):
+    DATABASE_URL = database_url.replace("postgresql://", "postgresql+asyncpg://")
+elif database_url.startswith("postgresql+asyncpg://"):
     # Already in async format
     DATABASE_URL = database_url
-elif database_url.startswith('sqlite://'):
-    DATABASE_URL = database_url.replace('sqlite://', 'sqlite+aiosqlite://')
-elif database_url.startswith('sqlite+aiosqlite://'):
+elif database_url.startswith("sqlite://"):
+    DATABASE_URL = database_url.replace("sqlite://", "sqlite+aiosqlite://")
+elif database_url.startswith("sqlite+aiosqlite://"):
     # Already in async format
     DATABASE_URL = database_url
 else:
@@ -60,7 +61,7 @@ engine_args = {
 }
 
 # Add PostgreSQL-specific options
-if DATABASE_URL.startswith('postgresql+asyncpg://'):
+if DATABASE_URL.startswith("postgresql+asyncpg://"):
     # SQLAlchemy 2.0 style of setting connection args with asyncpg
     engine_args["connect_args"] = {
         "timeout": 15,  # Connection timeout in seconds
@@ -77,16 +78,19 @@ async_session_factory = async_sessionmaker(
     engine, expire_on_commit=False, autoflush=False
 )
 
+
 # Base class for all models
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
+
     pass
+
 
 # Dependency to provide async database sessions
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Async dependency that yields database sessions for FastAPI endpoint handlers.
-    
+
     Yields:
         AsyncSession: Async SQLAlchemy session for database operations
     """
@@ -95,6 +99,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
     finally:
         await session.close()
+
 
 # Async helper to verify database connection
 async def verify_connection() -> bool:
@@ -114,6 +119,7 @@ async def verify_connection() -> bool:
         logger.error(f"Failed to create database session: {e}")
         return False
 
+
 # Function to initialize the database
 async def init_database() -> None:
     """Initialize the database schema."""
@@ -129,30 +135,3 @@ async def init_database() -> None:
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise
-
-# Helper function for graceful database connection handling
-async def ensure_fresh_session() -> AsyncSession:
-    """
-    Ensure a fresh, working database session.
-    
-    Returns:
-        AsyncSession: A fresh database session
-    
-    Raises:
-        Exception: If unable to create a working session
-    """
-    try:
-        session = async_session_factory()
-        # Test the connection
-        await session.execute(text("SELECT 1"))
-        return session
-    except Exception as e:
-        logger.error(f"Error with database session: {e}")
-        # Try one more time with a new session
-        try:
-            session = async_session_factory()
-            await session.execute(text("SELECT 1"))
-            return session
-        except Exception as retry_error:
-            logger.error(f"Failed to create fresh session on retry: {retry_error}")
-            raise

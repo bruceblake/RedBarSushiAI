@@ -4,7 +4,8 @@ This module ensures that snoozed items are not available for ordering.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
+
 # These are simple validation functions that don't need database access
 from datetime import datetime
 
@@ -14,37 +15,42 @@ logger = logging.getLogger(__name__)
 def is_item_snoozed_timebased(item: Dict[str, Any]) -> bool:
     """
     Check if an item is snoozed based on time.
-    
+
     Args:
         item: The menu item to check
-        
+
     Returns:
         bool: True if the item is currently snoozed, False otherwise
     """
     snoozed_until = item.get("snoozed_until")
     if not snoozed_until:
         return False
-        
+
     # Parse the snoozed_until timestamp
     if isinstance(snoozed_until, str):
         try:
-            snoozed_until_dt = datetime.fromisoformat(snoozed_until.replace('Z', '+00:00'))
+            snoozed_until_dt = datetime.fromisoformat(
+                snoozed_until.replace("Z", "+00:00")
+            )
             return datetime.now() < snoozed_until_dt
-        except:
+        except Exception as e:  # Changed bare except to except Exception
+            logger.warning(
+                f"Error parsing snoozed_until string '{snoozed_until}': {e}"
+            )
             return False
     elif isinstance(snoozed_until, datetime):
         return datetime.now() < snoozed_until
-        
+
     return False
 
 
 def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
     """
     Check if an item is available based on its schedule.
-    
+
     Args:
         item: The menu item to check
-        
+
     Returns:
         bool: True if the item is available now, False otherwise
     """
@@ -52,7 +58,7 @@ def is_item_currently_available_by_schedule(item: Dict[str, Any]) -> bool:
     if not availabilities:
         # No schedule means always available
         return True
-        
+
     # For now, assume items are available if they have any availability schedule
     # TODO: Implement proper day/time checking
     return True
@@ -113,54 +119,3 @@ def is_item_available(item: Dict[str, Any]) -> bool:
 
     # If we reach here, the item is available
     return True
-
-
-def validate_items_availability(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Filter out unavailable items from a list of items.
-
-    Args:
-        items: List of menu items to check
-
-    Returns:
-        List[Dict[str, Any]]: Only the available items
-    """
-    available_items = []
-    unavailable_items = []
-
-    for item in items:
-        if is_item_available(item):
-            available_items.append(item)
-        else:
-            unavailable_items.append(item.get("name", "Unknown item"))
-
-    if unavailable_items:
-        logger.warning(
-            f"[AVAILABILITY] Filtered out unavailable items: {unavailable_items}"
-        )
-
-    return available_items
-
-
-def check_item_availability_by_reference(
-    reference_handler: str, all_items: List[Dict[str, Any]]
-) -> bool:
-    """
-    Check if an item with a specific reference handler is available.
-
-    Args:
-        reference_handler: The reference handler to check
-        all_items: List of all menu items
-
-    Returns:
-        bool: True if the item is available, False otherwise
-    """
-    for item in all_items:
-        if item.get("reference_handler") == reference_handler:
-            return is_item_available(item)
-
-    # If not found, it's not available
-    logger.warning(
-        f"[AVAILABILITY] Item with reference '{reference_handler}' not found"
-    )
-    return False

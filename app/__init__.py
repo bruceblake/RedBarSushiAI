@@ -7,8 +7,8 @@ This module contains the initialization for the FastAPI application.
 import os
 import logging
 import sys
-import traceback
-from datetime import datetime
+# import traceback # Removed as unused
+# from datetime import datetime # Removed as unused, datetime objects used directly if needed from other modules
 
 # Optional imports for services that might not be configured
 try:
@@ -64,17 +64,12 @@ if is_testing:
 
     # Create a mock tasks module
     class MockTasks:
-        @staticmethod
-        def send_confirmation_sms_task(*args, **kwargs):
-            return None
-
+        # send_confirmation_sms_task removed as unused
         @staticmethod
         def send_order_status_update_task(*args, **kwargs):
             return None
 
-        @staticmethod
-        def sync_menu_references(*args, **kwargs):
-            return None
+        # sync_menu_references removed as unused
 
     # Mock the tasks module
     sys.modules["tasks"] = MockTasks()
@@ -110,7 +105,7 @@ else:
     # X11 mode - only for development with GUI components
     # This branch should not be used in production
     logging.warning("X11 mode active - not recommended for production")
-    
+
     # Use the working display provided by the startup script
     if "DISPLAY" in os.environ and os.environ["DISPLAY"]:
         logging.info(f"Using provided X display: {os.environ['DISPLAY']}")
@@ -125,20 +120,24 @@ else:
 # Enhanced logging setup
 try:
     from app.utils.enhanced_logging import initialize_logging
+
     log_dir = initialize_logging()
     logging.info(f"Enhanced logging system initialized, logs directory: {log_dir}")
 except ImportError:
     # Fall back to basic logging if enhanced logging isn't available
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
-    logging.warning("Enhanced logging system not available, using basic logging instead")
+    logging.warning(
+        "Enhanced logging system not available, using basic logging instead"
+    )
 
 # Initialize clients with proper error handling
 try:
     # Initialize Twilio client
     # Check which version of twilio we're using
-    import twilio
+    # import twilio # Removed as unused
     import pkg_resources
 
     twilio_version = pkg_resources.get_distribution("twilio").version
@@ -147,7 +146,7 @@ try:
     # Parse version as integers
     try:
         # Remove any alpha/beta/etc. suffixes for version comparison
-        import re
+        # import re # Removed as unused
 
         # Try to create client with timeout first, fall back if not supported
         try:
@@ -155,9 +154,11 @@ try:
             twilio_client = Client(
                 settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN, timeout=10
             )
-        except TypeError as e:
+        except TypeError:
             # If timeout parameter is not supported, create without it
-            twilio_client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+            twilio_client = Client(
+                settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN
+            )
 
         logging.info(
             f"Twilio client initialized successfully (version {twilio_version})"

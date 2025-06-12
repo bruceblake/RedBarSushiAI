@@ -6,10 +6,15 @@ Stores conversation history and state between API calls for menu questions and o
 import json
 import logging
 import time
-import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 
-from app.redis_async import redis_get, redis_set, redis_delete, memory_cache_get, memory_cache_set
+from app.redis_async import (
+    redis_get,
+    redis_set,
+    redis_delete,
+    memory_cache_get,
+    memory_cache_set,
+)
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -23,7 +28,7 @@ class AsyncConversationStore:
 
     def __init__(self):
         """Initialize the async conversation store."""
-        self.memory_store = {}  # Initialize memory store for fallback
+        # self.memory_store = {}  # Initialize memory store for fallback - Removed as unused
 
     async def get_conversation(self, session_id: str) -> Dict[str, Any]:
         """
@@ -40,10 +45,10 @@ class AsyncConversationStore:
         try:
             # Try to get from Redis
             data = await redis_get(key)
-            
+
             if data:
                 try:
-                    conversation = json.loads(data.decode('utf-8'))
+                    conversation = json.loads(data.decode("utf-8"))
                     # Verify that we actually have a proper conversation object
                     if not isinstance(conversation.get("messages"), list):
                         logger.warning(
@@ -61,9 +66,7 @@ class AsyncConversationStore:
                         }
                     return conversation
                 except json.JSONDecodeError:
-                    logger.error(
-                        f"Error decoding JSON for conversation {session_id}"
-                    )
+                    logger.error(f"Error decoding JSON for conversation {session_id}")
             else:
                 # Fallback to in-memory store
                 conversation = memory_cache_get(key)
@@ -125,7 +128,7 @@ class AsyncConversationStore:
             # Try to save in Redis
             serialized = json.dumps(conversation_data)
             redis_success = await redis_set(key, serialized, expiration)
-            
+
             if not redis_success:
                 # Fallback to in-memory store
                 memory_cache_set(key, conversation_data)
@@ -139,7 +142,9 @@ class AsyncConversationStore:
                 memory_cache_set(key, conversation_data)
                 return True
             except Exception as mem_error:
-                logger.error(f"Memory cache fallback failed for {session_id}: {str(mem_error)}")
+                logger.error(
+                    f"Memory cache fallback failed for {session_id}: {str(mem_error)}"
+                )
                 return False
 
     async def update_conversation(
@@ -218,11 +223,11 @@ class AsyncConversationStore:
         try:
             # Try to delete from Redis
             await redis_delete(key)
-            
+
             # Also remove from memory cache if it exists
             if memory_cache_get(key):
                 memory_cache_set(key, None)
-                
+
             return True
 
         except Exception as e:
