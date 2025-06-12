@@ -7,7 +7,7 @@ import os
 import sys
 import pytest
 import pytest_asyncio
-from typing import AsyncGenerator, Generator
+from typing import AsyncGenerator # Generator removed
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 from sqlalchemy.pool import NullPool
 import redis.asyncio as aioredis
