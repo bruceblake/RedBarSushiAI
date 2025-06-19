@@ -8,7 +8,6 @@ import os
 import sys
 import time
 from typing import Dict, Tuple, Optional
-import asyncpg
 import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
@@ -37,7 +36,7 @@ class ServiceHealthChecker:
         # Get configuration from environment
         self.postgres_url = os.getenv(
             'DATABASE_URL',
-            'postgresql+asyncpg://redbarsushi:redbarsushi@postgres-test:5432/redbarsushi_test'
+            'postgresql+psycopg2://redbarsushi:redbarsushi@postgres-test:5432/redbarsushi_test'
         )
         self.redis_url = os.getenv('REDIS_URL', 'redis://redis-test:6379/0')
     

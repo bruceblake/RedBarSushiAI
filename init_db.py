@@ -33,12 +33,12 @@ async def init_database():
     # Get database URL from environment or use default
     database_url = os.getenv(
         "DATABASE_URL",
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/redbarsushi"
+        "postgresql+psycopg2://postgres:postgres@localhost:5432/redbarsushi"
     )
     
-    # Ensure it's using asyncpg
-    if "postgresql://" in database_url and "+asyncpg" not in database_url:
-        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
+    # Ensure it's using psycopg2
+    if "postgresql://" in database_url and "+psycopg2" not in database_url:
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://")
     
     logger.info(f"Connecting to database: {database_url}")
     

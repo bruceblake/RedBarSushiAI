@@ -103,7 +103,7 @@ The system follows a multi-agent architecture where specialized AI agents handle
 ### Key Architecture Components
 
 #### Database Layer (Async SQLAlchemy 2.0)
-- **Engine**: `app/db_async.py` - Async engine with connection pooling, auto-converts URLs to asyncpg format
+- **Engine**: `app/db_async.py` - Async engine with connection pooling, auto-converts URLs to psycopg2 format
 - **Sessions**: Dependency injection via `get_db()`, proper lifecycle management
 - **Key Models**:
   - `MenuItem`: PLU field is critical for POS integration, tracks availability and snooze status
@@ -531,7 +531,7 @@ The application is deployed on Render with these features:
 
 4. **Render-specific Adaptations**:
    - Custom `fastapi_render_entrypoint.sh` script to handle initialization
-   - Environment-aware database URL transformation for asyncpg
+   - Environment-aware database URL transformation for psycopg2
    - Compatibility layer for SQLAlchemy models (see `compat_models.py`)
    - Headless mode enforcement for server environments
 
@@ -787,8 +787,8 @@ The system relies on environment variables for configuration. Key variables incl
 
 ```
 # Database
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/redbarsushi
-TEST_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/redbarsushi_test
+DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/redbarsushi
+TEST_DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/redbarsushi_test
 
 # Redis
 REDIS_URL=redis://localhost:6379/0

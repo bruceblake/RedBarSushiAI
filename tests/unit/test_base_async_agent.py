@@ -69,17 +69,6 @@ def child_agent():
     """Create a child/specialist agent."""
     return BaseAsyncAgent(name="ChildAgent")
 
-This module tests the core functionality of the BaseAsyncAgent,
-including initialization, input processing, delegation, and context management.
-"""
-
-import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from typing import Dict, Any
-
-from app.agents.base_async import BaseAsyncAgent
-
 
 @pytest.fixture
 def base_agent():

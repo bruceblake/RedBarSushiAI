@@ -28,7 +28,7 @@ def get_json_type():
         
         # Check DATABASE_URL from settings
         elif database_url and (
-            "postgresql+asyncpg" in database_url or 
+            "postgresql+psycopg2" in database_url or
             database_url.startswith("postgresql://")
         ):
             is_postgresql = True

@@ -8,7 +8,7 @@ are properly enforced and prevent data integrity violations.
 import pytest
 import uuid
 from datetime import datetime
-from sqlalchemy.exc import IntegrityError, ForeignKeyViolation
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.menu_async import MenuItem, MenuCategory, MenuModifier, MenuModifierGroup

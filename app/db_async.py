@@ -2,7 +2,7 @@
 Database configuration for the FastAPI application.
 
 This module provides an async SQLAlchemy setup using SQLAlchemy 2.0 async features
-with asyncpg as the PostgreSQL driver.
+with psycopg2 as the PostgreSQL driver.
 """
 
 import logging
@@ -36,11 +36,11 @@ except ImportError as e:
 logger = logging.getLogger(__name__)
 
 # Convert the synchronous SQLAlchemy DATABASE_URL to async version if needed
-# Example: postgresql://user:pass@localhost/dbname -> postgresql+asyncpg://user:pass@localhost/dbname
+# Example: postgresql://user:pass@localhost/dbname -> postgresql+psycopg2://user:pass@localhost/dbname
 database_url = settings.DATABASE_URL
 if database_url.startswith('postgresql://'):
-    DATABASE_URL = database_url.replace('postgresql://', 'postgresql+asyncpg://')
-elif database_url.startswith('postgresql+asyncpg://'):
+    DATABASE_URL = database_url.replace('postgresql://', 'postgresql+psycopg2://')
+elif database_url.startswith('postgresql+psycopg2://'):
     # Already in async format
     DATABASE_URL = database_url
 elif database_url.startswith('sqlite://'):
@@ -60,12 +60,12 @@ engine_args = {
 }
 
 # Add PostgreSQL-specific options
-if DATABASE_URL.startswith('postgresql+asyncpg://'):
-    # SQLAlchemy 2.0 style of setting connection args with asyncpg
+if DATABASE_URL.startswith('postgresql+psycopg2://'):
+    # SQLAlchemy 2.0 style of setting connection args with psycopg2
     engine_args["connect_args"] = {
         "timeout": 15,  # Connection timeout in seconds
         "command_timeout": 60,  # Statement timeout in seconds
-        # Connection options passed to asyncpg
+        # Connection options passed to psycopg2
         "statement_cache_size": 0,  # Disable statement caching
         "max_cached_statement_lifetime": 0,  # Disable statement caching
     }
