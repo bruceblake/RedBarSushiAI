@@ -32,54 +32,12 @@ FROM base AS dependencies
 
 WORKDIR /install
 
-# Copy requirements files and install script
-COPY requirements.strict.txt requirements.txt requirements.prod.txt requirements.docker.txt requirements_minimal.txt install_all_dependencies.sh ./
+# Copy requirements file
+COPY requirements.txt ./
 
-# Make install script executable
-RUN chmod +x ./install_all_dependencies.sh
-
-# Install base Python packages
+# Install Python packages
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-
-# Try to install using the strict requirements first
-RUN set -e; \
-    if [ -f "requirements.strict.txt" ]; then \
-        echo "Installing from strict requirements file..."; \
-        if pip install --no-cache-dir -r requirements.strict.txt; then \
-            echo "✅ Successfully installed all dependencies from strict requirements"; \
-        else \
-            echo "❌ Failed to install from strict requirements. Falling back to Docker requirements."; \
-            # Try Docker-specific requirements
-            if [ -f "requirements.docker.txt" ] && pip install --no-cache-dir -r requirements.docker.txt; then \
-                echo "✅ Successfully installed Docker requirements"; \
-            elif [ -f "requirements.prod.txt" ] && pip install --no-cache-dir -r requirements.prod.txt; then \
-                echo "✅ Successfully installed production requirements"; \
-            elif [ -f "requirements.txt" ] && pip install --no-cache-dir -r requirements.txt; then \
-                echo "✅ Successfully installed standard requirements"; \
-            else \
-                echo "❌ All requirements files failed. Falling back to minimal requirements."; \
-                pip install --no-cache-dir -r requirements_minimal.txt; \
-                echo "⚠️ Only minimal WebSocket requirements installed. Some functionality may not work."; \
-            fi; \
-        fi; \
-    else \
-        # Fall back to previous approach if strict requirements file is missing
-        if [ -f "requirements.docker.txt" ] && pip install --no-cache-dir -r requirements.docker.txt; then \
-            echo "✅ Successfully installed Docker requirements"; \
-        elif [ -f "requirements.prod.txt" ] && pip install --no-cache-dir -r requirements.prod.txt; then \
-            echo "✅ Successfully installed production requirements"; \
-        elif [ -f "requirements.txt" ] && pip install --no-cache-dir -r requirements.txt; then \
-            echo "✅ Successfully installed standard requirements"; \
-        else \
-            echo "❌ All requirements files failed. Falling back to minimal requirements."; \
-            pip install --no-cache-dir -r requirements_minimal.txt; \
-            echo "⚠️ Only minimal WebSocket requirements installed. Some functionality may not work."; \
-        fi; \
-    fi;
-
-# Ensure the critical FastAPI and ASGI packages are installed
-# Use either pydantic v1 without pydantic-settings (recommended)
-RUN pip install --no-cache-dir --upgrade fastapi==0.115.11 uvicorn==0.34.0 websocket-client==1.7.0 websockets==13.1 pydantic==1.10.8
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 3: Final runtime image
 FROM base AS final
@@ -100,7 +58,7 @@ COPY . .
 RUN touch /app/.env
 
 # Ensure entrypoint is executable
-COPY fastapi_render_entrypoint.sh /docker-entrypoint.sh
+COPY docker-entrypoint-simple.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Add wait-for-it script for database dependency management
@@ -120,5 +78,5 @@ EXPOSE 8080
 # Use our entrypoint script
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
-# Use Uvicorn for FastAPI
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--log-level", "debug"]
+# Use Uvicorn for FastAPI with reload for development
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload", "--log-level", "debug"]

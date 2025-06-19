@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: Optional[str] = Field(None, env="CELERY_RESULT_BACKEND")
     
     # OpenAI settings
-    OPENAI_API_KEY: Optional[str] = Field("USING_DEFAULT_FALLBACK_KEY", env="OPENAI_API_KEY")
+    OPENAI_API_KEY: Optional[str] = Field(None, env="OPENAI_API_KEY")
     OPENAI_REALTIME_MODEL: str = Field("gpt-4o-realtime-preview-2024-12-17", env="OPENAI_REALTIME_MODEL")
     OPENAI_REALTIME_VOICE: str = Field("shimmer", env="OPENAI_REALTIME_VOICE")
     OPENAI_REALTIME_INSTRUCTIONS: str = Field(
@@ -112,8 +112,8 @@ class Settings(BaseSettings):
     DELIVERECT_CLIENT_ID: Optional[str] = Field(None, env="DELIVERECT_CLIENT_ID")
     DELIVERECT_CLIENT_SECRET: Optional[str] = Field(None, env="DELIVERECT_CLIENT_SECRET")
     
-    # Voice config
-    VOICE_HANDLER: str = Field("media_streams", env="VOICE_HANDLER")
+    # Voice config (ConversationRelay only - Media Streams support removed)
+    VOICE_HANDLER: str = Field("conversation_relay", env="VOICE_HANDLER")
     
     # AI agent configuration
     USE_AI_AGENTS: bool = Field(True, env="USE_AI_AGENTS")
@@ -137,17 +137,7 @@ class Settings(BaseSettings):
     MCP_PORT: Optional[int] = Field(None, env="MCP_PORT")
     MCP_URL: Optional[str] = Field(None, env="MCP_URL")
     
-    # Validators
-    @validator('VOICE_HANDLER')
-    def validate_voice_handler(cls, v, **kwargs):
-        # Map "realtime" to "media_streams" for backward compatibility
-        if v == "realtime":
-            v = "media_streams"
-        
-        allowed_values = ["media_streams", "conversation_relay"]
-        if v not in allowed_values:
-            raise ValueError(f"Unsupported VOICE_HANDLER value: {v}, allowed values: {allowed_values}")
-        return v
+    # No validation needed for VOICE_HANDLER since only ConversationRelay is supported
     
     if PYDANTIC_V2:
         # Pydantic v2 config

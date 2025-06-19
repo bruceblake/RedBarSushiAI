@@ -17,10 +17,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 
 # Import models to ensure they're registered
-from app.models.base_async import BaseAsync
-from app.models.menu_async import MenuCategory, MenuItem, MenuModifier, MenuModifierGroup
-from app.models.order_async import Order, OrderItem
-from app.models.location_async import Location
+from app.db_async import Base
+from app.models.menu_async import MenuCategory, MenuItem, MenuModifier, MenuModifierGroup, MenuNameVariant
+from app.models.order_async import Order, OrderItem, OrderItemModifier, ContactRequest
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -55,10 +54,10 @@ async def init_database():
             # Drop all tables first if they exist (for clean state)
             if "--drop" in sys.argv:
                 logger.warning("Dropping existing tables...")
-                await conn.run_sync(BaseAsync.metadata.drop_all)
+                await conn.run_sync(Base.metadata.drop_all)
             
             # Create all tables
-            await conn.run_sync(BaseAsync.metadata.create_all)
+            await conn.run_sync(Base.metadata.create_all)
             
         logger.info("Database tables created successfully!")
         

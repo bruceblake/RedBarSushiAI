@@ -156,3 +156,6 @@ async def ensure_fresh_session() -> AsyncSession:
         except Exception as retry_error:
             logger.error(f"Failed to create fresh session on retry: {retry_error}")
             raise
+
+# Alias for backward compatibility
+init_db = init_database

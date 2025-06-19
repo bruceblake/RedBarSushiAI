@@ -207,10 +207,15 @@ class ConversationRelayHandler:
         self.is_running = True
         
         try:
-            logger.info(f"Starting ConversationRelay handler for {self.call_sid}")
+            logger.info(f"Starting ConversationRelay handler")
             
             while self.is_running:
                 try:
+                    # Check if WebSocket is still connected
+                    if self.websocket.client_state.value != 1:  # 1 = CONNECTED
+                        logger.info("WebSocket disconnected, stopping handler")
+                        break
+                        
                     # Receive JSON messages from Twilio
                     message = await self.websocket.receive_json()
                     
@@ -265,6 +270,8 @@ async def conversation_relay_endpoint(websocket: WebSocket):
         handler = ConversationRelayHandler(websocket)
         await handler.run()
         
+    except WebSocketDisconnect:
+        logger.info("ConversationRelay WebSocket disconnected")
     except Exception as e:
         logger.error(f"Error in WebSocket endpoint: {e}", exc_info=True)
     finally:

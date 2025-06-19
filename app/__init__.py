@@ -139,9 +139,13 @@ try:
     # Initialize Twilio client
     # Check which version of twilio we're using
     import twilio
-    import pkg_resources
-
-    twilio_version = pkg_resources.get_distribution("twilio").version
+    try:
+        from importlib.metadata import version
+        twilio_version = version("twilio")
+    except ImportError:
+        # Fallback for older Python versions
+        import pkg_resources
+        twilio_version = pkg_resources.get_distribution("twilio").version
     logging.info(f"Detected Twilio version: {twilio_version}")
 
     # Parse version as integers

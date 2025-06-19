@@ -15,7 +15,6 @@ from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 from starlette.status import HTTP_200_OK
 
-from app.utils.twilio_twiml import generate_media_streams_twiml, TwimlParameter, TwimlStreamParameter
 from app.utils.twilio_twiml import get_environment_name
 
 # Set up logging
@@ -135,102 +134,36 @@ async def receive_call(request: Request) -> PlainTextResponse:
             logger.info(f"[WEBSOCKET_HOST] Using hardcoded production hostname: {production_hostname}")
             host = production_hostname
         
-        # Get the URL scheme (http or https)
-        scheme = request.url.scheme
-        
-        # For Render deployment, always use wss:// for WebSocket connections
-        # Render provides HTTPS by default for all deployments
-        ws_scheme = "wss"
-        
-        # Now that we've confirmed Twilio can connect to our FastAPI app,
-        # we're switching back to the main production WebSocket endpoint
-        
-        # Main production WebSocket URL
-        websocket_url = f"{ws_scheme}://{host}/realtime/ws/media/{call_sid}"
-        
-        # Keep this for reference, but commented out:
-        # Test endpoint that was proven to work with Twilio:
-        # websocket_url = f"{ws_scheme}://{host}/ws-test/{call_sid}"
-        
-        # 2. Twilio-specific pattern following the blog post exactly
-        # websocket_url = f"{ws_scheme}://{host}/twilio-ws-test/{call_sid}"
-        
-        # Log this URL multiple times in different formats to make it absolutely unmissable
-        logger.critical(f"❗❗❗ PRODUCTION WEBSOCKET URL SET IN TWIML: {websocket_url} ❗❗❗")
-        logger.critical(f"WEBSOCKET SCHEME: {ws_scheme}")
-        logger.critical(f"WEBSOCKET HOST: {host}")
-        logger.critical(f"WEBSOCKET PATH: /realtime/ws/media/{call_sid}")
-        logger.critical(f"RESULTING FULL URL: {websocket_url}")
-        logger.critical(f"❗❗❗ TWIML NOW POINTS TO MAIN PRODUCTION ENDPOINT: {websocket_url} ❗❗❗")
-        logger.critical(f"ATTENTION: Using production WebSocket endpoint for real-time audio processing!")
-        
-        # Create Stream parameters with production settings
-        # Define parameters to help with debugging
-        timestamp = str(int(time.time()))
-        custom_params = [
-            {"name": "debug", "value": "true"},
-            {"name": "client", "value": "twilio"},  # Mark this as from Twilio
-            {"name": "time", "value": timestamp}  # Timestamp to trace this specific request
-        ]
-        
-        # Log the base WebSocket URL and parameters
-        logger.critical(f"❗❗❗ BASE WEBSOCKET URL: {websocket_url} ❗❗❗")
-        logger.critical(f"❗❗❗ PARAMETERS: debug=true, client=twilio, time={timestamp} ❗❗❗")
-        
-        # Create the TwimlStreamParameter with custom parameters as child elements
-        stream_params = TwimlStreamParameter(
-            url=websocket_url,  # Use the base URL without query parameters
-            track="inbound_track",  # For <Connect><Stream>, use inbound_track according to Twilio docs
-            name="media_stream",  # Consistent name for stream tracking
-            custom_parameters=custom_params  # Pass the parameters as Parameter child elements
-        )
+        # ConversationRelay uses direct HTTP webhooks, not WebSocket URLs
+        logger.info(f"ConversationRelay will use host: {host} for webhook connections")
         
         # Create welcome message based on environment
         greeting_msg = f"Welcome to {environment_name} Red Bar Sushi AI!"
         
-        # Check voice handler configuration
+        # Use ConversationRelay exclusively (Media Streams support removed)
+        logger.info(f"Using ConversationRelay voice handler for call {call_sid}")
+        
+        # Import ConversationRelay TwiML generator
+        from app.api.conversation_relay.twiml import generate_conversation_relay_twiml
         from app.config import settings
         
-        if settings.VOICE_HANDLER == "conversation_relay":
-            # Use ConversationRelay for improved latency and reliability
-            logger.info(f"Using ConversationRelay voice handler for call {call_sid}")
-            
-            # Import ConversationRelay TwiML generator
-            from app.api.conversation_relay.twiml import generate_conversation_relay_twiml
-            
-            # Generate ConversationRelay TwiML with proper STT/TTS configuration
-            twiml = generate_conversation_relay_twiml(
-                call_sid=call_sid,
-                greeting_text=greeting_msg,
-                service_sid=getattr(settings, 'TWILIO_CONVERSATION_SERVICE_SID', None),
-                connector_name=getattr(settings, 'TWILIO_CONNECTOR_NAME', None),
-                host=host,  # Pass the host we determined above
-                tts_provider=getattr(settings, 'CONVERSATION_RELAY_TTS_PROVIDER', 'ElevenLabs'),
-                tts_voice=getattr(settings, 'CONVERSATION_RELAY_TTS_VOICE', None),
-                language=getattr(settings, 'CONVERSATION_RELAY_LANGUAGE', 'en-US'),
-                transcription_provider=getattr(settings, 'CONVERSATION_RELAY_STT_PROVIDER', 'Google'),
-                speech_model=getattr(settings, 'CONVERSATION_RELAY_SPEECH_MODEL', 'telephony'),
-                interruptible=getattr(settings, 'CONVERSATION_RELAY_INTERRUPTIBLE', 'any'),
-                dtmf_detection=getattr(settings, 'CONVERSATION_RELAY_DTMF_DETECTION', False)
-            )
-            
-            logger.info(f"Generated ConversationRelay TwiML for call {call_sid}")
-        else:
-            # Use traditional Media Streams approach
-            logger.info(f"Using Media Streams voice handler for call {call_sid}")
-            
-            # Create TwiML parameters
-            twiml_params = TwimlParameter(
-                voice="Polly.Amy-Neural",
-                language="en-US",
-                greeting_text=greeting_msg,
-                fallback_text="Sorry, we couldn't connect you to our AI assistant. Please try again later.",
-                stream_params=stream_params,
-                call_sid=call_sid
-            )
-            
-            # Generate TwiML response
-            twiml = generate_media_streams_twiml(twiml_params)
+        # Generate ConversationRelay TwiML with proper STT/TTS configuration
+        twiml = generate_conversation_relay_twiml(
+            call_sid=call_sid,
+            greeting_text=greeting_msg,
+            service_sid=getattr(settings, 'TWILIO_CONVERSATION_SERVICE_SID', None),
+            connector_name=getattr(settings, 'TWILIO_CONNECTOR_NAME', None),
+            host=host,  # Pass the host we determined above
+            tts_provider=getattr(settings, 'CONVERSATION_RELAY_TTS_PROVIDER', 'ElevenLabs'),
+            tts_voice=getattr(settings, 'CONVERSATION_RELAY_TTS_VOICE', None),
+            language=getattr(settings, 'CONVERSATION_RELAY_LANGUAGE', 'en-US'),
+            transcription_provider=getattr(settings, 'CONVERSATION_RELAY_STT_PROVIDER', 'Google'),
+            speech_model=getattr(settings, 'CONVERSATION_RELAY_SPEECH_MODEL', 'telephony'),
+            interruptible=getattr(settings, 'CONVERSATION_RELAY_INTERRUPTIBLE', 'any'),
+            dtmf_detection=getattr(settings, 'CONVERSATION_RELAY_DTMF_DETECTION', False)
+        )
+        
+        logger.info(f"Generated ConversationRelay TwiML for call {call_sid}")
         
         # Log generated TwiML (truncated for readability)
         logger.info(f"Generated TwiML: {twiml[:500]}...")

@@ -312,178 +312,22 @@ else
 	# Default: start the web server
 	# Check if PORT is set
 	if [ -z "$PORT" ]; then
-		echo "ERROR: PORT environment variable not set, defaulting to 8080"
+		echo "PORT environment variable not set, defaulting to 8080"
 		export PORT=8080
 	fi
-
-	echo "Starting web server on port $PORT..."
-	# Use gunicorn with gevent worker for websocket support
-	echo "DEBUG: Launch command: gunicorn --worker-class=uvicorn.workers.UvicornWorker --workers=4 --worker-connections=1000 --bind=\"0.0.0.0:$PORT\" --log-level=debug \"wsgi:app\""
-
-	# Check if app directory exists with the factory
-	if [ -f "app/__init__.py" ]; then
-		echo "DEBUG: Found app/__init__.py with create_app() factory function"
+	# Check if app directory exists with FastAPI main
+	if [ -f "app/main.py" ]; then
+		echo "DEBUG: Found app/main.py with FastAPI application"
 	else
-		echo "ERROR: app/__init__.py not found in current directory"
+		echo "ERROR: app/main.py not found in current directory"
 		echo "DEBUG: Files in current directory:"
 		ls -la
+		exit 1
 	fi
 
-	# Check database connection before starting server
-	echo "Testing database connection..."
-	echo "SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI:0:25}..." # Show just the start, not credentials
+	echo "Skipping database connection test during startup - will test during app initialization"
 
-	# Handle database URL with priority for external URLs
-	if [ -n "$DATABASE_URL" ]; then
-		echo "DATABASE_URL is set, using external URL directly"
-		export SQLALCHEMY_DATABASE_URI="$DATABASE_URL"
-	elif [ -n "$RENDER_DATABASE_URL" ]; then
-		echo "RENDER_DATABASE_URL is set, using external URL directly"
-		export SQLALCHEMY_DATABASE_URI="$RENDER_DATABASE_URL"
-	elif [ -n "$INTERNAL_DATABASE_URL" ] && [ "$RENDER" = "true" ]; then
-		echo "Only INTERNAL_DATABASE_URL is available, transforming to external URL"
-		# Extract hostname from internal URL and add .virginia-postgres.render.com
-		internal_url="$INTERNAL_DATABASE_URL"
-		if [[ "$internal_url" == postgresql://* ]] && [[ "$internal_url" == *"@"* ]]; then
-			user_part="${internal_url#postgresql://}"
-			user_part="${user_part%%@*}"
-			host_part="${internal_url#*@}"
-			host="${host_part%%:*}"
-			rest="${host_part#*:}"
-
-			# Transform hostname if it's not already a render.com domain
-			if [[ "$host" != *".render.com" ]]; then
-				external_host="${host}.virginia-postgres.render.com"
-				external_url="postgresql://${user_part}@${external_host}:${rest}"
-				export SQLALCHEMY_DATABASE_URI="$external_url"
-				echo "Using transformed external URL: ${external_url}"
-			else
-				export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
-			fi
-		else
-			export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
-		fi
-	fi
-
-	python -c "
-import os
-import sys
-from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError
-
-try:
-    db_uri = os.environ.get('SQLALCHEMY_DATABASE_URI')
-    if not db_uri:
-        print('ERROR: SQLALCHEMY_DATABASE_URI not set', file=sys.stderr)
-        sys.exit(1)
-    
-    # Show database info without revealing password
-    parts = db_uri.split('@')
-    if len(parts) > 1:
-        auth_parts = parts[0].split(':')
-        if len(auth_parts) > 1:
-            username = auth_parts[-2].split('/')[-1]  # Extract username
-            print(f'Connecting as user: {username}', file=sys.stderr)
-            host_part = parts[1].split('/')
-            print(f'To database host: {host_part[0]}', file=sys.stderr)
-    
-    print('Creating database engine...', file=sys.stderr)
-    engine = create_engine(db_uri)
-    print('Connecting to database...', file=sys.stderr)
-    connection = engine.connect()
-    print('Connected!', file=sys.stderr)
-    connection.close()
-    print('Database connection test successful!', file=sys.stderr)
-except SQLAlchemyError as e:
-    print(f'ERROR connecting to database: {str(e)}', file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f'Unexpected error during database test: {str(e)}', file=sys.stderr)
-    sys.exit(1)
-"
-
-	# Check Python dependencies
-	echo "Checking for required modules..."
-	python -c "
-import sys
-required_modules = ['psycopg2', 'flask_sqlalchemy', 'gunicorn', 'gevent', 'flask', 'gunicorn']
-missing = []
-
-for module in required_modules:
-    try:
-        __import__(module)
-        print(f'✓ {module}', file=sys.stderr)
-    except ImportError:
-        missing.append(module)
-        print(f'✗ {module} - MISSING', file=sys.stderr)
-
-if missing:
-    print('ERROR: Missing required modules: ' + ', '.join(missing), file=sys.stderr)
-    sys.exit(1)
-else:
-    print('All required modules are available', file=sys.stderr)
-"
-
-	# Make sure the DISPLAY environment variable is in the worker's environment
-	if [ -n "$DISPLAY" ]; then
-		echo "Ensuring DISPLAY=$DISPLAY is passed to the workers"
-
-		# Create a wrapper script to set environment variables for gunicorn workers
-		cat >/tmp/gunicorn_env_wrapper.py <<'EOF'
-import os
-import sys
-
-# Ensure all environment variables are passed to workers
-os.environ['DISPLAY'] = os.environ.get('DISPLAY', ':99')
-os.environ['PYNPUT_HEADLESS'] = '0'
-os.environ['NO_X11'] = '0' 
-os.environ['HEADLESS'] = '0'
-os.environ['OPENAI_REALTIME_NO_DISPLAY'] = '0'
-os.environ['X11_SETUP_SUCCESS'] = 'true'  # Indicate X11 is working
-
-# Import the actual app
-sys.path.insert(0, '/app')
-if os.path.exists('/app/wsgi.py'):
-    from wsgi import app
-else:
-    from run import app
-
-# Export the app for gunicorn
-application = app
-EOF
-
-		# Use environment variables directly with Gunicorn
-		echo "DEBUG: Using direct environment variables with Gunicorn"
-
-		# Export all X11 variables explicitly for Gunicorn workers
-		export DISPLAY=${DISPLAY}
-		export PYNPUT_HEADLESS=0
-		export NO_X11=0
-		export HEADLESS=0
-		export OPENAI_REALTIME_NO_DISPLAY=0
-		export X11_SETUP_SUCCESS=true
-
-		if [ -f "main.py" ]; then
-			echo "DEBUG: Using main.py entry point for FastAPI"
-			exec uvicorn main:app --workers=4 --host="0.0.0.0" --port="$PORT" \
-				--log-level=debug
-		else
-			echo "DEBUG: Using main.py entry point for FastAPI"
-			exec uvicorn main:app --workers=4 --host="0.0.0.0" --port="$PORT" \
-				--log-level=debug
-		fi
-	else
-		# Use uvicorn for FastAPI
-		if [ -f "main.py" ]; then
-			echo "DEBUG: Using main.py entry point for FastAPI"
-			
-			echo "Starting with Uvicorn for FastAPI"
-			exec uvicorn main:app --workers=4 --host="0.0.0.0" --port="$PORT" \
-    --log-level=info
-		else
-			echo "DEBUG: Using main.py entry point for FastAPI"
-			exec uvicorn main:app --workers=4 --host="0.0.0.0" --port="$PORT" \
-				--log-level=info
-		fi
-	fi
+	# Start FastAPI with uvicorn
+	echo "Starting with Uvicorn for FastAPI"
+	exec uvicorn app.main:app --host="0.0.0.0" --port="$PORT" --reload --log-level=info
 fi
