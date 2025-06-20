@@ -86,13 +86,13 @@ Current conversation state: {state}
 Allowed intents:
 - PROVIDE_NAME: User is giving their name or responding to name request
 - SKIP_NAME: User wants to skip giving name or proceed without it
-- REQUEST_HELP: User is confused or asking for help
+- REQUEST_ESCALATION: User is confused or asking for help
 
 Examples:
 "John" -> PROVIDE_NAME
 "My name is Sarah" -> PROVIDE_NAME  
 "I don't want to give my name" -> SKIP_NAME
-"What?" -> REQUEST_HELP
+"What?" -> REQUEST_ESCALATION
 """,
             
             ConversationState.MAIN_MENU: """
@@ -163,19 +163,19 @@ Allowed intents:
 - PROVIDE_DELIVERY: User providing delivery information
 - CHOOSE_PICKUP: User wants pickup instead
 - PROVIDE_PAYMENT: User providing payment details
-- REQUEST_HELP: User needs assistance
+- REQUEST_ESCALATION: User needs assistance
 
 Examples:
 "123 Main Street" -> PROVIDE_DELIVERY
 "I'll pick it up" -> CHOOSE_PICKUP
 "I'll pay with card" -> PROVIDE_PAYMENT
-"I don't understand" -> REQUEST_HELP
+"I don't understand" -> REQUEST_ESCALATION
 """
         }
         
         state_prompt = state_prompts.get(
             current_state, 
-            "Allowed intents: CONTINUE, REQUEST_HELP, REQUEST_HUMAN"
+            "Allowed intents: CONTINUE, REQUEST_ESCALATION, REQUEST_HUMAN"
         )
         
         return base_prompt.format(state=current_state.name) + state_prompt
@@ -188,7 +188,7 @@ Examples:
             ConversationState.GREETING: {
                 "PROVIDE_NAME": ConversationEvent.USER_PROVIDES_NAME,
                 "SKIP_NAME": ConversationEvent.USER_PROVIDES_NAME,
-                "REQUEST_HELP": None
+                "REQUEST_ESCALATION": None
             },
             ConversationState.MAIN_MENU: {
                 "START_ORDER": ConversationEvent.START_ORDER,
@@ -220,8 +220,8 @@ Examples:
             ConversationState.FULFILLMENT: {
                 "PROVIDE_DELIVERY": ConversationEvent.PROVIDE_DELIVERY_INFO,
                 "CHOOSE_PICKUP": ConversationEvent.CHOOSE_PICKUP,
-                "PROVIDE_PAYMENT": ConversationEvent.PROVIDE_PAYMENT_INFO,
-                "REQUEST_HELP": ConversationEvent.REQUEST_HELP
+                "PROVIDE_PAYMENT": ConversationEvent.PROVIDE_DELIVERY_INFO,  # Using delivery info for payment
+                "REQUEST_ESCALATION": ConversationEvent.REQUEST_ESCALATION
             }
         }
         

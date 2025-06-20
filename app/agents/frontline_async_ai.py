@@ -82,6 +82,12 @@ IMPORTANT RULES:
 - Be helpful with dietary restrictions and preferences
 - Keep responses concise but friendly (2-3 sentences)
 
+CRITICAL: TOOL USAGE FOR NAMES
+- When a customer provides their name in ANY format (like "My name is John", "I'm Sarah", "John", "This is Mike"), 
+  you MUST immediately call the update_customer_info tool with {"name": "their_name"}
+- Do not proceed without calling this tool when you detect a name
+- After calling the tool, acknowledge their name warmly and transition to helping them
+
 CURRENT CONTEXT:
 - Restaurant: Red Bar Sushi
 - Specialties: Fresh sushi, sashimi, and Japanese cuisine
@@ -233,16 +239,35 @@ CURRENT CONTEXT:
         Returns:
             Dict[str, Any]: The agent's response
         """
+        logger.critical("★" * 80)
+        logger.critical(f"FRONTLINE AGENT: process_voice_input called")
+        logger.critical(f"Input text: '{input_text}'")
+        logger.critical(f"Input length: {len(input_text)} chars")
+        logger.critical(f"Context received: {json.dumps(context, indent=2)}")
+        logger.critical(f"Current agent conversation state: {self.conversation_state}")
+        logger.critical("★" * 80)
+        
         context = context or {}
         self.update_context(context)
         
+        # Check if FSM state transition occurred
+        if context.get("state_transition_occurred") and context.get("fsm_state"):
+            logger.critical(f"STATE TRANSITION DETECTED: Updating agent state to {context['fsm_state']}")
+            self.conversation_state = context["fsm_state"]
+            logger.critical(f"Agent conversation state updated to: {self.conversation_state}")
+        
         # Handle first interaction - generate greeting
         if context.get("first_interaction"):
+            logger.info("FIRST INTERACTION DETECTED - Generating greeting")
             greeting_context = {
                 "conversation_state": "GREETING",
                 "state_guidance": "Generate a warm, friendly greeting for Red Bar Sushi. Introduce yourself as Sarah and ask for the customer's name."
             }
+            logger.info(f"Greeting context: {json.dumps(greeting_context, indent=2)}")
+            
+            logger.info("Calling process_with_ai for greeting...")
             response = await self.process_with_ai("", greeting_context)
+            logger.info(f"AI greeting response: {json.dumps(response, indent=2)}")
             
             # Initialize conversation history with greeting
             self.context["conversation_history"] = [{
@@ -251,122 +276,170 @@ CURRENT CONTEXT:
             }]
             
             self.conversation_state = "GREETING"
+            logger.info(f"Conversation state set to: {self.conversation_state}")
+            logger.info(f"Returning greeting response: {response.get('text', '')}")
             return response
         
         # Add to conversation history
         if input_text:
+            logger.info(f"Adding user input to conversation history: '{input_text}'")
             self.context["conversation_history"].append({
                 "role": "user",
                 "content": input_text
             })
+            logger.info(f"Conversation history length: {len(self.context['conversation_history'])} messages")
         
         # Add current state to context
         context["conversation_state"] = self.conversation_state
         context["customer_name"] = self.context.get("customer_name")
         context["cart_items"] = self.context.get("order_items", [])
         
-        logger.info(f"[{self.name}] Processing in state {self.conversation_state}: {input_text}")
+        logger.info(f"Updated context for processing:")
+        logger.info(f"  - Conversation state: {self.conversation_state}")
+        logger.info(f"  - Customer name: {context['customer_name']}")
+        logger.info(f"  - Cart items: {context['cart_items']}")
+        logger.info(f"  - Full context: {json.dumps(context, indent=2)}")
         
         # Route to appropriate handler based on state
+        logger.critical(f"Routing to handler for state: {self.conversation_state}")
         if self.conversation_state == "GREETING":
+            logger.critical("→ Calling _handle_greeting")
             return await self._handle_greeting(input_text)
         elif self.conversation_state == "MAIN_MENU":
+            logger.critical("→ Calling _handle_main_menu")
+            logger.critical(f"Customer name in context: {self.context.get('customer_name')}")
             return await self._handle_main_menu(input_text)
         elif self.conversation_state == "ORDERING":
+            logger.info("→ Calling _handle_ordering")
             return await self._handle_ordering(input_text)
         elif self.conversation_state == "VALIDATION":
+            logger.info("→ Calling _handle_validation")
             return await self._handle_validation(input_text)
         elif self.conversation_state == "CONFIRMATION":
+            logger.info("→ Calling _handle_confirmation")
             return await self._handle_confirmation(input_text)
         else:
             # For other states, use AI to process
+            logger.info(f"→ Using AI for state: {self.conversation_state}")
             response = await self.process_with_ai(input_text, context)
+            logger.info(f"AI response: {json.dumps(response, indent=2)}")
             
             # Add response to conversation history
             self.context["conversation_history"].append({
                 "role": "assistant",
                 "content": response.get("text", "")
             })
+            logger.info(f"Added AI response to conversation history")
             
             # Update state based on actions
+            logger.info(f"Updating state based on actions: {response.get('actions', [])}")
             await self._update_state_from_actions(response.get("actions", []))
             
             # Keep conversation history limited
             if len(self.context["conversation_history"]) > 20:
+                logger.info(f"Trimming conversation history from {len(self.context['conversation_history'])} to 20 messages")
                 self.context["conversation_history"] = self.context["conversation_history"][-20:]
             
+            logger.info(f"Final response text: '{response.get('text', '')}'")
             return response
     
     async def _update_state_from_actions(self, actions: List[Dict[str, Any]]):
         """Update agent state based on actions from AI response."""
+        logger.info(f"_update_state_from_actions called with {len(actions)} actions")
         for action in actions:
+            logger.info(f"Processing action: {json.dumps(action, indent=2)}")
             action_type = action.get("type")
             
             if action_type == "set_customer_name":
                 self.context["customer_name"] = action.get("name")
+                logger.info(f"Customer name set to: {self.context['customer_name']}")
                 if self.conversation_state == "GREETING":
                     self.conversation_state = "MAIN_MENU"
+                    logger.info(f"State changed from GREETING to MAIN_MENU")
                     
             elif action_type == "cart_updated":
+                logger.info(f"Cart updated action received")
                 if self.conversation_state == "MAIN_MENU":
                     self.conversation_state = "ORDERING"
+                    logger.info(f"State changed from MAIN_MENU to ORDERING")
                     
             elif action_type == "order_confirmed":
-                if action.get("confirmed"):
+                confirmed = action.get("confirmed")
+                logger.info(f"Order confirmed action: confirmed={confirmed}")
+                if confirmed:
                     self.conversation_state = "FULFILLMENT"
+                    logger.info(f"State changed to FULFILLMENT")
                 else:
                     self.conversation_state = "ORDERING"
+                    logger.info(f"State changed back to ORDERING")
                     
             elif action_type == "escalate_to_human":
                 self.conversation_state = "ESCALATION"
+                logger.info(f"State changed to ESCALATION")
     
     async def _handle_greeting(self, input_text: str) -> Dict[str, Any]:
         """Handle inputs in the greeting state using AI."""
+        logger.critical("=" * 60)
+        logger.critical(f"_handle_greeting called with input: '{input_text}'")
+        logger.critical("=" * 60)
+        
         context = self.context.copy()
         context["state_guidance"] = """
         The customer just responded to your greeting. 
-        Listen for their name and acknowledge it warmly.
-        Then ask how you can help them today.
         
-        Extract the customer's name if they provide it.
-        Common patterns: "My name is...", "I'm...", "This is...", "Call me..."
+        IMPORTANT: If the customer provides their name in ANY way (like "My name is John", "I'm Sarah", "John", "This is Mike", etc.), 
+        you MUST call the update_customer_info tool with their name immediately.
+        
+        After getting their name, acknowledge it warmly and ask how you can help them today.
+        If they don't provide a name, politely ask for it again.
         """
         
+        logger.critical(f"Calling process_with_ai with greeting context...")
         response = await self.process_with_ai(input_text, context)
+        logger.critical(f"AI response for greeting: {json.dumps(response, indent=2)}")
         
-        # Try to extract customer name
-        name_indicators = ["my name is", "i'm", "i am", "call me", "this is", "it's"]
-        transcript = input_text.lower()
-        
-        for indicator in name_indicators:
-            if indicator in transcript:
-                start_idx = transcript.find(indicator) + len(indicator)
-                name_part = transcript[start_idx:].strip()
-                
-                # Extract first word as name
-                if name_part:
-                    words = name_part.split()
-                    if words:
-                        # Clean up the name
-                        name = words[0].strip(".,!?").capitalize()
-                        self.context["customer_name"] = name
+        # Check if AI called update_customer_info tool to set the name
+        if response.get("tool_calls"):
+            logger.critical(f"Tool calls detected: {len(response.get('tool_calls', []))} calls")
+            for tool_call in response["tool_calls"]:
+                logger.critical(f"Processing tool call: {json.dumps(tool_call, indent=2)}")
+                if tool_call.get("function", {}).get("name") == "update_customer_info":
+                    args = tool_call.get("function", {}).get("arguments", {})
+                    if isinstance(args, str):
+                        import json
+                        args = json.loads(args)
+                    
+                    if args.get("name"):
+                        self.context["customer_name"] = args["name"]
+                        self.conversation_state = "MAIN_MENU"
+                        logger.critical(f"✓ Customer name successfully set to: {args['name']}")
+                        logger.critical(f"State changed from GREETING to MAIN_MENU")
+                        response["actions"] = response.get("actions", [])
                         response["actions"].append({
-                            "type": "set_customer_name",
-                            "name": name
+                            "type": "set_customer_name", 
+                            "name": args["name"]
                         })
-                        break
-        
-        # If we have a name, transition to main menu
-        if self.context.get("customer_name"):
-            self.conversation_state = "MAIN_MENU"
-            response["actions"].append({"type": "state_change", "state": "MAIN_MENU"})
+                        logger.critical(f"Added set_customer_name action to response")
         
         return response
     
     async def _handle_main_menu(self, input_text: str) -> Dict[str, Any]:
         """Handle inputs in the main menu state using AI."""
+        logger.critical(f"=== _handle_main_menu START ===")
+        logger.critical(f"Input: '{input_text}'")
+        logger.critical(f"Customer name: {self.context.get('customer_name')}")
+        
         context = self.context.copy()
-        context["state_guidance"] = """
+        
+        # If we just transitioned from greeting and got a name, acknowledge it
+        if self.context.get("customer_name") and not input_text:
+            context["state_guidance"] = f"""
+        You just got the customer's name ({self.context['customer_name']}) and transitioned to the main menu.
+        Acknowledge their name warmly and ask how you can help them today.
+        For example: "Nice to meet you, {self.context['customer_name']}! How can I help you today?"
+        """
+        else:
+            context["state_guidance"] = """
         The customer is in the main menu. They can:
         1. Place an order
         2. Ask about menu items
@@ -455,7 +528,10 @@ CURRENT CONTEXT:
         Returns:
             Tool execution results
         """
-        logger.info(f"[{self.name}] Executing tool: {tool_name} with args: {args}")
+        logger.critical("=" * 60)
+        logger.critical(f"EXECUTE TOOL: {tool_name}")
+        logger.critical(f"Arguments: {json.dumps(args, indent=2)}")
+        logger.critical("=" * 60)
         
         if tool_name == "lookup_menu_item":
             return await self._lookup_menu_item(args.get("item_name", ""))
@@ -551,12 +627,19 @@ CURRENT CONTEXT:
     
     async def _update_customer_info(self, info: Dict[str, Any]) -> Dict[str, Any]:
         """Update customer information."""
+        logger.critical(f"_update_customer_info called with: {json.dumps(info, indent=2)}")
+        
         if info.get("name"):
             self.context["customer_name"] = info["name"]
+            logger.critical(f"✓ Customer name updated to: {info['name']}")
+            logger.critical(f"Current context after name update: {json.dumps(self.context, indent=2)}")
         if info.get("order_type"):
             self.context["order_type"] = info["order_type"]
+            logger.critical(f"✓ Order type updated to: {info['order_type']}")
         
-        return {"success": True, "updated": list(info.keys())}
+        result = {"success": True, "updated": list(info.keys())}
+        logger.critical(f"Update result: {json.dumps(result, indent=2)}")
+        return result
     
     async def _get_cart_summary(self) -> Dict[str, Any]:
         """Get current cart summary."""

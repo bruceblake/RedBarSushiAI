@@ -99,6 +99,13 @@ class AsyncAgentOrchestrator:
         Returns:
             The agent's response
         """
+        logger.critical("★" * 80)
+        logger.critical("ORCHESTRATOR: process_voice_input called")
+        logger.critical(f"Call SID: {call_sid}")
+        logger.critical(f"Input Text: '{input_text}'")
+        logger.critical(f"Context: {json.dumps(context, indent=2)}")
+        logger.critical("★" * 80)
+        
         if not self.frontline_agent:
             # Get a database session for initialization
             from app.db_async import get_db
@@ -125,22 +132,39 @@ class AsyncAgentOrchestrator:
         self.active_sessions[call_sid]["last_activity"] = time.time()
         
         # Add the user message to conversation store
+        logger.info(f"Adding user message to conversation store: '{input_text}'")
         await self.conversation_store.add_message(call_sid, "user", input_text)
         
         # Get or create FSM for this call
+        logger.critical(f"Getting FSM for call: {call_sid}")
         fsm = await self.get_fsm(call_sid)
+        logger.critical(f"FSM retrieved - Current state: {fsm.current_state.name}")
+        logger.critical(f"FSM context: {json.dumps({k: v for k, v in fsm.context.items() if isinstance(v, (str, int, float, bool, list, dict)) or v is None}, indent=2)}")
         
         # Process the transcript with the FSM
         start_time = time.time()
         
+        # Store the state BEFORE FSM processing
+        state_before_fsm = fsm.current_state.name
+        logger.critical(f"State BEFORE FSM processing: {state_before_fsm}")
+        
         # Add the transcript to FSM context
+        logger.critical(f"Updating FSM context with transcript: '{input_text}'")
         fsm.update_context({"transcript": input_text})
         
         # Process with FSM
+        logger.critical(f"Processing transcript with FSM...")
         await fsm.process_transcript(input_text)
+        logger.critical(f"FSM processing complete - New state: {fsm.current_state.name}")
+        logger.critical(f"State changed: {state_before_fsm} -> {fsm.current_state.name}")
         
         # Select the appropriate agent based on FSM state
+        logger.critical(f"Selecting appropriate agent for state: {fsm.current_state.name}")
         agent, response = await self._process_with_appropriate_agent(fsm, input_text, context)
+        logger.critical(f"Agent processing complete:")
+        logger.critical(f"  - Agent used: {agent.__class__.__name__}")
+        logger.critical(f"  - Response text: '{response.get('text', '')}'")
+        logger.critical(f"  - Full response: {json.dumps(response, indent=2)}")
         
         duration = time.time() - start_time
         
@@ -157,7 +181,14 @@ class AsyncAgentOrchestrator:
         self.active_sessions[call_sid]["state"] = fsm.current_state.name
         
         # Log processing stats
-        logger.info(f"Processed voice input in {duration:.2f}s through FSM state {fsm.current_state} with {agent_name}: {input_text[:50]}...")
+        logger.critical(f"ORCHESTRATOR PROCESSING COMPLETE:")
+        logger.critical(f"  - Duration: {duration:.2f}s")
+        logger.critical(f"  - FSM State: {fsm.current_state}")
+        logger.critical(f"  - Agent: {agent_name}")
+        logger.critical(f"  - Input: '{input_text}'")
+        logger.critical(f"  - Response Text: '{response_text}'")
+        logger.critical(f"  - Actions: {actions}")
+        logger.critical(f"  - State transitions: {state_before_fsm} -> {fsm.current_state.name}")
         
         return {
             "text": response_text,
@@ -186,6 +217,11 @@ class AsyncAgentOrchestrator:
         Returns:
             A tuple of (agent, response)
         """
+        logger.critical("=" * 60)
+        logger.critical("AGENT SELECTION LOGIC")
+        logger.critical(f"FSM State: {fsm.current_state}")
+        logger.critical(f"Input text: '{input_text}'")
+        logger.critical("=" * 60)
         # Clone context to avoid modifying the FSM context directly
         agent_context = context.copy()
         agent_context.update({k: v for k, v in fsm.context.items() 
@@ -197,17 +233,25 @@ class AsyncAgentOrchestrator:
         if fsm.current_state == ConversationState.MAIN_MENU:
             if fsm.context.get("requesting_menu_info", False):
                 # Use menu agent for menu inquiries
+                logger.critical(f"Selecting MENU AGENT (requesting_menu_info=True)")
                 agent = self.menu_agent
                 response = await agent.process_input(input_text, agent_context)
             else:
                 # Use frontline agent for main menu
+                logger.critical(f"Selecting FRONTLINE AGENT for MAIN_MENU state")
+                logger.critical(f"Passing state context to frontline agent: current_state={fsm.current_state.name}")
+                # Ensure the agent knows we're in MAIN_MENU state
+                agent_context["fsm_state"] = fsm.current_state.name
+                agent_context["state_transition_occurred"] = True
                 agent = self.frontline_agent
                 response = await agent.process_voice_input(input_text, agent_context)
         
         elif fsm.current_state == ConversationState.ORDERING:
             # Use cart agent for order management
+            logger.info(f"Selecting CART AGENT for ORDERING state")
             agent = self.cart_agent
             response = await agent.process_input(input_text, agent_context)
+            logger.info(f"Cart agent response: {json.dumps(response, indent=2)}")
             
             # Check if order is complete
             if response.get("cart_complete", False):
@@ -215,11 +259,13 @@ class AsyncAgentOrchestrator:
         
         elif fsm.current_state == ConversationState.VALIDATION:
             # Use guardrail agent for validation
+            logger.info(f"Selecting GUARDRAIL AGENT for VALIDATION state")
             agent = self.guardrail_agent
             response = await agent.process_input(input_text, agent_context)
         
         elif fsm.current_state == ConversationState.CONFIRMATION:
             # Use frontline agent for confirmation
+            logger.info(f"Selecting FRONTLINE AGENT for CONFIRMATION state")
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
             
@@ -231,6 +277,7 @@ class AsyncAgentOrchestrator:
         
         elif fsm.current_state == ConversationState.FULFILLMENT:
             # Use fulfillment agent for order processing
+            logger.info(f"Selecting FULFILLMENT AGENT for FULFILLMENT state")
             agent = self.fulfillment_agent
             response = await agent.process_input(input_text, agent_context)
             
@@ -240,29 +287,35 @@ class AsyncAgentOrchestrator:
         
         elif fsm.current_state == ConversationState.COMPLETION:
             # Use frontline agent for completion
+            logger.info(f"Selecting FRONTLINE AGENT for COMPLETION state")
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
         
         elif fsm.current_state == ConversationState.FOLLOW_UP:
             # Use frontline agent for follow-up
+            logger.info(f"Selecting FRONTLINE AGENT for FOLLOW_UP state")
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
         
         elif fsm.current_state == ConversationState.ESCALATION:
             # Use escalation agent for escalation
+            logger.info(f"Selecting ESCALATION AGENT for ESCALATION state")
             agent = self.escalation_agent
             response = await agent.process_input(input_text, agent_context)
         
         elif fsm.current_state == ConversationState.ERROR:
             # Use frontline agent for error recovery
+            logger.info(f"Selecting FRONTLINE AGENT for ERROR state")
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
         
         else:  # GREETING or INITIAL
             # Use frontline agent as default
+            logger.info(f"Selecting FRONTLINE AGENT as DEFAULT for state: {fsm.current_state}")
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
         
+        logger.info(f"Agent selection complete: {agent.__class__.__name__}")
         return agent, response
     
     async def process_tool_call(
@@ -412,6 +465,11 @@ class AsyncAgentOrchestrator:
         Returns:
             The initial greeting response
         """
+        logger.info("★" * 80)
+        logger.info("ORCHESTRATOR: start_new_conversation called")
+        logger.info(f"Call SID: {call_sid}")
+        logger.info(f"Initial context: {json.dumps(context, indent=2)}")
+        logger.info("★" * 80)
         if not self.frontline_agent:
             # Get a database session for initialization
             from app.db_async import get_db
@@ -440,30 +498,39 @@ class AsyncAgentOrchestrator:
         if context:
             context_with_agents.update(context)
         
+        logger.info(f"Starting FSM conversation with context...")
         fsm = await async_fsm_manager.start_conversation(call_sid, context_with_agents)
+        logger.info(f"FSM started - State: {fsm.current_state.name}")
         
         # Get greeting from FSM context
         greeting_response = fsm.context.get("greeting_response", {})
+        logger.info(f"Greeting response from FSM: {json.dumps(greeting_response, indent=2)}")
         
         # If no greeting in FSM, generate one with frontline agent
         if not greeting_response:
+            logger.info("No greeting in FSM, generating with frontline agent...")
             greeting_response = await self.frontline_agent.process_voice_input(
                 "", {"first_interaction": True, "call_sid": call_sid}
             )
+            logger.info(f"Frontline agent greeting response: {json.dumps(greeting_response, indent=2)}")
         
         # Extract greeting text
         greeting_text = greeting_response.get("text", "Welcome to Red Bar Sushi. How can I assist you today?")
+        logger.info(f"Final greeting text: '{greeting_text}'")
         
         # Add to conversation store
+        logger.info(f"Adding greeting to conversation store...")
         await self.conversation_store.add_message(call_sid, "assistant", greeting_text)
         
-        return {
+        result = {
             "text": greeting_text,
             "handled": True,
             "agent": "FrontlineVoice",
             "state": fsm.current_state.name,
             "is_greeting": True
         }
+        logger.info(f"Returning greeting result: {json.dumps(result, indent=2)}")
+        return result
     
     async def cleanup_inactive_sessions(self, max_idle_time: int = 3600) -> int:
         """

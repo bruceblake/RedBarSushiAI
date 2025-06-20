@@ -113,6 +113,13 @@ class AIIntelligenceMixin:
                 "content": f"Current conversation state: {context['conversation_state']}"
             })
         
+        # Add state guidance if provided
+        if context.get("state_guidance"):
+            messages.append({
+                "role": "system",
+                "content": context["state_guidance"]
+            })
+        
         # Add customer context if available
         if context.get("customer_name"):
             messages.append({
@@ -150,7 +157,7 @@ class AIIntelligenceMixin:
                 tool_name = tool_call.function.name
                 tool_args = json.loads(tool_call.function.arguments)
                 
-                logger.info(f"AI calling tool: {tool_name} with args: {tool_args}")
+                logger.critical(f"AI calling tool: {tool_name} with args: {tool_args}")
                 
                 # Execute tool using the agent's execute_tool method
                 if hasattr(self, 'execute_tool'):
@@ -184,6 +191,11 @@ class AIIntelligenceMixin:
         context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Get final AI response after tool execution."""
+        logger.critical(f"=== _get_final_response_after_tools ===")
+        logger.critical(f"Tool results: {json.dumps(tool_results, indent=2)}")
+        logger.critical(f"Context state: {context.get('conversation_state')}")
+        logger.critical(f"Customer name: {context.get('customer_name')}")
+        
         # Build follow-up messages including tool results
         messages = self._build_messages("", context)
         
@@ -199,6 +211,7 @@ class AIIntelligenceMixin:
             })
         
         # Get final response
+        logger.critical(f"Getting final AI response after tools...")
         final_response = await self.ai_client.chat.completions.create(
             model=self._model,
             messages=messages,
@@ -206,13 +219,17 @@ class AIIntelligenceMixin:
             max_tokens=500
         )
         
+        response_text = final_response.choices[0].message.content
+        logger.critical(f"Final AI response text: '{response_text}'")
+        
         return {
-            "text": final_response.choices[0].message.content,
+            "text": response_text,
             "agent": getattr(self, 'name', 'AI'),
             "handled": True,
             "ai_generated": True,
             "tool_results": tool_results,
-            "actions": self._extract_actions_from_tools(tool_results)
+            "actions": self._extract_actions_from_tools(tool_results),
+            "tool_calls": [tool_call.model_dump() for tool_call in original_message.tool_calls]
         }
     
     def _summarize_cart(self, cart_items: List[Dict[str, Any]]) -> str:
