@@ -31,6 +31,9 @@ class AsyncFrontlineVoiceAgentAI(BaseAsyncAgent, AIIntelligenceMixin):
         BaseAsyncAgent.__init__(self, agent_id=agent_id, name="FrontlineVoiceAI")
         AIIntelligenceMixin.__init__(self)
         
+        # Set agent-specific max tokens
+        self._default_max_tokens = settings.FRONTEND_AGENT_MAX_TOKENS
+        
         self.conversation_state = "GREETING"
         self.greeting_done = False
         

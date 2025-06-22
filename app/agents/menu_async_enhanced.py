@@ -32,6 +32,9 @@ class AsyncMenuAgentEnhanced(BaseAsyncAgent, AIIntelligenceMixin):
         BaseAsyncAgent.__init__(self, agent_id=agent_id, name="MenuEnhanced")
         AIIntelligenceMixin.__init__(self)
         
+        # Set agent-specific max tokens
+        self._default_max_tokens = settings.MENU_AGENT_MAX_TOKENS
+        
         self.db = db
         self._menu_cache = {}
         self._cache_ttl = 300  # 5 minutes

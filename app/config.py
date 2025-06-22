@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: Optional[str] = Field(None, env="CELERY_RESULT_BACKEND")
     
     # OpenAI settings
-    OPENAI_API_KEY: Optional[str] = Field(None, env="OPENAI_API_KEY")
+    OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")  # Required - no fallback
     OPENAI_REALTIME_MODEL: str = Field("gpt-4o-realtime-preview-2024-12-17", env="OPENAI_REALTIME_MODEL")
     OPENAI_REALTIME_VOICE: str = Field("shimmer", env="OPENAI_REALTIME_VOICE")
     OPENAI_REALTIME_INSTRUCTIONS: str = Field(
@@ -123,6 +123,12 @@ class Settings(BaseSettings):
     
     # AI agent configuration
     USE_AI_AGENTS: bool = Field(True, env="USE_AI_AGENTS")
+    
+    # AI performance configuration
+    AI_MAX_TOKENS: int = Field(256, env="AI_MAX_TOKENS")  # Default for general use
+    FRONTEND_AGENT_MAX_TOKENS: int = Field(150, env="FRONTEND_AGENT_MAX_TOKENS")
+    CART_AGENT_MAX_TOKENS: int = Field(300, env="CART_AGENT_MAX_TOKENS")
+    MENU_AGENT_MAX_TOKENS: int = Field(300, env="MENU_AGENT_MAX_TOKENS")
     
     # Twilio ConversationRelay settings
     TWILIO_CONVERSATION_SERVICE_SID: Optional[str] = Field(None, env="TWILIO_CONVERSATION_SERVICE_SID")
@@ -216,7 +222,7 @@ except Exception as e:
             SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
             DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
             BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
-            OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", "sk-mytestapikey"),  # EXPLICITLY SET FALLBACK FOR DEBUGGING
+            OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", None),  # No fallback - will fail if not set
             RESTAURANT_NAME=os.environ.get("RESTAURANT_NAME", "Restaurant"),
             RESTAURANT_TYPE=os.environ.get("RESTAURANT_TYPE", "restaurant"),
             RESTAURANT_GREETING_NAME=os.environ.get("RESTAURANT_GREETING_NAME", "assistant"),

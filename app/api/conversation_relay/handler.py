@@ -249,7 +249,7 @@ class ConversationRelayHandler:
         try:
             text_message = {
                 "type": "text",
-                "token": text,
+                "text": text,  # Corrected from "token" to "text"
                 "last": is_last
             }
             

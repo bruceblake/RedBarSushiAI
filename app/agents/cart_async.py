@@ -39,6 +39,9 @@ class AsyncCartAgent(BaseAsyncAgent, AIIntelligenceMixin):
         AIIntelligenceMixin.__init__(self)
         self.db = db
         
+        # Set agent-specific max tokens
+        self._default_max_tokens = settings.CART_AGENT_MAX_TOKENS
+        
         # Define the tools this agent can use
         self.tools = [
             {

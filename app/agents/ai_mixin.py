@@ -78,12 +78,17 @@ class AIIntelligenceMixin:
             # Build conversation history
             messages = self._build_messages(input_text, context)
             
+            # Determine max_tokens dynamically
+            effective_max_tokens = settings.AI_MAX_TOKENS  # Default
+            if hasattr(self, '_default_max_tokens'):
+                effective_max_tokens = self._default_max_tokens
+            
             # Prepare API call parameters
             params = {
                 "model": self._model,
                 "messages": messages,
                 "temperature": 0.0,  # Zero for fastest, most deterministic responses
-                "max_tokens": 50,     # Minimal tokens for speed
+                "max_tokens": effective_max_tokens,  # Use dynamic value
                 "stream": False       # Ensure not streaming
             }
             
@@ -261,11 +266,17 @@ class AIIntelligenceMixin:
         # Get final response
         logger.critical(f"Getting final AI response after tools...")
         client = await self._get_ai_client()
+        
+        # Use slightly higher tokens for tool responses
+        tool_response_max_tokens = 150
+        if hasattr(self, '_default_max_tokens'):
+            tool_response_max_tokens = min(self._default_max_tokens, 150)
+        
         final_response = await client.chat.completions.create(
             model=self._model,
             messages=messages,
             temperature=0.1,  # Very low for speed
-            max_tokens=100   # Even shorter for speed
+            max_tokens=tool_response_max_tokens
         )
         
         response_text = final_response.choices[0].message.content
