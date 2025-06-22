@@ -12,7 +12,8 @@ from sqlalchemy import select
 
 from app.db.crud_menu_async import (
     get_categories, get_items, get_modifiers, 
-    get_modifier_groups, get_variants
+    get_modifier_groups, get_variants,
+    get_item_by_plu, get_modifier_by_plu
 )
 from app.models.menu_async import (
     MenuCategory, MenuItem, MenuModifier, MenuModifierGroup
@@ -142,6 +143,47 @@ class AsyncMenuDbStore:
         items = await crud_get_items_by_category(db, category.id)
         
         return [item.to_dict() for item in items]
+        
+    async def get_item_by_plu(self, plu: str, db: Optional[AsyncSession] = None) -> Optional[Dict[str, Any]]:
+        """
+        Get a menu item by PLU.
+        
+        Args:
+            plu: PLU code
+            db: Database session (required)
+            
+        Returns:
+            Menu item as a dictionary, or None if not found
+        """
+        if not db:
+            raise ValueError("Database session is required for get_item_by_plu")
+            
+        item = await get_item_by_plu(db, plu)
+        if not item:
+            return None
+            
+        return item.to_dict()
+        
+    async def get_modifier_by_plu(self, plu: str, db: Optional[AsyncSession] = None) -> Optional[Dict[str, Any]]:
+        """
+        Get a modifier by PLU.
+        
+        Args:
+            plu: PLU code
+            db: Database session (required)
+            
+        Returns:
+            Modifier as a dictionary, or None if not found
+        """
+        if not db:
+            raise ValueError("Database session is required for get_modifier_by_plu")
+            
+        modifier = await get_modifier_by_plu(db, plu)
+        if not modifier:
+            return None
+            
+        return modifier.to_dict()
+        
         
 # Create singleton instance
 async_menu_db_store = AsyncMenuDbStore()

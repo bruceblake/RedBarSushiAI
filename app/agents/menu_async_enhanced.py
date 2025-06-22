@@ -36,9 +36,10 @@ class AsyncMenuAgentEnhanced(BaseAsyncAgent, AIIntelligenceMixin):
         self._menu_cache = {}
         self._cache_ttl = 300  # 5 minutes
         
-        # AI instructions
-        self.instructions = """
-You are a menu specialist for Red Bar Sushi restaurant. Your role is to help customers
+        # AI instructions - DYNAMIC
+        from app.config import settings
+        self.instructions = f"""
+You are a menu specialist for {settings.RESTAURANT_NAME}. Your role is to help customers
 understand our menu, make recommendations, and answer questions about our dishes.
 
 KEY RESPONSIBILITIES:

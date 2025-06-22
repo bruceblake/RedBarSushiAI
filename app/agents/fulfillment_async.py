@@ -109,8 +109,13 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         call_sid = context.get("call_sid", "unknown_call")
         logger.info(f"[{call_sid}] AsyncFulfillmentAgent process_input called. Input: '{input_text}'")
         
-        # Extract order details from context
-        order_data_from_context = context.get("call_specific_data", {}).get("validated_cart", {})
+        # Extract order details from context - try multiple locations
+        order_data_from_context = context.get("cart", {})
+        if not order_data_from_context or not order_data_from_context.get("items"):
+            # Try call_specific_data as fallback
+            order_data_from_context = context.get("call_specific_data", {}).get("validated_cart", {})
+        
+        logger.info(f"[{call_sid}] Order data extracted: {order_data_from_context}")
         
         # Submit the order
         return await self.submit_order(call_sid, order_data_from_context, context)

@@ -243,15 +243,19 @@ class AsyncConversationFSM:
         # Get the next state from the transition table
         next_state = self.transitions[self.current_state][event]
         
+        # Always let the current handler process the event first
+        handler = self.handlers.get(self.current_state)
+        if handler:
+            # Let the handler process the event and possibly override the next state
+            handler_next_state = await handler.handle_event(event, self.context)
+            if handler_next_state is not None:
+                next_state = handler_next_state
+        
+        # Now transition if needed
         if next_state is not None:
             await self.transition_to(next_state)
         else:
             logger.info(f"Event {event} does not cause a state transition")
-            
-            # Handle the event in the current state
-            handler = self.handlers.get(self.current_state)
-            if handler:
-                await handler.handle_event(event, self.context)
     
     async def transition_to(self, next_state: ConversationState) -> None:
         """

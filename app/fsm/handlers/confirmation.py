@@ -31,7 +31,8 @@ class AsyncConfirmationHandler(AsyncStateHandler):
         # Generate a confirmation message if there's a frontline agent
         if context.get("frontline_agent") and context.get("cart"):
             agent = context["frontline_agent"]
-            confirmation = await agent._generate_confirmation_prompt()
+            cart = context["cart"]
+            confirmation = await agent._generate_confirmation_prompt(cart)
             
             # Store the confirmation message in the context
             context["confirmation_message"] = confirmation

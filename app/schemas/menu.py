@@ -31,12 +31,12 @@ class MenuCategoryUpdate(BaseModel):
 
 class MenuCategoryResponse(MenuCategoryBase):
     """Model for menu category response."""
-    id: str
+    id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MenuCategoryListResponse(BaseModel):
@@ -82,13 +82,13 @@ class MenuItemUpdate(BaseModel):
 
 class MenuItemResponse(MenuItemBase):
     """Model for menu item response."""
-    id: str
+    id: int
     snoozed_until: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MenuItemListResponse(BaseModel):
@@ -123,13 +123,13 @@ class MenuModifierUpdate(BaseModel):
 
 class MenuModifierResponse(MenuModifierBase):
     """Model for menu modifier response."""
-    id: str
+    id: int
     snoozed_until: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MenuModifierListResponse(BaseModel):
@@ -167,13 +167,13 @@ class MenuModifierGroupUpdate(BaseModel):
 
 class MenuModifierGroupResponse(MenuModifierGroupBase):
     """Model for menu modifier group response."""
-    id: str
+    id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     modifiers: Optional[List[MenuModifierResponse]] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MenuModifierGroupListResponse(BaseModel):
@@ -203,12 +203,12 @@ class MenuVariantUpdate(BaseModel):
 
 class MenuVariantResponse(MenuVariantBase):
     """Model for menu name variant response."""
-    id: str
+    id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MenuVariantListResponse(BaseModel):

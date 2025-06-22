@@ -69,6 +69,8 @@ class AsyncIntentDetector:
             
         except Exception as e:
             logger.error(f"Error detecting intent: {e}")
+            logger.warning("AI is required for intent detection. Please ensure OpenAI API key is valid.")
+            # Return None - no fallback logic as per requirement
             return None
     
     def _build_system_prompt(self, current_state: ConversationState) -> str:
@@ -88,10 +90,14 @@ Allowed intents:
 - SKIP_NAME: User wants to skip giving name or proceed without it
 - REQUEST_ESCALATION: User is confused or asking for help
 
+IMPORTANT: If user mentions ordering or menu in GREETING state, still return PROVIDE_NAME if no name is detected, or SKIP_NAME if they're trying to proceed without giving name.
+
 Examples:
 "John" -> PROVIDE_NAME
 "My name is Sarah" -> PROVIDE_NAME  
 "I don't want to give my name" -> SKIP_NAME
+"Can I order?" -> SKIP_NAME
+"What do you have?" -> SKIP_NAME
 "What?" -> REQUEST_ESCALATION
 """,
             
@@ -105,8 +111,8 @@ Allowed intents:
 
 Examples:
 "I'd like to order something" -> START_ORDER
-"Can I get two salmon rolls" -> START_ORDER
-"What kind of sushi do you have?" -> REQUEST_MENU
+"Can I get two items" -> START_ORDER
+"What do you have on the menu?" -> REQUEST_MENU
 "Are you open now?" -> REQUEST_HOURS
 "I need to speak to someone" -> REQUEST_HUMAN
 "Do you deliver?" -> GENERAL_QUESTION
@@ -122,8 +128,8 @@ Allowed intents:
 - CANCEL_ORDER: User wants to cancel everything
 
 Examples:
-"Add a tuna roll" -> ADD_ITEM
-"Remove the tempura" -> REMOVE_ITEM
+"Add an item" -> ADD_ITEM
+"Remove that item" -> REMOVE_ITEM
 "Make that 3 instead" -> MODIFY_ITEM
 "What comes with that?" -> REQUEST_MENU
 "That's all for now" -> COMPLETE_ORDER

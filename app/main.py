@@ -340,6 +340,14 @@ async def startup_event():
     logger.critical(f"❗❗❗ WebSocket route should be available at: /realtime/ws/media/{{call_sid}} ❗❗❗")
     logger.critical(f"❗❗❗ TwiML route should be available at: /voice/ and /voice/webhook ❗❗❗")
     
+    # Pre-warm OpenAI connection pool
+    try:
+        from app.utils.openai_pool import openai_pool
+        await openai_pool.initialize()
+        logger.critical("✅ OpenAI connection pool initialized and warming up")
+    except Exception as e:
+        logger.error(f"Failed to initialize OpenAI pool: {e}")
+    
     # Initialize Redis
     try:
         from app.redis_async import init_redis

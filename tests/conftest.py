@@ -20,6 +20,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Import health check
 from health_check import wait_for_services
 
+# Import comprehensive fixtures
+try:
+    from tests.fixtures.comprehensive_fixtures import *
+except ImportError:
+    # Fixtures may not be available in all environments
+    pass
+
 # Set test environment
 os.environ["TESTING"] = "1"
 os.environ["LOG_LEVEL"] = "DEBUG"

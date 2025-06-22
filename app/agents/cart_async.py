@@ -7,9 +7,11 @@ import os
 import json
 import logging
 import time
+import asyncio
 from typing import Dict, List, Any, Optional, Union, Callable
 
 from app.agents.base_async import BaseAsyncAgent
+from app.agents.ai_mixin import AIIntelligenceMixin
 from app.utils.menu_matcher_cache_async import get_cached_async_menu_matcher
 from app.utils.menu_db_store_async import async_menu_db_store
 # Menu caching is handled by Redis
@@ -19,7 +21,7 @@ from app.config import settings
 # Set up logging
 logger = logging.getLogger(__name__)
 
-class AsyncCartAgent(BaseAsyncAgent):
+class AsyncCartAgent(BaseAsyncAgent, AIIntelligenceMixin):
     """
     Async Cart Agent that handles building customer orders.
     Translates natural language into structured cart items and validates them.
@@ -33,7 +35,8 @@ class AsyncCartAgent(BaseAsyncAgent):
             agent_id: Optional ID for the agent (used with OpenAI Assistants API)
             db: Optional database session for async operations
         """
-        super().__init__(agent_id=agent_id, name="Cart")
+        BaseAsyncAgent.__init__(self, agent_id=agent_id, name="Cart")
+        AIIntelligenceMixin.__init__(self)
         self.db = db
         
         # Define the tools this agent can use
@@ -207,49 +210,26 @@ class AsyncCartAgent(BaseAsyncAgent):
             }
         ]
         
-        # Set agent instructions
+        # Set agent instructions - OPTIMIZED AND DYNAMIC
         self.instructions = """
-        You are a cart-building specialist for Red Bar Sushi restaurant.
-        Your primary responsibilities are:
-        
-        1. Convert customers' natural language orders into validated cart items
-        2. Add items with their modifiers to the cart
-        3. Maintain the cart state and calculate accurate prices
-        4. Suggest add-ons and upsells when appropriate
-        5. Help with removing or modifying items in the cart
-        
-        COMMUNICATION STYLE:
-        - Be conversational but efficient
-        - Confirm additions to the cart in a natural way
-        - Suggest relevant modifiers or add-ons
-        - Summarize the cart when appropriate
-        
-        IMPORTANT RULES:
-        - ONLY add items that actually exist in our menu database
-        - Verify all menu items using the lookup_menu_item tool before adding to cart
-        - Track modifiers correctly with their parent items
-        - Calculate accurate prices including modifiers
-        - Ensure the total price never exceeds $300 without explicit confirmation
-        - Handle quantity changes and item removals correctly
-        
-        CART BUILDING PROCESS:
-        1. When a customer mentions an item, verify it exists using lookup_menu_item
-        2. Add the item to the cart with add_item_to_cart
-        3. If the customer mentions modifiers, verify and add them too
-        4. Keep track of the current state with get_current_cart
-        5. Allow modifications with modify_cart_item and remove_from_cart
-        6. Always suggest relevant add-ons (drinks with food, etc.)
-        
-        You will receive natural language order requests and should convert them
-        into structured cart items while maintaining an accurate representation
-        of the customer's order.
+Cart specialist. Be FAST and ACCURATE.
+
+For any order:
+1. lookup_menu_item(item_name="[item name]")
+2. add_item_to_cart(plu=result, quantity=[number])
+3. Confirm what was added
+
+For "that's all": get_current_cart() and confirm total.
+For menu questions: Direct them to specific items or categories.
+
+BE BRIEF. USE TOOLS. ADD TO CART.
         """
         
         self.current_call_sid = None
     
     async def process_input(self, input_text: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Process a text input and generate a response.
+        Process a text input and generate a response using AI.
         
         Args:
             input_text: The text input to process
@@ -266,36 +246,68 @@ class AsyncCartAgent(BaseAsyncAgent):
             self.set_current_call(context["call_sid"])
         
         # Log the input
-        logger.info(f"[{self.name}] Processing order text: {input_text}")
+        logger.critical(f"\n{'='*60}")
+        logger.critical(f"CART AGENT: process_input called")
+        logger.critical(f"Input text: '{input_text}'")
+        logger.critical(f"Context: {json.dumps(context, indent=2) if context else 'None'}")
+        logger.critical(f"Call SID from context: {context.get('call_sid', 'Not found')}")
+        logger.critical(f"{'='*60}\n")
         
-        # Process the order text
-        response_text = await self._generate_cart_response(input_text)
-        
-        # Check if order is ready for validation
-        order_ready = False
-        if "ready" in input_text.lower() or "checkout" in input_text.lower() or "done" in input_text.lower():
-            order_ready = True
-        
-        # Get the current cart
+        # Get current cart state
         call_sid = self._get_current_call_sid()
-        current_cart = await async_agents_conversation_store.get_cart(call_sid) if call_sid else {"items": [], "total_price": 0}
+        conversation = await async_agents_conversation_store.get_conversation(call_sid) if call_sid else {"context": {}}
+        current_cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
         
-        # Check if cart has items (another indicator that order might be ready)
-        if len(current_cart.get("items", [])) > 0 and ("that's it" in input_text.lower() or "that is it" in input_text.lower()):
+        # Add cart state to context for AI
+        context["current_cart"] = current_cart
+        context["state_guidance"] = """
+        You are the cart specialist. Your job is to:
+        1. Identify menu items the customer wants to order
+        2. Extract quantities (default to 1 if not specified)
+        3. Use the lookup_menu_item tool to verify each item exists
+        4. Use the add_item_to_cart tool to add valid items
+        5. Provide a friendly confirmation of what was added
+        
+        If the customer says things like "that's all", "done", "ready to checkout", 
+        acknowledge their order is complete and summarize their cart.
+        
+        IMPORTANT: Always use your tools to look up and add items. Don't just respond
+        without actually processing the order.
+        """
+        
+        # Check if order is ready for validation FIRST
+        order_ready = False
+        input_lower = input_text.lower()
+        completion_phrases = ["that's all", "done", "ready", "checkout", "complete", "finished", "that's it", "that is it", "i'm done", "nothing else"]
+        
+        if any(phrase in input_lower for phrase in completion_phrases):
             order_ready = True
+            # For completion phrases, respond quickly without AI if cart has items
+            if current_cart.get("items"):
+                items_text = ", ".join([f"{item['quantity']} {item['name']}" for item in current_cart["items"]])
+                total = current_cart.get("total_price", 0)
+                response = {
+                    "text": f"Perfect! Your order includes: {items_text}. Total: ${total:.2f}. Let me confirm all the details.",
+                    "agent": self.name,
+                    "handled": True,
+                    "ai_generated": False
+                }
+            else:
+                # Use AI only if cart is empty
+                response = await self.process_with_ai(input_text, context)
+        else:
+            # Process with AI for ordering
+            response = await self.process_with_ai(input_text, context)
         
-        # Format the response
-        response = {
-            "text": response_text,
-            "agent": self.name,
-            "handled": True,
-            "actions": [],
-            "order_ready_for_validation": order_ready
-        }
+        # Get updated cart after any processing
+        conversation = await async_agents_conversation_store.get_conversation(call_sid) if call_sid else {"context": {}}
+        current_cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
         
-        # Include the cart information
+        # Update response with cart info
+        response["order_ready_for_validation"] = order_ready
         response["cart"] = current_cart
         
+        logger.critical(f"Cart agent response: {json.dumps(response, indent=2)}")
         return response
     
     async def _generate_cart_response(self, order_text: str) -> str:
@@ -308,11 +320,15 @@ class AsyncCartAgent(BaseAsyncAgent):
         Returns:
             str: The response text
         """
+        logger.critical(f"_generate_cart_response called with: '{order_text}'")
+        
         # Here we would connect to OpenAI or other model using async
         # For now we implement a simpler version focused on cart management
         
         call_sid = self._get_current_call_sid()
+        logger.critical(f"Call SID from _get_current_call_sid: {call_sid}")
         if not call_sid:
+            logger.critical("ERROR: No call SID found!")
             return "I'm sorry, but I'm having trouble tracking your order session. Could you please try again?"
         
         # Check if it's a clear cart request
@@ -340,58 +356,103 @@ class AsyncCartAgent(BaseAsyncAgent):
             
             return cart_summary
         
-        # Extract potential menu items from the order text
-        # This is a simple approach - in production, you would use more sophisticated NLP
-        order_words = order_text.lower().split()
-        potential_menu_items = []
+        # Parse order text to extract items and quantities
+        # First extract quantity words and numbers
+        quantity_map = {
+            'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+            'a': 1, 'an': 1
+        }
         
-        for i in range(len(order_words)):
-            for j in range(i + 1, min(i + 5, len(order_words) + 1)):
-                potential_item = " ".join(order_words[i:j])
-                if len(potential_item) > 3:  # Avoid checking very short terms
-                    potential_menu_items.append(potential_item)
+        # Split into potential item phrases
+        order_lower = order_text.lower()
         
-        # Look up each potential menu item
+        # Look for patterns like "two california rolls" or "1 spicy tuna roll"
+        import re
+        item_patterns = []
+        
+        # Pattern 1: [quantity] [item name] (e.g., "two california rolls", "1 spicy tuna")
+        matches = re.finditer(r'(\b(?:one|two|three|four|five|six|seven|eight|nine|ten|a|an|\d+)\b)\s+([^,\.]+?)(?:roll|rolls|piece|pieces|order|orders)?(?:\s*(?:,|and|$))', order_lower)
+        for match in matches:
+            qty_text = match.group(1)
+            item_text = match.group(2).strip()
+            
+            # Convert quantity to number
+            if qty_text.isdigit():
+                quantity = int(qty_text)
+            else:
+                quantity = quantity_map.get(qty_text, 1)
+            
+            item_patterns.append((item_text, quantity))
+            logger.critical(f"Extracted pattern: '{item_text}' with quantity {quantity}")
+        
+        # If no patterns found, try simpler approach
+        if not item_patterns:
+            # Just look for item names without quantities
+            possible_items = []
+            # Common menu items to look for
+            menu_keywords = ['california', 'spicy tuna', 'salmon', 'rainbow', 'dragon', 'philadelphia']
+            for keyword in menu_keywords:
+                if keyword in order_lower:
+                    possible_items.append((keyword, 1))
+            item_patterns = possible_items
+        
+        # Track items we've already added to avoid duplicates
         items_added = []
-        for item_name in potential_menu_items:
-            item_result = await self.execute_tool("lookup_menu_item", {"item_name": item_name})
+        items_found = {}  # Map of item name to (plu, quantity)
+        
+        # Look up each potential menu item IN PARALLEL for speed
+        lookup_tasks = []
+        for item_name, quantity in item_patterns:
+            if not item_name:
+                continue
+                
+            # Skip if this is just a substring of something we already found
+            skip = False
+            for added_name in items_found:
+                if item_name in added_name or added_name in item_name:
+                    skip = True
+                    break
+            if skip:
+                continue
+            
+            # Create async task for lookup
+            task = asyncio.create_task(self.execute_tool("lookup_menu_item", {"item_name": item_name}))
+            lookup_tasks.append((task, item_name, quantity))
+        
+        # Wait for all lookups to complete
+        for task, item_name, quantity in lookup_tasks:
+            item_result = await task
             
             if item_result.get("found", False):
                 name = item_result.get("name", "")
                 plu = item_result.get("plu", "")
                 
-                # Skip if we've already added this item
-                if name in items_added:
-                    continue
-                
-                # Detect quantity from order text
-                # Simple digit detection for quantities
-                quantity = 1
-                for word in order_words:
-                    if word.isdigit() and int(word) > 0 and int(word) < 10:
-                        quantity = int(word)
-                        break
-                
-                # Add the item to the cart
-                add_result = await self.execute_tool("add_item_to_cart", {
-                    "plu": plu,
-                    "quantity": quantity
-                })
-                
-                if add_result.get("success", False):
-                    items_added.append(name)
+                # Store the item with its quantity
+                if name not in items_found:
+                    items_found[name] = (plu, quantity)
+                    logger.critical(f"Found menu item: '{name}' (PLU: {plu}) with quantity {quantity}")
+        
+        # Now add all found items to cart
+        for name, (plu, quantity) in items_found.items():
+            add_result = await self.execute_tool("add_item_to_cart", {
+                "plu": plu,
+                "quantity": quantity
+            })
+            
+            if add_result.get("success", False):
+                items_added.append(f"{quantity} {name}")
         
         # Generate an appropriate response based on what happened
         if items_added:
             items_text = ", ".join(items_added)
-            current_cart = await async_agents_conversation_store.get_cart(call_sid)
+            conversation = await async_agents_conversation_store.get_conversation(call_sid)
+            current_cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
             total_price = current_cart.get("total_price", 0)
-            total_price_str = f"${total_price/100:.2f}" if isinstance(total_price, (int, float)) else "$0.00"
+            # Fix price display - ensure it's in dollars, not cents
+            total_price_str = f"${total_price:.2f}" if isinstance(total_price, (int, float)) else "$0.00"
             
-            if len(items_added) == 1:
-                return f"I've added {quantity} {items_text} to your cart. Your total is {total_price_str}. Anything else you'd like to add?"
-            else:
-                return f"I've added the following to your cart: {items_text}. Your total is {total_price_str}. Would you like anything else?"
+            return f"I've added the following to your cart: {items_text}. Your total is {total_price_str}. Would you like anything else?"
         else:
             # Get the current cart
             cart_result = await self.execute_tool("get_current_cart", {})
@@ -433,7 +494,8 @@ class AsyncCartAgent(BaseAsyncAgent):
         logger.info(f"Processed order request in {duration:.2f}s: {order_text}")
         
         # Get the current cart after processing
-        cart = await async_agents_conversation_store.get_cart(call_sid)
+        conversation = await async_agents_conversation_store.get_conversation(call_sid)
+        cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
         
         # Return the result
         return {
@@ -499,8 +561,10 @@ class AsyncCartAgent(BaseAsyncAgent):
         Returns:
             Details about the menu item if found
         """
-        logger.info(f"Looking up menu item: {item_name}")
-        logger.info(f"Cart agent database session available: {self.db is not None}")
+        logger.critical(f"\n{'='*60}")
+        logger.critical(f"_lookup_menu_item called with: '{item_name}'")
+        logger.critical(f"Cart agent database session available: {self.db is not None}")
+        logger.critical(f"{'='*60}\n")
         
         # Get a fresh database session if we don't have one
         if self.db is None:
@@ -509,8 +573,13 @@ class AsyncCartAgent(BaseAsyncAgent):
             logger.info("Created new database session for cart agent")
         
         # Use the async menu matcher to find the item
+        logger.critical(f"Getting cached menu matcher...")
         async_matcher = await get_cached_async_menu_matcher(self.db)
+        logger.critical(f"Menu matcher obtained: {async_matcher is not None}")
+        
+        logger.critical(f"Calling match_item for: '{item_name}'")
         menu_item, score = await async_matcher.match_item(item_name)
+        logger.critical(f"Match result - Item found: {menu_item is not None}, Score: {score}")
         
         if not menu_item:
             logger.info(f"Menu item not found: {item_name}")
@@ -520,9 +589,9 @@ class AsyncCartAgent(BaseAsyncAgent):
                 "message": "This item doesn't appear to be on our menu."
             }
         
-        # Format the price for display
+        # Format the price for display (price is already in dollars)
         price = menu_item.get("price", 0)
-        price_str = f"${price/100:.2f}" if isinstance(price, (int, float)) else "Price unavailable"
+        price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "Price unavailable"
         
         # Check if the item is available
         is_available = menu_item.get("available", True) and not menu_item.get("snoozed", False)
@@ -537,7 +606,7 @@ class AsyncCartAgent(BaseAsyncAgent):
                     modifier = await async_menu_db_store.get_modifier(self.db, mod_id)
                     if modifier and modifier.get("available", True):
                         mod_price = modifier.get("price", 0)
-                        mod_price_str = f"${mod_price/100:.2f}" if mod_price else ""
+                        mod_price_str = f"${mod_price:.2f}" if mod_price else ""
                         mod_list.append({
                             "name": modifier.get("name", ""),
                             "plu": modifier.get("plu", ""),
@@ -599,7 +668,7 @@ class AsyncCartAgent(BaseAsyncAgent):
         logger.info(f"Adding item {plu} (qty: {quantity}) to cart for call {call_sid}")
         
         # Validate the item exists
-        item = menu_db_store.get_item_by_plu(plu)
+        item = await async_menu_db_store.get_item_by_plu(plu, self.db)
         if not item:
             logger.error(f"Item with PLU {plu} not found")
             return {
@@ -617,7 +686,7 @@ class AsyncCartAgent(BaseAsyncAgent):
                 mod_quantity = mod.get("quantity", 1)
                 
                 # Validate the modifier exists
-                modifier = menu_db_store.get_modifier_by_plu(mod_plu)
+                modifier = await async_menu_db_store.get_modifier_by_plu(mod_plu, self.db)
                 if not modifier:
                     logger.warning(f"Modifier with PLU {mod_plu} not found")
                     continue
@@ -640,8 +709,48 @@ class AsyncCartAgent(BaseAsyncAgent):
             "special_instructions": special_instructions
         }
         
-        # Add to cart using the conversation store
-        updated_cart = await async_agents_conversation_store.add_to_cart(call_sid, new_item)
+        # Get current conversation and cart
+        conversation = await async_agents_conversation_store.get_conversation(call_sid)
+        cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
+        
+        # Check if item already exists in cart (same PLU and modifiers)
+        item_found = False
+        for existing_item in cart["items"]:
+            if (existing_item.get("plu") == plu and 
+                existing_item.get("modifiers") == validated_modifiers and
+                existing_item.get("special_instructions") == special_instructions):
+                # Update quantity instead of adding duplicate
+                existing_item["quantity"] += quantity
+                item_found = True
+                logger.info(f"Updated quantity for existing item {plu}: now {existing_item['quantity']}")
+                break
+        
+        if not item_found:
+            # Add the new item to cart
+            cart["items"].append(new_item)
+            logger.info(f"Added new item to cart: {plu}")
+        
+        # Calculate total price (prices are already in dollars)
+        total_price = 0
+        for cart_item in cart["items"]:
+            item_price = cart_item.get("price", 0) * cart_item.get("quantity", 1)
+            # Add modifier prices
+            for modifier in cart_item.get("modifiers", []):
+                item_price += modifier.get("price_change", 0) * modifier.get("quantity", 1)
+            total_price += item_price
+        # Store total price in dollars
+        cart["total_price"] = total_price
+        
+        # Update conversation context with cart
+        conversation["context"]["cart"] = cart
+        await async_agents_conversation_store.save_conversation(call_sid, conversation)
+        
+        logger.critical(f"Cart updated for call {call_sid}:")
+        logger.critical(f"  - Items: {len(cart['items'])}")
+        logger.critical(f"  - Total price: ${cart['total_price']:.2f}")
+        logger.critical(f"  - Full cart: {json.dumps(cart, indent=2)}")
+        
+        updated_cart = cart
         
         # Format the response
         return {
@@ -675,8 +784,9 @@ class AsyncCartAgent(BaseAsyncAgent):
         
         logger.info(f"Removing item at index {item_index} from cart for call {call_sid}")
         
-        # Get the current cart
-        current_cart = await async_agents_conversation_store.get_cart(call_sid)
+        # Get current conversation and cart
+        conversation = await async_agents_conversation_store.get_conversation(call_sid)
+        current_cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
         
         # Check if the index is valid
         if item_index < 0 or item_index >= len(current_cart.get("items", [])):
@@ -693,8 +803,27 @@ class AsyncCartAgent(BaseAsyncAgent):
         removed_name = removed_item.get("name", "item")
         removed_quantity = removed_item.get("quantity", 1)
         
-        # Remove the item
-        updated_cart = await async_agents_conversation_store.remove_from_cart(call_sid, item_index)
+        # Remove the item from cart
+        cart_items = current_cart.get("items", [])
+        cart_items.pop(item_index)
+        
+        # Recalculate total price
+        total_price = 0
+        for cart_item in cart_items:
+            item_price = cart_item.get("price", 0) * cart_item.get("quantity", 1)
+            # Add modifier prices
+            for modifier in cart_item.get("modifiers", []):
+                item_price += modifier.get("price_change", 0) * modifier.get("quantity", 1)
+            total_price += item_price
+        
+        updated_cart = {
+            "items": cart_items,
+            "total_price": total_price
+        }
+        
+        # Update conversation context with cart
+        conversation["context"]["cart"] = updated_cart
+        await async_agents_conversation_store.save_conversation(call_sid, conversation)
         
         # Format the response
         return {
@@ -739,8 +868,9 @@ class AsyncCartAgent(BaseAsyncAgent):
         
         logger.info(f"Modifying item at index {item_index} in cart for call {call_sid}")
         
-        # Get the current cart
-        current_cart = await async_agents_conversation_store.get_cart(call_sid)
+        # Get current conversation and cart
+        conversation = await async_agents_conversation_store.get_conversation(call_sid)
+        current_cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
         
         # Check if the index is valid
         if item_index < 0 or item_index >= len(current_cart.get("items", [])):
@@ -787,7 +917,7 @@ class AsyncCartAgent(BaseAsyncAgent):
                 mod_quantity = mod.get("quantity", 1)
                 
                 # Validate the modifier exists
-                modifier = menu_db_store.get_modifier_by_plu(mod_plu)
+                modifier = await async_menu_db_store.get_modifier_by_plu(mod_plu, self.db)
                 if not modifier:
                     logger.warning(f"Modifier with PLU {mod_plu} not found")
                     continue
@@ -803,7 +933,7 @@ class AsyncCartAgent(BaseAsyncAgent):
         # Update the cart
         current_cart["items"][item_index] = item
         
-        # Recalculate total price
+        # Recalculate total price (prices are already in dollars)
         total_price = 0
         for cart_item in current_cart["items"]:
             # Get the item price and quantity
@@ -819,11 +949,12 @@ class AsyncCartAgent(BaseAsyncAgent):
                 mod_quantity = modifier.get("quantity", 1)
                 total_price += mod_price * mod_quantity
         
-        # Update the total price
+        # Update the total price in dollars
         current_cart["total_price"] = total_price
         
-        # Save the updated cart
-        await async_agents_conversation_store.update_cart(call_sid, current_cart)
+        # Save the updated cart in conversation context
+        conversation["context"]["cart"] = current_cart
+        await async_agents_conversation_store.save_conversation(call_sid, conversation)
         
         # Format the response
         return {
@@ -852,23 +983,24 @@ class AsyncCartAgent(BaseAsyncAgent):
                 "items": []
             }
         
-        # Get the current cart
-        current_cart = await async_agents_conversation_store.get_cart(call_sid)
+        # Get current conversation and cart
+        conversation = await async_agents_conversation_store.get_conversation(call_sid)
+        current_cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
         
-        # Calculate a formatted total price string
-        total_price_cents = current_cart.get("total_price", 0)
-        total_price_str = f"${total_price_cents/100:.2f}" if isinstance(total_price_cents, (int, float)) else "$0.00"
+        # Calculate a formatted total price string (total_price is already in dollars)
+        total_price = current_cart.get("total_price", 0)
+        total_price_str = f"${total_price:.2f}" if isinstance(total_price, (int, float)) else "$0.00"
         
         # Format item details for better readability
         formatted_items = []
         for i, item in enumerate(current_cart.get("items", [])):
-            price_cents = item.get("price", 0)
-            price_str = f"${price_cents/100:.2f}" if isinstance(price_cents, (int, float)) else "$0.00"
+            price = item.get("price", 0)
+            price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "$0.00"
             
             formatted_modifiers = []
             for modifier in item.get("modifiers", []):
                 mod_price = modifier.get("price_change", 0)
-                mod_price_str = f"${mod_price/100:.2f}" if mod_price else ""
+                mod_price_str = f"${mod_price:.2f}" if mod_price else ""
                 
                 formatted_modifiers.append({
                     "name": modifier.get("name", ""),
@@ -914,8 +1046,9 @@ class AsyncCartAgent(BaseAsyncAgent):
                 "suggestions": []
             }
         
-        # Get the current cart
-        current_cart = await async_agents_conversation_store.get_cart(call_sid)
+        # Get current conversation and cart
+        conversation = await async_agents_conversation_store.get_conversation(call_sid)
+        current_cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
         
         # Get categories based on suggestion type
         category_map = {
@@ -935,13 +1068,13 @@ class AsyncCartAgent(BaseAsyncAgent):
         cart_categories = set()
         for item in current_cart.get("items", []):
             # Get the item by PLU to find its category
-            db_item = menu_db_store.get_item_by_plu(item.get("plu", ""))
+            db_item = await async_menu_db_store.get_item_by_plu(item.get("plu", ""), self.db)
             if db_item:
                 cart_categories.add(db_item.get("category", ""))
         
         # Get items from related categories
         for category in categories:
-            items = menu_db_store.get_items_by_category(category)
+            items = await async_menu_db_store.get_items_by_category(self.db, category)
             # Only add available items
             for item in items:
                 if item.get("available", True) and not item.get("snoozed", False):

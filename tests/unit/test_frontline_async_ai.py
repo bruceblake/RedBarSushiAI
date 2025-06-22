@@ -359,3 +359,58 @@ class TestFrontlineAgentIntegration:
         
         assert response["handled"] is True
         assert "add" in response["text"].lower() or "order" in response["text"].lower()
+    
+    @pytest.mark.asyncio
+    async def test_name_recognition_patterns(self, frontline_agent, mock_openai_client):
+        """Test various name recognition patterns."""
+        # Test data: input -> expected name
+        test_cases = [
+            ("Bruce", "Bruce"),
+            ("My name is Sarah", "Sarah"),
+            ("I'm John", "John"),
+            ("This is Mike", "Mike"),
+            ("It's David", "David"),
+            ("bruce", "Bruce"),  # Should capitalize
+        ]
+        
+        for input_text, expected_name in test_cases:
+            # Reset agent state
+            frontline_agent.conversation_state = "GREETING"
+            frontline_agent.context["customer_name"] = None
+            
+            # Mock AI response that doesn't include tool calls (to test fallback)
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = "Hello!"
+            mock_response.choices[0].message.tool_calls = None
+            
+            mock_openai_client.chat.completions.create.return_value = mock_response
+            
+            response = await frontline_agent.process_voice_input(input_text)
+            
+            # Check that name was extracted (either by AI or regex fallback)
+            assert frontline_agent.context["customer_name"] == expected_name, \
+                f"Failed to extract '{expected_name}' from '{input_text}'"
+            assert frontline_agent.conversation_state == "MAIN_MENU", \
+                f"State should be MAIN_MENU after name extraction, got {frontline_agent.conversation_state}"
+            assert expected_name in response["text"], \
+                f"Response should acknowledge the name '{expected_name}'"
+    
+    @pytest.mark.asyncio
+    async def test_name_extraction_regex_fallback(self, frontline_agent):
+        """Test regex name extraction method directly."""
+        test_cases = [
+            ("Bruce", "Bruce"),
+            ("My name is Sarah", "Sarah"),
+            ("I'm John", "John"),
+            ("This is Mike", "Mike"),
+            ("It's David", "David"),
+            ("Hi, I'm Jennifer", "Jennifer"),
+            ("Hello there", None),  # No name
+            ("123", None),  # Not a name
+            ("my name is bruce", "Bruce"),  # Lowercase
+        ]
+        
+        for input_text, expected in test_cases:
+            result = frontline_agent._extract_name_with_regex(input_text)
+            assert result == expected, f"Expected '{expected}' from '{input_text}', got '{result}'"

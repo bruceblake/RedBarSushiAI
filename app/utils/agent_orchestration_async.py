@@ -141,6 +141,12 @@ class AsyncAgentOrchestrator:
         logger.critical(f"FSM retrieved - Current state: {fsm.current_state.name}")
         logger.critical(f"FSM context: {json.dumps({k: v for k, v in fsm.context.items() if isinstance(v, (str, int, float, bool, list, dict)) or v is None}, indent=2)}")
         
+        # If this is first interaction and FSM is in INITIAL state, trigger START_CONVERSATION
+        if context.get("first_interaction") and fsm.current_state == ConversationState.INITIAL:
+            logger.critical("First interaction detected - triggering START_CONVERSATION event")
+            await fsm.trigger(ConversationEvent.START_CONVERSATION)
+            logger.critical(f"FSM state after START_CONVERSATION: {fsm.current_state.name}")
+        
         # Process the transcript with the FSM
         start_time = time.time()
         
@@ -249,12 +255,27 @@ class AsyncAgentOrchestrator:
         elif fsm.current_state == ConversationState.ORDERING:
             # Use cart agent for order management
             logger.info(f"Selecting CART AGENT for ORDERING state")
+            # Ensure cart agent has access to existing cart from FSM
+            existing_cart = fsm.context.get("cart", {"items": [], "total_price": 0})
+            agent_context["cart"] = existing_cart
+            logger.info(f"Passing existing cart to cart agent: {json.dumps(existing_cart, indent=2)}")
             agent = self.cart_agent
             response = await agent.process_input(input_text, agent_context)
             logger.info(f"Cart agent response: {json.dumps(response, indent=2)}")
             
+            # Update FSM context with cart from agent conversation store - CRITICAL for persistence
+            call_sid = context.get("call_sid")
+            if call_sid:
+                conversation = await async_agents_conversation_store.get_conversation(call_sid)
+                cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
+                fsm.update_context({"cart": cart})
+                logger.critical(f"✅ Cart synchronized to FSM context: {json.dumps(cart, indent=2)}")
+                
+                # Also update the response with the current cart
+                response["cart"] = cart
+            
             # Check if order is complete
-            if response.get("cart_complete", False):
+            if response.get("cart_complete", False) or response.get("order_ready_for_validation", False):
                 await fsm.trigger(ConversationEvent.COMPLETE_ORDER)
         
         elif fsm.current_state == ConversationState.VALIDATION:
@@ -266,6 +287,8 @@ class AsyncAgentOrchestrator:
         elif fsm.current_state == ConversationState.CONFIRMATION:
             # Use frontline agent for confirmation
             logger.info(f"Selecting FRONTLINE AGENT for CONFIRMATION state")
+            # Ensure frontline agent has the cart from FSM context
+            agent_context["cart"] = fsm.context.get("cart", {"items": [], "total_price": 0})
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
             
@@ -278,6 +301,8 @@ class AsyncAgentOrchestrator:
         elif fsm.current_state == ConversationState.FULFILLMENT:
             # Use fulfillment agent for order processing
             logger.info(f"Selecting FULFILLMENT AGENT for FULFILLMENT state")
+            # Ensure fulfillment agent has the cart from FSM context
+            agent_context["cart"] = fsm.context.get("cart", {"items": [], "total_price": 0})
             agent = self.fulfillment_agent
             response = await agent.process_input(input_text, agent_context)
             
@@ -515,7 +540,8 @@ class AsyncAgentOrchestrator:
             logger.info(f"Frontline agent greeting response: {json.dumps(greeting_response, indent=2)}")
         
         # Extract greeting text
-        greeting_text = greeting_response.get("text", "Welcome to Red Bar Sushi. How can I assist you today?")
+        from app.config import settings
+        greeting_text = greeting_response.get("text", f"Welcome to {settings.RESTAURANT_NAME}. How can I assist you today?")
         logger.info(f"Final greeting text: '{greeting_text}'")
         
         # Add to conversation store

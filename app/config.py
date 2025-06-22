@@ -104,6 +104,12 @@ class Settings(BaseSettings):
     STRIPE_API_KEY: Optional[str] = Field(None, env="STRIPE_API_KEY")
     STRIPE_WEBHOOK_SECRET: Optional[str] = Field(None, env="STRIPE_WEBHOOK_SECRET")
     
+    # Restaurant Configuration
+    RESTAURANT_NAME: str = Field("Restaurant", env="RESTAURANT_NAME")
+    RESTAURANT_TYPE: str = Field("restaurant", env="RESTAURANT_TYPE") 
+    RESTAURANT_GREETING_NAME: str = Field("assistant", env="RESTAURANT_GREETING_NAME")
+    RESTAURANT_PHONE_GREETING: Optional[str] = Field(None, env="RESTAURANT_PHONE_GREETING")
+    
     # Deliverect settings
     DELIVERECT_CHANNEL_NAME: str = Field("redbarsushi", env="DELIVERECT_CHANNEL_NAME")
     DELIVERECT_API_KEY: Optional[str] = Field(None, env="DELIVERECT_API_KEY")
@@ -187,6 +193,9 @@ except Exception as e:
             SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
             DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
             BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
+            RESTAURANT_NAME=os.environ.get("RESTAURANT_NAME", "Restaurant"),
+            RESTAURANT_TYPE=os.environ.get("RESTAURANT_TYPE", "restaurant"),
+            RESTAURANT_GREETING_NAME=os.environ.get("RESTAURANT_GREETING_NAME", "assistant"),
         )
         logger.info("Created settings with minimal config")
         
@@ -208,6 +217,9 @@ except Exception as e:
             DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
             BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
             OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", "sk-mytestapikey"),  # EXPLICITLY SET FALLBACK FOR DEBUGGING
+            RESTAURANT_NAME=os.environ.get("RESTAURANT_NAME", "Restaurant"),
+            RESTAURANT_TYPE=os.environ.get("RESTAURANT_TYPE", "restaurant"),
+            RESTAURANT_GREETING_NAME=os.environ.get("RESTAURANT_GREETING_NAME", "assistant"),
             TWILIO_ACCOUNT_SID=os.environ.get("TWILIO_ACCOUNT_SID", None),
             TWILIO_AUTH_TOKEN=os.environ.get("TWILIO_AUTH_TOKEN", None),
             TWILIO_PHONE_NUMBER=os.environ.get("TWILIO_PHONE_NUMBER", None),
