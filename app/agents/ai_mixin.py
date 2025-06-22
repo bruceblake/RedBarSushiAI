@@ -102,30 +102,32 @@ class AIIntelligenceMixin:
             
             client = await self._get_ai_client()
             
-            # Track timing with timeout
+            # Track timing - rely on client's configured timeout
             start_time = time.time()
             try:
-                # Add timeout to prevent hanging
-                response = await asyncio.wait_for(
-                    client.chat.completions.create(**params),
-                    timeout=3.0  # 3 second timeout
-                )
+                # OpenAI client will handle timeout based on its configuration
+                response = await client.chat.completions.create(**params)
                 duration = time.time() - start_time
                 
                 if duration > 2.0:
                     logger.warning(f"Slow AI response: {duration:.2f}s for {self.name}")
                 else:
                     logger.debug(f"AI response time: {duration:.2f}s")
-            except asyncio.TimeoutError:
-                logger.error(f"AI request timed out after 3s for {self.name}")
-                # Return fast fallback
-                return {
-                    "text": "I understand. Let me help you with that.",
-                    "agent": getattr(self, 'name', 'AI'),
-                    "handled": True,
-                    "actions": [],
-                    "timeout": True
-                }
+            except Exception as e:
+                # Check if it's a timeout error from the OpenAI client
+                if "timeout" in str(e).lower():
+                    logger.error(f"AI request timed out for {self.name}")
+                    # Return fast fallback
+                    return {
+                        "text": "I understand. Let me help you with that.",
+                        "agent": getattr(self, 'name', 'AI'),
+                        "handled": True,
+                        "actions": [],
+                        "timeout": True
+                    }
+                else:
+                    # Re-raise other exceptions
+                    raise
             
             # Process the response
             result = await self._process_ai_response(response, context)

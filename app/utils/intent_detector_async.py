@@ -126,6 +126,7 @@ Allowed intents:
 - REQUEST_MENU: User asking about menu items while ordering
 - COMPLETE_ORDER: User is done ordering
 - CANCEL_ORDER: User wants to cancel everything
+- REQUEST_CANCELLATION: User mentions cancelling but isn't sure
 
 Examples:
 "Add an item" -> ADD_ITEM
@@ -134,6 +135,8 @@ Examples:
 "What comes with that?" -> REQUEST_MENU
 "That's all for now" -> COMPLETE_ORDER
 "Never mind, cancel everything" -> CANCEL_ORDER
+"Actually, maybe I should cancel" -> REQUEST_CANCELLATION
+"I want to cancel my order" -> REQUEST_CANCELLATION
 """,
             
             ConversationState.VALIDATION: """
@@ -142,12 +145,15 @@ Allowed intents:
 - REQUEST_CHANGE: User wants to modify something
 - REQUEST_REPEAT: User wants to hear the order again
 - CANCEL: User wants to cancel
+- REQUEST_ADD_MORE: User wants to add more items
 
 Examples:
 "Yes that's correct" -> CONFIRM
 "Actually can you change..." -> REQUEST_CHANGE
 "Can you repeat that?" -> REQUEST_REPEAT
 "No, cancel it" -> CANCEL
+"Can I add one more thing?" -> REQUEST_ADD_MORE
+"I forgot to order something" -> REQUEST_ADD_MORE
 """,
             
             ConversationState.CONFIRMATION: """
@@ -176,6 +182,32 @@ Examples:
 "I'll pick it up" -> CHOOSE_PICKUP
 "I'll pay with card" -> PROVIDE_PAYMENT
 "I don't understand" -> REQUEST_ESCALATION
+""",
+            
+            ConversationState.CANCELLATION_PENDING: """
+Allowed intents:
+- CONFIRM_CANCELLATION: User confirms they want to cancel
+- DECLINE_CANCELLATION: User decides not to cancel
+- YES: Affirmative response (maps to confirm)
+- NO: Negative response (maps to decline)
+
+Examples:
+"Yes, cancel it" -> CONFIRM_CANCELLATION
+"Yes" -> YES
+"No, keep my order" -> DECLINE_CANCELLATION
+"No" -> NO
+"Actually, don't cancel" -> DECLINE_CANCELLATION
+""",
+            
+            ConversationState.MENU_QUERY_SUBSTATE: """
+Allowed intents:
+- QUERY_COMPLETE: User is done asking menu questions
+- CONTINUE: User wants to continue with their previous task
+
+Examples:
+"OK thanks" -> QUERY_COMPLETE
+"That's all I needed to know" -> QUERY_COMPLETE
+"Let me continue ordering" -> CONTINUE
 """
         }
         
@@ -207,15 +239,17 @@ Examples:
                 "ADD_ITEM": None,  # Handled by cart agent
                 "REMOVE_ITEM": None,  # Handled by cart agent
                 "MODIFY_ITEM": None,  # Handled by cart agent
-                "REQUEST_MENU": None,  # Stay in ordering
+                "REQUEST_MENU": ConversationEvent.REQUEST_MENU_QUERY,
                 "COMPLETE_ORDER": ConversationEvent.COMPLETE_ORDER,
-                "CANCEL_ORDER": ConversationEvent.CANCEL_ORDER
+                "CANCEL_ORDER": ConversationEvent.CANCEL_ORDER,
+                "REQUEST_CANCELLATION": ConversationEvent.USER_REQUESTS_CANCELLATION
             },
             ConversationState.VALIDATION: {
                 "CONFIRM": ConversationEvent.VALIDATE_ORDER,
                 "REQUEST_CHANGE": ConversationEvent.MODIFY_ORDER,
                 "REQUEST_REPEAT": None,
-                "CANCEL": ConversationEvent.CANCEL_ORDER
+                "CANCEL": ConversationEvent.CANCEL_ORDER,
+                "REQUEST_ADD_MORE": ConversationEvent.REQUEST_ADD_MORE_ITEMS
             },
             ConversationState.CONFIRMATION: {
                 "CONFIRM_ORDER": ConversationEvent.CONFIRM_ORDER,
@@ -228,6 +262,16 @@ Examples:
                 "CHOOSE_PICKUP": ConversationEvent.CHOOSE_PICKUP,
                 "PROVIDE_PAYMENT": ConversationEvent.PROVIDE_DELIVERY_INFO,  # Using delivery info for payment
                 "REQUEST_ESCALATION": ConversationEvent.REQUEST_ESCALATION
+            },
+            ConversationState.CANCELLATION_PENDING: {
+                "CONFIRM_CANCELLATION": ConversationEvent.CONFIRM_CANCELLATION,
+                "DECLINE_CANCELLATION": ConversationEvent.DECLINE_CANCELLATION,
+                "YES": ConversationEvent.CONFIRM_CANCELLATION,
+                "NO": ConversationEvent.DECLINE_CANCELLATION
+            },
+            ConversationState.MENU_QUERY_SUBSTATE: {
+                "QUERY_COMPLETE": ConversationEvent.MENU_QUERY_RESOLVED,
+                "CONTINUE": ConversationEvent.MENU_QUERY_RESOLVED
             }
         }
         

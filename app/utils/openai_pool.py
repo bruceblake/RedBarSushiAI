@@ -36,12 +36,12 @@ class OpenAIConnectionPool:
         self._lock = asyncio.Lock()
         
         # Create multiple clients for better concurrency
-        num_clients = 3
+        num_clients = settings.OPENAI_CLIENT_POOL_SIZE
         for i in range(num_clients):
             client = openai.AsyncOpenAI(
                 api_key=settings.OPENAI_API_KEY,
-                max_retries=1,  # Reduced for speed
-                timeout=5.0     # Reduced timeout for faster responses
+                max_retries=settings.OPENAI_MAX_RETRIES,
+                timeout=settings.DEFAULT_LLM_API_TIMEOUT
             )
             self._clients.append(client)
             

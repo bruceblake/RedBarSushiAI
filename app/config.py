@@ -130,6 +130,11 @@ class Settings(BaseSettings):
     CART_AGENT_MAX_TOKENS: int = Field(300, env="CART_AGENT_MAX_TOKENS")
     MENU_AGENT_MAX_TOKENS: int = Field(300, env="MENU_AGENT_MAX_TOKENS")
     
+    # OpenAI client configuration
+    DEFAULT_LLM_API_TIMEOUT: float = Field(10.0, env="DEFAULT_LLM_API_TIMEOUT")
+    OPENAI_MAX_RETRIES: int = Field(1, env="OPENAI_MAX_RETRIES")
+    OPENAI_CLIENT_POOL_SIZE: int = Field(5, env="OPENAI_CLIENT_POOL_SIZE")
+    
     # Twilio ConversationRelay settings
     TWILIO_CONVERSATION_SERVICE_SID: Optional[str] = Field(None, env="TWILIO_CONVERSATION_SERVICE_SID")
     TWILIO_CONNECTOR_NAME: Optional[str] = Field(None, env="TWILIO_CONNECTOR_NAME")
