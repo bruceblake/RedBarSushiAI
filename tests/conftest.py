@@ -7,6 +7,7 @@ import os
 import sys
 import pytest
 import pytest_asyncio
+import asyncio
 from typing import AsyncGenerator, Generator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 from sqlalchemy.pool import NullPool
@@ -19,6 +20,27 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import health check
 from health_check import wait_for_services
+
+# Import comprehensive fixtures
+try:
+    from tests.fixtures.comprehensive_fixtures import *
+except ImportError:
+    # Fixtures may not be available in all environments
+    pass
+
+# Import Redis cleanup fixtures for integration tests
+try:
+    from tests.fixtures.redis_cleanup import *
+except ImportError:
+    # Redis cleanup fixtures may not be available in all environments
+    pass
+
+# Import OpenAI mocking fixtures
+try:
+    from tests.fixtures.openai_mocks import *
+except ImportError:
+    # OpenAI mocks may not be available in all environments
+    pass
 
 # Set test environment
 os.environ["TESTING"] = "1"
@@ -108,10 +130,29 @@ async def db_session(test_db_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture
 async def redis_client() -> AsyncGenerator[aioredis.Redis, None]:
     """Create a test Redis client."""
-    redis_url = os.getenv("REDIS_URL", "redis://redis-test:6379/0")
+    # Import to ensure we can clean up global state
+    import app.redis_async
+    
+    # Clean up any existing global Redis connection first
+    if hasattr(app.redis_async, '_redis_client') and app.redis_async._redis_client is not None:
+        try:
+            await app.redis_async._redis_client.aclose()
+            await asyncio.sleep(0.1)  # Give time for connection to close
+        except Exception:
+            pass
+        finally:
+            app.redis_async._redis_client = None
+    
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    if "test" in redis_url:
+        redis_url = redis_url.replace("redis-test", "redis")
+    
     client = await aioredis.from_url(
         redis_url,
-        decode_responses=True
+        decode_responses=True,
+        socket_keepalive=False,  # Disable keepalive to avoid issues
+        socket_timeout=2.0,
+        socket_connect_timeout=5.0
     )
     
     # Clear test database
@@ -121,7 +162,8 @@ async def redis_client() -> AsyncGenerator[aioredis.Redis, None]:
     
     # Cleanup
     await client.flushdb()
-    await client.close()
+    await client.aclose()
+    await asyncio.sleep(0.1)  # Give time for connection to close properly
 
 
 @pytest.fixture

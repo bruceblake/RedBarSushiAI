@@ -110,11 +110,11 @@ class ServiceHealthChecker:
                 info = await redis_client.info()
                 memory_usage = info.get('used_memory_human', 'unknown')
                 await redis_client.delete(test_key)
-                await redis_client.close()
+                await redis_client.aclose()
                 
                 return True, f"Redis ready (memory: {memory_usage})"
             else:
-                await redis_client.close()
+                await redis_client.aclose()
                 return False, "Redis read/write test failed"
                 
         except Exception as e:

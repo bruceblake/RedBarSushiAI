@@ -36,6 +36,8 @@ class ConversationState(Enum):
     FOLLOW_UP = auto()
     ESCALATION = auto()
     ERROR = auto()
+    MENU_QUERY_SUBSTATE = auto()
+    CANCELLATION_PENDING = auto()
     
     def __str__(self) -> str:
         """Return the string representation of the state."""
@@ -67,6 +69,15 @@ class ConversationEvent(Enum):
     REQUEST_FOLLOW_UP = auto()
     REQUEST_ESCALATION = auto()
     ERROR_OCCURRED = auto()
+    REQUEST_ADD_MORE_ITEMS = auto()
+    REQUEST_MENU_QUERY = auto()
+    USER_REQUESTS_CANCELLATION = auto()
+    CONFIRM_CANCELLATION = auto()
+    DECLINE_CANCELLATION = auto()
+    RETRY_LAST_ACTION = auto()
+    ESCALATE_DUE_TO_ERROR = auto()
+    FALLBACK_TO_MAIN_MENU = auto()
+    MENU_QUERY_RESOLVED = auto()
     
     def __str__(self) -> str:
         """Return the string representation of the event."""
@@ -150,6 +161,8 @@ class AsyncConversationFSM:
             AsyncEscalationHandler,
             AsyncErrorHandler
         )
+        from app.fsm.handlers.menu_query_substate import AsyncMenuQuerySubstateHandler
+        from app.fsm.handlers.cancellation_pending import AsyncCancellationPendingHandler
         
         # Initialize state handlers
         self.handlers = {
@@ -163,7 +176,9 @@ class AsyncConversationFSM:
             ConversationState.COMPLETION: AsyncCompletionHandler(),
             ConversationState.FOLLOW_UP: AsyncFollowUpHandler(),
             ConversationState.ESCALATION: AsyncEscalationHandler(),
-            ConversationState.ERROR: AsyncErrorHandler()
+            ConversationState.ERROR: AsyncErrorHandler(),
+            ConversationState.MENU_QUERY_SUBSTATE: AsyncMenuQuerySubstateHandler(),
+            ConversationState.CANCELLATION_PENDING: AsyncCancellationPendingHandler()
         }
         
         # Define valid transitions
@@ -183,19 +198,25 @@ class AsyncConversationFSM:
             ConversationState.ORDERING: {
                 ConversationEvent.COMPLETE_ORDER: ConversationState.VALIDATION,
                 ConversationEvent.REQUEST_ESCALATION: ConversationState.ESCALATION,
-                ConversationEvent.ERROR_OCCURRED: ConversationState.ERROR
+                ConversationEvent.ERROR_OCCURRED: ConversationState.ERROR,
+                ConversationEvent.REQUEST_MENU_QUERY: ConversationState.MENU_QUERY_SUBSTATE,
+                ConversationEvent.USER_REQUESTS_CANCELLATION: ConversationState.CANCELLATION_PENDING
             },
             ConversationState.VALIDATION: {
                 ConversationEvent.ORDER_VALID: ConversationState.CONFIRMATION,
                 ConversationEvent.ORDER_INVALID: ConversationState.ORDERING,
                 ConversationEvent.REQUEST_ESCALATION: ConversationState.ESCALATION,
-                ConversationEvent.ERROR_OCCURRED: ConversationState.ERROR
+                ConversationEvent.ERROR_OCCURRED: ConversationState.ERROR,
+                ConversationEvent.REQUEST_ADD_MORE_ITEMS: ConversationState.ORDERING,
+                ConversationEvent.USER_REQUESTS_CANCELLATION: ConversationState.CANCELLATION_PENDING
             },
             ConversationState.CONFIRMATION: {
                 ConversationEvent.CONFIRM_ORDER: ConversationState.FULFILLMENT,
                 ConversationEvent.REJECT_ORDER: ConversationState.ORDERING,
                 ConversationEvent.REQUEST_ESCALATION: ConversationState.ESCALATION,
-                ConversationEvent.ERROR_OCCURRED: ConversationState.ERROR
+                ConversationEvent.ERROR_OCCURRED: ConversationState.ERROR,
+                ConversationEvent.REQUEST_ADD_MORE_ITEMS: ConversationState.ORDERING,
+                ConversationEvent.USER_REQUESTS_CANCELLATION: ConversationState.CANCELLATION_PENDING
             },
             ConversationState.FULFILLMENT: {
                 ConversationEvent.COMPLETE_INTERACTION: ConversationState.COMPLETION,
@@ -218,7 +239,20 @@ class AsyncConversationFSM:
             ConversationState.ERROR: {
                 ConversationEvent.REQUEST_ESCALATION: ConversationState.ESCALATION,
                 ConversationEvent.START_ORDER: ConversationState.ORDERING,
-                ConversationEvent.START_CONVERSATION: ConversationState.GREETING
+                ConversationEvent.START_CONVERSATION: ConversationState.GREETING,
+                ConversationEvent.RETRY_LAST_ACTION: None,  # Dynamic transition to previous state
+                ConversationEvent.ESCALATE_DUE_TO_ERROR: ConversationState.ESCALATION,
+                ConversationEvent.FALLBACK_TO_MAIN_MENU: ConversationState.MAIN_MENU
+            },
+            ConversationState.MENU_QUERY_SUBSTATE: {
+                ConversationEvent.MENU_QUERY_RESOLVED: None,  # Dynamic transition to previous state
+                ConversationEvent.ERROR_OCCURRED: ConversationState.ERROR,
+                ConversationEvent.REQUEST_ESCALATION: ConversationState.ESCALATION
+            },
+            ConversationState.CANCELLATION_PENDING: {
+                ConversationEvent.CONFIRM_CANCELLATION: ConversationState.COMPLETION,
+                ConversationEvent.DECLINE_CANCELLATION: None,  # Dynamic transition to previous state
+                ConversationEvent.ERROR_OCCURRED: ConversationState.ERROR
             }
         }
     
@@ -243,15 +277,32 @@ class AsyncConversationFSM:
         # Get the next state from the transition table
         next_state = self.transitions[self.current_state][event]
         
+        # Always let the current handler process the event first
+        handler = self.handlers.get(self.current_state)
+        if handler:
+            # Let the handler process the event and possibly override the next state
+            handler_next_state = await handler.handle_event(event, self.context)
+            if handler_next_state is not None:
+                next_state = handler_next_state
+        
+        # Handle dynamic transitions
+        if next_state is None and event in [ConversationEvent.RETRY_LAST_ACTION, 
+                                           ConversationEvent.DECLINE_CANCELLATION,
+                                           ConversationEvent.MENU_QUERY_RESOLVED]:
+            # Get previous state from context
+            previous_state_name = self.context.get('previous_fsm_state')
+            if previous_state_name:
+                try:
+                    next_state = ConversationState[previous_state_name]
+                    logger.info(f"Dynamic transition to previous state: {next_state}")
+                except KeyError:
+                    logger.error(f"Invalid previous state name: {previous_state_name}")
+        
+        # Now transition if needed
         if next_state is not None:
             await self.transition_to(next_state)
         else:
             logger.info(f"Event {event} does not cause a state transition")
-            
-            # Handle the event in the current state
-            handler = self.handlers.get(self.current_state)
-            if handler:
-                await handler.handle_event(event, self.context)
     
     async def transition_to(self, next_state: ConversationState) -> None:
         """
@@ -270,8 +321,29 @@ class AsyncConversationFSM:
         if current_handler:
             await current_handler.on_exit(self.context)
         
-        # Update the current state
+        # Store previous state for dynamic returns and GO_BACK functionality
         previous_state = self.current_state
+        
+        # Always store previous state unless we're in INITIAL or transitioning to same state
+        if previous_state != ConversationState.INITIAL and previous_state != next_state:
+            self.context['previous_fsm_state'] = previous_state.name
+            
+        # Also maintain a state history for more complex navigation
+        if 'state_history' not in self.context:
+            self.context['state_history'] = []
+        
+        # Add to history if it's a significant state change
+        if previous_state != next_state and previous_state not in [ConversationState.INITIAL, ConversationState.ERROR]:
+            self.context['state_history'].append({
+                'state': previous_state.name,
+                'timestamp': time.time()
+            })
+            
+            # Keep only last 5 states
+            if len(self.context['state_history']) > 5:
+                self.context['state_history'].pop(0)
+        
+        # Update the current state
         self.current_state = next_state
         
         # Save the state to the conversation store

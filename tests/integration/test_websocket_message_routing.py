@@ -14,7 +14,7 @@ from typing import Dict, Any, List, Optional
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import WebSocket, WebSocketDisconnect
 
-from app.api.voice.websocket import handle_twilio_media_stream
+from app.api.voice.websocket import handle_media_stream
 from app.api.conversation_relay.handler import ConversationRelayHandler
 
 
@@ -108,7 +108,7 @@ class TestTwilioMediaStreamMessageRouting:
         
         # Process messages
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
         
         # Verify message was processed
         mock_logger.info.assert_any_call(f"Twilio connected for call {sample_call_sid}")
@@ -136,7 +136,7 @@ class TestTwilioMediaStreamMessageRouting:
         
         # Process messages
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
         
         # Verify start message was processed
         mock_logger.info.assert_any_call(f"Media stream started for call {sample_call_sid}")
@@ -189,7 +189,7 @@ class TestTwilioMediaStreamMessageRouting:
         # Process messages with debug enabled
         with patch('app.api.voice.websocket.logger') as mock_logger:
             # Enable debug by setting a global variable or modifying the handler
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
         
         # Verify media messages were received (logging may vary based on debug setting)
         # In a real implementation, these would be forwarded to OpenAI
@@ -207,7 +207,7 @@ class TestTwilioMediaStreamMessageRouting:
         
         # Process messages
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
         
         # Verify stop message was processed
         mock_logger.info.assert_any_call(f"Media stream stopped for call {sample_call_sid}")
@@ -226,7 +226,7 @@ class TestTwilioMediaStreamMessageRouting:
         
         # Process messages
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
         
         # Verify unknown message doesn't crash the handler
         # Should continue processing until stop message
@@ -240,7 +240,7 @@ class TestTwilioMediaStreamMessageRouting:
         # Process messages
         with patch('app.api.voice.websocket.logger') as mock_logger:
             with pytest.raises(WebSocketDisconnect):
-                await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+                await handle_media_stream(mock_websocket, sample_call_sid)
 
 
 class TestConversationRelayMessageRouting:
@@ -455,7 +455,7 @@ class TestMessageQueueingAndProcessing:
             
             mock_logger.info.side_effect = track_event
             
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
         
         # Verify events were processed in order
         expected_order = ["connected", "start", "stop"]
@@ -597,7 +597,7 @@ class TestMessageRoutingPerformance:
         start_time = time.time()
         
         with patch('app.api.voice.websocket.logger'):
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
         
         end_time = time.time()
         processing_time = end_time - start_time
@@ -628,7 +628,7 @@ class TestMessageRoutingPerformance:
         # Process all connections concurrently
         async def process_connection(ws, call_sid):
             with patch('app.api.voice.websocket.logger'):
-                await handle_twilio_media_stream(ws, call_sid)
+                await handle_media_stream(ws, call_sid)
             return True
         
         tasks = [process_connection(ws, cid) for ws, cid in zip(connections, call_sids)]
@@ -653,7 +653,7 @@ class TestMessageRoutingPerformance:
         
         # Process messages and verify no memory leaks
         with patch('app.api.voice.websocket.logger'):
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
         
         # If we reach here without memory errors, the test passes
         assert True

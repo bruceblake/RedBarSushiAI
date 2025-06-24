@@ -38,6 +38,13 @@ celery.conf.update(
     # Result backend settings
     result_expires=3600,  # 1 hour
     
+    # Connection pool settings
+    broker_pool_limit=10,  # Broker connection pool size
+    broker_connection_timeout=30,  # Broker connection timeout
+    broker_connection_retry=True,  # Retry on connection failure
+    broker_connection_max_retries=3,  # Max retries
+    result_backend_pool_limit=10,  # Result backend pool size
+    
     # Beat schedule (if using celery beat)
     beat_schedule={
         # Add periodic tasks here if needed

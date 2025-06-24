@@ -75,15 +75,25 @@ class Settings(BaseSettings):
     
     # Database settings
     DATABASE_URL: str = Field("sqlite:///app.db", env="DATABASE_URL")  # Default to SQLite for local dev
+    
+    # Database Connection Pool Settings
+    DB_POOL_SIZE: int = Field(10, env="DB_POOL_SIZE")  # Base pool size
+    DB_MAX_OVERFLOW: int = Field(20, env="DB_MAX_OVERFLOW")  # Additional connections under load
+    DB_POOL_TIMEOUT: int = Field(30, env="DB_POOL_TIMEOUT")  # Timeout waiting for connection (seconds)
+    DB_ECHO_POOL: bool = Field(False, env="DB_ECHO_POOL")  # Enable pool debugging
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
     
     # Redis settings
     REDIS_URL: Optional[str] = Field(None, env="REDIS_URL")
+    
+    # Redis Connection Pool Settings
+    REDIS_MAX_CONNECTIONS: int = Field(50, env="REDIS_MAX_CONNECTIONS")  # Max pool size
+    REDIS_HEALTH_CHECK_INTERVAL: int = Field(30, env="REDIS_HEALTH_CHECK_INTERVAL")  # Health check interval (seconds)
     CELERY_BROKER_URL: Optional[str] = Field(None, env="CELERY_BROKER_URL")
     CELERY_RESULT_BACKEND: Optional[str] = Field(None, env="CELERY_RESULT_BACKEND")
     
     # OpenAI settings
-    OPENAI_API_KEY: Optional[str] = Field(None, env="OPENAI_API_KEY")
+    OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")  # Required - no fallback
     OPENAI_REALTIME_MODEL: str = Field("gpt-4o-realtime-preview-2024-12-17", env="OPENAI_REALTIME_MODEL")
     OPENAI_REALTIME_VOICE: str = Field("shimmer", env="OPENAI_REALTIME_VOICE")
     OPENAI_REALTIME_INSTRUCTIONS: str = Field(
@@ -104,6 +114,12 @@ class Settings(BaseSettings):
     STRIPE_API_KEY: Optional[str] = Field(None, env="STRIPE_API_KEY")
     STRIPE_WEBHOOK_SECRET: Optional[str] = Field(None, env="STRIPE_WEBHOOK_SECRET")
     
+    # Restaurant Configuration
+    RESTAURANT_NAME: str = Field("Restaurant", env="RESTAURANT_NAME")
+    RESTAURANT_TYPE: str = Field("restaurant", env="RESTAURANT_TYPE") 
+    RESTAURANT_GREETING_NAME: str = Field("assistant", env="RESTAURANT_GREETING_NAME")
+    RESTAURANT_PHONE_GREETING: Optional[str] = Field(None, env="RESTAURANT_PHONE_GREETING")
+    
     # Deliverect settings
     DELIVERECT_CHANNEL_NAME: str = Field("redbarsushi", env="DELIVERECT_CHANNEL_NAME")
     DELIVERECT_API_KEY: Optional[str] = Field(None, env="DELIVERECT_API_KEY")
@@ -117,6 +133,26 @@ class Settings(BaseSettings):
     
     # AI agent configuration
     USE_AI_AGENTS: bool = Field(True, env="USE_AI_AGENTS")
+    
+    # AI performance configuration
+    AI_MAX_TOKENS: int = Field(256, env="AI_MAX_TOKENS")  # Default for general use
+    FRONTEND_AGENT_MAX_TOKENS: int = Field(150, env="FRONTEND_AGENT_MAX_TOKENS")
+    CART_AGENT_MAX_TOKENS: int = Field(300, env="CART_AGENT_MAX_TOKENS")
+    
+    # HTTP Connection Pool Settings
+    HTTP_POOL_KEEPALIVE: int = Field(10, env="HTTP_POOL_KEEPALIVE")  # Keepalive connections
+    HTTP_POOL_MAX_CONNECTIONS: int = Field(100, env="HTTP_POOL_MAX_CONNECTIONS")  # Max connections
+    HTTP_POOL_KEEPALIVE_EXPIRY: float = Field(30.0, env="HTTP_POOL_KEEPALIVE_EXPIRY")  # Keepalive expiry (seconds)
+    HTTP_TIMEOUT: float = Field(30.0, env="HTTP_TIMEOUT")  # Default HTTP timeout
+    HTTP_CONNECT_TIMEOUT: float = Field(5.0, env="HTTP_CONNECT_TIMEOUT")  # Connection timeout
+    HTTP_READ_TIMEOUT: float = Field(30.0, env="HTTP_READ_TIMEOUT")  # Read timeout
+    HTTP_WRITE_TIMEOUT: float = Field(10.0, env="HTTP_WRITE_TIMEOUT")  # Write timeout
+    MENU_AGENT_MAX_TOKENS: int = Field(300, env="MENU_AGENT_MAX_TOKENS")
+    
+    # OpenAI client configuration
+    DEFAULT_LLM_API_TIMEOUT: float = Field(10.0, env="DEFAULT_LLM_API_TIMEOUT")
+    OPENAI_MAX_RETRIES: int = Field(1, env="OPENAI_MAX_RETRIES")
+    OPENAI_CLIENT_POOL_SIZE: int = Field(5, env="OPENAI_CLIENT_POOL_SIZE")
     
     # Twilio ConversationRelay settings
     TWILIO_CONVERSATION_SERVICE_SID: Optional[str] = Field(None, env="TWILIO_CONVERSATION_SERVICE_SID")
@@ -187,6 +223,9 @@ except Exception as e:
             SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
             DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
             BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
+            RESTAURANT_NAME=os.environ.get("RESTAURANT_NAME", "Restaurant"),
+            RESTAURANT_TYPE=os.environ.get("RESTAURANT_TYPE", "restaurant"),
+            RESTAURANT_GREETING_NAME=os.environ.get("RESTAURANT_GREETING_NAME", "assistant"),
         )
         logger.info("Created settings with minimal config")
         
@@ -207,7 +246,10 @@ except Exception as e:
             SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
             DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
             BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
-            OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", "sk-mytestapikey"),  # EXPLICITLY SET FALLBACK FOR DEBUGGING
+            OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", None),  # No fallback - will fail if not set
+            RESTAURANT_NAME=os.environ.get("RESTAURANT_NAME", "Restaurant"),
+            RESTAURANT_TYPE=os.environ.get("RESTAURANT_TYPE", "restaurant"),
+            RESTAURANT_GREETING_NAME=os.environ.get("RESTAURANT_GREETING_NAME", "assistant"),
             TWILIO_ACCOUNT_SID=os.environ.get("TWILIO_ACCOUNT_SID", None),
             TWILIO_AUTH_TOKEN=os.environ.get("TWILIO_AUTH_TOKEN", None),
             TWILIO_PHONE_NUMBER=os.environ.get("TWILIO_PHONE_NUMBER", None),

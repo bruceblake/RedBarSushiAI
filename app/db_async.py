@@ -52,11 +52,16 @@ else:
     DATABASE_URL = database_url
     logger.warning(f"Unrecognized database URL format: {database_url}")
 
-# Create async engine
+# Create async engine with optimized connection pool settings
 engine_args = {
     "echo": False,  # Set to True for SQL query logging
     "pool_pre_ping": True,  # Verify connections before using them
     "pool_recycle": 1800,  # 30 minutes to match Render's proxy timeout
+    # Connection pool optimization settings
+    "pool_size": getattr(settings, 'DB_POOL_SIZE', 10),  # Base pool size
+    "max_overflow": getattr(settings, 'DB_MAX_OVERFLOW', 20),  # Additional connections under load
+    "pool_timeout": getattr(settings, 'DB_POOL_TIMEOUT', 30),  # Timeout waiting for connection
+    "echo_pool": getattr(settings, 'DB_ECHO_POOL', False),  # Set to True for pool debugging
 }
 
 # Add PostgreSQL-specific options

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 import redis.asyncio as aioredis
 
 from app.fsm.core import (
-    AsyncFiniteStateMachine,
+    AsyncConversationFSM,
     ConversationState,
     ConversationEvent,
     FSMError

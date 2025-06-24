@@ -7,7 +7,14 @@ order confirmation, and notification handling.
 
 import logging
 from typing import Dict, Any, Optional, List
+from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.agents.base_async import BaseAsyncAgent
+from app.models.order_async import Order
+from app.services.deliverect_service import DeliverectService
+from app.tasks.notifications import send_pos_submission_failure_alert
+from app.db.crud_order_async import update_order_status
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +43,8 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         self, 
         call_sid: str, 
         order_details: Dict[str, Any],
-        fsm_context_data: Dict[str, Any]
+        fsm_context_data: Dict[str, Any],
+        db: Optional[AsyncSession] = None
     ) -> Dict[str, Any]:
         """
         Submit an order to Deliverect and process confirmation.
@@ -45,52 +53,147 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
             call_sid: The call session ID
             order_details: The validated order details to submit
             fsm_context_data: The full FSM context
+            db: Database session
             
         Returns:
             Dict with submission results and next actions
         """
         logger.info(f"[{call_sid}] AsyncFulfillmentAgent: Submitting order: {order_details}")
         
-        # --- Placeholder for actual order submission logic ---
-        # This would involve:
-        # 1. Formatting the order for Deliverect
-        # 2. Making API calls to Deliverect
-        # 3. Storing the order in database
-        # 4. Handling payment processing if needed
-        # 5. Triggering notifications
-        
-        submission_successful = True  # Default to success for now
-        errors = []  # Collect any errors
-        
-        # Simple placeholder logic
+        # Validate order has items
         if not order_details.get("items"):
-            submission_successful = False
-            errors.append("Cannot submit an empty order")
+            return {
+                "text": "I'm sorry, I cannot submit an empty order. Please add some items first.",
+                "success": False,
+                "errors": ["Cannot submit an empty order"],
+                "handled": True,
+                "agent": self.agent_name
+            }
+        
+        # Get or create order ID
+        order_id = order_details.get("id", f"ORD-{call_sid[-8:]}")
+        
+        try:
+            # Create DeliverectService instance
+            deliverect_service = DeliverectService()
             
-        # Placeholder for order confirmation
-        order_id = "ORD-" + call_sid[-6:]  # Placeholder order ID
-        estimated_time = 20  # Placeholder delivery time in minutes
-        
-        # Determine response based on submission result
-        if submission_successful:
-            tts_response = f"Great! Your order has been submitted successfully. Your order number is {order_id} and will be ready in approximately {estimated_time} minutes."
-            # Signal to FSM that order is submitted
-            fsm_context_data.get("call_specific_data", {})["next_fsm_event_name"] = "ORDER_SUBMITTED"
-            fsm_context_data.get("call_specific_data", {})["order_id"] = order_id
-            fsm_context_data.get("call_specific_data", {})["estimated_time"] = estimated_time
-        else:
-            tts_response = f"I'm sorry, there was an issue submitting your order: {'. '.join(errors)}. Please try again or speak to a staff member."
-            fsm_context_data.get("call_specific_data", {})["next_fsm_event_name"] = "ORDER_SUBMISSION_FAILED"
-        
-        return {
-            "text": tts_response,
-            "success": submission_successful,
-            "order_id": order_id if submission_successful else None,
-            "estimated_time": estimated_time if submission_successful else None,
-            "errors": errors,
-            "handled": True,
-            "agent": self.agent_name
-        }
+            # If we have an Order object, use it directly
+            if isinstance(order_details.get("order_object"), Order) and db:
+                order = order_details["order_object"]
+            else:
+                # Otherwise, we need to create/fetch the order from DB
+                # This is a simplified version - in production you'd have proper order creation
+                logger.warning("Order object not provided, using simplified submission")
+                submission_result = {
+                    "success": False,
+                    "error": "Order object required for submission",
+                    "needs_manual_intervention": True
+                }
+            
+            # Submit to Deliverect
+            if db and hasattr(locals(), 'order'):
+                submission_result = await deliverect_service.submit_order(order, db)
+            else:
+                submission_result = {
+                    "success": False,
+                    "error": "Database session required for order submission",
+                    "needs_manual_intervention": True
+                }
+            
+            # Handle submission result
+            if submission_result.get("success"):
+                deliverect_id = submission_result.get("deliverect_order_id", "")
+                estimated_time = order_details.get("estimated_time", 20)
+                
+                tts_response = (
+                    f"Great! Your order has been successfully submitted to our kitchen. "
+                    f"Your order number is {order_id} and it will be ready in approximately "
+                    f"{estimated_time} minutes. We'll start preparing it right away!"
+                )
+                
+                # Signal to FSM that order is submitted
+                fsm_context_data.get("call_specific_data", {})["next_fsm_event_name"] = "COMPLETE_INTERACTION"
+                fsm_context_data.get("call_specific_data", {})["order_id"] = order_id
+                fsm_context_data.get("call_specific_data", {})["deliverect_order_id"] = deliverect_id
+                fsm_context_data.get("call_specific_data", {})["estimated_time"] = estimated_time
+                
+                return {
+                    "text": tts_response,
+                    "success": True,
+                    "order_id": order_id,
+                    "deliverect_order_id": deliverect_id,
+                    "estimated_time": estimated_time,
+                    "handled": True,
+                    "agent": self.agent_name
+                }
+            
+            else:
+                # Submission failed - handle gracefully
+                logger.error(f"Order submission failed: {submission_result}")
+                
+                # Update order status in DB if we have it
+                if db and hasattr(locals(), 'order'):
+                    try:
+                        order.status = "pending_pos_submission_failed"
+                        await db.commit()
+                    except Exception as e:
+                        logger.error(f"Failed to update order status: {e}")
+                
+                # Send alert for manual intervention
+                if submission_result.get("needs_manual_intervention"):
+                    customer_details = {
+                        "name": order_details.get("customer_name", "Unknown"),
+                        "phone": order_details.get("customer_phone", call_sid)
+                    }
+                    
+                    # Queue the notification task
+                    try:
+                        send_pos_submission_failure_alert.delay(order_id, customer_details)
+                    except Exception as e:
+                        logger.error(f"Failed to queue notification: {e}")
+                
+                # Provide non-alarming message to customer
+                tts_response = (
+                    "Your order details have been received, and we'll start preparing it shortly. "
+                    "You'll receive a confirmation text message once it's fully processed with our kitchen. "
+                    "Thanks for your order!"
+                )
+                
+                # Signal to FSM - still complete but with a flag
+                fsm_context_data.get("call_specific_data", {})["next_fsm_event_name"] = "COMPLETE_INTERACTION"
+                fsm_context_data.get("call_specific_data", {})["order_id"] = order_id
+                fsm_context_data.get("call_specific_data", {})["pos_submission_failed"] = True
+                
+                return {
+                    "text": tts_response,
+                    "success": False,  # Internal flag
+                    "customer_success": True,  # Customer-facing success
+                    "order_id": order_id,
+                    "errors": [submission_result.get("error", "POS submission failed")],
+                    "needs_manual_intervention": True,
+                    "handled": True,
+                    "agent": self.agent_name
+                }
+                
+        except Exception as e:
+            logger.error(f"Unexpected error during order submission: {e}", exc_info=True)
+            
+            # Non-alarming fallback message
+            tts_response = (
+                "Your order has been received and we'll process it right away. "
+                "You should receive a confirmation shortly. Thank you!"
+            )
+            
+            return {
+                "text": tts_response,
+                "success": False,
+                "customer_success": True,
+                "order_id": order_id,
+                "errors": [str(e)],
+                "needs_manual_intervention": True,
+                "handled": True,
+                "agent": self.agent_name
+            }
 
     async def process_input(self, input_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -109,8 +212,13 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         call_sid = context.get("call_sid", "unknown_call")
         logger.info(f"[{call_sid}] AsyncFulfillmentAgent process_input called. Input: '{input_text}'")
         
-        # Extract order details from context
-        order_data_from_context = context.get("call_specific_data", {}).get("validated_cart", {})
+        # Extract order details from context - try multiple locations
+        order_data_from_context = context.get("cart", {})
+        if not order_data_from_context or not order_data_from_context.get("items"):
+            # Try call_specific_data as fallback
+            order_data_from_context = context.get("call_specific_data", {}).get("validated_cart", {})
+        
+        logger.info(f"[{call_sid}] Order data extracted: {order_data_from_context}")
         
         # Submit the order
         return await self.submit_order(call_sid, order_data_from_context, context)

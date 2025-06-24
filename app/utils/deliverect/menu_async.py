@@ -9,6 +9,7 @@ import json
 import logging
 import re
 from typing import Dict, Any, List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -166,3 +167,25 @@ async def process_deliverect_menu_async(menu_data: Dict[str, Any]) -> Dict[str, 
                f"{len(processed['categories'])} categories")
     
     return processed
+
+
+async def sync_menu_from_deliverect(db: AsyncSession, menu_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Sync menu data from Deliverect to the database.
+    
+    Args:
+        db: Database session
+        menu_data: Raw menu data from Deliverect
+        
+    Returns:
+        Sync results including counts of items synced
+    """
+    from app.db.crud_menu_async import sync_menu_from_external
+    
+    # Process the menu data
+    processed_menu = await process_deliverect_menu_async(menu_data)
+    
+    # Sync to database
+    result = await sync_menu_from_external(db, processed_menu)
+    
+    return result

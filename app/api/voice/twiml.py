@@ -16,21 +16,11 @@ from fastapi.responses import PlainTextResponse
 from starlette.status import HTTP_200_OK
 
 from app.utils.twilio_twiml import get_environment_name
+from app.utils.enhanced_logging import get_logger
+from app.utils.correlation_id import set_correlation_id, get_correlation_id
 
 # Set up logging
-logger = logging.getLogger(__name__)
-# Force DEBUG level for this module specifically
-logger.setLevel(logging.DEBUG)
-
-# Add a console handler for immediate visibility
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
-
-# Ensure our logs are seen even if parent loggers have higher levels
-logger.propagate = False
+logger = get_logger(__name__)
 
 # Create a dedicated router for HTTP TwiML endpoints only
 router = APIRouter(tags=["Voice TwiML Webhooks"])
@@ -69,17 +59,18 @@ async def receive_call(request: Request) -> PlainTextResponse:
     # Set up extensive logging for call tracing
     try:
         # Log critical information about the webhook access
-        logger.critical(f"***** WEBHOOK ENDPOINT ACCESSED SUCCESSFULLY: {request.url.path} *****")
-        logger.info("==== INCOMING REALTIME CALL DETAILS ====")
-        logger.info(f"Call SID: {call_sid}")
-        logger.info(f"Request came from: {request.client.host}")
-        logger.info(f"User agent: {request.headers.get('user-agent', 'unknown')}")
-        logger.info(f"Host header: {request.headers.get('host', 'unknown')}")
-        logger.info(f"URL: {request.url}")
-        logger.info(f"Path: {request.url.path}")
-        logger.info(f"Request method: {request.method}")
-        logger.info(f"Environment: {os.environ.get('FASTAPI_ENV', 'undefined')}")
-        logger.info(f"Current working directory: {os.getcwd()}")
+        logger.critical(f"***** WEBHOOK ENDPOINT ACCESSED SUCCESSFULLY: {request.url.path} *****", call_sid=call_sid)
+        logger.info("==== INCOMING REALTIME CALL DETAILS ====", call_sid=call_sid)
+        logger.info(f"Call SID: {call_sid}", call_sid=call_sid)
+        logger.info(f"Request came from: {request.client.host}", call_sid=call_sid)
+        logger.info(f"User agent: {request.headers.get('user-agent', 'unknown')}", call_sid=call_sid)
+        logger.info(f"Host header: {request.headers.get('host', 'unknown')}", call_sid=call_sid)
+        logger.info(f"URL: {request.url}", call_sid=call_sid)
+        logger.info(f"Path: {request.url.path}", call_sid=call_sid)
+        logger.info(f"Request method: {request.method}", call_sid=call_sid)
+        logger.info(f"Environment: {os.environ.get('FASTAPI_ENV', 'undefined')}", call_sid=call_sid)
+        logger.info(f"Current working directory: {os.getcwd()}", call_sid=call_sid)
+        logger.info(f"Correlation ID: {get_correlation_id()}", call_sid=call_sid)
         
         # Log all request headers for debugging (excluding sensitive ones)
         logger.info("Full request headers:")
@@ -98,6 +89,9 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # Extract call information
         call_sid = form_data.get("CallSid", "")
         caller = form_data.get("Caller", "")
+        
+        # Set correlation ID from call_sid
+        set_correlation_id(call_sid)
         called = form_data.get("Called", "")
         
         logger.info(f"Received call: {call_sid} from {caller} to {called}")

@@ -16,15 +16,15 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from app.config import settings
+from app.middleware.correlation_id import CorrelationIdMiddleware
+from app.utils.enhanced_logging import configure_logging, get_logger
 
-# Configure logging
-logging.basicConfig(
-    stream=sys.stderr,
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-)
+# Configure enhanced logging with correlation ID support
+log_level = os.environ.get("LOG_LEVEL", settings.LOG_LEVEL)
+use_json_logs = os.environ.get("USE_JSON_LOGS", "true").lower() == "true"
+configure_logging(log_level=log_level, use_json=use_json_logs)
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Configure environment variables
 BASE_URL = os.environ.get("BASE_URL", "https://redbarsushiai.onrender.com")
@@ -67,14 +67,8 @@ else:
         os.environ["HEADLESS"] = "1"
         os.environ["OPENAI_REALTIME_NO_DISPLAY"] = "1"
 
-# Enhanced logging setup
-try:
-    from app.utils.enhanced_logging import initialize_logging
-    log_dir = initialize_logging()
-    logger.info(f"Enhanced logging system initialized, logs directory: {log_dir}")
-except ImportError:
-    # Fall back to basic logging if enhanced logging isn't available
-    logger.warning("Enhanced logging system not available, using basic logging instead")
+# Log startup message with correlation ID support
+logger.info("Initializing RedBarSushiAI application")
 
 # Create the FastAPI application
 app = FastAPI(
@@ -82,6 +76,9 @@ app = FastAPI(
     description="AI-powered voice ordering system for Red Bar Sushi",
     version="1.0.0",
 )
+
+# Add correlation ID middleware
+app.add_middleware(CorrelationIdMiddleware)
 
 # Mount static files directory
 from fastapi.staticfiles import StaticFiles
@@ -340,6 +337,14 @@ async def startup_event():
     logger.critical(f"❗❗❗ WebSocket route should be available at: /realtime/ws/media/{{call_sid}} ❗❗❗")
     logger.critical(f"❗❗❗ TwiML route should be available at: /voice/ and /voice/webhook ❗❗❗")
     
+    # Pre-warm OpenAI connection pool
+    try:
+        from app.utils.openai_pool import openai_pool
+        await openai_pool.initialize()
+        logger.critical("✅ OpenAI connection pool initialized and warming up")
+    except Exception as e:
+        logger.error(f"Failed to initialize OpenAI pool: {e}")
+    
     # Initialize Redis
     try:
         from app.redis_async import init_redis
@@ -381,6 +386,28 @@ async def startup_event():
             break
     except Exception as e:
         logger.error(f"Error initializing async agent orchestrator: {e}")
+    
+    # Initialize performance optimizations
+    try:
+        # HTTP connection pools are initialized on import
+        from app.services.http_pool import http_pool
+        logger.info("HTTP connection pools initialized")
+        
+        # Warm menu cache
+        from app.utils.menu_cache_enhanced import warm_menu_cache
+        from app.db_async import get_db
+        
+        async for db in get_db():
+            await warm_menu_cache(db)
+            logger.info("Menu cache warmed successfully")
+            break
+            
+        # Initialize AI response patterns
+        from app.utils.ai_cache_enhanced import ai_cache_enhanced
+        logger.info("AI response cache patterns initialized")
+        
+    except Exception as e:
+        logger.error(f"Error initializing performance optimizations: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -391,7 +418,7 @@ async def shutdown_event():
     try:
         from app.redis_async import _redis_client
         if _redis_client:
-            await _redis_client.close()
+            await _redis_client.aclose()
             logger.info("Redis connection closed")
     except Exception as e:
         logger.error(f"Error closing Redis connection: {e}")
@@ -401,6 +428,14 @@ async def shutdown_event():
         from app.db_async import engine
         await engine.dispose()
         logger.info("Database connection pool closed")
+    except Exception as e:
+        logger.error(f"Error closing database pool: {e}")
+    
+    # Close HTTP connection pools
+    try:
+        from app.services.http_pool import close_http_pools
+        await close_http_pools()
+        logger.info("HTTP connection pools closed")
     except Exception as e:
         logger.error(f"Error closing database connection pool: {e}")
         

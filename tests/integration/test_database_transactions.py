@@ -6,6 +6,7 @@ database consistency and proper transaction handling.
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +20,7 @@ from app.utils.order_utils_async import create_order_with_validation
 from app.db_async import get_db
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session():
     """Create a real database session for integration testing."""
     async for session in get_db():
@@ -29,7 +30,7 @@ async def db_session():
             await session.rollback()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_location(db_session):
     """Create a test location for orders."""
     location = Location(
@@ -46,7 +47,7 @@ async def test_location(db_session):
     return location
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_menu_items(db_session):
     """Create test menu items for orders."""
     items = []

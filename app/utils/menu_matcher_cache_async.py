@@ -34,6 +34,7 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
         super().__init__(db, location_id)
         self.cache_ttl = cache_ttl
         self.cache_key_prefix = f"menu:async:{location_id or 'default'}:"
+        self.menu_data = None  # Initialize menu_data attribute
         
     async def initialize(self) -> bool:
         """
@@ -87,16 +88,26 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
         Returns:
             Tuple of (best matching item or None, confidence score)
         """
-        # Skip individual match caching for now since menu_cache doesn't have a generic get method
-        # TODO: Implement proper caching using redis client directly
+        # Use the base class's find_menu_item method
+        item = await self.find_menu_item(description)
         
-        # No cache hit, use normal matching
-        item, score = await super().match_item(description)
+        if item:
+            # Calculate a simple confidence score based on how well the description matches
+            item_name_lower = item['name'].lower()
+            description_lower = description.lower()
+            
+            if item_name_lower == description_lower:
+                score = 1.0  # Exact match
+            elif description_lower in item_name_lower:
+                score = 0.8  # Description is contained in item name
+            elif all(word in item_name_lower for word in description_lower.split()):
+                score = 0.7  # All words from description are in item name
+            else:
+                score = 0.5  # Partial match
+                
+            return item, score
         
-        # Skip caching individual results for now
-        # TODO: Implement proper caching using redis client directly
-        
-        return item, score
+        return None, 0.0
 
 # Module-level cache management functions
 async def clear_cached_menu_matcher():

@@ -6,6 +6,7 @@ proper isolation, locking, and consistency mechanisms.
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import time
 from unittest.mock import patch
@@ -23,7 +24,7 @@ from app.utils.order_utils_async import create_order_with_validation
 from app.utils.menu_db_store_async import update_menu_item_availability
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session():
     """Create a real database session for concurrent testing."""
     async for session in get_db():
@@ -33,7 +34,7 @@ async def db_session():
             await session.rollback()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_location(db_session):
     """Create a test location for concurrent operations."""
     location = Location(
@@ -50,7 +51,7 @@ async def test_location(db_session):
     return location
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_menu_items(db_session):
     """Create test menu items for concurrent operations."""
     # Create a category first

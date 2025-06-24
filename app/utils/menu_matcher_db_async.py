@@ -7,8 +7,9 @@ from typing import Dict, List, Any, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.menu_async import MenuItem, MenuModifier, MenuModifierGroup
+from app.utils.enhanced_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AsyncMenuMatcher:
@@ -101,3 +102,57 @@ class AsyncMenuMatcher:
         # This would normally query ItemModifierGroup relationships
         # For now, return empty list
         return []
+    
+    async def find_all_matching_items(
+        self, 
+        query: str, 
+        threshold: float = 0.5
+    ) -> List[Dict[str, Any]]:
+        """
+        Find all menu items matching a query with confidence scores.
+        
+        Args:
+            query: The search query
+            threshold: Minimum confidence threshold
+            
+        Returns:
+            List of matching items with confidence scores
+        """
+        query_lower = query.lower().strip()
+        matches = []
+        
+        for plu, item in self.menu_items.items():
+            item_name_lower = item['name'].lower()
+            confidence = 0.0
+            
+            # Exact match
+            if item_name_lower == query_lower:
+                confidence = 1.0
+            # Query is full item name
+            elif query_lower in item_name_lower:
+                # Calculate confidence based on match position and length
+                match_ratio = len(query_lower) / len(item_name_lower)
+                position_score = 1.0 if item_name_lower.startswith(query_lower) else 0.8
+                confidence = match_ratio * position_score
+            # Item name contains all query words
+            else:
+                query_words = query_lower.split()
+                item_words = item_name_lower.split()
+                matching_words = sum(1 for qw in query_words if any(qw in iw for iw in item_words))
+                if matching_words > 0:
+                    confidence = matching_words / len(query_words) * 0.7
+            
+            if confidence >= threshold:
+                match_data = item.copy()
+                match_data['confidence'] = confidence
+                match_data['id'] = plu
+                matches.append(match_data)
+        
+        # Sort by confidence descending
+        matches.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        logger.info(
+            f"Found {len(matches)} matches for '{query}' with threshold {threshold}"
+        )
+        
+        return matches
