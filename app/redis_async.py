@@ -53,13 +53,19 @@ async def init_redis() -> Optional[aioredis.Redis]:
         if not redis_url.startswith("redis://"):
             redis_url = f"redis://{redis_url}"
         
-        # Create the Redis client with timeout
+        # Create the Redis client with optimized connection pool
         logger.info(f"Connecting to Redis at {redis_url}")
         _redis_client = aioredis.Redis.from_url(
             redis_url,
             socket_timeout=2.0,  # Short timeout for basic operations
             socket_connect_timeout=5.0,  # Longer timeout for initial connection
-            decode_responses=False  # We'll handle binary data explicitly
+            decode_responses=False,  # We'll handle binary data explicitly
+            # Connection pool optimization
+            max_connections=getattr(settings, 'REDIS_MAX_CONNECTIONS', 50),  # Max pool size
+            health_check_interval=getattr(settings, 'REDIS_HEALTH_CHECK_INTERVAL', 30),  # Health check interval
+            retry_on_timeout=True,  # Retry on timeout errors
+            retry_on_error=[ConnectionError, TimeoutError],  # Retry on these errors
+            socket_keepalive=False  # Disable keepalive to avoid Error 22 in Docker
         )
         
         # Test the connection

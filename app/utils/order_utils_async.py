@@ -320,3 +320,72 @@ async def validate_modifiers_async(
     # Return validation result
     is_valid = len(errors) == 0
     return is_valid, errors
+
+
+async def create_order_with_validation(
+    db: AsyncSession,
+    call_sid: str,
+    order_data: Dict[str, Any]
+) -> Tuple[Optional[Any], List[str]]:
+    """
+    Create an order with validation.
+    
+    Args:
+        db: Database session
+        call_sid: Call session ID
+        order_data: Order data including items, customer info, etc.
+        
+    Returns:
+        Tuple of (order_object, validation_errors)
+    """
+    from app.db.crud_order_async import create_order
+    from app.models.order_async import Order
+    
+    validation_errors = []
+    
+    # Validate required fields
+    if not order_data.get("items"):
+        validation_errors.append("Order must contain at least one item")
+        return None, validation_errors
+    
+    if not order_data.get("customer_name"):
+        validation_errors.append("Customer name is required")
+    
+    if not order_data.get("customer_phone"):
+        validation_errors.append("Customer phone is required")
+    
+    # Validate items availability
+    updated_items, unavailable = await mark_unavailable_items_async(db, order_data["items"])
+    if unavailable:
+        validation_errors.extend([f"{item} is not available" for item in unavailable])
+    
+    # Validate modifiers
+    is_valid, modifier_errors = await validate_modifiers_async(db, order_data["items"])
+    validation_errors.extend(modifier_errors)
+    
+    # If validation errors, return them
+    if validation_errors:
+        return None, validation_errors
+    
+    # Calculate total
+    total_amount = await calculate_bill_amount_async(order_data["items"])
+    
+    # Create order
+    try:
+        order = await create_order(
+            db=db,
+            customer_name=order_data["customer_name"],
+            customer_phone=order_data["customer_phone"],
+            order_type=order_data.get("order_type", "pickup"),
+            delivery_address=order_data.get("delivery_address"),
+            items=order_data["items"],
+            total_price=int(total_amount * 100),  # Convert to cents
+            metadata={"call_sid": call_sid}
+        )
+        
+        return order, []
+        
+    except Exception as e:
+        logger.error(f"Error creating order: {e}")
+        validation_errors.append(f"Failed to create order: {str(e)}")
+        return None, validation_errors

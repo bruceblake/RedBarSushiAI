@@ -32,7 +32,7 @@ from datetime import datetime
 class SearchResult(BaseModel):
     """Model for search results across different menu entities."""
     type: str  # 'item', 'category', 'modifier', or 'variant'
-    id: str
+    id: int
     name: str
     description: Optional[str] = None
     plu: Optional[str] = None
@@ -41,7 +41,7 @@ class SearchResult(BaseModel):
     relevance_score: float = 1.0
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class SearchResponse(BaseModel):
     """Model for search response with categorized results."""

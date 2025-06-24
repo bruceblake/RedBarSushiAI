@@ -27,6 +27,40 @@ from app.schemas.menu import (
 
 logger = logging.getLogger(__name__)
 
+# Menu Item CRUD operations
+async def get_all_menu_items(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 1000,
+    include_categories: bool = True,
+    include_modifiers: bool = True
+) -> List[MenuItem]:
+    """
+    Get all menu items with optional pagination and relationships.
+    
+    Args:
+        db: Database session
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        include_categories: Whether to include category relationship
+        include_modifiers: Whether to include modifier relationships
+        
+    Returns:
+        List of MenuItem objects
+    """
+    query = select(MenuItem).offset(skip).limit(limit)
+    
+    if include_categories:
+        query = query.options(selectinload(MenuItem.category))
+    
+    if include_modifiers:
+        query = query.options(
+            selectinload(MenuItem.modifier_groups).selectinload(MenuModifierGroup.modifiers)
+        )
+    
+    result = await db.execute(query)
+    return result.scalars().all()
+
 # Variant CRUD operations
 async def get_variants(
     db: AsyncSession, 

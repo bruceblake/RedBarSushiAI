@@ -6,7 +6,7 @@ This module provides SQLAlchemy 2.0 async models for orders.
 
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, Boolean, Numeric
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
@@ -32,7 +32,7 @@ class Order(Base, TimestampMixin):
     customer_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     order_type: Mapped[str] = mapped_column(String(20), default="pickup")
     status: Mapped[int] = mapped_column(Integer, default=10)  # 10 = received
-    total_price: Mapped[float] = mapped_column(Float, default=0.0)
+    total_price: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
     placed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     estimated_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     delivery_address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -53,7 +53,7 @@ class OrderItem(Base, TimestampMixin):
     menu_item_plu: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=1)
-    price: Mapped[float] = mapped_column(Float, default=0.0)
+    price: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Relationship to order and modifiers
@@ -72,7 +72,7 @@ class OrderItemModifier(Base, TimestampMixin):
     order_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("order_items.id"), nullable=False)
     modifier_plu: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    price_change: Mapped[float] = mapped_column(Float, default=0.0)
+    price_change: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
     
     # Relationship to order item
     order_item: Mapped["OrderItem"] = relationship("OrderItem", back_populates="modifiers")

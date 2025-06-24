@@ -50,14 +50,31 @@ try:
     
     # Import and mount ConversationRelay router if available
     try:
+        logger.critical("🚀 ATTEMPTING TO IMPORT CONVERSATIONRELAY MODULE...")
         from app.api.conversation_relay import conversation_relay_router
+        logger.critical("✅ ConversationRelay module imported successfully")
+        
+        logger.critical("🔗 Including ConversationRelay router in API...")
         api_router.include_router(conversation_relay_router, prefix="/api", tags=["ConversationRelay"])
-        logger.info("Successfully registered ConversationRelay router")
-        logger.critical("❗❗❗ ConversationRelay endpoint: /api/conversation-relay ❗❗❗")
+        
+        logger.critical("🎆" * 40)
+        logger.critical("✅ CONVERSATIONRELAY ROUTER REGISTERED SUCCESSFULLY")
+        logger.critical("🌐 WebSocket Endpoint: /api/conversation-relay")
+        logger.critical("📋 Router Details:")
+        logger.critical(f"  - Router object: {conversation_relay_router}")
+        logger.critical(f"  - Routes in router: {len(conversation_relay_router.routes)}")
+        for route in conversation_relay_router.routes:
+            logger.critical(f"  - Route: {route.path} ({route.__class__.__name__})")
+        logger.critical("🎆" * 40)
+        
     except ImportError as e:
-        logger.error(f"ConversationRelay module import failed: {str(e)}")
+        logger.critical(f"❌ ConversationRelay module IMPORT FAILED: {str(e)}")
+        logger.critical(f"  - Import error details: {repr(e)}")
     except Exception as e:
-        logger.error(f"ConversationRelay module error: {type(e).__name__}: {str(e)}")
+        logger.critical(f"❌ ConversationRelay module ERROR: {type(e).__name__}: {str(e)}")
+        logger.critical(f"  - Full error: {repr(e)}")
+        import traceback
+        logger.critical(f"  - Stack trace:\n{traceback.format_exc()}")
     
     logger.info("Successfully registered voice routers")
     logger.info("TwiML endpoints: /voice/ and /voice/webhook")
@@ -68,6 +85,17 @@ except ImportError as e:
     logger.critical("❗❗❗ VOICE MODULE NOT AVAILABLE - Please check the error above ❗❗❗")
     # Legacy voice_async module has been archived as part of OpenAI Realtime cleanup
     # Use ConversationRelay with VOICE_HANDLER=conversation_relay instead
+
+# Import admin routers
+try:
+    from app.api.admin.pos_retry import router as pos_retry_router
+    
+    # Include admin router
+    api_router.include_router(pos_retry_router, tags=["Admin"])
+    logger.info("Successfully registered admin routers")
+    logger.info("Admin endpoints: /admin/pos/*")
+except ImportError as e:
+    logger.error(f"Failed to import admin routers: {str(e)}")
 
 # Always add Debug routes to inspect the routing
 debug_router = APIRouter(tags=["Debug"])

@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
-from app.api.voice.websocket import handle_media_stream, handle_twilio_media_stream
+from app.api.voice.websocket import handle_media_stream
 from app.api.conversation_relay.handler import ConversationRelayHandler
 
 
@@ -142,7 +142,7 @@ class TestWebSocketDisconnectionDetection:
         
         # Test handler detects disconnection
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(reconnectable_websocket, sample_call_sid)
+            await handle_media_stream(reconnectable_websocket, sample_call_sid)
             
             # Verify disconnection was detected and logged
             mock_logger.info.assert_any_call(f"Twilio disconnected for call {sample_call_sid}")
@@ -165,7 +165,7 @@ class TestWebSocketDisconnectionDetection:
         reconnectable_websocket.set_disconnect_after_messages(3)
         
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(reconnectable_websocket, sample_call_sid)
+            await handle_media_stream(reconnectable_websocket, sample_call_sid)
             
             # Verify disconnection was handled
             assert reconnectable_websocket.disconnect_count == 1
@@ -305,7 +305,7 @@ class TestConnectionResilienceStrategies:
         
         # Process messages and verify connection stays alive
         with patch('app.api.voice.websocket.logger'):
-            await handle_twilio_media_stream(reconnectable_websocket, sample_call_sid)
+            await handle_media_stream(reconnectable_websocket, sample_call_sid)
         
         # Connection should have processed all messages without disconnecting
         assert reconnectable_websocket.disconnect_count == 0
@@ -365,7 +365,7 @@ class TestConnectionResilienceStrategies:
         
         # Handler should gracefully handle missing chunks
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(reconnectable_websocket, sample_call_sid)
+            await handle_media_stream(reconnectable_websocket, sample_call_sid)
         
         # Should complete without errors despite missing chunk
         mock_logger.info.assert_any_call(f"Media stream stopped for call {sample_call_sid}")
@@ -624,7 +624,7 @@ class TestReconnectionPerformanceAndLimits:
         start_time = time.time()
         
         with patch('app.api.voice.websocket.logger'):
-            await handle_twilio_media_stream(reconnectable_websocket, "partition_test_call")
+            await handle_media_stream(reconnectable_websocket, "partition_test_call")
         
         end_time = time.time()
         

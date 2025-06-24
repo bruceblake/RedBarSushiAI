@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Union
 
-from sqlalchemy import Column, Integer, String, Text, Float, Boolean, ForeignKey, DateTime, Table
+from sqlalchemy import Column, Integer, String, Text, Float, Boolean, ForeignKey, DateTime, Table, Numeric
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import text, event, inspect
@@ -226,7 +226,7 @@ class MenuModifier(BaseModel):
     
     deliverect_modifier_id = Column(String(255), nullable=True, index=True)
     name = Column(String(255), nullable=False)
-    price_change = Column(Float, default=0.0)
+    price_change = Column(Numeric(10, 2), default=0.0)
     plu = Column(String(255), nullable=True, index=True)
     location_id = Column(String(255), nullable=True, index=True)
     is_available = Column(Boolean, default=True)
@@ -275,7 +275,7 @@ class MenuItem(BaseModel):
     deliverect_item_id = Column(String(255), nullable=True, index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    price = Column(Float, default=0.0)
+    price = Column(Numeric(10, 2), default=0.0)
     plu = Column(String(255), nullable=True, index=True)
     category_id = Column(Integer, ForeignKey('menu_categories.id'), nullable=True)
     location_id = Column(String(255), nullable=True, index=True)

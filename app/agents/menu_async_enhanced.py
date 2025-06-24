@@ -19,8 +19,15 @@ from app.db.crud_menu_async import (
     get_item_by_plu,
     search_menu_items
 )
+from app.utils.enhanced_logging import get_logger
+from app.utils.disambiguation import (
+    disambiguation_detector,
+    disambiguation_resolver,
+    DisambiguationContext
+)
+from app.config import settings
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class AsyncMenuAgentEnhanced(BaseAsyncAgent, AIIntelligenceMixin):
     """
@@ -32,13 +39,17 @@ class AsyncMenuAgentEnhanced(BaseAsyncAgent, AIIntelligenceMixin):
         BaseAsyncAgent.__init__(self, agent_id=agent_id, name="MenuEnhanced")
         AIIntelligenceMixin.__init__(self)
         
+        # Set agent-specific max tokens
+        self._default_max_tokens = getattr(settings, 'MENU_AGENT_MAX_TOKENS', 256)
+        self.context = {}  # Store context for disambiguation
+        
         self.db = db
         self._menu_cache = {}
         self._cache_ttl = 300  # 5 minutes
         
-        # AI instructions
-        self.instructions = """
-You are a menu specialist for Red Bar Sushi restaurant. Your role is to help customers
+        # AI instructions - DYNAMIC
+        self.instructions = f"""
+You are a menu specialist for {settings.RESTAURANT_NAME}. Your role is to help customers
 understand our menu, make recommendations, and answer questions about our dishes.
 
 KEY RESPONSIBILITIES:
@@ -194,6 +205,9 @@ IMPORTANT RULES:
             elif tool_name == "get_item_details":
                 return await self._get_item_details(args.get("item_plu", ""))
                 
+            elif tool_name == "resolve_disambiguation":
+                return await self._resolve_disambiguation(args.get("response", ""))
+                
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
                 
@@ -202,33 +216,66 @@ IMPORTANT RULES:
             return {"error": str(e)}
     
     async def _lookup_menu_item(self, item_name: str) -> Dict[str, Any]:
-        """Look up a menu item using the matcher."""
+        """Look up a menu item using the matcher with disambiguation support."""
         if not self.db:
             return {"found": False, "error": "Database not available"}
         
         try:
-            # Use the menu matcher for intelligent matching
-            matcher = await get_cached_async_menu_matcher(self.db)
-            item_result, score = await matcher.match_item(item_name)
+            # Get the menu matcher
+            from app.utils.menu_matcher_db_async import AsyncMenuMatcher
+            matcher = AsyncMenuMatcher(self.db)
+            await matcher.initialize()
             
-            if not item_result:
+            # Find all matching items
+            matches = await matcher.find_all_matching_items(item_name, threshold=0.5)
+            
+            if not matches:
                 return {
                     "found": False,
                     "search_term": item_name,
                     "message": "Item not found in our menu"
                 }
             
+            # Check if disambiguation is needed
+            needs_disambig, disambig_type = disambiguation_detector.needs_disambiguation(
+                matches, item_name
+            )
+            
+            if needs_disambig:
+                # Create disambiguation context
+                context = disambiguation_detector.create_context(
+                    matches, item_name, disambig_type
+                )
+                
+                # Generate clarification question
+                clarification = disambiguation_resolver.generate_clarification(context)
+                
+                # Store context for follow-up
+                if hasattr(self, 'context'):
+                    self.context['disambiguation'] = context.to_dict()
+                
+                return {
+                    "found": False,
+                    "needs_disambiguation": True,
+                    "clarification_needed": clarification,
+                    "candidates": [c.to_dict() for c in context.candidates],
+                    "disambiguation_type": disambig_type.value
+                }
+            
+            # Single best match found
+            best_match = matches[0]
+            
             # Format the response
             return {
                 "found": True,
                 "item": {
-                    "name": item_result.get("name"),
-                    "plu": item_result.get("plu"),
-                    "price": f"${item_result.get('price', 0) / 100:.2f}",
-                    "description": item_result.get("description", ""),
-                    "category": item_result.get("category_name", ""),
-                    "available": item_result.get("is_available", True),
-                    "match_score": score
+                    "name": best_match.get("name"),
+                    "plu": best_match.get("plu"),
+                    "price": f"${best_match.get('price', 0):.2f}",
+                    "description": best_match.get("description", ""),
+                    "category": best_match.get("category_name", ""),
+                    "available": best_match.get("is_available", True),
+                    "match_score": best_match.get("confidence", 0)
                 }
             }
             
@@ -393,3 +440,68 @@ IMPORTANT RULES:
         except Exception as e:
             logger.error(f"Error getting item details: {e}")
             return {"found": False, "error": str(e)}
+    
+    async def _resolve_disambiguation(self, user_response: str) -> Dict[str, Any]:
+        """Resolve a disambiguation based on user's clarification response."""
+        # Check if we have disambiguation context
+        if not hasattr(self, 'context') or 'disambiguation' not in self.context:
+            return {
+                "resolved": False,
+                "error": "No disambiguation in progress"
+            }
+        
+        try:
+            # Restore disambiguation context
+            context_data = self.context['disambiguation']
+            context = DisambiguationContext.from_dict(context_data)
+            
+            # Try to match the response
+            matched_candidate = disambiguation_resolver.match_response(
+                user_response, context
+            )
+            
+            if matched_candidate:
+                # Clear disambiguation context
+                del self.context['disambiguation']
+                
+                # Return the matched item
+                return {
+                    "resolved": True,
+                    "found": True,
+                    "item": {
+                        "name": matched_candidate.name,
+                        "plu": matched_candidate.plu,
+                        "price": f"${matched_candidate.price:.2f}",
+                        "description": matched_candidate.description or "",
+                        "category": matched_candidate.category,
+                        "available": True,
+                        "match_score": matched_candidate.confidence
+                    }
+                }
+            else:
+                # Couldn't match - increment attempt count
+                context.attempt_count += 1
+                
+                if context.attempt_count >= context.max_attempts:
+                    # Too many attempts - give up
+                    del self.context['disambiguation']
+                    return {
+                        "resolved": False,
+                        "error": "I'm having trouble understanding which item you mean. Could you please be more specific?",
+                        "give_up": True
+                    }
+                else:
+                    # Try again with a different phrasing
+                    self.context['disambiguation'] = context.to_dict()
+                    clarification = disambiguation_resolver.generate_clarification(context)
+                    
+                    return {
+                        "resolved": False,
+                        "needs_disambiguation": True,
+                        "clarification_needed": f"I'm not sure I understood. {clarification}",
+                        "attempt": context.attempt_count
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Error resolving disambiguation: {e}")
+            return {"resolved": False, "error": str(e)}

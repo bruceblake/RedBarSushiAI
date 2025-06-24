@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
-from app.api.voice.websocket import handle_media_stream, handle_twilio_media_stream
+from app.api.voice.websocket import handle_media_stream
 from app.api.conversation_relay.handler import ConversationRelayHandler
 
 
@@ -170,7 +170,7 @@ class TestWebSocketConnectionErrors:
         
         # Handler should complete despite close failure
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(error_websocket, sample_call_sid)
+            await handle_media_stream(error_websocket, sample_call_sid)
             
             # Should log the stop event even if close fails
             mock_logger.info.assert_any_call(f"Media stream stopped for call {sample_call_sid}")
@@ -214,7 +214,7 @@ class TestMessageTransmissionErrors:
         
         # Handler should handle send errors gracefully
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(error_websocket, sample_call_sid)
+            await handle_media_stream(error_websocket, sample_call_sid)
             
             # Should log errors but continue processing
             mock_logger.error.assert_called()
@@ -227,7 +227,7 @@ class TestMessageTransmissionErrors:
         error_websocket.add_message("json", {"event": "stop"})
         
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(error_websocket, sample_call_sid)
+            await handle_media_stream(error_websocket, sample_call_sid)
             
             # Should handle JSON serialization errors
             mock_logger.error.assert_called()
@@ -277,7 +277,7 @@ class TestMessageReceptionErrors:
         error_websocket.add_message("json", {"event": "connected"})
         
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(error_websocket, sample_call_sid)
+            await handle_media_stream(error_websocket, sample_call_sid)
             
             # Should handle timeout gracefully
             mock_logger.error.assert_called()
@@ -304,7 +304,7 @@ class TestMessageReceptionErrors:
         error_websocket.add_message("text", "valid message")
         
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(error_websocket, sample_call_sid)
+            await handle_media_stream(error_websocket, sample_call_sid)
             
             # Should handle decode errors
             mock_logger.error.assert_called()
@@ -334,7 +334,7 @@ class TestMessageReceptionErrors:
             error_websocket.add_message("text", msg)
         
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(error_websocket, sample_call_sid)
+            await handle_media_stream(error_websocket, sample_call_sid)
             
             # Should log errors for corrupted messages
             assert mock_logger.error.call_count >= 1
@@ -358,7 +358,7 @@ class TestProtocolErrors:
         
         # Handler should process all messages without crashing
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(error_websocket, sample_call_sid)
+            await handle_media_stream(error_websocket, sample_call_sid)
     
     @pytest.mark.asyncio
     async def test_missing_required_fields(self, error_websocket):
@@ -420,7 +420,7 @@ class TestProtocolErrors:
         
         # Should handle all unexpected formats without crashing
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(error_websocket, sample_call_sid)
+            await handle_media_stream(error_websocket, sample_call_sid)
 
 
 class TestConcurrentErrorHandling:
@@ -454,7 +454,7 @@ class TestConcurrentErrorHandling:
             """Handle a connection that may have errors."""
             try:
                 with patch('app.api.voice.websocket.logger'):
-                    await handle_twilio_media_stream(ws, call_sid)
+                    await handle_media_stream(ws, call_sid)
                 return "success"
             except Exception as e:
                 return f"error: {type(e).__name__}"
