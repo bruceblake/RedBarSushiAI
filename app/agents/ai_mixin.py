@@ -10,12 +10,27 @@ import logging
 import openai
 import time
 import asyncio
-from typing import Dict, Any, List, Optional
+from decimal import Decimal
+from typing import Dict, Any, List, Optional, Callable
 from app.config import settings
 from app.utils.openai_pool import get_openai_client
 from app.utils.ai_cache import ai_cache
+from app.utils.enhanced_logging import get_logger
+from app.utils.correlation_id import get_correlation_id
+from app.services.circuit_breaker import circuit_breakers, CircuitBreakerError
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+def convert_decimals(obj):
+    """Convert Decimal values to float for JSON serialization."""
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: convert_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_decimals(v) for v in obj]
+    return obj
+
 
 class AIIntelligenceMixin:
     """
@@ -42,7 +57,8 @@ class AIIntelligenceMixin:
         input_text: str, 
         context: Dict[str, Any],
         use_tools: bool = True,
-        fast_mode: bool = False
+        fast_mode: bool = False,
+        stream: bool = False
     ) -> Dict[str, Any]:
         """
         Process input using AI for intelligent understanding and response.
@@ -51,6 +67,8 @@ class AIIntelligenceMixin:
             input_text: The user's input text
             context: Conversation context
             use_tools: Whether to enable tool calling
+            fast_mode: Whether to use fast mode (unused currently)
+            stream: Whether to stream the response
             
         Returns:
             Response dictionary with text and metadata
@@ -105,14 +123,31 @@ class AIIntelligenceMixin:
             # Track timing - rely on client's configured timeout
             start_time = time.time()
             try:
-                # OpenAI client will handle timeout based on its configuration
-                response = await client.chat.completions.create(**params)
+                # Make OpenAI call with circuit breaker protection
+                response = await circuit_breakers.openai.async_call(
+                    client.chat.completions.create,
+                    **params
+                )
                 duration = time.time() - start_time
                 
                 if duration > 2.0:
                     logger.warning(f"Slow AI response: {duration:.2f}s for {self.name}")
                 else:
                     logger.debug(f"AI response time: {duration:.2f}s")
+            except CircuitBreakerError as e:
+                logger.warning(
+                    f"OpenAI circuit breaker open, using fallback",
+                    agent=self.name
+                )
+                # Return contextual fallback based on agent type
+                fallback_text = self._get_circuit_breaker_fallback(input_text, context)
+                return {
+                    "text": fallback_text,
+                    "agent": getattr(self, 'name', 'AI'),
+                    "handled": True,
+                    "actions": [],
+                    "circuit_breaker_fallback": True
+                }
             except Exception as e:
                 # Check if it's a timeout error from the OpenAI client
                 if "timeout" in str(e).lower():
@@ -170,6 +205,14 @@ class AIIntelligenceMixin:
             cart_summary = self._summarize_cart(context["cart_items"])
             system_parts.append(f"Cart: {cart_summary}")
         
+        # Add FSM state information
+        if context.get("conversation_state"):
+            system_parts.append(f"\nCURRENT CONVERSATION STATE: {context['conversation_state']}")
+        
+        # Add state-specific guidance if provided
+        if context.get("state_guidance"):
+            system_parts.append(f"\nSTATE-SPECIFIC GUIDANCE:\n{context['state_guidance']}")
+        
         # Single system message
         messages.append({"role": "system", "content": "\n".join(system_parts)})
         
@@ -214,7 +257,7 @@ class AIIntelligenceMixin:
                 if hasattr(self, 'execute_tool'):
                     logger.critical(f"   Calling execute_tool method...")
                     result = await self.execute_tool(tool_name, tool_args)
-                    logger.critical(f"   Result: {json.dumps(result, indent=2)}")
+                    logger.critical(f"   Result: {json.dumps(convert_decimals(result), indent=2)}")
                     tool_results.append({
                         "tool": tool_name,
                         "args": tool_args,
@@ -247,7 +290,7 @@ class AIIntelligenceMixin:
     ) -> Dict[str, Any]:
         """Get final AI response after tool execution."""
         logger.critical(f"=== _get_final_response_after_tools ===")
-        logger.critical(f"Tool results: {json.dumps(tool_results, indent=2)}")
+        logger.critical(f"Tool results: {json.dumps(convert_decimals(tool_results), indent=2)}")
         logger.critical(f"Context state: {context.get('conversation_state')}")
         logger.critical(f"Customer name: {context.get('customer_name')}")
         
@@ -262,7 +305,7 @@ class AIIntelligenceMixin:
             messages.append({
                 "role": "tool",
                 "tool_call_id": original_message.tool_calls[i].id,
-                "content": json.dumps(result["result"])
+                "content": json.dumps(convert_decimals(result["result"]))
             })
         
         # Get final response
@@ -438,3 +481,154 @@ class AIIntelligenceMixin:
                 "entities": {},
                 "confidence": 0.0
             }
+    
+    async def process_with_ai_streaming(
+        self,
+        input_text: str,
+        context: Dict[str, Any],
+        use_tools: bool = True,
+        callback: Optional[Callable[[str, bool], None]] = None
+    ) -> Dict[str, Any]:
+        """
+        Process input using AI with streaming response capability.
+        
+        Args:
+            input_text: The user's input text
+            context: Conversation context
+            use_tools: Whether to enable tool calling
+            callback: Async callback function to handle streamed chunks (text, is_last)
+            
+        Returns:
+            Final response dictionary with complete text and metadata
+        """
+        if not self._ai_enabled:
+            return {
+                "text": "AI is not enabled.",
+                "agent": getattr(self, 'name', 'AI'),
+                "handled": True,
+                "actions": []
+            }
+        
+        try:
+            # Build conversation history
+            messages = self._build_messages(input_text, context)
+            
+            # Determine max_tokens dynamically
+            effective_max_tokens = settings.AI_MAX_TOKENS
+            if hasattr(self, '_default_max_tokens'):
+                effective_max_tokens = self._default_max_tokens
+            
+            # Prepare API call parameters for streaming
+            params = {
+                "model": self._model,
+                "messages": messages,
+                "temperature": 0.0,
+                "max_tokens": effective_max_tokens,
+                "stream": True  # Enable streaming
+            }
+            
+            # Note: Tool calling is not supported with streaming in current OpenAI API
+            # We'll need to handle tools differently or disable for streaming
+            if use_tools and hasattr(self, 'tools') and self.tools:
+                # For now, fall back to non-streaming when tools are needed
+                logger.debug("Tools requested with streaming - falling back to non-streaming")
+                return await self.process_with_ai(input_text, context, use_tools=True, stream=False)
+            
+            logger.debug(f"Streaming AI call: {params['model']}, {len(params['messages'])} msgs")
+            
+            client = await self._get_ai_client()
+            
+            # Track timing
+            start_time = time.time()
+            
+            # Create streaming completion
+            stream = await client.chat.completions.create(**params)
+            
+            # Collect full response while streaming
+            full_response = ""
+            sentence_buffer = ""
+            sentence_enders = [".", "!", "?", ":", "\n"]
+            
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    full_response += token
+                    sentence_buffer += token
+                    
+                    # Check if we've completed a sentence or meaningful phrase
+                    if any(ender in sentence_buffer for ender in sentence_enders):
+                        # Send the complete sentence
+                        if callback:
+                            await callback(sentence_buffer.strip(), False)
+                        sentence_buffer = ""
+                    elif len(sentence_buffer) > 50:  # Send longer phrases even without punctuation
+                        # Find a good break point (space, comma)
+                        break_point = max(
+                            sentence_buffer.rfind(" "),
+                            sentence_buffer.rfind(",")
+                        )
+                        if break_point > 20:  # Only break if we have a reasonable chunk
+                            chunk_to_send = sentence_buffer[:break_point].strip()
+                            if callback and chunk_to_send:
+                                await callback(chunk_to_send, False)
+                            sentence_buffer = sentence_buffer[break_point:].lstrip()
+            
+            # Send any remaining text
+            if sentence_buffer.strip():
+                if callback:
+                    await callback(sentence_buffer.strip(), True)
+            elif callback:
+                # Signal completion even if buffer is empty
+                await callback("", True)
+            
+            duration = time.time() - start_time
+            if duration > 2.0:
+                logger.warning(f"Slow streaming response: {duration:.2f}s for {self.name}")
+            else:
+                logger.debug(f"Streaming response time: {duration:.2f}s")
+            
+            # Return the complete response
+            return {
+                "text": full_response,
+                "agent": getattr(self, 'name', 'AI'),
+                "handled": True,
+                "ai_generated": True,
+                "streamed": True,
+                "actions": []
+            }
+            
+        except Exception as e:
+            logger.error(f"AI streaming error in {self.name}: {e}", exc_info=True)
+            # Return a fallback response
+            return {
+                "text": f"I understand. Let me help you with that.",
+                "agent": getattr(self, 'name', 'AI'),
+                "handled": True,
+                "actions": [],
+                "error": True
+            }
+    
+    def _get_circuit_breaker_fallback(self, input_text: str, context: Dict[str, Any]) -> str:
+        """
+        Get contextual fallback response when circuit breaker is open.
+        
+        Args:
+            input_text: User's input
+            context: Current context
+            
+        Returns:
+            Appropriate fallback response
+        """
+        agent_name = getattr(self, 'name', 'AI').lower()
+        
+        # Agent-specific fallbacks
+        if 'menu' in agent_name:
+            return "I can help you with our menu. We have sushi rolls, nigiri, sashimi, and appetizers available."
+        elif 'cart' in agent_name:
+            return "I'll help you add that to your order. What would you like?"
+        elif 'frontline' in agent_name:
+            return "I'm here to help with your order. What can I get for you today?"
+        elif 'fulfillment' in agent_name:
+            return "I'll process your order right away. One moment please."
+        else:
+            return "I understand. Let me help you with that."

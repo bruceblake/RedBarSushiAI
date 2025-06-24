@@ -8,6 +8,7 @@ Tests the full user journey from initial call to order completion.
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import json
 import uuid
@@ -24,12 +25,12 @@ from app.models.order_async import Order, OrderItem
 
 
 @pytest.fixture
-async def test_client():
+def test_client():
     """Create a test client for the FastAPI app."""
     return TestClient(app)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def orchestrator():
     """Create and initialize an agent orchestrator."""
     orchestrator = AsyncAgentOrchestrator()
@@ -45,7 +46,7 @@ async def orchestrator():
     return orchestrator
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def sample_menu_data():
     """Create sample menu data for testing."""
     return {
@@ -88,7 +89,7 @@ async def sample_menu_data():
     }
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_deliverect_client():
     """Mock Deliverect client for order submission."""
     mock_client = AsyncMock()

@@ -75,10 +75,20 @@ class Settings(BaseSettings):
     
     # Database settings
     DATABASE_URL: str = Field("sqlite:///app.db", env="DATABASE_URL")  # Default to SQLite for local dev
+    
+    # Database Connection Pool Settings
+    DB_POOL_SIZE: int = Field(10, env="DB_POOL_SIZE")  # Base pool size
+    DB_MAX_OVERFLOW: int = Field(20, env="DB_MAX_OVERFLOW")  # Additional connections under load
+    DB_POOL_TIMEOUT: int = Field(30, env="DB_POOL_TIMEOUT")  # Timeout waiting for connection (seconds)
+    DB_ECHO_POOL: bool = Field(False, env="DB_ECHO_POOL")  # Enable pool debugging
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
     
     # Redis settings
     REDIS_URL: Optional[str] = Field(None, env="REDIS_URL")
+    
+    # Redis Connection Pool Settings
+    REDIS_MAX_CONNECTIONS: int = Field(50, env="REDIS_MAX_CONNECTIONS")  # Max pool size
+    REDIS_HEALTH_CHECK_INTERVAL: int = Field(30, env="REDIS_HEALTH_CHECK_INTERVAL")  # Health check interval (seconds)
     CELERY_BROKER_URL: Optional[str] = Field(None, env="CELERY_BROKER_URL")
     CELERY_RESULT_BACKEND: Optional[str] = Field(None, env="CELERY_RESULT_BACKEND")
     
@@ -128,6 +138,15 @@ class Settings(BaseSettings):
     AI_MAX_TOKENS: int = Field(256, env="AI_MAX_TOKENS")  # Default for general use
     FRONTEND_AGENT_MAX_TOKENS: int = Field(150, env="FRONTEND_AGENT_MAX_TOKENS")
     CART_AGENT_MAX_TOKENS: int = Field(300, env="CART_AGENT_MAX_TOKENS")
+    
+    # HTTP Connection Pool Settings
+    HTTP_POOL_KEEPALIVE: int = Field(10, env="HTTP_POOL_KEEPALIVE")  # Keepalive connections
+    HTTP_POOL_MAX_CONNECTIONS: int = Field(100, env="HTTP_POOL_MAX_CONNECTIONS")  # Max connections
+    HTTP_POOL_KEEPALIVE_EXPIRY: float = Field(30.0, env="HTTP_POOL_KEEPALIVE_EXPIRY")  # Keepalive expiry (seconds)
+    HTTP_TIMEOUT: float = Field(30.0, env="HTTP_TIMEOUT")  # Default HTTP timeout
+    HTTP_CONNECT_TIMEOUT: float = Field(5.0, env="HTTP_CONNECT_TIMEOUT")  # Connection timeout
+    HTTP_READ_TIMEOUT: float = Field(30.0, env="HTTP_READ_TIMEOUT")  # Read timeout
+    HTTP_WRITE_TIMEOUT: float = Field(10.0, env="HTTP_WRITE_TIMEOUT")  # Write timeout
     MENU_AGENT_MAX_TOKENS: int = Field(300, env="MENU_AGENT_MAX_TOKENS")
     
     # OpenAI client configuration

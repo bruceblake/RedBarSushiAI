@@ -6,9 +6,10 @@ are properly enforced and prevent data integrity violations.
 """
 
 import pytest
+import pytest_asyncio
 import uuid
 from datetime import datetime
-from sqlalchemy.exc import IntegrityError, ForeignKeyViolation
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.menu_async import MenuItem, MenuCategory, MenuModifier, MenuModifierGroup
@@ -16,7 +17,7 @@ from app.models.order_async import Order, OrderItem, OrderItemModifier
 from app.db_async import get_db
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session():
     """Create a real database session for integration testing."""
     async for session in get_db():
@@ -26,7 +27,7 @@ async def db_session():
             await session.rollback()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_category(db_session):
     """Create a test menu category."""
     category = MenuCategory(
@@ -40,7 +41,7 @@ async def test_category(db_session):
     return category
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_modifier_group(db_session):
     """Create a test modifier group."""
     modifier_group = MenuModifierGroup(
@@ -55,7 +56,7 @@ async def test_modifier_group(db_session):
     return modifier_group
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_order(db_session):
     """Create a test order."""
     order = Order(
@@ -71,7 +72,7 @@ async def test_order(db_session):
     return order
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_order_item(db_session, test_order):
     """Create a test order item."""
     order_item = OrderItem(

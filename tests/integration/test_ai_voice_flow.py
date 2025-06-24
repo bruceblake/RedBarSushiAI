@@ -3,6 +3,7 @@ Integration tests for AI-powered voice flow
 Tests the complete system with real AI calls
 """
 import pytest
+import pytest_asyncio
 import asyncio
 from typing import Dict, Any
 import json
@@ -12,7 +13,7 @@ from app.agents.frontline_async_ai import AsyncFrontlineVoiceAgentAI
 from app.agents.cart_async import AsyncCartAgent
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def orchestrator():
     """Initialize orchestrator for tests"""
     await async_agent_orchestrator.initialize()

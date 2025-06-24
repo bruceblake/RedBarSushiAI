@@ -40,7 +40,8 @@ class ResponseCache:
             # Common acknowledgments
             "acknowledge_order_start": {
                 "text": "Great! I'd be happy to help you place an order. What would you like to have today?",
-                "actions": []
+                "actions": [],
+                "skip_cache": True  # Force AI processing for order intents
             },
             
             # Menu questions

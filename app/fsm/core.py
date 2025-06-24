@@ -321,10 +321,27 @@ class AsyncConversationFSM:
         if current_handler:
             await current_handler.on_exit(self.context)
         
-        # Store previous state for dynamic returns
+        # Store previous state for dynamic returns and GO_BACK functionality
         previous_state = self.current_state
-        if next_state in [ConversationState.MENU_QUERY_SUBSTATE, ConversationState.CANCELLATION_PENDING, ConversationState.ERROR]:
+        
+        # Always store previous state unless we're in INITIAL or transitioning to same state
+        if previous_state != ConversationState.INITIAL and previous_state != next_state:
             self.context['previous_fsm_state'] = previous_state.name
+            
+        # Also maintain a state history for more complex navigation
+        if 'state_history' not in self.context:
+            self.context['state_history'] = []
+        
+        # Add to history if it's a significant state change
+        if previous_state != next_state and previous_state not in [ConversationState.INITIAL, ConversationState.ERROR]:
+            self.context['state_history'].append({
+                'state': previous_state.name,
+                'timestamp': time.time()
+            })
+            
+            # Keep only last 5 states
+            if len(self.context['state_history']) > 5:
+                self.context['state_history'].pop(0)
         
         # Update the current state
         self.current_state = next_state

@@ -10,6 +10,8 @@ import asyncio
 from typing import Dict, Any, Optional, Tuple
 import logging
 
+from app.services.cache_service import cache_service
+
 logger = logging.getLogger(__name__)
 
 
@@ -230,3 +232,12 @@ class AIResponseCache:
 
 # Global instance
 ai_cache = AIResponseCache()
+
+# Import enhanced version for new features
+try:
+    from app.utils.ai_cache_enhanced import ai_cache_enhanced
+    # Use enhanced cache if available
+    logger.info("Using enhanced AI cache with centralized caching")
+except ImportError:
+    ai_cache_enhanced = ai_cache
+    logger.warning("Enhanced AI cache not available, using basic cache")

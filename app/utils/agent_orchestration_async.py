@@ -7,7 +7,7 @@ import asyncio
 import logging
 import json
 import time
-from typing import Dict, List, Any, Optional, Union, Callable, Tuple
+from typing import Dict, List, Any, Optional, Union, Callable, Tuple, AsyncGenerator
 
 from app.agents.factory_async import async_agent_factory
 from app.utils.conversation_store_async import async_conversation_store
@@ -17,9 +17,16 @@ from app.utils.fsm_async import (
     AsyncConversationFSM
 )
 from app.config import settings
+from app.utils.global_commands import (
+    GlobalCommand, global_command_detector, global_command_context
+)
+from app.utils.intent_detector_async import intent_detector
 
 # Set up logging
-logger = logging.getLogger(__name__)
+from app.utils.enhanced_logging import get_logger
+from app.utils.correlation_id import set_correlation_id, get_correlation_id
+
+logger = get_logger(__name__)
 
 class AsyncAgentOrchestrator:
     """
@@ -147,6 +154,28 @@ class AsyncAgentOrchestrator:
             await fsm.trigger(ConversationEvent.START_CONVERSATION)
             logger.critical(f"FSM state after START_CONVERSATION: {fsm.current_state.name}")
         
+        # Check for global commands first (but not on first interaction)
+        if not context.get("first_interaction") and input_text.strip():
+            global_cmd, confidence = await intent_detector.detect_global_command(input_text)
+            if global_cmd != GlobalCommand.NONE and confidence >= 0.8:
+                logger.info(
+                    f"Global command detected: {global_cmd.value}",
+                    call_sid=call_sid,
+                    confidence=confidence
+                )
+                
+                # Handle special global commands that don't map to events
+                if global_cmd in [GlobalCommand.REPEAT, GlobalCommand.START_OVER, GlobalCommand.GO_BACK]:
+                    response = await self._handle_global_command(global_cmd, call_sid, fsm)
+                    if response:
+                        # Add response to conversation store
+                        await self.conversation_store.add_message(call_sid, "assistant", response["text"])
+                        
+                        # Update global command context
+                        global_command_context.update_last_response(response["text"], time.time())
+                        
+                        return response
+        
         # Process the transcript with the FSM
         start_time = time.time()
         
@@ -166,7 +195,20 @@ class AsyncAgentOrchestrator:
         
         # Select the appropriate agent based on FSM state
         logger.critical(f"Selecting appropriate agent for state: {fsm.current_state.name}")
-        agent, response = await self._process_with_appropriate_agent(fsm, input_text, context)
+        try:
+            agent, response = await self._process_with_appropriate_agent(fsm, input_text, context)
+        except Exception as e:
+            logger.error(f"Agent processing error: {str(e)}", exc_info=True)
+            # Transition to ERROR state
+            await fsm.trigger(ConversationEvent.ERROR_OCCURRED)
+            # Return error response
+            return {
+                "text": "I'm sorry, I encountered an error processing your request. Please try again or ask for assistance.",
+                "handled": True,
+                "agent": "ErrorHandler",
+                "error": str(e),
+                "state": ConversationState.ERROR.name
+            }
         logger.critical(f"Agent processing complete:")
         logger.critical(f"  - Agent used: {agent.__class__.__name__}")
         logger.critical(f"  - Response text: '{response.get('text', '')}'")
@@ -185,6 +227,10 @@ class AsyncAgentOrchestrator:
         
         # Update session state to match FSM state
         self.active_sessions[call_sid]["state"] = fsm.current_state.name
+        
+        # Update global command context with the last response
+        if response_text:
+            global_command_context.update_last_response(response_text, time.time())
         
         # Log processing stats
         logger.critical(f"ORCHESTRATOR PROCESSING COMPLETE:")
@@ -343,6 +389,139 @@ class AsyncAgentOrchestrator:
         logger.info(f"Agent selection complete: {agent.__class__.__name__}")
         return agent, response
     
+    async def process_voice_input_streaming(
+        self,
+        call_sid: str,
+        input_text: str,
+        stream_callback: Callable[[str, bool], None],
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Process voice input with streaming support for faster response times.
+        
+        Args:
+            call_sid: The Twilio call SID
+            input_text: The text input from voice transcript
+            stream_callback: Async callback to send streamed chunks
+            context: Optional additional context
+            
+        Returns:
+            Final complete response dict
+        """
+        logger.critical("🌊 ORCHESTRATOR: process_voice_input_streaming called")
+        logger.critical(f"Call SID: {call_sid}")
+        logger.critical(f"Input: '{input_text}'")
+        
+        if not self.frontline_agent:
+            from app.db_async import get_db
+            async for db in get_db():
+                await self.initialize(db=db)
+                break
+        
+        if context is None:
+            context = {}
+        
+        context["call_sid"] = call_sid
+        
+        # Track session
+        if call_sid not in self.active_sessions:
+            self.active_sessions[call_sid] = {
+                "started_at": time.time(),
+                "last_activity": time.time(),
+                "state": ConversationState.GREETING.name
+            }
+        
+        self.active_sessions[call_sid]["last_activity"] = time.time()
+        
+        # Store user message
+        await self.conversation_store.add_message(
+            call_sid, 
+            "user",
+            input_text
+        )
+        
+        # Get FSM
+        fsm = await self.get_fsm(call_sid)
+        
+        # Process the prompt event
+        try:
+            await fsm.handle_event(ConversationEvent.PROMPT_RECEIVED, {"prompt": input_text})
+        except Exception as e:
+            logger.error(f"FSM event handling error: {e}")
+        
+        # Check for state transition
+        state_transition_occurred = False
+        if hasattr(fsm, '_last_state') and fsm._last_state != fsm.current_state:
+            state_transition_occurred = True
+            logger.critical(f"STATE TRANSITION: {fsm._last_state} → {fsm.current_state}")
+        fsm._last_state = fsm.current_state
+        
+        # Update context
+        context.update({
+            "fsm_state": fsm.current_state.name,
+            "state_transition_occurred": state_transition_occurred,
+            "customer_name": fsm.context.get("customer_name"),
+            "order_items": fsm.context.get("order_items", [])
+        })
+        
+        # Get appropriate agent
+        agent_context = context.copy()
+        agent_context.update({k: v for k, v in fsm.context.items() 
+                             if not k.startswith("_") and k not in 
+                             ["frontline_agent", "menu_agent", "cart_agent", 
+                              "guardrail_agent", "fulfillment_agent", "escalation_agent"]})
+        
+        # For now, streaming is only supported by frontline agent in certain states
+        if fsm.current_state in [ConversationState.GREETING, ConversationState.MAIN_MENU] and not context.get("first_interaction"):
+            logger.critical("Using FRONTLINE AGENT with streaming support")
+            response = await self.frontline_agent.process_voice_input(
+                input_text, agent_context, stream_callback
+            )
+        else:
+            # Fall back to non-streaming for other states/agents
+            logger.critical("Falling back to non-streaming (tools or complex state)")
+            try:
+                agent, response = await self._process_with_appropriate_agent(fsm, input_text, context)
+            except Exception as e:
+                logger.error(f"Agent processing error: {str(e)}", exc_info=True)
+                # Transition to ERROR state
+                await fsm.trigger(ConversationEvent.ERROR_OCCURRED)
+                # Return error response
+                return {
+                    "text": "I'm sorry, I encountered an error processing your request. Please try again or ask for assistance.",
+                    "handled": True,
+                    "agent": "ErrorHandler",
+                    "error": str(e),
+                    "state": ConversationState.ERROR.name
+                }
+            
+            # Send complete response via callback
+            if response.get("text"):
+                logger.critical(f"Sending non-streaming response via callback: {response['text'][:100]}...")
+                await stream_callback(response["text"], True)
+            else:
+                logger.critical("No text in response to send via stream_callback")
+        
+        # Store response
+        await self.conversation_store.add_message(
+            call_sid,
+            "assistant",
+            response.get("text", "")
+        )
+        
+        # Update FSM context
+        for action in response.get("actions", []):
+            if action.get("type") == "set_customer_name":
+                fsm.context["customer_name"] = action.get("name")
+                # Save FSM state with updated context
+                pass  # FSM is already saved in the manager
+        
+        response["state"] = fsm.current_state.name
+        response["fsm_context"] = {k: v for k, v in fsm.context.items() 
+                                   if isinstance(v, (str, int, float, bool, list, dict)) or v is None}
+        
+        return response
+    
     async def process_tool_call(
         self, 
         call_sid: str, 
@@ -490,11 +669,15 @@ class AsyncAgentOrchestrator:
         Returns:
             The initial greeting response
         """
-        logger.info("★" * 80)
-        logger.info("ORCHESTRATOR: start_new_conversation called")
-        logger.info(f"Call SID: {call_sid}")
-        logger.info(f"Initial context: {json.dumps(context, indent=2)}")
-        logger.info("★" * 80)
+        # Set correlation ID from call_sid
+        set_correlation_id(call_sid)
+        
+        logger.info("★" * 80, call_sid=call_sid)
+        logger.info("ORCHESTRATOR: start_new_conversation called", call_sid=call_sid)
+        logger.info(f"Call SID: {call_sid}", call_sid=call_sid)
+        logger.info(f"Initial context: {json.dumps(context, indent=2)}", call_sid=call_sid)
+        logger.info(f"Correlation ID: {get_correlation_id()}", call_sid=call_sid)
+        logger.info("★" * 80, call_sid=call_sid)
         if not self.frontline_agent:
             # Get a database session for initialization
             from app.db_async import get_db
@@ -595,6 +778,134 @@ class AsyncAgentOrchestrator:
             logger.info(f"Cleaned up inactive session: {call_sid}")
         
         return len(sessions_to_remove)
+    
+    async def _handle_global_command(
+        self,
+        command: GlobalCommand,
+        call_sid: str,
+        fsm: AsyncConversationFSM
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Handle global commands that require special processing.
+        
+        Args:
+            command: The detected global command
+            call_sid: The call session ID
+            fsm: The FSM instance
+            
+        Returns:
+            Response dict or None
+        """
+        if command == GlobalCommand.REPEAT:
+            # Get the last assistant message from conversation history
+            history = await self.conversation_store.get_conversation(call_sid)
+            last_assistant_msg = None
+            
+            # Find the most recent assistant message
+            for msg in reversed(history):
+                if msg.get("role") == "assistant":
+                    last_assistant_msg = msg.get("content")
+                    break
+            
+            if last_assistant_msg:
+                logger.info(f"Repeating last message", call_sid=call_sid)
+                return {
+                    "text": last_assistant_msg,
+                    "handled": True,
+                    "agent": "GlobalCommand",
+                    "is_repeat": True
+                }
+            else:
+                return {
+                    "text": "I'm sorry, I don't have anything to repeat yet.",
+                    "handled": True,
+                    "agent": "GlobalCommand"
+                }
+        
+        elif command == GlobalCommand.START_OVER:
+            logger.info(f"Starting over conversation", call_sid=call_sid)
+            
+            # Clear conversation history except system messages
+            await self.conversation_store.delete_conversation(call_sid)
+            
+            # Clear global command context
+            global_command_context.clear_history()
+            
+            # Reset FSM to INITIAL state
+            fsm.current_state = ConversationState.INITIAL
+            fsm.context = {
+                "call_sid": call_sid,
+                "frontline_agent": self.frontline_agent,
+                "menu_agent": self.menu_agent,
+                "cart_agent": self.cart_agent,
+                "guardrail_agent": self.guardrail_agent,
+                "fulfillment_agent": self.fulfillment_agent,
+                "escalation_agent": self.escalation_agent
+            }
+            
+            # Trigger start conversation
+            await fsm.trigger(ConversationEvent.START_CONVERSATION)
+            
+            # Get greeting from frontline agent
+            greeting_response = await self.frontline_agent.process_voice_input(
+                "", {"first_interaction": True, "call_sid": call_sid}
+            )
+            
+            greeting_text = greeting_response.get("text", f"Let's start fresh. {settings.RESTAURANT_NAME} here. How can I help you today?")
+            
+            return {
+                "text": greeting_text,
+                "handled": True,
+                "agent": "GlobalCommand",
+                "is_restart": True
+            }
+        
+        elif command == GlobalCommand.GO_BACK:
+            # Check if we have state history
+            previous_state_info = fsm.context.get("previous_fsm_state")
+            
+            if previous_state_info:
+                logger.info(
+                    f"Going back to previous state: {previous_state_info}",
+                    call_sid=call_sid
+                )
+                
+                # Transition back to previous state
+                try:
+                    previous_state = ConversationState[previous_state_info]
+                    fsm.current_state = previous_state
+                    
+                    # Get appropriate response for the previous state
+                    if previous_state == ConversationState.ORDERING:
+                        return {
+                            "text": "Okay, let's go back to your order. What would you like to add or change?",
+                            "handled": True,
+                            "agent": "GlobalCommand"
+                        }
+                    elif previous_state == ConversationState.MAIN_MENU:
+                        return {
+                            "text": "Sure, let's go back. Would you like to place an order or do you have questions about our menu?",
+                            "handled": True,
+                            "agent": "GlobalCommand"
+                        }
+                    else:
+                        return {
+                            "text": "Okay, let's go back to where we were.",
+                            "handled": True,
+                            "agent": "GlobalCommand"
+                        }
+                        
+                except Exception as e:
+                    logger.error(f"Error going back to previous state: {e}", call_sid=call_sid)
+            
+            # No previous state to go back to
+            return {
+                "text": "I'm sorry, there's nowhere to go back to right now. How can I help you?",
+                "handled": True,
+                "agent": "GlobalCommand"
+            }
+        
+        return None
     
     async def handle_interruption(self, call_sid: str):
         """

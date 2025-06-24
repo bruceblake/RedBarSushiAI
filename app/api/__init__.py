@@ -86,6 +86,17 @@ except ImportError as e:
     # Legacy voice_async module has been archived as part of OpenAI Realtime cleanup
     # Use ConversationRelay with VOICE_HANDLER=conversation_relay instead
 
+# Import admin routers
+try:
+    from app.api.admin.pos_retry import router as pos_retry_router
+    
+    # Include admin router
+    api_router.include_router(pos_retry_router, tags=["Admin"])
+    logger.info("Successfully registered admin routers")
+    logger.info("Admin endpoints: /admin/pos/*")
+except ImportError as e:
+    logger.error(f"Failed to import admin routers: {str(e)}")
+
 # Always add Debug routes to inspect the routing
 debug_router = APIRouter(tags=["Debug"])
 

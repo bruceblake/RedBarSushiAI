@@ -16,7 +16,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 from app.main import app
-from app.api.voice.websocket import handle_media_stream, handle_twilio_media_stream
+from app.api.voice.websocket import handle_media_stream
 from app.api.conversation_relay.handler import ConversationRelayHandler
 
 
@@ -218,7 +218,7 @@ class TestTwilioMediaStreamLifecycle:
         
         # Test the handler
         with patch('app.api.voice.websocket.logger') as mock_logger:
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
         
         # Verify messages were processed
         assert len(mock_websocket.messages_sent) > 0
@@ -236,7 +236,7 @@ class TestTwilioMediaStreamLifecycle:
         # Test error handling
         with patch('app.api.voice.websocket.logger') as mock_logger:
             with pytest.raises(WebSocketDisconnect):
-                await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+                await handle_media_stream(mock_websocket, sample_call_sid)
     
     @pytest.mark.asyncio
     async def test_media_stream_handler_lifecycle(self, sample_call_sid):
@@ -246,7 +246,7 @@ class TestTwilioMediaStreamLifecycle:
         
         # Mock the environment variable
         with patch.dict('os.environ', {'VOICE_HANDLER': 'media_streams'}):
-            with patch('app.api.voice.websocket.handle_twilio_media_stream') as mock_handler:
+            with patch('app.api.voice.websocket.handle_media_stream') as mock_handler:
                 mock_handler.return_value = None
                 
                 # Test the main handler
@@ -360,7 +360,7 @@ class TestWebSocketErrorHandling:
         
         with patch('app.api.voice.websocket.logger') as mock_logger:
             with pytest.raises(WebSocketDisconnect):
-                await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+                await handle_media_stream(mock_websocket, sample_call_sid)
     
     @pytest.mark.asyncio
     async def test_websocket_unexpected_disconnect(self, mock_websocket, sample_call_sid):
@@ -369,7 +369,7 @@ class TestWebSocketErrorHandling:
         
         with patch('app.api.voice.websocket.logger') as mock_logger:
             # Should handle disconnect gracefully
-            await handle_twilio_media_stream(mock_websocket, sample_call_sid)
+            await handle_media_stream(mock_websocket, sample_call_sid)
             
             # Verify logging occurred
             assert mock_logger.info.called or mock_logger.error.called
@@ -455,7 +455,7 @@ class TestWebSocketConcurrentConnections:
     async def test_connection_cleanup_on_exception(self, mock_websocket, sample_call_sid):
         """Test that connections are properly cleaned up on exceptions."""
         # Mock an exception during handler execution
-        with patch('app.api.voice.websocket.handle_twilio_media_stream') as mock_handler:
+        with patch('app.api.voice.websocket.handle_media_stream') as mock_handler:
             mock_handler.side_effect = Exception("Handler error")
             
             # Test the main handler with exception
@@ -535,7 +535,7 @@ class TestWebSocketPerformance:
         start_time = time.time()
         
         with patch('app.api.voice.websocket.logger'):
-            await handle_twilio_media_stream(mock_websocket, "test_call")
+            await handle_media_stream(mock_websocket, "test_call")
         
         end_time = time.time()
         processing_time = end_time - start_time

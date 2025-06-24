@@ -17,9 +17,15 @@ from app.utils.menu_db_store_async import async_menu_db_store
 # Menu caching is handled by Redis
 from app.utils.conversation_store_async import async_agents_conversation_store
 from app.config import settings
+from app.utils.enhanced_logging import get_logger
+from app.utils.disambiguation import (
+    disambiguation_detector,
+    disambiguation_resolver,
+    DisambiguationContext
+)
 
 # Set up logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class AsyncCartAgent(BaseAsyncAgent, AIIntelligenceMixin):
     """
@@ -40,7 +46,8 @@ class AsyncCartAgent(BaseAsyncAgent, AIIntelligenceMixin):
         self.db = db
         
         # Set agent-specific max tokens
-        self._default_max_tokens = settings.CART_AGENT_MAX_TOKENS
+        self._default_max_tokens = getattr(settings, 'CART_AGENT_MAX_TOKENS', 256)
+        self.disambiguation_context = None  # Store disambiguation state
         
         # Define the tools this agent can use
         self.tools = [
@@ -547,6 +554,8 @@ BE BRIEF. USE TOOLS. ADD TO CART.
             return await self._suggest_additions(args.get("suggestion_type", "popular"))
         elif tool_name == "clear_cart":
             return await self._clear_cart()
+        elif tool_name == "resolve_disambiguation":
+            return await self._resolve_disambiguation(args.get("response", ""))
         else:
             logger.warning(f"[{self.name}] Unknown tool: {tool_name}")
             return {
@@ -556,7 +565,7 @@ BE BRIEF. USE TOOLS. ADD TO CART.
     
     async def _lookup_menu_item(self, item_name: str) -> Dict[str, Any]:
         """
-        Look up a menu item by name.
+        Look up a menu item by name with disambiguation support.
         
         Args:
             item_name: The name of the menu item to look up
@@ -567,6 +576,13 @@ BE BRIEF. USE TOOLS. ADD TO CART.
         logger.critical(f"\n{'='*60}")
         logger.critical(f"_lookup_menu_item called with: '{item_name}'")
         logger.critical(f"Cart agent database session available: {self.db is not None}")
+        
+        # Check if we're resolving a previous disambiguation
+        if self.disambiguation_context and item_name:
+            # Try to resolve with the user's response
+            result = await self._resolve_disambiguation(item_name)
+            if result.get("resolved"):
+                return result
         logger.critical(f"{'='*60}\n")
         
         # Get a fresh database session if we don't have one
@@ -575,22 +591,63 @@ BE BRIEF. USE TOOLS. ADD TO CART.
             self.db = async_session_factory()
             logger.info("Created new database session for cart agent")
         
-        # Use the async menu matcher to find the item
-        logger.critical(f"Getting cached menu matcher...")
-        async_matcher = await get_cached_async_menu_matcher(self.db)
-        logger.critical(f"Menu matcher obtained: {async_matcher is not None}")
+        # Use menu matcher to find all matching items
+        logger.critical(f"Getting menu matcher...")
+        from app.utils.menu_matcher_db_async import AsyncMenuMatcher
+        matcher = AsyncMenuMatcher(self.db)
+        await matcher.initialize()
         
-        logger.critical(f"Calling match_item for: '{item_name}'")
-        menu_item, score = await async_matcher.match_item(item_name)
-        logger.critical(f"Match result - Item found: {menu_item is not None}, Score: {score}")
+        logger.critical(f"Finding all matches for: '{item_name}'")
+        matches = await matcher.find_all_matching_items(item_name, threshold=0.5)
+        logger.critical(f"Found {len(matches)} matches")
         
-        if not menu_item:
+        if not matches:
             logger.info(f"Menu item not found: {item_name}")
             return {
                 "found": False,
                 "search_term": item_name,
                 "message": "This item doesn't appear to be on our menu."
             }
+        
+        # Check if disambiguation is needed
+        needs_disambig, disambig_type = disambiguation_detector.needs_disambiguation(
+            matches, item_name
+        )
+        
+        if needs_disambig:
+            # Create disambiguation context
+            context = disambiguation_detector.create_context(
+                matches, item_name, disambig_type
+            )
+            
+            # Store context for follow-up
+            self.disambiguation_context = context
+            
+            # Generate clarification question
+            clarification = disambiguation_resolver.generate_clarification(context)
+            
+            logger.info(
+                f"Disambiguation needed for '{item_name}' (type: {disambig_type.value}, candidates: {len(context.candidates)})"
+            )
+            
+            return {
+                "found": False,
+                "needs_disambiguation": True,
+                "clarification_needed": clarification,
+                "candidates": [
+                    {
+                        "name": c.display_name,
+                        "price": f"${c.price:.2f}",
+                        "category": c.category
+                    }
+                    for c in context.candidates
+                ],
+                "disambiguation_type": disambig_type.value
+            }
+        
+        # Single best match found - use it
+        menu_item = matches[0]
+        score = menu_item.get("confidence", 0)
         
         # Format the price for display (price is already in dollars)
         price = menu_item.get("price", 0)
@@ -751,7 +808,19 @@ BE BRIEF. USE TOOLS. ADD TO CART.
         logger.critical(f"Cart updated for call {call_sid}:")
         logger.critical(f"  - Items: {len(cart['items'])}")
         logger.critical(f"  - Total price: ${cart['total_price']:.2f}")
-        logger.critical(f"  - Full cart: {json.dumps(cart, indent=2)}")
+        # Convert Decimal to float for JSON serialization
+        items_for_logging = []
+        for item in cart.get("items", []):
+            item_copy = item.copy()
+            if "price" in item_copy:
+                item_copy["price"] = float(item_copy["price"])
+            items_for_logging.append(item_copy)
+        
+        cart_for_logging = {
+            "items": items_for_logging,
+            "total_price": float(cart.get("total_price", 0))
+        }
+        logger.critical(f"  - Full cart: {json.dumps(cart_for_logging, indent=2)}")
         
         updated_cart = cart
         
@@ -1134,6 +1203,74 @@ BE BRIEF. USE TOOLS. ADD TO CART.
                 "success": False,
                 "message": "Failed to clear cart"
             }
+    
+    async def _resolve_disambiguation(self, user_response: str) -> Dict[str, Any]:
+        """
+        Resolve a disambiguation based on user's clarification response.
+        
+        Args:
+            user_response: The user's response to the clarification question
+            
+        Returns:
+            Resolved item details or error
+        """
+        if not self.disambiguation_context:
+            return {
+                "resolved": False,
+                "error": "No disambiguation in progress"
+            }
+        
+        try:
+            # Try to match the response
+            matched_candidate = disambiguation_resolver.match_response(
+                user_response, self.disambiguation_context
+            )
+            
+            if matched_candidate:
+                # Clear disambiguation context
+                self.disambiguation_context = None
+                
+                # Return the matched item in the expected format
+                return {
+                    "resolved": True,
+                    "found": True,
+                    "name": matched_candidate.name,
+                    "plu": matched_candidate.plu,
+                    "price": f"${matched_candidate.price:.2f}",
+                    "price_cents": matched_candidate.price,
+                    "description": matched_candidate.description or "",
+                    "category": matched_candidate.category,
+                    "is_available": True
+                }
+            else:
+                # Couldn't match - increment attempt count
+                self.disambiguation_context.attempt_count += 1
+                
+                if self.disambiguation_context.attempt_count >= self.disambiguation_context.max_attempts:
+                    # Too many attempts - give up
+                    self.disambiguation_context = None
+                    return {
+                        "resolved": False,
+                        "error": "I'm having trouble understanding which item you mean. Could you please be more specific about the item name?",
+                        "give_up": True
+                    }
+                else:
+                    # Try again with a different phrasing
+                    clarification = disambiguation_resolver.generate_clarification(
+                        self.disambiguation_context
+                    )
+                    
+                    return {
+                        "resolved": False,
+                        "needs_disambiguation": True,
+                        "clarification_needed": f"I'm not sure I understood. {clarification}",
+                        "attempt": self.disambiguation_context.attempt_count
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Error resolving disambiguation: {e}")
+            self.disambiguation_context = None
+            return {"resolved": False, "error": str(e)}
     
     def _get_current_call_sid(self) -> Optional[str]:
         """

@@ -6,12 +6,16 @@ replacing keyword-based detection with intelligent understanding.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from openai import AsyncOpenAI
 from app.config import settings
 from app.fsm.core import ConversationState, ConversationEvent
+from app.utils.enhanced_logging import get_logger
+from app.utils.global_commands import (
+    GlobalCommand, global_command_detector, global_command_context
+)
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class AsyncIntentDetector:
     """Detects user intents using LLM for FSM state transitions."""
@@ -40,6 +44,19 @@ class AsyncIntentDetector:
         """
         if not transcript.strip():
             return None
+            
+        # First check for global commands
+        global_cmd, confidence = global_command_detector.detect_command(transcript)
+        if global_cmd != GlobalCommand.NONE and confidence >= 0.8:
+            # Map global commands to events
+            global_event = self._map_global_command_to_event(global_cmd)
+            if global_event:
+                logger.info(
+                    f"Global command detected: {global_cmd.value}",
+                    event=global_event.name,
+                    confidence=confidence
+                )
+                return global_event
             
         # Build state-specific prompt
         system_prompt = self._build_system_prompt(current_state)
@@ -285,6 +302,35 @@ Examples:
             logger.info(f"No event mapping for intent {intent} in state {current_state.name}")
             
         return event
+    
+    def _map_global_command_to_event(self, command: GlobalCommand) -> Optional[ConversationEvent]:
+        """Map global command to FSM event."""
+        # Global commands that map to existing events
+        command_to_event = {
+            GlobalCommand.CANCEL: ConversationEvent.CANCEL_ORDER,
+            GlobalCommand.HELP: ConversationEvent.REQUEST_ESCALATION,
+            # REPEAT, START_OVER, and GO_BACK will be handled specially
+            # in the orchestrator, so they don't map to events
+        }
+        return command_to_event.get(command)
+    
+    async def detect_global_command(
+        self, 
+        transcript: str
+    ) -> Tuple[GlobalCommand, float]:
+        """
+        Detect global command from transcript.
+        
+        Args:
+            transcript: User's spoken text
+            
+        Returns:
+            Tuple of (command, confidence)
+        """
+        return global_command_detector.detect_command(transcript)
 
 # Singleton instance
 intent_detector = AsyncIntentDetector()
+
+# For backward compatibility with tests
+async_intent_detector = intent_detector

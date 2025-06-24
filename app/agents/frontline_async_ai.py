@@ -54,24 +54,20 @@ class AsyncFrontlineVoiceAgentAI(BaseAsyncAgent, AIIntelligenceMixin):
         ]
         
         # AI instructions for the agent - DYNAMIC VERSION
-        from app.config import settings
-        self.instructions = f"""
+        self.base_instructions = f"""
 You are {settings.RESTAURANT_GREETING_NAME} from {settings.RESTAURANT_NAME}, taking phone orders. Be warm, friendly, and efficient.
 
 KEY TASKS:
-1. Get customer name (MUST use update_customer_info tool immediately when you hear a name)
-2. Take orders accurately
+1. Get customer name ONLY when in GREETING state
+2. Take orders accurately when in MAIN_MENU or ORDERING states
 3. Use tools to lookup menu items and manage cart
 4. Keep responses short (1-2 sentences)
 
-WHEN YOU HEAR A NAME:
-- Single word like "Bruce" → Call update_customer_info({{"name": "Bruce"}})
-- "My name is X" → Call update_customer_info({{"name": "X"}})
-- "I'm X" → Call update_customer_info({{"name": "X"}})
-Then respond: "Nice to meet you, [name]! How can I help you today?"
-
 REMEMBER: Be conversational, accurate with menu/prices, use tools for everything.
 """
+        
+        # We'll update instructions dynamically based on state
+        self.instructions = self.base_instructions
         
         # Define tools for AI to use
         self.tools = [
@@ -205,7 +201,8 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
     async def process_voice_input(
         self, 
         input_text: str, 
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
+        stream_callback: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
         Process voice input using AI for intelligent responses.
@@ -213,6 +210,7 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         Args:
             input_text: The voice input to process
             context: Optional context information
+            stream_callback: Optional callback for streaming responses
             
         Returns:
             Dict[str, Any]: The agent's response
@@ -244,7 +242,6 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
             logger.info("FIRST INTERACTION DETECTED - Generating fast greeting")
             
             # Use dynamic greeting for instant response
-            from app.config import settings
             if settings.RESTAURANT_PHONE_GREETING:
                 greeting_text = settings.RESTAURANT_PHONE_GREETING
             else:
@@ -293,24 +290,28 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         logger.critical(f"Routing to handler for state: {self.conversation_state}")
         if self.conversation_state == "GREETING":
             logger.critical("→ Calling _handle_greeting")
-            return await self._handle_greeting(input_text)
+            return await self._handle_greeting(input_text, stream_callback)
         elif self.conversation_state == "MAIN_MENU":
             logger.critical("→ Calling _handle_main_menu")
             logger.critical(f"Customer name in context: {self.context.get('customer_name')}")
-            return await self._handle_main_menu(input_text)
+            return await self._handle_main_menu(input_text, stream_callback)
         elif self.conversation_state == "ORDERING":
             logger.info("→ Calling _handle_ordering")
-            return await self._handle_ordering(input_text)
+            return await self._handle_ordering(input_text, stream_callback)
         elif self.conversation_state == "VALIDATION":
             logger.info("→ Calling _handle_validation")
-            return await self._handle_validation(input_text)
+            return await self._handle_validation(input_text, stream_callback)
         elif self.conversation_state == "CONFIRMATION":
             logger.info("→ Calling _handle_confirmation")
-            return await self._handle_confirmation(input_text)
+            return await self._handle_confirmation(input_text, stream_callback)
         else:
             # For other states, use AI to process
             logger.info(f"→ Using AI for state: {self.conversation_state}")
-            response = await self.process_with_ai(input_text, context)
+            # Check if streaming is available and no tools are needed
+            if stream_callback and not any(word in input_text.lower() for word in ["add", "order", "menu", "cart"]):
+                response = await self.process_with_ai_streaming(input_text, context, use_tools=False, callback=stream_callback)
+            else:
+                response = await self.process_with_ai(input_text, context)
             logger.info(f"AI response: {json.dumps(response, indent=2)}")
             
             # Add response to conversation history
@@ -370,7 +371,7 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
 
     # _force_name_tool_call method removed - AI is required for name detection
 
-    async def _handle_greeting(self, input_text: str) -> Dict[str, Any]:
+    async def _handle_greeting(self, input_text: str, stream_callback: Optional[Any] = None) -> Dict[str, Any]:
         """Handle inputs in the greeting state using AI."""
         logger.critical("=" * 60)
         logger.critical(f"_handle_greeting called with input: '{input_text}'")
@@ -385,10 +386,16 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
             if name_match:
                 name = name_match.group(1)
                 logger.critical(f"FAST NAME DETECTION: '{name}'")
+                logger.critical(f"Stream callback available: {stream_callback is not None}")
                 
                 # Update context and return fast response
                 self.context["customer_name"] = name
                 self.conversation_state = "MAIN_MENU"
+                
+                # If we have a stream callback, use it to send the response
+                if stream_callback:
+                    logger.critical(f"STREAMING fast name response: {fast_response}")
+                    await stream_callback(fast_response, True)
                 
                 return {
                     "text": fast_response,
@@ -477,21 +484,33 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         # Update state from actions
         await self._update_state_from_actions(response.get("actions", []))
         
+        # Stream the response if we have a callback and response text
+        if stream_callback and response.get("text"):
+            logger.critical(f"STREAMING greeting response: {response['text']}")
+            await stream_callback(response['text'], True)
+        
         return response
     
-    async def _handle_main_menu(self, input_text: str) -> Dict[str, Any]:
+    async def _handle_main_menu(self, input_text: str, stream_callback: Optional[Any] = None) -> Dict[str, Any]:
         """Handle inputs in the main menu state using AI."""
         logger.critical(f"=== _handle_main_menu START ===")
         logger.critical(f"Input: '{input_text}'")
         logger.critical(f"Customer name: {self.context.get('customer_name')}")
         
         # Check cache first for common patterns
-        cached_response = response_cache.get_for_pattern(input_text, "MAIN_MENU")
-        if cached_response:
-            logger.info(f"Using cached response for main menu")
-            cached_response["agent"] = self.name
-            cached_response["handled"] = True
-            return cached_response
+        # TEMPORARILY DISABLED FOR DEBUGGING
+        # cached_response = response_cache.get_for_pattern(input_text, "MAIN_MENU")
+        # if cached_response:
+        #     logger.info(f"Using cached response for main menu")
+        #     cached_response["agent"] = self.name
+        #     cached_response["handled"] = True
+        #     
+        #     # If we have a stream callback, send the cached response through it
+        #     if stream_callback and cached_response.get("text"):
+        #         logger.critical(f"STREAMING cached response: {cached_response['text']}")
+        #         await stream_callback(cached_response['text'], True)
+        #     
+        #     return cached_response
         
         context = self.context.copy()
         
@@ -507,8 +526,21 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
             # Mark that we've acknowledged the name
             self.context["name_acknowledged"] = True
             
-            # Try with AI first
-            response = await self.process_with_ai(input_text, context)
+            # Try with AI first - use streaming for the greeting acknowledgment
+            if stream_callback:
+                # Send immediate acknowledgment while processing
+                immediate_ack = f"Nice to meet you, {self.context.get('customer_name', '')}!"
+                await stream_callback(immediate_ack, False)
+                
+                # Now get the full response
+                response = await self.process_with_ai(input_text, context)
+                
+                # Send the rest of the response
+                remaining_text = response.get("text", "").replace(immediate_ack, "").strip()
+                if remaining_text:
+                    await stream_callback(remaining_text, True)
+            else:
+                response = await self.process_with_ai(input_text, context)
             
             # If AI failed, provide a fallback response
             if response.get("text", "").startswith("[FrontlineVoiceAI] Processed:"):
@@ -521,14 +553,27 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
                 }
                 logger.info(f"Using fallback main menu response for {customer_name}")
         else:
-            context["state_guidance"] = """
-        The customer is in the main menu. They can:
-        1. Place an order
-        2. Ask about menu items
-        3. Request to speak with staff
+            context["state_guidance"] = f"""
+        CRITICAL CONTEXT: You are in the ORDER TAKING phase. The greeting phase is COMPLETE.
         
-        Listen for their intent and guide them appropriately.
-        If they want to order, transition to ordering state.
+        Customer name: {self.context.get('customer_name')} (ALREADY CONFIRMED - DO NOT UPDATE)
+        Current task: TAKE FOOD ORDER
+        
+        User input: "{input_text}"
+        
+        PRIORITY ACTIONS:
+        1. If the input contains ANY food item names → Use add_to_cart tool
+        2. If the input asks about menu → Use lookup_menu_item or get_menu_categories
+        3. If the input requests human help → Use escalate_to_human
+        
+        FORBIDDEN ACTIONS:
+        - DO NOT use update_customer_info tool unless user explicitly says "my name is actually..." or "please call me..."
+        - DO NOT ask for the customer's name again
+        - DO NOT interpret food items as potential names
+        
+        Common food items that are NOT names: California, Philadelphia, Boston, Alaska, Texas, Manhattan, Brooklyn, Virginia, Georgia, etc.
+        
+        If unsure whether something is a food item or name, ASSUME IT IS A FOOD ITEM in this state.
         """
             response = await self.process_with_ai(input_text, context)
             
@@ -542,6 +587,11 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
                     "actions": []
                 }
         
+        # Stream the response if we have a callback and response text
+        if stream_callback and response.get("text"):
+            logger.critical(f"STREAMING main menu response: {response['text']}")
+            await stream_callback(response['text'], True)
+        
         # Check if we should transition to ordering
         if any(action.get("type") == "cart_updated" for action in response.get("actions", [])):
             self.conversation_state = "ORDERING"
@@ -549,15 +599,29 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         
         return response
     
-    async def _handle_ordering(self, input_text: str) -> Dict[str, Any]:
+    async def _handle_ordering(self, input_text: str, stream_callback: Optional[Any] = None) -> Dict[str, Any]:
         """Handle inputs in the ordering state using AI."""
         context = self.context.copy()
-        context["state_guidance"] = """
-        The customer is ordering. Help them:
-        1. Add items to their cart
-        2. Modify quantities or items
-        3. Answer questions about menu items
-        4. Move to checkout when ready
+        context["state_guidance"] = f"""
+        CRITICAL CONTEXT: You are in the ACTIVE ORDERING phase.
+        
+        Customer: {self.context.get('customer_name')} (name already confirmed)
+        Current cart: {self.context.get('order_items', [])}
+        
+        User input: "{input_text}"
+        
+        EXPECTED ACTIONS:
+        1. Food items mentioned → Use add_to_cart tool immediately
+        2. Quantity changes → Update cart accordingly
+        3. Menu questions → Use lookup_menu_item
+        4. "That's all"/"Done"/"Complete" → Move to order confirmation
+        
+        NEVER:
+        - Update customer name (it's already confirmed as {self.context.get('customer_name')})
+        - Treat food items as potential names
+        - Ask for customer name again
+        
+        Focus ONLY on order-related actions.
         """
         
         response = await self.process_with_ai(input_text, context)
@@ -590,9 +654,14 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
             response["actions"] = response.get("actions", [])
             response["actions"].append({"type": "state_change", "state": "VALIDATION"})
         
+        # Stream the response if we have a callback and response text
+        if stream_callback and response.get("text"):
+            logger.critical(f"STREAMING ordering response: {response['text']}")
+            await stream_callback(response['text'], True)
+        
         return response
     
-    async def _handle_validation(self, input_text: str) -> Dict[str, Any]:
+    async def _handle_validation(self, input_text: str, stream_callback: Optional[Any] = None) -> Dict[str, Any]:
         """Handle inputs in the validation state using AI."""
         context = self.context.copy()
         context["state_guidance"] = """
@@ -612,7 +681,7 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         
         return response
     
-    async def _handle_confirmation(self, input_text: str) -> Dict[str, Any]:
+    async def _handle_confirmation(self, input_text: str, stream_callback: Optional[Any] = None) -> Dict[str, Any]:
         """Handle inputs in the confirmation state using AI."""
         context = self.context.copy()
         context["state_guidance"] = """
@@ -711,14 +780,70 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         """Add item to cart."""
         # Delegate to cart specialist if available
         if "cart" in self.specialists:
-            result = await self.specialists["cart"].execute_tool(
-                "add_item",
-                {
-                    "item_name": item_name,
-                    "quantity": quantity,
-                    "modifiers": modifiers
-                }
+            # First, update the cart specialist's context with our call_sid
+            if hasattr(self.specialists["cart"], "update_context"):
+                self.specialists["cart"].update_context({"call_sid": self.context.get("call_sid")})
+            
+            # First, we need to look up the item to get its PLU
+            # The cart agent's add_item_to_cart requires a PLU, not item name
+            lookup_result = await self.specialists["cart"].execute_tool(
+                "lookup_menu_item",
+                {"item_name": item_name}
             )
+            
+            if lookup_result.get("found"):
+                # Now add to cart with the PLU
+                result = await self.specialists["cart"].execute_tool(
+                    "add_item_to_cart",
+                    {
+                        "plu": lookup_result.get("plu"),
+                        "quantity": quantity,
+                        "modifiers": modifiers
+                    }
+                )
+            elif lookup_result.get("needs_disambiguation"):
+                # Handle disambiguation - for duplicate items, just pick the first
+                logger.info(f"Disambiguation needed for '{item_name}', auto-selecting first match")
+                
+                # Get the first candidate's PLU from the disambiguation result
+                candidates = lookup_result.get("candidates", [])
+                if candidates and len(candidates) > 0:
+                    # Extract PLU from the first candidate
+                    # The candidates don't directly have PLU, so we need to look it up differently
+                    # For now, let's do another lookup with the menu specialist
+                    if "menu" in self.specialists:
+                        menu_lookup = await self.specialists["menu"].execute_tool(
+                            "lookup_menu_item",
+                            {"item_name": item_name}
+                        )
+                        if menu_lookup.get("found"):
+                            plu = menu_lookup.get("plu")
+                        else:
+                            # Fallback - shouldn't happen
+                            plu = "SUSHI001"
+                    else:
+                        # No menu specialist available, use fallback
+                        plu = "SUSHI001"
+                    
+                    result = await self.specialists["cart"].execute_tool(
+                        "add_item_to_cart",
+                        {
+                            "plu": plu,
+                            "quantity": quantity,
+                            "modifiers": modifiers
+                        }
+                    )
+                else:
+                    result = {
+                        "success": False,
+                        "message": f"I couldn't find '{item_name}' on our menu. Could you please check the name?"
+                    }
+            else:
+                # Item not found
+                result = {
+                    "success": False,
+                    "message": f"I couldn't find '{item_name}' on our menu. Could you please check the name?"
+                }
             
             # Update local context
             if result.get("success"):

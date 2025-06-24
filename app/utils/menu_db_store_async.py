@@ -183,7 +183,48 @@ class AsyncMenuDbStore:
             return None
             
         return modifier.to_dict()
-        
-        
-# Create singleton instance
+
+
+# Create a singleton instance for the async menu database store
 async_menu_db_store = AsyncMenuDbStore()
+
+# Alias for test compatibility (uppercase 'DB')
+AsyncMenuDBStore = AsyncMenuDbStore
+
+
+async def update_menu_item_availability(
+    db: AsyncSession,
+    plu: str,
+    is_available: bool
+) -> bool:
+    """
+    Update the availability status of a menu item by PLU.
+    
+    Args:
+        db: Database session
+        plu: PLU code of the item to update
+        is_available: New availability status
+        
+    Returns:
+        True if update was successful, False otherwise
+    """
+    try:
+        # Get the item by PLU
+        item = await get_item_by_plu(db, plu)
+        if not item:
+            logger.warning(f"Menu item with PLU {plu} not found")
+            return False
+        
+        # Update availability
+        item.is_available = is_available
+        
+        # Commit the change
+        await db.commit()
+        
+        logger.info(f"Updated availability for item {plu} to {is_available}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error updating menu item availability: {e}")
+        await db.rollback()
+        return False

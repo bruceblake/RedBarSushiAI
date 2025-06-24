@@ -17,8 +17,12 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db_async import get_db
 from app.utils.agent_orchestration_async import async_agent_orchestrator
+from app.utils.enhanced_logging import get_logger
+from app.utils.correlation_id import set_correlation_id, get_correlation_id
+from app.api.conversation_relay.silence_handler import silence_handler, get_reprompt_message
+from app.fsm.core import ConversationState
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["ConversationRelay"])
 
@@ -55,6 +59,12 @@ class ConversationRelayHandler:
         self.call_sid: Optional[str] = None
         self.is_running = False
         self.is_agent_speaking = False
+        self.correlation_id: Optional[str] = None
+        self.current_state: str = "GREETING"  # Track FSM state for re-prompts
+        self.tts_ready = False  # Track if TTS is ready
+        self.setup_complete = False  # Track if setup is complete
+        self.silence_timer_task: Optional[asyncio.Task] = None  # Silence timer task
+        self.reprompt_count: int = 0  # Track number of re-prompts
         
     async def handle_setup(self, message: Dict[str, Any]):
         """Handle the setup event from Twilio ConversationRelay."""
@@ -70,13 +80,31 @@ class ConversationRelayHandler:
         self.to_number = message.get("to")
         self.call_status = message.get("callStatus")
         
-        logger.critical(f"📋 Setup details extracted:")
-        logger.critical(f"  - Session ID: {self.session_id}")
-        logger.critical(f"  - Call SID: {self.call_sid}")
-        logger.critical(f"  - From Number: {self.from_number}")
-        logger.critical(f"  - To Number: {self.to_number}")
-        logger.critical(f"  - Call Status: {self.call_status}")
-        logger.critical(f"  - Welcome Greeting: {message.get('welcomeGreeting')}")
+        # Set correlation ID from call_sid
+        self.correlation_id = self.call_sid or self.session_id
+        set_correlation_id(self.correlation_id)
+        
+        # Mark TTS as ready after setup
+        self.tts_ready = True
+        self.setup_complete = True
+        logger.critical(f"🎙️ TTS system marked as ready")
+        
+        # Send a mark message to test if Twilio is ready
+        mark_msg = {
+            "type": "mark", 
+            "name": "setup_complete"
+        }
+        await self.websocket.send_json(mark_msg)
+        logger.critical(f"📍 Sent mark message to Twilio")
+        
+        logger.critical(f"📋 Setup details extracted:", call_sid=self.call_sid)
+        logger.critical(f"  - Session ID: {self.session_id}", call_sid=self.call_sid)
+        logger.critical(f"  - Call SID: {self.call_sid}", call_sid=self.call_sid)
+        logger.critical(f"  - From Number: {self.from_number}", call_sid=self.call_sid)
+        logger.critical(f"  - To Number: {self.to_number}", call_sid=self.call_sid)
+        logger.critical(f"  - Call Status: {self.call_status}", call_sid=self.call_sid)
+        logger.critical(f"  - Welcome Greeting: {message.get('welcomeGreeting')}", call_sid=self.call_sid)
+        logger.critical(f"  - Correlation ID: {self.correlation_id}", call_sid=self.call_sid)
         
         try:
             # Start a new conversation with the agent system
@@ -87,24 +115,35 @@ class ConversationRelayHandler:
             )
             logger.critical(f"✅ Agent orchestrator initialized successfully for call SID: {self.call_sid}")
             
-            # Check if we're using welcomeGreeting in TwiML
-            # If not, send initial greeting
-            if not message.get("welcomeGreeting"):
-                greeting_response = await async_agent_orchestrator.process_voice_input(
-                    self.call_sid or self.session_id, 
-                    "", 
-                    {"first_interaction": True}
-                )
+            # ALWAYS send our application's detailed greeting after setup
+            # The TwiML welcomeGreeting is just a brief intro - we need to send our full greeting
+            logger.critical(f"🎬 Generating application greeting...")
+            greeting_response = await async_agent_orchestrator.process_voice_input(
+                self.call_sid or self.session_id, 
+                "", 
+                {"first_interaction": True}
+            )
+            
+            greeting_text = greeting_response.get("text", "")
+            if greeting_text:
+                logger.critical(f"💬 Application greeting response from orchestrator:")
+                logger.critical(f"  - Full text: {greeting_text}")
+                logger.critical(f"  - Response data: {json.dumps(greeting_response, indent=2)}")
                 
-                greeting_text = greeting_response.get("text", "")
-                if greeting_text:
-                    logger.critical(f"💬 Greeting response from orchestrator:")
-                    logger.critical(f"  - Full text: {greeting_text}")
-                    logger.critical(f"  - Response data: {json.dumps(greeting_response, indent=2)}")
-                    await self.send_text(greeting_text)
-                    logger.critical(f"✅ Initial greeting sent successfully")
+                # Add a small delay to ensure Twilio has finished playing the welcomeGreeting
+                await asyncio.sleep(1.0)  # Give time for TwiML welcomeGreeting to finish
+                logger.critical(f"⏱️ Waited for TwiML welcomeGreeting to finish")
+                
+                await self.send_text(greeting_text)
+                logger.critical(f"✅ Application greeting sent successfully")
+                
+                # Start silence timer after greeting
+                logger.critical(f"🎯 Starting initial silence timer after application greeting")
+                await self._start_silence_timer()
             else:
-                logger.info("Using welcomeGreeting from TwiML, skipping initial greeting")
+                logger.error(f"⚠️ No greeting text generated by orchestrator!")
+                # Still start timer even if no greeting
+                await self._start_silence_timer()
         except Exception as e:
             logger.critical(f"❌ ERROR initializing agent for {self.call_sid}")
             logger.critical(f"  - Error type: {type(e).__name__}")
@@ -133,6 +172,9 @@ class ConversationRelayHandler:
             logger.critical("⚠️ Empty voice prompt received, skipping processing")
             return
             
+        # Cancel silence timer since user spoke
+        await self._cancel_silence_timer()
+            
         try:
             # Get FSM state before processing
             logger.critical("🔍 Getting FSM state BEFORE processing...")
@@ -146,12 +188,52 @@ class ConversationRelayHandler:
             
             logger.critical(f"📤 Sending to orchestrator: '{voice_prompt}'")
             
-            # Process the transcribed text with the agent
-            logger.critical(f"🤖 Processing voice input with orchestrator...")
-            response = await async_agent_orchestrator.process_voice_input(
-                self.call_sid, voice_prompt
-            )
-            logger.critical(f"✅ Orchestrator processing complete")
+            # Check if orchestrator supports streaming
+            if hasattr(async_agent_orchestrator, 'process_voice_input_streaming'):
+                # Define callback for streaming chunks
+                async def stream_callback(chunk: str, is_last: bool):
+                    if chunk:  # Only send non-empty chunks
+                        logger.critical(f"🌊 Streaming chunk: '{chunk}' (is_last: {is_last})")
+                        logger.critical(f"  Chunk length: {len(chunk)} chars")
+                        # For ConversationRelay, we might need to buffer small chunks
+                        # Only send chunks that are meaningful (not just punctuation)
+                        if len(chunk.strip()) > 1 or is_last:
+                            await self.send_text(chunk, is_last)
+                        else:
+                            logger.critical(f"  Skipping tiny chunk: '{chunk}'")
+                
+                # Process with streaming
+                logger.critical(f"🤖 Processing voice input with streaming...")
+                response = await async_agent_orchestrator.process_voice_input_streaming(
+                    self.call_sid, voice_prompt, stream_callback
+                )
+                logger.critical(f"✅ Streaming orchestrator processing complete")
+                
+                # Update state and start timer after streaming
+                await self._update_state_and_start_timer(response)
+            else:
+                # Fall back to non-streaming processing
+                logger.critical(f"🤖 Processing voice input with orchestrator (non-streaming)...")
+                response = await async_agent_orchestrator.process_voice_input(
+                    self.call_sid, voice_prompt
+                )
+                logger.critical(f"✅ Orchestrator processing complete")
+                
+                # Send complete response if not streaming
+                response_text = response.get("text", "")
+                if response_text:
+                    logger.critical(f"🗣️ Agent response text to be spoken:")
+                    logger.critical(f"  - Full text: {response_text}")
+                    logger.critical(f"  - Text length: {len(response_text)} chars")
+                    # Send the text response back to Twilio for TTS
+                    await self.send_text(response_text)
+                    logger.critical(f"✅ Response sent to Twilio for TTS")
+                    
+                    # Update state and start new silence timer
+                    await self._update_state_and_start_timer(response)
+                else:
+                    logger.critical(f"⚠️ NO RESPONSE TEXT from agent for call SID: {self.call_sid}")
+                    logger.critical(f"  - Response object: {json.dumps(response)}")
             
             # Get FSM state after processing
             logger.critical("🔍 Getting FSM state AFTER processing...")
@@ -167,19 +249,7 @@ class ConversationRelayHandler:
             logger.critical(f"📊 Orchestrator response received:")
             logger.critical(f"  - FSM State AFTER: {state_after}")
             logger.critical(f"  - Agent Used: {current_agent}")
-            logger.critical(f"  - Full Response: {json.dumps(response, indent=2)}")
-            
-            response_text = response.get("text", "")
-            if response_text:
-                logger.critical(f"🗣️ Agent response text to be spoken:")
-                logger.critical(f"  - Full text: {response_text}")
-                logger.critical(f"  - Text length: {len(response_text)} chars")
-                # Send the text response back to Twilio for TTS
-                await self.send_text(response_text)
-                logger.critical(f"✅ Response sent to Twilio for TTS")
-            else:
-                logger.critical(f"⚠️ NO RESPONSE TEXT from agent for call SID: {self.call_sid}")
-                logger.critical(f"  - Response object: {json.dumps(response)}")
+            logger.critical(f"  - Streamed: {response.get('streamed', False)}")
                 
         except Exception as e:
             logger.critical(f"❌ ERROR processing prompt for call {self.call_sid}")
@@ -210,6 +280,9 @@ class ConversationRelayHandler:
         logger.critical(f"  - Length of interrupted speech: {len(utterance_until_interrupt)} chars")
         logger.critical("=" * 80)
         
+        # Cancel silence timer since user is speaking
+        await self._cancel_silence_timer()
+        
         # Signal the agent system about the interruption
         try:
             logger.critical("📤 Signaling orchestrator about interruption...")
@@ -225,6 +298,9 @@ class ConversationRelayHandler:
         digit = message.get("digit")
         logger.critical(f"☎️ DTMF digit received: {digit}")
         logger.critical(f"Full DTMF message: {json.dumps(message, indent=2)}")
+        
+        # Cancel silence timer since user provided input
+        await self._cancel_silence_timer()
         
         # Process DTMF input if needed
         # For now, just log it
@@ -247,9 +323,20 @@ class ConversationRelayHandler:
             is_last: Whether this is the last token for this response
         """
         try:
+            # Ensure text is not empty
+            if not text or not text.strip():
+                logger.warning(f"Attempted to send empty text, skipping")
+                return
+            
+            # Check if TTS is ready
+            if not self.tts_ready:
+                logger.warning(f"TTS not ready yet, waiting...")
+                await asyncio.sleep(0.5)
+                self.tts_ready = True
+                
             text_message = {
                 "type": "text",
-                "text": text,  # Corrected from "token" to "text"
+                "text": text.strip(),  # Ensure no leading/trailing whitespace
                 "last": is_last
             }
             
@@ -262,6 +349,15 @@ class ConversationRelayHandler:
             logger.critical(f"  - WebSocket state before send: {self.websocket.client_state}")
             await self.websocket.send_json(text_message)
             logger.critical(f"  - WebSocket state after send: {self.websocket.client_state}")
+            logger.critical(f"📤 Text message sent successfully - Twilio should speak: '{text}'")
+            
+            # Add a tiny delay between chunks to help TTS
+            if not is_last:
+                await asyncio.sleep(0.05)  # 50ms between chunks
+            else:
+                # Start silence timer after complete message is sent
+                logger.critical(f"🎯 Starting silence timer after sending complete message")
+                await self._start_silence_timer()
             
             if is_last:
                 self.is_agent_speaking = False
@@ -313,6 +409,83 @@ class ConversationRelayHandler:
         except Exception as e:
             logger.error(f"Error sending end message: {e}")
     
+    async def _start_silence_timer(self, timeout_duration: int = 8):
+        """Start a silence timer for the current state."""
+        # Cancel existing timer if any
+        if self.silence_timer_task:
+            self.silence_timer_task.cancel()
+            try:
+                await self.silence_timer_task
+            except asyncio.CancelledError:
+                pass
+        
+        logger.critical(f"⏰ Starting silence timer for {timeout_duration} seconds (state: {self.current_state})")
+        self.silence_timer_task = asyncio.create_task(self._handle_silence_timeout_internal(timeout_duration))
+    
+    async def _cancel_silence_timer(self):
+        """Cancel the active silence timer."""
+        if self.silence_timer_task:
+            logger.info("Cancelling active silence timer")
+            self.silence_timer_task.cancel()
+            try:
+                await self.silence_timer_task
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self.silence_timer_task = None
+                self.reprompt_count = 0  # Reset count when user speaks
+    
+    async def _handle_silence_timeout_internal(self, duration: int):
+        """Internal handler for silence timeout."""
+        try:
+            await asyncio.sleep(duration)
+            # Timer expired without being cancelled
+            logger.critical(f"🔇 Silence timeout triggered after {duration}s for call {self.call_sid}")
+            
+            self.reprompt_count += 1
+            max_reprompts = 2  # TODO: Get from config
+            
+            if self.reprompt_count > max_reprompts:
+                # Final timeout - end the call
+                logger.critical(f"📞 Max re-prompts reached ({max_reprompts}), ending call")
+                goodbye_msg = "I'm sorry, I couldn't hear you. Please call back when you're ready to place an order. Goodbye!"
+                await self.send_text(goodbye_msg)
+                await asyncio.sleep(2)  # Give time for message to be spoken
+                await self.send_end()
+            else:
+                # Send re-prompt based on current state
+                context = {"state": self.current_state, "call_sid": self.call_sid}
+                reprompt = get_reprompt_message(context, self.reprompt_count)
+                logger.critical(f"🔁 Sending re-prompt #{self.reprompt_count}: {reprompt}")
+                await self.send_text(reprompt)
+                
+                # Restart timer for next silence period
+                await self._start_silence_timer(timeout_duration=duration)
+                
+        except asyncio.CancelledError:
+            logger.info("Silence timer was cancelled (user spoke)")
+        except Exception as e:
+            logger.error(f"Error in silence timeout handler: {e}", exc_info=True)
+        finally:
+            self.silence_timer_task = None
+    
+    async def _update_state_and_start_timer(self, response: Dict[str, Any]):
+        """Update state from response and start appropriate timer."""
+        try:
+            # Get current FSM state
+            fsm = await async_agent_orchestrator.get_fsm(self.call_sid)
+            if fsm:
+                self.current_state = fsm.current_state.name
+                logger.critical(f"📊 Updated state to: {self.current_state}")
+            
+            # Start timer for the new state
+            await self._start_silence_timer()
+        except Exception as e:
+            logger.error(f"Error updating state and timer: {e}")
+            # Default to MAIN_MENU state
+            self.current_state = "MAIN_MENU"
+            await self._start_silence_timer()
+    
     async def run(self):
         """Main event loop for handling ConversationRelay messages."""
         logger.critical("="*80)
@@ -331,8 +504,28 @@ class ConversationRelayHandler:
                     # Receive JSON messages from Twilio
                     logger.critical(f"⏳ Waiting for message #{message_count + 1} from WebSocket...")
                     logger.critical(f"  - WebSocket state: {self.websocket.client_state}")
-                    message = await self.websocket.receive_json()
+                    
+                    # Try to receive either JSON or text
+                    raw_message = await self.websocket.receive()
                     message_count += 1
+                    
+                    # Parse the message
+                    if raw_message["type"] == "websocket.receive":
+                        if "text" in raw_message:
+                            # Text message
+                            logger.critical(f"📧 Received TEXT message: {raw_message['text']}")
+                            try:
+                                message = json.loads(raw_message["text"])
+                            except json.JSONDecodeError:
+                                logger.critical(f"⚠️ Non-JSON text received: {raw_message['text']}")
+                                continue
+                        elif "bytes" in raw_message:
+                            # Binary message
+                            logger.critical(f"📦 Received BINARY message: {len(raw_message['bytes'])} bytes")
+                            continue
+                    else:
+                        logger.critical(f"❓ Unknown message type: {raw_message['type']}")
+                        continue
                     
                     # Log the message for debugging
                     logger.critical("="*60)
@@ -358,6 +551,22 @@ class ConversationRelayHandler:
                             await self.handle_dtmf(message)
                         elif message_type == "error":
                             await self.handle_error(message)
+                        elif message_type == "ack":
+                            # Handle acknowledgment messages from Twilio
+                            logger.critical(f"✅ ACK received from Twilio: {json.dumps(message, indent=2)}")
+                        elif message_type == "start":
+                            # Handle start message if Twilio sends one
+                            logger.critical(f"🏁 START message from Twilio: {json.dumps(message, indent=2)}")
+                            self.tts_ready = True
+                            logger.critical(f"✅ TTS marked ready after START message")
+                        elif message_type == "connected":
+                            # Handle connected message if Twilio sends one  
+                            logger.critical(f"🔗 CONNECTED message from Twilio: {json.dumps(message, indent=2)}")
+                            self.tts_ready = True
+                            logger.critical(f"✅ TTS marked ready after CONNECTED message")
+                        elif message_type == "mark":
+                            # Handle mark acknowledgment
+                            logger.critical(f"📍 MARK acknowledgment from Twilio: {json.dumps(message, indent=2)}")
                         else:
                             logger.critical(f"⚠️ UNKNOWN MESSAGE TYPE: {message_type}")
                             logger.critical(f"Full unknown message: {json.dumps(message, indent=2)}")
@@ -386,6 +595,10 @@ class ConversationRelayHandler:
             logger.critical(f"  - Stack trace:\n{traceback.format_exc()}")
         finally:
             self.is_running = False
+            # Cancel any active silence timer
+            await self._cancel_silence_timer()
+            # Clean up silence handler resources
+            await silence_handler.cleanup(self.call_sid)
             logger.critical(f"🏁 ConversationRelay handler FINISHED for call {self.call_sid}")
             logger.critical(f"  - Final WebSocket state: {getattr(self.websocket, 'client_state', 'UNKNOWN')}")
 
