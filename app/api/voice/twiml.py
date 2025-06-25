@@ -134,28 +134,37 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # Create welcome message based on environment
         greeting_msg = f"Welcome to {environment_name} Red Bar Sushi AI!"
         
-        # Use ConversationRelay exclusively (Media Streams support removed)
-        logger.info(f"Using ConversationRelay voice handler for call {call_sid}")
+        # TODO_AI_REMOVE_LEGACY_CONVERSATION_RELAY: The following ConversationRelay code is deprecated
+        # and replaced with Media Streams for better control and lower latency
         
-        # Import ConversationRelay TwiML generator
-        from app.api.conversation_relay.twiml import generate_conversation_relay_twiml
-        from app.config import settings
+        # # OLD ConversationRelay implementation - MARKED FOR REMOVAL
+        # logger.info(f"Using ConversationRelay voice handler for call {call_sid}")
+        # from app.api.conversation_relay.twiml import generate_conversation_relay_twiml
+        # from app.config import settings
+        # twiml = generate_conversation_relay_twiml(...)
         
-        # Generate ConversationRelay TwiML with proper STT/TTS configuration
-        twiml = generate_conversation_relay_twiml(
-            call_sid=call_sid,
-            greeting_text=greeting_msg,
-            service_sid=getattr(settings, 'TWILIO_CONVERSATION_SERVICE_SID', None),
-            connector_name=getattr(settings, 'TWILIO_CONNECTOR_NAME', None),
-            host=host,  # Pass the host we determined above
-            tts_provider=getattr(settings, 'CONVERSATION_RELAY_TTS_PROVIDER', 'ElevenLabs'),
-            tts_voice=getattr(settings, 'CONVERSATION_RELAY_TTS_VOICE', None),
-            language=getattr(settings, 'CONVERSATION_RELAY_LANGUAGE', 'en-US'),
-            transcription_provider=getattr(settings, 'CONVERSATION_RELAY_STT_PROVIDER', 'Google'),
-            speech_model=getattr(settings, 'CONVERSATION_RELAY_SPEECH_MODEL', 'telephony'),
-            interruptible=getattr(settings, 'CONVERSATION_RELAY_INTERRUPTIBLE', 'any'),
-            dtmf_detection=getattr(settings, 'CONVERSATION_RELAY_DTMF_DETECTION', False)
-        )
+        # NEW: Use Twilio Media Streams with WebSocket
+        logger.info(f"Using Media Streams WebSocket handler for call {call_sid}")
+        
+        # Determine WebSocket URL
+        # Use wss:// for production/staging, ws:// for local development
+        ws_protocol = "wss" if host not in ["localhost", "127.0.0.1"] else "ws"
+        
+        # Get the configured app domain from settings if available
+        app_domain = getattr(settings, 'APP_DOMAIN', host)
+        if app_domain:
+            host = app_domain
+            
+        ws_url = f"{ws_protocol}://{host}/ws/voice/{call_sid}"
+        logger.info(f"WebSocket URL for Media Streams: {ws_url}")
+        
+        # Generate TwiML with <Connect><Stream>
+        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Connect>
+        <Stream url="{ws_url}" />
+    </Connect>
+</Response>"""
         
         logger.info(f"Generated ConversationRelay TwiML for call {call_sid}")
         

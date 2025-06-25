@@ -1,333 +1,121 @@
 #!/bin/bash
 set -e
 
-# Set environment variables to indicate we're in Docker
-export DOCKER=true
+# =============================================================================
+# Consolidated Docker Entrypoint Script for RedBarSushiAI
+# =============================================================================
+# This script provides a single, idempotent entrypoint for running either the
+# FastAPI web server or Celery workers based on the APP_ROLE environment variable.
+#
+# Usage:
+#   APP_ROLE=api    - Starts the FastAPI web server (default)
+#   APP_ROLE=worker - Starts a Celery worker
+#   APP_ROLE=beat   - Starts the Celery beat scheduler
+# =============================================================================
 
-# Always use headless mode for Render compatibility
-export FORCE_HEADLESS=true
-export PYNPUT_HEADLESS=1
-export NO_X11=1
-export HEADLESS=1
-export OPENAI_REALTIME_NO_DISPLAY=1
-export REALTIME_ENABLED=true
+# -----------------------------------------------------------------------------
+# Environment Configuration
+# -----------------------------------------------------------------------------
 
-# Remove DISPLAY to prevent X11 connection attempts
-if [ -n "$DISPLAY" ]; then
-    echo "Unsetting DISPLAY variable to prevent X11 connection attempts"
-    unset DISPLAY
-fi
-
-echo "💻 Running in headless mode with WebSocket implementation for Render compatibility"
-
-# Enhanced environment handling for Render
-if [ "$RENDER" = "true" ] || [ -n "$RENDER_SERVICE_ID" ]; then
-    echo "Configuring for Render environment..."
-    
-    # Ensure environment is properly set for WebSockets
-    export USE_DIRECT_WEBSOCKET=true
-    export OPENAI_REALTIME_AVAILABLE=1
-    
-    echo "✅ Configured for Render environment with WebSocket implementation"
-fi
-
+# Set Python environment variables
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONUNBUFFERED=1
 export PYTHONPATH=/app:$PYTHONPATH
 
-# Set environment variables for audio processing
-export OPENAI_STREAMING=1             # Enable streaming for standard OpenAI API
-export NODE_TLS_REJECT_UNAUTHORIZED=0 # Allow self-signed certificates in dev environments
-export PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
+# Set default PORT if not provided
+: "${PORT:=8080}"
 
-# Set default environment variables if not provided
+# Set default APP_ROLE if not provided
+: "${APP_ROLE:=api}"
+
+# Set default database pool configuration
+: "${DB_POOL_SIZE:=10}"
+: "${DB_MAX_OVERFLOW:=20}"
+: "${DB_POOL_RECYCLE:=1800}"
+: "${DB_POOL_TIMEOUT:=30}"
+
+# -----------------------------------------------------------------------------
+# Database Configuration
+# -----------------------------------------------------------------------------
+
+# Configure database URL based on environment
+if [ -n "$DATABASE_URL" ]; then
+    export SQLALCHEMY_DATABASE_URI="$DATABASE_URL"
+    echo "✅ Using DATABASE_URL for database connection"
+elif [ -n "$DB_USER" ] && [ -n "$DB_PASSWORD" ] && [ -n "$DB_HOST" ] && [ -n "$DB_PORT" ] && [ -n "$DB_NAME" ]; then
+    export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+    echo "✅ Constructed database URL from components"
+else
+    echo "⚠️  WARNING: No database configuration found. Using default localhost connection."
+    export SQLALCHEMY_DATABASE_URI="postgresql://redbarsushi:redbarsushi@localhost:5432/redbarsushi"
+fi
+
+# Configure Redis/Celery URLs
 if [ -z "$REDIS_URL" ]; then
-	echo "REDIS_URL not set. Using default value."
-	export REDIS_URL="redis://localhost:6379/0"
-	export CELERY_BROKER_URL="$REDIS_URL"
-	export CELERY_RESULT_BACKEND="$REDIS_URL"
+    echo "⚠️  WARNING: REDIS_URL not set. Using default localhost connection."
+    export REDIS_URL="redis://localhost:6380/0"
 fi
+export CELERY_BROKER_URL="${CELERY_BROKER_URL:-$REDIS_URL}"
+export CELERY_RESULT_BACKEND="${CELERY_RESULT_BACKEND:-$REDIS_URL}"
 
-# FastAPI does not need FLASK_APP
-echo "Using FastAPI with Uvicorn"
+# -----------------------------------------------------------------------------
+# Database Initialization (API role only)
+# -----------------------------------------------------------------------------
 
-# Use our comprehensive dependency installation script if available
-if [ -f "install_all_dependencies.sh" ]; then
-    echo "Running comprehensive dependency installation script..."
-    chmod +x ./install_all_dependencies.sh
-    # Set environment variables for the script to know we're in Render
-    export RENDER=true
-    export RENDER_SERVICE_ID=${RENDER_SERVICE_ID:-"docker-container"}
-    
-    # Run the installation script
-    ./install_all_dependencies.sh || {
-        echo "⚠️ Dependency installation script failed, falling back to manual installation"
-        # Fall back to strict requirements
-        if [ -f "requirements.strict.txt" ]; then
-            echo "Installing from strict requirements file..."
-            pip install --no-cache-dir -r requirements.strict.txt
-            echo "✅ All dependencies installed successfully from requirements.strict.txt"
-        else
-            # Fall back to installing packages directly
-            echo "⚠️ requirements.strict.txt not found, installing individually..."
-            
-            # Core web and WebSocket packages
-            pip install --no-cache-dir flask==3.1.0
-            pip install --no-cache-dir flask-sqlalchemy==3.1.1
-            pip install --no-cache-dir flask-sock==0.7.0
-            pip install --no-cache-dir uvicorn==0.34.0
-            pip install --no-cache-dir websocket-client==1.7.0
-            pip install --no-cache-dir gunicorn==23.0.0
-            pip install --no-cache-dir websockets==13.1
-            
-            # Database and cache
-            pip install --no-cache-dir psycopg2-binary==2.9.9
-            pip install --no-cache-dir sqlalchemy==2.0.38
-            pip install --no-cache-dir redis==5.2.1
-            
-            # API packages
-            pip install --no-cache-dir openai==1.77.0
-            pip install --no-cache-dir twilio==9.4.6
-            pip install --no-cache-dir stripe==11.6.0
-            
-            # HTTP and networking
-            pip install --no-cache-dir aiohttp==3.11.13
-            pip install --no-cache-dir httpx==0.28.1
-            
-            # Async processing
-            pip install --no-cache-dir celery==5.4.0
-            
-            # Audio processing
-            pip install --no-cache-dir ffmpeg-python==0.2.0
-        fi
-    }
-else
-    # No installation script, use traditional approach
-    echo "Installing all required dependencies with exact versions..."
-    if [ -f "requirements.strict.txt" ]; then
-        # Install everything from strict requirements
-        pip install --no-cache-dir -r requirements.strict.txt
-        echo "✅ All dependencies installed successfully from requirements.strict.txt"
-    else
-        # Fall back to installing packages directly
-        echo "⚠️ requirements.strict.txt not found, installing individually..."
-        
-        # Core web and WebSocket packages
-        pip install --no-cache-dir flask==3.1.0
-        pip install --no-cache-dir flask-sqlalchemy==3.1.1
-        pip install --no-cache-dir flask-sock==0.7.0
-        pip install --no-cache-dir uvicorn==0.34.0
-        pip install --no-cache-dir websocket-client==1.7.0
-        pip install --no-cache-dir gunicorn==23.0.0
-        pip install --no-cache-dir websockets==13.1
-        
-        # Database and cache
-        pip install --no-cache-dir psycopg2-binary==2.9.9
-        pip install --no-cache-dir sqlalchemy==2.0.38
-        pip install --no-cache-dir redis==5.2.1
-        
-        # API packages
-        pip install --no-cache-dir openai==1.77.0
-        pip install --no-cache-dir twilio==9.4.6
-        pip install --no-cache-dir stripe==11.6.0
-        
-        # HTTP and networking
-        pip install --no-cache-dir aiohttp==3.11.13
-        pip install --no-cache-dir httpx==0.28.1
-        
-        # Async processing
-        pip install --no-cache-dir celery==5.4.0
-        
-        # Audio processing
-        pip install --no-cache-dir ffmpeg-python==0.2.0
-    fi
-fi
-
-# Try to install PyAudio directly with system dependencies
-echo "Installing PyAudio..."
-pip install --no-cache-dir pyaudio==0.2.14 || {
-    echo "⚠️ PyAudio installation failed - continuing anyway as this is not critical"
-    # Try alternative installation methods
-    if command -v apt-get > /dev/null; then
-        echo "Trying to install system dependencies for PyAudio..."
-        apt-get update && apt-get install -y --no-install-recommends \
-            portaudio19-dev \
-            libportaudio2 \
-            libportaudiocpp0 \
-            python3-dev
-        pip install --no-cache-dir pyaudio==0.2.14 || echo "⚠️ PyAudio installation still failed after installing system dependencies"
-    fi
-}
-
-# Install OpenAI Realtime client
-echo "Installing OpenAI Realtime client..."
-pip install --no-cache-dir --upgrade openai-realtime-client==0.1.0
-
-# Check if installation was successful
-if [ -f "/usr/local/lib/python3.11/site-packages/openai_realtime_client/__init__.py" ]; then
-	echo "✅ OpenAI Realtime client installed successfully!"
-else
-	echo "⚠️ Could not find OpenAI Realtime client, using fallback methods"
-fi
-
-# Run the test script to verify the setup
-echo "Running test script to verify setup..."
-if [ -f "test_realtime_client.py" ]; then
-	# Use X11 environment variables before running test
-	if [ -n "$DISPLAY" ] && [ "$X11_SETUP_SUCCESS" = "true" ]; then
-		# Set up X11 environment variables
-		export PYNPUT_HEADLESS=0
-		export NO_X11=0
-		export HEADLESS=0
-		export OPENAI_REALTIME_NO_DISPLAY=0
-		export USE_XVFB=true
-
-		echo "Running test with X11 environment: DISPLAY=$DISPLAY"
-	else
-		echo "Running test without X11 environment"
-	fi
-
-	# Run the test script directly
-	python test_realtime_client.py || true
-fi
-
-# Run diagnostic script if it exists
-if [ -f "diagnose.py" ]; then
-	echo "Running diagnostic tests..."
-	python diagnose.py
-	echo "Diagnostic tests complete"
-fi
-
-# Explicitly set the Python path to avoid import issues
-export PYTHONPATH=/app:$PYTHONPATH
-
-# Debug information
-echo "DEBUG: Starting Docker entrypoint script"
-echo "DEBUG: Environment variables: DB_HOST=$DB_HOST, DB_PORT=$DB_PORT, DB_NAME=$DB_NAME"
-echo "DEBUG: Current directory: $(pwd)"
-echo "DEBUG: Directory contents: $(ls -la)"
-
-# Expand environment variables in the SQLALCHEMY_DATABASE_URI
-if [ -n "$DB_USER" ] && [ -n "$DB_PASSWORD" ] && [ -n "$DB_HOST" ] && [ -n "$DB_PORT" ] && [ -n "$DB_NAME" ]; then
-	# Handle database connection correctly based on environment
-	if [ "$RENDER" = "true" ]; then
-		# We're running on Render, prioritize external database URLs
-		if [ -n "$DATABASE_URL" ]; then
-			# User-provided external database URL has highest priority
-			export SQLALCHEMY_DATABASE_URI="$DATABASE_URL"
-			echo "Using DATABASE_URL for external database connection"
-		elif [ -n "$RENDER_DATABASE_URL" ]; then
-			# Render-provided external database URL
-			export SQLALCHEMY_DATABASE_URI="$RENDER_DATABASE_URL"
-			echo "Using RENDER_DATABASE_URL for external database connection"
-		elif [ -n "$INTERNAL_DATABASE_URL" ]; then
-			# Transform internal URL to external URL
-			internal_url="$INTERNAL_DATABASE_URL"
-			# Extract parts
-			if [[ "$internal_url" == postgresql://* ]]; then
-				user_part="${internal_url#postgresql://}"
-				user_part="${user_part%%@*}"
-				host_part="${internal_url#*@}"
-				host="${host_part%%:*}"
-				rest="${host_part#*:}"
-
-				# Add .virginia-postgres.render.com to hostname if it's not already a render.com domain
-				if [[ "$host" != *".render.com" ]]; then
-					external_host="${host}.virginia-postgres.render.com"
-					external_url="postgresql://${user_part}@${external_host}:${rest}"
-					export SQLALCHEMY_DATABASE_URI="$external_url"
-					echo "Transformed internal URL to external URL for database connection"
-				else
-					# Already has render.com domain
-					export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
-					echo "Using INTERNAL_DATABASE_URL for database connection"
-				fi
-			else
-				# Not in expected format, use as-is
-				export SQLALCHEMY_DATABASE_URI="$INTERNAL_DATABASE_URL"
-				echo "Using INTERNAL_DATABASE_URL for database connection (unknown format)"
-			fi
-		else
-			# Fallback to component-based construction
-			export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}.virginia-postgres.render.com:${DB_PORT}/${DB_NAME}"
-			echo "WARNING: Constructed external database URL from components - may not be correct"
-		fi
-	else
-		# Normal case for non-Render environments - construct the URI from parts
-		export SQLALCHEMY_DATABASE_URI="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-		echo "Database URI set to postgresql connection string (credentials hidden)"
-	fi
-else
-	echo "DEBUG: Missing one or more database environment variables"
-	echo "DEBUG: DB_USER set: [$(if [ -n "$DB_USER" ]; then echo "YES"; else echo "NO"; fi)]"
-	echo "DEBUG: DB_PASSWORD set: [$(if [ -n "$DB_PASSWORD" ]; then echo "YES"; else echo "NO"; fi)]"
-	echo "DEBUG: DB_HOST set: [$(if [ -n "$DB_HOST" ]; then echo "YES"; else echo "NO"; fi)]"
-	echo "DEBUG: DB_PORT set: [$(if [ -n "$DB_PORT" ]; then echo "YES"; else echo "NO"; fi)]"
-	echo "DEBUG: DB_NAME set: [$(if [ -n "$DB_NAME" ]; then echo "YES"; else echo "NO"; fi)]"
-fi
-
-# Fix logger initialization issues
-if [ -f "/app/fix_logger.py" ]; then
-	echo "Fixing logger initialization issues..."
-	python /app/fix_logger.py
-elif [ -f "fix_logger.py" ]; then
-	echo "Fixing logger initialization issues..."
-	python fix_logger.py
-fi
-
-# Initialize database if needed
-echo "Creating database tables if they don't exist..."
-python -c "
-import os
+if [ "$APP_ROLE" = "api" ]; then
+    echo "🔧 Initializing database..."
+    python -c "
 import asyncio
-print('DEBUG: Python script starting')
-print('DEBUG: SQLALCHEMY_DATABASE_URI:', os.environ.get('DATABASE_URL', 'Not set'))
+import sys
+from app.db_async import init_db
 
-# Import the async database initialization
-try:
-    from app.db_async import init_db
-    print('DEBUG: Imported async database initialization')
-    
-    # Create an async function and run it
-    async def init_database():
-        print('DEBUG: Initializing database')
+async def initialize_database():
+    try:
         await init_db()
-        print('DEBUG: Database initialized successfully')
-    
-    # Run the async function
-    asyncio.run(init_database())
-except ImportError as e:
-    print(f'ERROR: Failed to import async database initialization: {e}')
-except Exception as e:
-    print(f'ERROR: Failed to initialize database: {e}')
-"
+        print('✅ Database initialized successfully')
+    except Exception as e:
+        print(f'❌ Database initialization failed: {e}')
+        sys.exit(1)
 
-# Determine which process to start based on the PROCESS environment variable
-# This allows us to run the web server or Celery worker with the same Docker image
-if [ "$PROCESS" = "celery" ]; then
-	echo "Starting Celery worker with memory optimizations..."
-	exec celery -A celery_app worker --loglevel=INFO --concurrency=2 --max-memory-per-child=50000
-elif [ "$PROCESS" = "celery-beat" ]; then
-	echo "Starting Celery beat scheduler..."
-	exec celery -A celery_app beat --loglevel=INFO
-else
-	# Default: start the web server
-	# Check if PORT is set
-	if [ -z "$PORT" ]; then
-		echo "PORT environment variable not set, defaulting to 8080"
-		export PORT=8080
-	fi
-	# Check if app directory exists with FastAPI main
-	if [ -f "app/main.py" ]; then
-		echo "DEBUG: Found app/main.py with FastAPI application"
-	else
-		echo "ERROR: app/main.py not found in current directory"
-		echo "DEBUG: Files in current directory:"
-		ls -la
-		exit 1
-	fi
-
-	echo "Skipping database connection test during startup - will test during app initialization"
-
-	# Start FastAPI with uvicorn
-	echo "Starting with Uvicorn for FastAPI"
-	exec uvicorn app.main:app --host="0.0.0.0" --port="$PORT" --reload --log-level=info
+asyncio.run(initialize_database())
+" || {
+        echo "❌ Failed to initialize database. Exiting."
+        exit 1
+    }
 fi
+
+# -----------------------------------------------------------------------------
+# Application Startup
+# -----------------------------------------------------------------------------
+
+case "$APP_ROLE" in
+    api)
+        echo "🚀 Starting FastAPI web server on port $PORT"
+        exec uvicorn app.main:app \
+            --host="0.0.0.0" \
+            --port="$PORT" \
+            --log-level="${LOG_LEVEL:-info}" \
+            ${RELOAD:+--reload}
+        ;;
+    
+    worker)
+        echo "🔧 Starting Celery worker"
+        exec celery -A app.celery_app:celery_app worker \
+            --loglevel="${LOG_LEVEL:-INFO}" \
+            --concurrency="${CELERY_CONCURRENCY:-2}" \
+            --max-memory-per-child="${CELERY_MAX_MEMORY:-200000}" \
+            --pool="${CELERY_POOL:-prefork}"
+        ;;
+    
+    beat)
+        echo "⏰ Starting Celery beat scheduler"
+        exec celery -A app.celery_app:celery_app beat \
+            --loglevel="${LOG_LEVEL:-INFO}"
+        ;;
+    
+    *)
+        echo "❌ Unknown APP_ROLE: $APP_ROLE"
+        echo "   Valid roles: api, worker, beat"
+        exit 1
+        ;;
+esac

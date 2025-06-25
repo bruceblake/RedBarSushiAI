@@ -58,7 +58,7 @@ COPY . .
 RUN touch /app/.env
 
 # Ensure entrypoint is executable
-COPY docker-entrypoint-simple.sh /docker-entrypoint.sh
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Add wait-for-it script for database dependency management
@@ -77,6 +77,3 @@ EXPOSE 8080
 
 # Use our entrypoint script
 ENTRYPOINT ["/docker-entrypoint.sh"]
-
-# Use Uvicorn for FastAPI with reload for development
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload", "--log-level", "debug"]

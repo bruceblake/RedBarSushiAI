@@ -255,6 +255,14 @@ try:
 except ImportError as e:
     logger.error(f"Failed to import WebSocket router: {e}")
 
+# Import and register new Media Streams WebSocket router
+try:
+    from app.voice_gateway import router as voice_ws_router
+    app.include_router(voice_ws_router, tags=["Voice WebSocket"])
+    logger.info("Successfully registered Media Streams WebSocket router for /ws/voice/{call_sid}")
+except ImportError as e:
+    logger.error(f"Failed to import Media Streams WebSocket router: {e}")
+
 # Add the /routes endpoint AFTER including the API router
 # This ensures it can see all routes including the ones from api_router
 @app.get("/routes", include_in_schema=False)

@@ -1,0 +1,76 @@
+name: Test Structure Validation
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main, development ]
+
+jobs:
+  validate-test-structure:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Verify test directory structure
+      run: |
+        echo "Checking test directory structure..."
+        
+        # Check that test directories exist
+        for dir in tests/unit tests/integration tests/e2e; do
+          if [ ! -d "$dir" ]; then
+            echo "❌ Missing required directory: $dir"
+            exit 1
+          fi
+          echo "✅ Found directory: $dir"
+        done
+        
+        # Check that test files are in correct directories
+        echo ""
+        echo "Verifying test file placement..."
+        
+        # Find test files in wrong locations
+        misplaced=$(find tests -name "test_*.py" -o -name "*_test.py" | \
+          grep -v -E "^tests/(unit|integration|e2e|fixtures|llm_evaluation|debug)/" || true)
+        
+        if [ ! -z "$misplaced" ]; then
+          echo "❌ Found test files outside of unit/integration/e2e directories:"
+          echo "$misplaced"
+          exit 1
+        fi
+        
+        echo "✅ All test files are properly organized"
+    
+    - name: Check for network calls in unit tests
+      run: |
+        echo ""
+        echo "Checking unit tests for external network calls..."
+        
+        # Check for imports that suggest network calls
+        suspicious_imports=$(grep -r -E "import (requests|httpx|urllib|aiohttp)" tests/unit/ | \
+          grep -v -E "(mock|patch|fixture)" || true)
+        
+        if [ ! -z "$suspicious_imports" ]; then
+          echo "⚠️  Found potential network-related imports in unit tests:"
+          echo "$suspicious_imports"
+          echo ""
+          echo "Please ensure these are properly mocked!"
+        fi
+        
+        # Check for actual network calls
+        network_calls=$(grep -r -E "(requests\.(get|post|put|delete)|httpx\.(get|post|put|delete)|urlopen)" tests/unit/ | \
+          grep -v -E "(mock|patch|@patch)" || true)
+        
+        if [ ! -z "$network_calls" ]; then
+          echo "❌ Found potential unmocked network calls in unit tests:"
+          echo "$network_calls"
+          exit 1
+        fi
+        
+        echo "✅ No obvious unmocked network calls found in unit tests"

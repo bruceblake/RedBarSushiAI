@@ -1,0 +1,56 @@
+# Core Web Framework
+fastapi
+uvicorn[standard]
+python-multipart
+starlette
+
+# Database
+SQLAlchemy>=2.0.0
+asyncpg  # Async PostgreSQL driver
+psycopg2-binary  # PostgreSQL adapter (for migrations/sync operations)
+
+# Redis & Caching
+redis>=5.0.0
+
+# Celery & Task Queue
+celery[redis]>=5.0.0
+flower  # Celery monitoring
+
+# API Integrations
+openai>=1.0.0,<2.0.0
+twilio>=9.0.0
+stripe>=11.0.0
+
+# HTTP Clients
+httpx>=0.25.0
+aiohttp>=3.8.0
+aiohttp-retry
+
+# WebSocket Support
+websockets>=13.0
+websocket-client>=1.0.0
+
+# Configuration & Environment
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv
+
+# Audio Processing
+ffmpeg-python
+
+# Utilities
+python-dateutil
+pytz
+Jinja2>=3.0.0
+PyJWT>=2.0.0
+tqdm
+
+# Text Processing
+Levenshtein
+RapidFuzz
+
+# JSON Processing
+ujson
+
+# Required for production
+prometheus_client  # Metrics

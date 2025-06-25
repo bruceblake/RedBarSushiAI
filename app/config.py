@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(False, env="DEBUG")
     PORT: int = Field(5000, env="PORT")
     BASE_URL: str = Field("https://redbarsushiai.onrender.com", env="BASE_URL")
+    APP_DOMAIN: Optional[str] = Field(None, env="APP_DOMAIN")  # Domain for WebSocket URLs
     SECRET_KEY: str = Field(..., env="SECRET_KEY")
     
     # Environment
