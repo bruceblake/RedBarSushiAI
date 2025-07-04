@@ -12,9 +12,9 @@ from typing import Dict, List, Any, Optional, Union, Callable, Tuple, AsyncGener
 from app.agents.factory_async import async_agent_factory
 from app.utils.conversation_store_async import async_conversation_store
 from app.utils.conversation_store_async import async_agents_conversation_store
-from app.utils.fsm_async import (
-    async_fsm_manager, ConversationState, ConversationEvent, 
-    AsyncConversationFSM
+from app.fsm.hsm_manager import hsm_manager
+from app.fsm.hsm_core import (
+    ConversationHSMStates, ConversationHSMEvents, HSMEvent
 )
 from app.config import settings
 from app.utils.global_commands import (
@@ -64,30 +64,18 @@ class AsyncAgentOrchestrator:
         
         logger.info("Initialized async agent orchestrator with voice agent system")
     
-    async def get_fsm(self, call_sid: str) -> AsyncConversationFSM:
+    async def initialize_hsm(self, call_sid: str, context: Optional[Dict[str, Any]] = None) -> None:
         """
-        Get or create an FSM for a session.
+        Initialize HSM for a session.
         
         Args:
             call_sid: The Twilio call SID for this session
-            
-        Returns:
-            The FSM instance
+            context: Optional initial context
         """
-        # Get or create FSM from manager
-        fsm = await async_fsm_manager.get_fsm(call_sid)
+        # Initialize conversation HSM
+        await hsm_manager.initialize_conversation(call_sid, ConversationHSMStates.INITIAL)
         
-        # Ensure the FSM has access to all agents
-        fsm.update_context({
-            "frontline_agent": self.frontline_agent,
-            "menu_agent": self.menu_agent,
-            "cart_agent": self.cart_agent,
-            "guardrail_agent": self.guardrail_agent,
-            "fulfillment_agent": self.fulfillment_agent,
-            "escalation_agent": self.escalation_agent
-        })
-        
-        return fsm
+        logger.info(f"[{call_sid}] HSM initialized")
     
     async def process_voice_input(
         self, 
@@ -132,8 +120,10 @@ class AsyncAgentOrchestrator:
             self.active_sessions[call_sid] = {
                 "started_at": time.time(),
                 "last_activity": time.time(),
-                "state": ConversationState.GREETING.name
+                "state": ConversationHSMStates.INITIAL
             }
+            # Initialize HSM for new session
+            await self.initialize_hsm(call_sid, context)
         
         # Update last activity time
         self.active_sessions[call_sid]["last_activity"] = time.time()
@@ -142,17 +132,21 @@ class AsyncAgentOrchestrator:
         logger.info(f"Adding user message to conversation store: '{input_text}'")
         await self.conversation_store.add_message(call_sid, "user", input_text)
         
-        # Get or create FSM for this call
-        logger.critical(f"Getting FSM for call: {call_sid}")
-        fsm = await self.get_fsm(call_sid)
-        logger.critical(f"FSM retrieved - Current state: {fsm.current_state.name}")
-        logger.critical(f"FSM context: {json.dumps({k: v for k, v in fsm.context.items() if isinstance(v, (str, int, float, bool, list, dict)) or v is None}, indent=2)}")
+        # Get current HSM state for this call
+        logger.critical(f"Getting HSM state for call: {call_sid}")
+        current_states = await hsm_manager.get_current_states(call_sid)
+        current_leaf = current_states[-1] if current_states else ConversationHSMStates.INITIAL
+        logger.critical(f"HSM retrieved - Current states: {current_states}")
+        logger.critical(f"Current leaf state: {current_leaf}")
         
-        # If this is first interaction and FSM is in INITIAL state, trigger START_CONVERSATION
-        if context.get("first_interaction") and fsm.current_state == ConversationState.INITIAL:
+        # If this is first interaction and HSM is in INITIAL state, trigger START_CONVERSATION
+        if context.get("first_interaction") and current_leaf == ConversationHSMStates.INITIAL:
             logger.critical("First interaction detected - triggering START_CONVERSATION event")
-            await fsm.trigger(ConversationEvent.START_CONVERSATION)
-            logger.critical(f"FSM state after START_CONVERSATION: {fsm.current_state.name}")
+            start_event = HSMEvent(ConversationHSMEvents.START_CONVERSATION, context)
+            await hsm_manager.handle_event(call_sid, start_event, context)
+            current_states = await hsm_manager.get_current_states(call_sid)
+            current_leaf = current_states[-1] if current_states else ConversationHSMStates.INITIAL
+            logger.critical(f"HSM state after START_CONVERSATION: {current_states}")
         
         # Check for global commands first (but not on first interaction)
         if not context.get("first_interaction") and input_text.strip():
@@ -166,7 +160,7 @@ class AsyncAgentOrchestrator:
                 
                 # Handle special global commands that don't map to events
                 if global_cmd in [GlobalCommand.REPEAT, GlobalCommand.START_OVER, GlobalCommand.GO_BACK]:
-                    response = await self._handle_global_command(global_cmd, call_sid, fsm)
+                    response = await self._handle_global_command(global_cmd, call_sid, context)
                     if response:
                         # Add response to conversation store
                         await self.conversation_store.add_message(call_sid, "assistant", response["text"])
@@ -176,38 +170,56 @@ class AsyncAgentOrchestrator:
                         
                         return response
         
-        # Process the transcript with the FSM
+        # Process the transcript with the HSM
         start_time = time.time()
         
-        # Store the state BEFORE FSM processing
-        state_before_fsm = fsm.current_state.name
-        logger.critical(f"State BEFORE FSM processing: {state_before_fsm}")
+        # Store the state BEFORE HSM processing
+        state_before_hsm = current_leaf
+        logger.critical(f"State BEFORE HSM processing: {state_before_hsm}")
         
-        # Add the transcript to FSM context
-        logger.critical(f"Updating FSM context with transcript: '{input_text}'")
-        fsm.update_context({"transcript": input_text})
+        # Add the transcript to context
+        logger.critical(f"Adding transcript to context: '{input_text}'")
+        context["transcript"] = input_text
         
-        # Process with FSM
-        logger.critical(f"Processing transcript with FSM...")
-        await fsm.process_transcript(input_text)
-        logger.critical(f"FSM processing complete - New state: {fsm.current_state.name}")
-        logger.critical(f"State changed: {state_before_fsm} -> {fsm.current_state.name}")
-        
-        # Select the appropriate agent based on FSM state
-        logger.critical(f"Selecting appropriate agent for state: {fsm.current_state.name}")
+        # Process with HSM using intent detection
+        logger.critical(f"Processing transcript with HSM...")
         try:
-            agent, response = await self._process_with_appropriate_agent(fsm, input_text, context)
+            # Use intent detection to determine appropriate event
+            event = await self._detect_hsm_event(input_text, current_leaf, context)
+            if event:
+                logger.critical(f"Detected HSM event: {event.name}")
+                new_leaf = await hsm_manager.handle_event(call_sid, event, context)
+                if new_leaf:
+                    current_leaf = new_leaf
+                    logger.critical(f"HSM processing complete - New leaf state: {current_leaf}")
+                else:
+                    logger.critical(f"HSM event processed but no state change")
+            else:
+                logger.critical(f"No HSM event detected from transcript")
+        except Exception as e:
+            logger.error(f"HSM processing error: {str(e)}", exc_info=True)
+            # Transition to ERROR state
+            error_event = HSMEvent(ConversationHSMEvents.ERROR_OCCURRED, {"error": str(e)})
+            await hsm_manager.handle_event(call_sid, error_event, context)
+        
+        logger.critical(f"State changed: {state_before_hsm} -> {current_leaf}")
+        
+        # Select the appropriate agent based on HSM state
+        logger.critical(f"Selecting appropriate agent for state: {current_leaf}")
+        try:
+            agent, response = await self._process_with_appropriate_agent(current_leaf, input_text, context)
         except Exception as e:
             logger.error(f"Agent processing error: {str(e)}", exc_info=True)
             # Transition to ERROR state
-            await fsm.trigger(ConversationEvent.ERROR_OCCURRED)
+            error_event = HSMEvent(ConversationHSMEvents.ERROR_OCCURRED, {"error": str(e)})
+            await hsm_manager.handle_event(call_sid, error_event, context)
             # Return error response
             return {
                 "text": "I'm sorry, I encountered an error processing your request. Please try again or ask for assistance.",
                 "handled": True,
                 "agent": "ErrorHandler",
                 "error": str(e),
-                "state": ConversationState.ERROR.name
+                "state": ConversationHSMStates.ERROR_RECOVERY
             }
         logger.critical(f"Agent processing complete:")
         logger.critical(f"  - Agent used: {agent.__class__.__name__}")
@@ -225,8 +237,8 @@ class AsyncAgentOrchestrator:
         # Add the assistant response to conversation store
         await self.conversation_store.add_message(call_sid, "assistant", response_text)
         
-        # Update session state to match FSM state
-        self.active_sessions[call_sid]["state"] = fsm.current_state.name
+        # Update session state to match HSM state
+        self.active_sessions[call_sid]["state"] = current_leaf
         
         # Update global command context with the last response
         if response_text:
@@ -235,12 +247,12 @@ class AsyncAgentOrchestrator:
         # Log processing stats
         logger.critical(f"ORCHESTRATOR PROCESSING COMPLETE:")
         logger.critical(f"  - Duration: {duration:.2f}s")
-        logger.critical(f"  - FSM State: {fsm.current_state}")
+        logger.critical(f"  - HSM State: {current_leaf}")
         logger.critical(f"  - Agent: {agent_name}")
         logger.critical(f"  - Input: '{input_text}'")
         logger.critical(f"  - Response Text: '{response_text}'")
         logger.critical(f"  - Actions: {actions}")
-        logger.critical(f"  - State transitions: {state_before_fsm} -> {fsm.current_state.name}")
+        logger.critical(f"  - State transitions: {state_before_hsm} -> {current_leaf}")
         
         return {
             "text": response_text,
@@ -248,21 +260,21 @@ class AsyncAgentOrchestrator:
             "agent": agent_name,
             "processing_time": duration,
             "actions": actions,
-            "state": fsm.current_state.name,
-            "fsm_context": {k: v for k, v in fsm.context.items() if isinstance(v, (str, int, float, bool, list, dict)) or v is None}
+            "state": current_leaf,
+            "hsm_context": {k: v for k, v in context.items() if isinstance(v, (str, int, float, bool, list, dict)) or v is None}
         }
     
     async def _process_with_appropriate_agent(
         self, 
-        fsm: AsyncConversationFSM, 
+        current_state: str, 
         input_text: str, 
         context: Dict[str, Any]
     ) -> Tuple[Any, Dict[str, Any]]:
         """
-        Process the input with the appropriate agent based on FSM state.
+        Process the input with the appropriate agent based on HSM state.
         
         Args:
-            fsm: The FSM instance
+            current_state: The current HSM leaf state
             input_text: The text input from the user
             context: Additional context
             
@@ -271,123 +283,206 @@ class AsyncAgentOrchestrator:
         """
         logger.critical("=" * 60)
         logger.critical("AGENT SELECTION LOGIC")
-        logger.critical(f"FSM State: {fsm.current_state}")
+        logger.critical(f"HSM State: {current_state}")
         logger.critical(f"Input text: '{input_text}'")
         logger.critical("=" * 60)
-        # Clone context to avoid modifying the FSM context directly
-        agent_context = context.copy()
-        agent_context.update({k: v for k, v in fsm.context.items() 
-                             if not k.startswith("_") and k not in 
-                             ["frontline_agent", "menu_agent", "cart_agent", 
-                              "guardrail_agent", "fulfillment_agent", "escalation_agent"]})
         
-        # Select the appropriate agent based on FSM state
-        if fsm.current_state == ConversationState.MAIN_MENU:
-            if fsm.context.get("requesting_menu_info", False):
+        # Clone context to avoid modifying it directly
+        agent_context = context.copy()
+        
+        # Select the appropriate agent based on HSM state
+        # Check for main states first, then specific substates
+        if current_state in [ConversationHSMStates.MAIN_MENU, ConversationHSMStates.GREETING]:
+            if context.get("requesting_menu_info", False):
                 # Use menu agent for menu inquiries
                 logger.critical(f"Selecting MENU AGENT (requesting_menu_info=True)")
                 agent = self.menu_agent
                 response = await agent.process_input(input_text, agent_context)
             else:
-                # Use frontline agent for main menu
-                logger.critical(f"Selecting FRONTLINE AGENT for MAIN_MENU state")
-                logger.critical(f"Passing state context to frontline agent: current_state={fsm.current_state.name}")
-                # Ensure the agent knows we're in MAIN_MENU state
-                agent_context["fsm_state"] = fsm.current_state.name
+                # Use frontline agent for main menu and greeting
+                logger.critical(f"Selecting FRONTLINE AGENT for {current_state} state")
+                # Ensure the agent knows the current HSM state
+                agent_context["hsm_state"] = current_state
                 agent_context["state_transition_occurred"] = True
                 agent = self.frontline_agent
                 response = await agent.process_voice_input(input_text, agent_context)
         
-        elif fsm.current_state == ConversationState.ORDERING:
+        elif current_state.startswith("ACTIVE.ORDERING"):
             # Use cart agent for order management
-            logger.info(f"Selecting CART AGENT for ORDERING state")
-            # Ensure cart agent has access to existing cart from FSM
-            existing_cart = fsm.context.get("cart", {"items": [], "total_price": 0})
+            logger.info(f"Selecting CART AGENT for ORDERING state: {current_state}")
+            # Ensure cart agent has access to existing cart from context
+            existing_cart = context.get("cart", {"items": [], "total_price": 0})
             agent_context["cart"] = existing_cart
             logger.info(f"Passing existing cart to cart agent: {json.dumps(existing_cart, indent=2)}")
             agent = self.cart_agent
             response = await agent.process_input(input_text, agent_context)
             logger.info(f"Cart agent response: {json.dumps(response, indent=2)}")
             
-            # Update FSM context with cart from agent conversation store - CRITICAL for persistence
+            # Update context with cart from agent conversation store - CRITICAL for persistence
             call_sid = context.get("call_sid")
             if call_sid:
                 conversation = await async_agents_conversation_store.get_conversation(call_sid)
                 cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
-                fsm.update_context({"cart": cart})
-                logger.critical(f"✅ Cart synchronized to FSM context: {json.dumps(cart, indent=2)}")
+                context["cart"] = cart  # Update the shared context
+                logger.critical(f"✅ Cart synchronized to context: {json.dumps(cart, indent=2)}")
                 
                 # Also update the response with the current cart
                 response["cart"] = cart
             
-            # Check if order is complete
+            # Check if order is complete and trigger HSM event
             if response.get("cart_complete", False) or response.get("order_ready_for_validation", False):
-                await fsm.trigger(ConversationEvent.COMPLETE_ORDER)
+                complete_event = HSMEvent(ConversationHSMEvents.COMPLETE_ORDER, context)
+                await hsm_manager.handle_event(call_sid, complete_event, context)
         
-        elif fsm.current_state == ConversationState.VALIDATION:
+        elif current_state == ConversationHSMStates.VALIDATION:
             # Use guardrail agent for validation
             logger.info(f"Selecting GUARDRAIL AGENT for VALIDATION state")
             agent = self.guardrail_agent
             response = await agent.process_input(input_text, agent_context)
         
-        elif fsm.current_state == ConversationState.CONFIRMATION:
+        elif current_state.startswith("ACTIVE.CONFIRMATION"):
             # Use frontline agent for confirmation
-            logger.info(f"Selecting FRONTLINE AGENT for CONFIRMATION state")
-            # Ensure frontline agent has the cart from FSM context
-            agent_context["cart"] = fsm.context.get("cart", {"items": [], "total_price": 0})
+            logger.info(f"Selecting FRONTLINE AGENT for CONFIRMATION state: {current_state}")
+            # Ensure frontline agent has the cart from context
+            agent_context["cart"] = context.get("cart", {"items": [], "total_price": 0})
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
             
-            # Check if order is confirmed or rejected
+            # Check if order is confirmed or rejected and trigger HSM events
+            call_sid = context.get("call_sid")
             if response.get("order_confirmed", False):
-                await fsm.trigger(ConversationEvent.CONFIRM_ORDER)
+                confirm_event = HSMEvent(ConversationHSMEvents.CONFIRM_ORDER, context)
+                await hsm_manager.handle_event(call_sid, confirm_event, context)
             elif response.get("order_rejected", False):
-                await fsm.trigger(ConversationEvent.REJECT_ORDER)
+                reject_event = HSMEvent(ConversationHSMEvents.REJECT_ORDER, context)
+                await hsm_manager.handle_event(call_sid, reject_event, context)
         
-        elif fsm.current_state == ConversationState.FULFILLMENT:
+        elif current_state.startswith("ACTIVE.FULFILLMENT"):
             # Use fulfillment agent for order processing
-            logger.info(f"Selecting FULFILLMENT AGENT for FULFILLMENT state")
-            # Ensure fulfillment agent has the cart from FSM context
-            agent_context["cart"] = fsm.context.get("cart", {"items": [], "total_price": 0})
+            logger.info(f"Selecting FULFILLMENT AGENT for FULFILLMENT state: {current_state}")
+            # Ensure fulfillment agent has the cart from context
+            agent_context["cart"] = context.get("cart", {"items": [], "total_price": 0})
             agent = self.fulfillment_agent
             response = await agent.process_input(input_text, agent_context)
             
-            # Check if fulfillment is complete
+            # Check if fulfillment is complete and trigger HSM event
             if response.get("fulfillment_complete", False):
-                await fsm.trigger(ConversationEvent.COMPLETE_INTERACTION)
+                complete_event = HSMEvent(ConversationHSMEvents.COMPLETE_INTERACTION, context)
+                call_sid = context.get("call_sid")
+                await hsm_manager.handle_event(call_sid, complete_event, context)
         
-        elif fsm.current_state == ConversationState.COMPLETION:
+        elif current_state == ConversationHSMStates.COMPLETION:
             # Use frontline agent for completion
             logger.info(f"Selecting FRONTLINE AGENT for COMPLETION state")
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
         
-        elif fsm.current_state == ConversationState.FOLLOW_UP:
+        elif current_state == ConversationHSMStates.FOLLOW_UP:
             # Use frontline agent for follow-up
             logger.info(f"Selecting FRONTLINE AGENT for FOLLOW_UP state")
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
         
-        elif fsm.current_state == ConversationState.ESCALATION:
+        elif current_state == ConversationHSMStates.ESCALATION:
             # Use escalation agent for escalation
             logger.info(f"Selecting ESCALATION AGENT for ESCALATION state")
             agent = self.escalation_agent
             response = await agent.process_input(input_text, agent_context)
         
-        elif fsm.current_state == ConversationState.ERROR:
+        elif current_state.startswith("ERROR_RECOVERY"):
             # Use frontline agent for error recovery
-            logger.info(f"Selecting FRONTLINE AGENT for ERROR state")
+            logger.info(f"Selecting FRONTLINE AGENT for ERROR state: {current_state}")
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
         
-        else:  # GREETING or INITIAL
+        else:  # Default case
             # Use frontline agent as default
-            logger.info(f"Selecting FRONTLINE AGENT as DEFAULT for state: {fsm.current_state}")
+            logger.info(f"Selecting FRONTLINE AGENT as DEFAULT for state: {current_state}")
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
         
         logger.info(f"Agent selection complete: {agent.__class__.__name__}")
         return agent, response
+    
+    async def _detect_hsm_event(self, input_text: str, current_state: str, context: Dict[str, Any]) -> Optional[HSMEvent]:
+        """
+        Detect an HSM event from the input text based on current state and context.
+        
+        Args:
+            input_text: The user's input text
+            current_state: Current HSM leaf state
+            context: Conversation context
+            
+        Returns:
+            HSM event if detected, None otherwise
+        """
+        try:
+            # Use the existing intent detector to map to HSM events
+            from app.utils.intent_detector_async import intent_detector
+            
+            # Convert HSM state back to FSM-style for intent detector compatibility
+            # This is a temporary mapping until we update the intent detector
+            state_mapping = {
+                ConversationHSMStates.INITIAL: "INITIAL",
+                ConversationHSMStates.GREETING: "GREETING", 
+                ConversationHSMStates.MAIN_MENU: "MAIN_MENU",
+                ConversationHSMStates.ORDERING: "ORDERING",
+                ConversationHSMStates.VALIDATION: "VALIDATION",
+                ConversationHSMStates.CONFIRMATION: "CONFIRMATION",
+                ConversationHSMStates.FULFILLMENT: "FULFILLMENT",
+                ConversationHSMStates.COMPLETION: "COMPLETION",
+                ConversationHSMStates.FOLLOW_UP: "FOLLOW_UP",
+                ConversationHSMStates.ESCALATION: "ESCALATION"
+            }
+            
+            # Get base state for ordering substates
+            if current_state.startswith("ACTIVE.ORDERING"):
+                mapped_state = "ORDERING"
+            elif current_state.startswith("ACTIVE.CONFIRMATION"):
+                mapped_state = "CONFIRMATION"
+            elif current_state.startswith("ACTIVE.FULFILLMENT"):
+                mapped_state = "FULFILLMENT"
+            elif current_state.startswith("ERROR_RECOVERY"):
+                mapped_state = "ERROR"
+            else:
+                mapped_state = state_mapping.get(current_state, "MAIN_MENU")
+            
+            # Create a mock state object for the intent detector
+            from app.fsm.core import ConversationState
+            mock_state = getattr(ConversationState, mapped_state, ConversationState.MAIN_MENU)
+            
+            # Detect intent using existing intent detector
+            detected_event = await intent_detector.detect_intent(
+                transcript=input_text,
+                current_state=mock_state,
+                context=context
+            )
+            
+            if detected_event:
+                # Map FSM events to HSM events
+                event_mapping = {
+                    "START_CONVERSATION": ConversationHSMEvents.START_CONVERSATION,
+                    "USER_PROVIDES_NAME": ConversationHSMEvents.USER_PROVIDES_NAME,
+                    "REQUEST_MENU_INFO": ConversationHSMEvents.REQUEST_MENU_INFO,
+                    "START_ORDER": ConversationHSMEvents.START_ORDER,
+                    "ADD_ITEM": ConversationHSMEvents.ADD_ITEM,
+                    "COMPLETE_ORDER": ConversationHSMEvents.COMPLETE_ORDER,
+                    "CONFIRM_ORDER": ConversationHSMEvents.CONFIRM_ORDER,
+                    "REJECT_ORDER": ConversationHSMEvents.REJECT_ORDER,
+                    "COMPLETE_INTERACTION": ConversationHSMEvents.COMPLETE_INTERACTION,
+                    "REQUEST_ESCALATION": ConversationHSMEvents.REQUEST_ESCALATION,
+                    "ERROR_OCCURRED": ConversationHSMEvents.ERROR_OCCURRED,
+                    "USER_REQUESTS_CANCELLATION": ConversationHSMEvents.USER_REQUESTS_CANCELLATION
+                }
+                
+                hsm_event_name = event_mapping.get(detected_event.name, detected_event.name)
+                return HSMEvent(hsm_event_name, context)
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error detecting HSM event: {e}", exc_info=True)
+            return None
     
     async def process_voice_input_streaming(
         self,
@@ -428,8 +523,10 @@ class AsyncAgentOrchestrator:
             self.active_sessions[call_sid] = {
                 "started_at": time.time(),
                 "last_activity": time.time(),
-                "state": ConversationState.GREETING.name
+                "state": ConversationHSMStates.INITIAL
             }
+            # Initialize HSM for new session
+            await self.initialize_hsm(call_sid, context)
         
         self.active_sessions[call_sid]["last_activity"] = time.time()
         
@@ -440,39 +537,40 @@ class AsyncAgentOrchestrator:
             input_text
         )
         
-        # Get FSM
-        fsm = await self.get_fsm(call_sid)
+        # Get current HSM state
+        current_states = await hsm_manager.get_current_states(call_sid)
+        current_leaf = current_states[-1] if current_states else ConversationHSMStates.INITIAL
         
-        # Process the prompt event
+        # Process input through HSM
         try:
-            await fsm.handle_event(ConversationEvent.PROMPT_RECEIVED, {"prompt": input_text})
+            # Detect and handle HSM event
+            event = await self._detect_hsm_event(input_text, current_leaf, context)
+            if event:
+                await hsm_manager.handle_event(call_sid, event, context)
+                # Get updated state
+                updated_states = await hsm_manager.get_current_states(call_sid)
+                updated_leaf = updated_states[-1] if updated_states else current_leaf
+                state_transition_occurred = updated_leaf != current_leaf
+                current_leaf = updated_leaf
+            else:
+                state_transition_occurred = False
         except Exception as e:
-            logger.error(f"FSM event handling error: {e}")
-        
-        # Check for state transition
-        state_transition_occurred = False
-        if hasattr(fsm, '_last_state') and fsm._last_state != fsm.current_state:
-            state_transition_occurred = True
-            logger.critical(f"STATE TRANSITION: {fsm._last_state} → {fsm.current_state}")
-        fsm._last_state = fsm.current_state
+            logger.error(f"HSM event handling error: {e}")
+            state_transition_occurred = False
         
         # Update context
         context.update({
-            "fsm_state": fsm.current_state.name,
+            "hsm_state": current_leaf,
             "state_transition_occurred": state_transition_occurred,
-            "customer_name": fsm.context.get("customer_name"),
-            "order_items": fsm.context.get("order_items", [])
+            "customer_name": context.get("customer_name"),
+            "order_items": context.get("order_items", [])
         })
         
         # Get appropriate agent
         agent_context = context.copy()
-        agent_context.update({k: v for k, v in fsm.context.items() 
-                             if not k.startswith("_") and k not in 
-                             ["frontline_agent", "menu_agent", "cart_agent", 
-                              "guardrail_agent", "fulfillment_agent", "escalation_agent"]})
         
         # For now, streaming is only supported by frontline agent in certain states
-        if fsm.current_state in [ConversationState.GREETING, ConversationState.MAIN_MENU] and not context.get("first_interaction"):
+        if current_leaf in [ConversationHSMStates.GREETING, ConversationHSMStates.MAIN_MENU] and not context.get("first_interaction"):
             logger.critical("Using FRONTLINE AGENT with streaming support")
             response = await self.frontline_agent.process_voice_input(
                 input_text, agent_context, stream_callback
@@ -481,18 +579,19 @@ class AsyncAgentOrchestrator:
             # Fall back to non-streaming for other states/agents
             logger.critical("Falling back to non-streaming (tools or complex state)")
             try:
-                agent, response = await self._process_with_appropriate_agent(fsm, input_text, context)
+                agent, response = await self._process_with_appropriate_agent(current_leaf, input_text, context)
             except Exception as e:
                 logger.error(f"Agent processing error: {str(e)}", exc_info=True)
                 # Transition to ERROR state
-                await fsm.trigger(ConversationEvent.ERROR_OCCURRED)
+                error_event = HSMEvent(ConversationHSMEvents.ERROR_OCCURRED, {"error": str(e)})
+                await hsm_manager.handle_event(call_sid, error_event, context)
                 # Return error response
                 return {
                     "text": "I'm sorry, I encountered an error processing your request. Please try again or ask for assistance.",
                     "handled": True,
                     "agent": "ErrorHandler",
                     "error": str(e),
-                    "state": ConversationState.ERROR.name
+                    "state": ConversationHSMStates.ERROR_RECOVERY
                 }
             
             # Send complete response via callback
@@ -509,15 +608,13 @@ class AsyncAgentOrchestrator:
             response.get("text", "")
         )
         
-        # Update FSM context
+        # Update HSM context
         for action in response.get("actions", []):
             if action.get("type") == "set_customer_name":
-                fsm.context["customer_name"] = action.get("name")
-                # Save FSM state with updated context
-                pass  # FSM is already saved in the manager
+                context["customer_name"] = action.get("name")
         
-        response["state"] = fsm.current_state.name
-        response["fsm_context"] = {k: v for k, v in fsm.context.items() 
+        response["state"] = current_leaf
+        response["hsm_context"] = {k: v for k, v in context.items() 
                                    if isinstance(v, (str, int, float, bool, list, dict)) or v is None}
         
         return response
@@ -562,8 +659,9 @@ class AsyncAgentOrchestrator:
         if call_sid in self.active_sessions:
             self.active_sessions[call_sid]["last_activity"] = time.time()
         
-        # Get FSM for this call
-        fsm = await self.get_fsm(call_sid)
+        # Get HSM state for this call
+        current_states = await hsm_manager.get_current_states(call_sid)
+        current_leaf = current_states[-1] if current_states else ConversationHSMStates.INITIAL
         
         # Choose the right agent for the tool based on its name
         agent = self.frontline_agent  # Default
@@ -584,17 +682,22 @@ class AsyncAgentOrchestrator:
         result = await agent.execute_tool(tool_name, args)
         duration = time.time() - start_time
         
-        # Handle FSM events based on tool results
+        # Handle HSM events based on tool results
         if tool_name == "cart_complete_order" and result.get("success", False):
-            await fsm.trigger(ConversationEvent.COMPLETE_ORDER)
+            complete_event = HSMEvent(ConversationHSMEvents.COMPLETE_ORDER, context)
+            await hsm_manager.handle_event(call_sid, complete_event, context)
         elif tool_name == "confirm_order" and result.get("confirmed", False):
-            await fsm.trigger(ConversationEvent.CONFIRM_ORDER)
+            confirm_event = HSMEvent(ConversationHSMEvents.CONFIRM_ORDER, context)
+            await hsm_manager.handle_event(call_sid, confirm_event, context)
         elif tool_name == "reject_order" and result.get("rejected", False):
-            await fsm.trigger(ConversationEvent.REJECT_ORDER)
+            reject_event = HSMEvent(ConversationHSMEvents.REJECT_ORDER, context)
+            await hsm_manager.handle_event(call_sid, reject_event, context)
         elif tool_name == "process_order" and result.get("success", False):
-            await fsm.trigger(ConversationEvent.COMPLETE_INTERACTION)
+            complete_event = HSMEvent(ConversationHSMEvents.COMPLETE_INTERACTION, context)
+            await hsm_manager.handle_event(call_sid, complete_event, context)
         elif tool_name == "escalate" and result.get("escalated", False):
-            await fsm.trigger(ConversationEvent.REQUEST_ESCALATION)
+            escalate_event = HSMEvent(ConversationHSMEvents.REQUEST_ESCALATION, context)
+            await hsm_manager.handle_event(call_sid, escalate_event, context)
         
         # Log tool execution stats
         logger.info(f"Executed tool {tool_name} in {duration:.2f}s for {call_sid}")
@@ -603,7 +706,7 @@ class AsyncAgentOrchestrator:
             "tool_name": tool_name,
             "result": result,
             "processing_time": duration,
-            "fsm_state": fsm.current_state.name
+            "hsm_state": current_leaf
         }
     
     async def get_session_state(self, call_sid: str) -> Dict[str, Any]:
@@ -623,16 +726,15 @@ class AsyncAgentOrchestrator:
             "state": "UNKNOWN"
         })
         
-        # Get FSM state if available
+        # Get HSM state if available
         try:
-            fsm = await async_fsm_manager.get_fsm(call_sid)
-            fsm_state = fsm.current_state.name
-            fsm_context = {k: v for k, v in fsm.context.items() 
-                         if isinstance(v, (str, int, float, bool, list, dict)) or v is None}
+            current_states = await hsm_manager.get_current_states(call_sid)
+            hsm_state = current_states[-1] if current_states else ConversationHSMStates.INITIAL
+            hsm_context = {"states": current_states}
         except Exception as e:
-            logger.error(f"Error getting FSM for {call_sid}: {str(e)}")
-            fsm_state = "UNKNOWN"
-            fsm_context = {}
+            logger.error(f"Error getting HSM for {call_sid}: {str(e)}")
+            hsm_state = "UNKNOWN"
+            hsm_context = {}
         
         # Get conversation history
         conversation = await self.conversation_store.get_conversation(call_sid)
@@ -648,14 +750,14 @@ class AsyncAgentOrchestrator:
         return {
             "call_sid": call_sid,
             "state": session_info.get("state", "UNKNOWN"),
-            "fsm_state": fsm_state,
+            "hsm_state": hsm_state,
             "started_at": session_info.get("started_at"),
             "last_activity": session_info.get("last_activity"),
             "duration": time.time() - session_info.get("started_at", time.time()),
             "idle_time": time.time() - session_info.get("last_activity", time.time()),
             "conversation": conversation,
             "cart": cart,
-            "fsm_context": fsm_context
+            "hsm_context": hsm_context
         }
     
     async def start_new_conversation(self, call_sid: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -689,10 +791,10 @@ class AsyncAgentOrchestrator:
         self.active_sessions[call_sid] = {
             "started_at": time.time(),
             "last_activity": time.time(),
-            "state": ConversationState.GREETING.name
+            "state": ConversationHSMStates.INITIAL
         }
         
-        # Create a new FSM and start it
+        # Initialize HSM for new conversation
         context_with_agents = {
             "frontline_agent": self.frontline_agent,
             "menu_agent": self.menu_agent,
@@ -706,17 +808,24 @@ class AsyncAgentOrchestrator:
         if context:
             context_with_agents.update(context)
         
-        logger.info(f"Starting FSM conversation with context...")
-        fsm = await async_fsm_manager.start_conversation(call_sid, context_with_agents)
-        logger.info(f"FSM started - State: {fsm.current_state.name}")
+        logger.info(f"Starting HSM conversation with context...")
+        await self.initialize_hsm(call_sid, context_with_agents)
         
-        # Get greeting from FSM context
-        greeting_response = fsm.context.get("greeting_response", {})
-        logger.info(f"Greeting response from FSM: {json.dumps(greeting_response, indent=2)}")
+        # Trigger start conversation event
+        start_event = HSMEvent(ConversationHSMEvents.START_CONVERSATION, context_with_agents)
+        await hsm_manager.handle_event(call_sid, start_event, context_with_agents)
         
-        # If no greeting in FSM, generate one with frontline agent
+        current_states = await hsm_manager.get_current_states(call_sid)
+        current_leaf = current_states[-1] if current_states else ConversationHSMStates.INITIAL
+        logger.info(f"HSM started - State: {current_leaf}")
+        
+        # Get greeting from HSM context
+        greeting_response = context_with_agents.get("greeting_response", {})
+        logger.info(f"Greeting response from HSM: {json.dumps(greeting_response, indent=2)}")
+        
+        # If no greeting in HSM, generate one with frontline agent
         if not greeting_response:
-            logger.info("No greeting in FSM, generating with frontline agent...")
+            logger.info("No greeting in HSM, generating with frontline agent...")
             greeting_response = await self.frontline_agent.process_voice_input(
                 "", {"first_interaction": True, "call_sid": call_sid}
             )
@@ -735,7 +844,7 @@ class AsyncAgentOrchestrator:
             "text": greeting_text,
             "handled": True,
             "agent": "FrontlineVoice",
-            "state": fsm.current_state.name,
+            "state": current_leaf,
             "is_greeting": True
         }
         logger.info(f"Returning greeting result: {json.dumps(result, indent=2)}")
@@ -772,8 +881,8 @@ class AsyncAgentOrchestrator:
             # Remove from agents conversation store
             await async_agents_conversation_store.delete_conversation(call_sid)
             
-            # Remove from FSM manager
-            async_fsm_manager.remove_fsm(call_sid)
+            # Remove from HSM manager
+            await hsm_manager.state_store.clear_state(call_sid)
             
             logger.info(f"Cleaned up inactive session: {call_sid}")
         
@@ -783,7 +892,7 @@ class AsyncAgentOrchestrator:
         self,
         command: GlobalCommand,
         call_sid: str,
-        fsm: AsyncConversationFSM
+        context: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """
         Handle global commands that require special processing.

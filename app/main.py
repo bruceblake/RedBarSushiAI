@@ -247,21 +247,13 @@ from app.api import api_router
 # Include the main API router
 app.include_router(api_router)
 
-# Import and register WebSocket router separately (not under api_router prefix)
+# Import and register ConversationRelay WebSocket router separately (not under api_router prefix)
 try:
-    from app.api.voice import websocket_router
-    app.include_router(websocket_router)
-    logger.info("Successfully registered WebSocket router for /realtime/ws/media/{call_sid}")
+    from app.api.voice import conversation_relay_router
+    app.include_router(conversation_relay_router)
+    logger.info("Successfully registered ConversationRelay WebSocket router for /conversation-relay/{call_sid}")
 except ImportError as e:
-    logger.error(f"Failed to import WebSocket router: {e}")
-
-# Import and register new Media Streams WebSocket router
-try:
-    from app.voice_gateway import router as voice_ws_router
-    app.include_router(voice_ws_router, tags=["Voice WebSocket"])
-    logger.info("Successfully registered Media Streams WebSocket router for /ws/voice/{call_sid}")
-except ImportError as e:
-    logger.error(f"Failed to import Media Streams WebSocket router: {e}")
+    logger.error(f"Failed to import ConversationRelay WebSocket router: {e}")
 
 # Add the /routes endpoint AFTER including the API router
 # This ensures it can see all routes including the ones from api_router
@@ -342,7 +334,7 @@ async def startup_event():
     
     # Log critical information about routes
     logger.critical(f"❗❗❗ APPLICATION STARTUP ❗❗❗")
-    logger.critical(f"❗❗❗ WebSocket route should be available at: /realtime/ws/media/{{call_sid}} ❗❗❗")
+    logger.critical(f"❗❗❗ ConversationRelay WebSocket route should be available at: /conversation-relay/{{call_sid}} ❗❗❗")
     logger.critical(f"❗❗❗ TwiML route should be available at: /voice/ and /voice/webhook ❗❗❗")
     
     # Pre-warm OpenAI connection pool

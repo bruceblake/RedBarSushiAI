@@ -42,6 +42,9 @@ class HSMManager:
         """Initialize the default conversation states."""
         self.states = create_conversation_hsm_states()
         logger.info(f"Initialized HSM with {len(self.states)} states")
+        
+        # Register default handlers
+        self._register_default_handlers()
     
     def register_handler(self, state_name: str, handler: HSMStateHandler) -> None:
         """
@@ -56,6 +59,85 @@ class HSMManager:
         
         self.handlers[state_name] = handler
         logger.info(f"Registered handler for state: {state_name}")
+    
+    def _register_default_handlers(self):
+        """Register all default HSM state handlers."""
+        try:
+            # Import all HSM handlers
+            from app.fsm.handlers.hsm_greeting import GreetingHSMHandler
+            from app.fsm.handlers.hsm_main_menu import MainMenuHSMHandler
+            from app.fsm.handlers.hsm_ordering import (
+                OrderingSuperStateHandler, OrderingBrowsingHandler,
+                OrderingMenuInquiryHandler, OrderingItemCustomizationHandler,
+                OrderingCartReviewHandler
+            )
+            from app.fsm.handlers.hsm_confirmation import (
+                ConfirmationSuperStateHandler, ConfirmationReviewHandler,
+                ConfirmationModifyHandler, ConfirmationPaymentHandler,
+                ConfirmationDeliveryHandler
+            )
+            from app.fsm.handlers.hsm_fulfillment import (
+                FulfillmentSuperStateHandler, FulfillmentProcessingHandler,
+                FulfillmentTrackingHandler, FulfillmentDeliveryHandler
+            )
+            from app.fsm.handlers.hsm_completion import CompletionHandler
+            from app.fsm.handlers.hsm_error_recovery import (
+                ErrorRecoverySuperStateHandler, ErrorRetryHandler,
+                ErrorFallbackHandler, ErrorEscalationHandler
+            )
+            from app.fsm.handlers.hsm_global import (
+                GlobalInquirySuperStateHandler, InquiryMenuHandler,
+                InquiryHoursHandler, InquiryLocationHandler, InquiryPoliciesHandler,
+                GlobalHelpHandler, GlobalCancellationSuperStateHandler,
+                CancellationPendingHandler, CancellationConfirmedHandler
+            )
+            
+            # Register main state handlers
+            self.register_handler(ConversationHSMStates.GREETING, GreetingHSMHandler())
+            self.register_handler(ConversationHSMStates.MAIN_MENU, MainMenuHSMHandler())
+            self.register_handler(ConversationHSMStates.COMPLETION, CompletionHandler())
+            
+            # Register ordering handlers
+            self.register_handler(ConversationHSMStates.ORDERING, OrderingSuperStateHandler())
+            self.register_handler(ConversationHSMStates.ORDERING_BROWSING, OrderingBrowsingHandler())
+            self.register_handler(ConversationHSMStates.ORDERING_MENU_INQUIRY, OrderingMenuInquiryHandler())
+            self.register_handler(ConversationHSMStates.ORDERING_ITEM_CUSTOMIZATION, OrderingItemCustomizationHandler())
+            self.register_handler(ConversationHSMStates.ORDERING_CART_REVIEW, OrderingCartReviewHandler())
+            
+            # Register confirmation handlers
+            self.register_handler(ConversationHSMStates.CONFIRMATION, ConfirmationSuperStateHandler())
+            self.register_handler(ConversationHSMStates.CONFIRMATION_REVIEW, ConfirmationReviewHandler())
+            self.register_handler(ConversationHSMStates.CONFIRMATION_MODIFY, ConfirmationModifyHandler())
+            self.register_handler(ConversationHSMStates.CONFIRMATION_PAYMENT, ConfirmationPaymentHandler())
+            self.register_handler(ConversationHSMStates.CONFIRMATION_DELIVERY, ConfirmationDeliveryHandler())
+            
+            # Register fulfillment handlers
+            self.register_handler(ConversationHSMStates.FULFILLMENT, FulfillmentSuperStateHandler())
+            self.register_handler(ConversationHSMStates.FULFILLMENT_PROCESSING, FulfillmentProcessingHandler())
+            self.register_handler(ConversationHSMStates.FULFILLMENT_TRACKING, FulfillmentTrackingHandler())
+            self.register_handler(ConversationHSMStates.FULFILLMENT_DELIVERY, FulfillmentDeliveryHandler())
+            
+            # Register error recovery handlers
+            self.register_handler(ConversationHSMStates.ERROR_RECOVERY, ErrorRecoverySuperStateHandler())
+            self.register_handler(ConversationHSMStates.ERROR_RETRY, ErrorRetryHandler())
+            self.register_handler(ConversationHSMStates.ERROR_FALLBACK, ErrorFallbackHandler())
+            self.register_handler(ConversationHSMStates.ERROR_ESCALATION, ErrorEscalationHandler())
+            
+            # Register global state handlers
+            self.register_handler(ConversationHSMStates.GLOBAL_INQUIRY, GlobalInquirySuperStateHandler())
+            self.register_handler(ConversationHSMStates.INQUIRY_MENU, InquiryMenuHandler())
+            self.register_handler(ConversationHSMStates.INQUIRY_HOURS, InquiryHoursHandler())
+            self.register_handler(ConversationHSMStates.INQUIRY_LOCATION, InquiryLocationHandler())
+            self.register_handler(ConversationHSMStates.INQUIRY_POLICIES, InquiryPoliciesHandler())
+            self.register_handler(ConversationHSMStates.GLOBAL_HELP, GlobalHelpHandler())
+            self.register_handler(ConversationHSMStates.GLOBAL_CANCELLATION, GlobalCancellationSuperStateHandler())
+            self.register_handler(ConversationHSMStates.CANCELLATION_PENDING, CancellationPendingHandler())
+            self.register_handler(ConversationHSMStates.CANCELLATION_CONFIRMED, CancellationConfirmedHandler())
+            
+            logger.info(f"Successfully registered {len(self.handlers)} HSM state handlers")
+            
+        except Exception as e:
+            logger.error(f"Error registering default HSM handlers: {e}", exc_info=True)
     
     def add_transition(self, transition: HSMTransition) -> None:
         """

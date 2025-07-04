@@ -134,35 +134,38 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # Create welcome message based on environment
         greeting_msg = f"Welcome to {environment_name} Red Bar Sushi AI!"
         
-        # TODO_AI_REMOVE_LEGACY_CONVERSATION_RELAY: The following ConversationRelay code is deprecated
-        # and replaced with Media Streams for better control and lower latency
+        # Use ConversationRelay for AI-powered voice interactions
+        logger.info(f"Using ConversationRelay voice handler for call {call_sid}")
         
-        # # OLD ConversationRelay implementation - MARKED FOR REMOVAL
-        # logger.info(f"Using ConversationRelay voice handler for call {call_sid}")
-        # from app.api.conversation_relay.twiml import generate_conversation_relay_twiml
-        # from app.config import settings
-        # twiml = generate_conversation_relay_twiml(...)
-        
-        # NEW: Use Twilio Media Streams with WebSocket
-        logger.info(f"Using Media Streams WebSocket handler for call {call_sid}")
-        
-        # Determine WebSocket URL
+        # Determine WebSocket URL for ConversationRelay
         # Use wss:// for production/staging, ws:// for local development
         ws_protocol = "wss" if host not in ["localhost", "127.0.0.1"] else "ws"
         
         # Get the configured app domain from settings if available
+        from app.config import settings
         app_domain = getattr(settings, 'APP_DOMAIN', host)
         if app_domain:
             host = app_domain
             
-        ws_url = f"{ws_protocol}://{host}/ws/voice/{call_sid}"
-        logger.info(f"WebSocket URL for Media Streams: {ws_url}")
+        ws_url = f"{ws_protocol}://{host}/conversation-relay/{call_sid}"
+        logger.info(f"WebSocket URL for ConversationRelay: {ws_url}")
         
-        # Generate TwiML with <Connect><Stream>
+        # Generate TwiML with <Connect><ConversationRelay>
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <Stream url="{ws_url}" />
+        <ConversationRelay url="{ws_url}" 
+                          welcomeGreeting="{greeting_msg}" 
+                          welcomeGreetingInterruptible="any"
+                          interruptible="any"
+                          ttsProvider="ElevenLabs"
+                          transcriptionProvider="Google"
+                          language="en-US"
+                          debug="debugging speaker-events">
+            <Parameter name="call_sid" value="{call_sid}" />
+            <Parameter name="customer_phone" value="{caller}" />
+            <Parameter name="environment" value="{environment_name}" />
+        </ConversationRelay>
     </Connect>
 </Response>"""
         
