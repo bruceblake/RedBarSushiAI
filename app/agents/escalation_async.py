@@ -75,28 +75,37 @@ class AsyncEscalationAgent(BaseAsyncAgent):
 
     async def process_input(self, input_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process user input during escalation.
+        Process user input during escalation and generate human handoff response.
         
         Args:
             input_text: User input text
             context: Current FSM context
             
         Returns:
-            Response with escalation status
+            Response with transfer call action
         """
         call_sid = context.get("call_sid", "unknown_call")
-        logger.info(f"[{call_sid}] AsyncEscalationAgent process_input called. Input: '{input_text}'")
+        customer_name = context.get("customer_name", "Customer")
         
-        # Default escalation reason
-        reason = "Customer requested assistance"
+        logger.info(f"[{call_sid}] Human handoff requested by {customer_name}: '{input_text}'")
         
-        # Determine if input contains a specific reason
-        if "manager" in input_text.lower():
-            reason = "Customer asked to speak to a manager"
-        elif "help" in input_text.lower():
-            reason = "Customer requested help"
-        elif "confused" in input_text.lower() or "understand" in input_text.lower():
-            reason = "Customer expressed confusion"
+        return {
+            "text": "I understand. Please hold for a moment while I connect you with a team member.",
+            "agent": self.agent_name,
+            "handled": True,
+            # This action signals the orchestrator to perform the call transfer
+            "actions": [{"type": "TRANSFER_CALL"}] 
+        }
+
+    async def process_voice_input(self, input_text: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Process a voice input (calls process_input for consistency).
+        
+        Args:
+            input_text: The voice input to process
+            context: Optional context information
             
-        # Handle the escalation
-        return await self.handle_escalation(call_sid, reason, context)
+        Returns:
+            Dict[str, Any]: The agent's response
+        """
+        return await self.process_input(input_text, context or {})

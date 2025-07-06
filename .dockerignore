@@ -38,6 +38,7 @@ Thumbs.db
 # Local secrets / environment
 .env*
 !.env.example
+!.env
 *.pem
 *.key
 local_settings.py

@@ -21,26 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Import health check
 from health_check import wait_for_services
 
-# Import comprehensive fixtures
-try:
-    from tests.fixtures.comprehensive_fixtures import *
-except ImportError:
-    # Fixtures may not be available in all environments
-    pass
-
-# Import Redis cleanup fixtures for integration tests
-try:
-    from tests.fixtures.redis_cleanup import *
-except ImportError:
-    # Redis cleanup fixtures may not be available in all environments
-    pass
-
-# Import OpenAI mocking fixtures
-try:
-    from tests.fixtures.openai_mocks import *
-except ImportError:
-    # OpenAI mocks may not be available in all environments
-    pass
+# No mocking fixtures for E2E tests - everything should hit real endpoints
 
 # Set test environment
 os.environ["TESTING"] = "1"
@@ -57,12 +38,7 @@ logger = logging.getLogger(__name__)
 # Pytest configuration
 def pytest_configure(config):
     """Configure pytest with custom markers."""
-    config.addinivalue_line("markers", "unit: mark test as a unit test")
-    config.addinivalue_line("markers", "integration: mark test as an integration test")
     config.addinivalue_line("markers", "e2e: mark test as an end-to-end test")
-    config.addinivalue_line("markers", "slow: mark test as slow running")
-    config.addinivalue_line("markers", "requires_redis: mark test as requiring Redis")
-    config.addinivalue_line("markers", "requires_db: mark test as requiring database")
 
 
 # Session-scoped fixture to check services once per test session
@@ -77,10 +53,7 @@ def ensure_services_healthy():
         logger.info("Skipping health check (SKIP_HEALTH_CHECK=true)")
         return
     
-    # Skip for unit tests
-    if os.getenv("PYTEST_CURRENT_TEST", "").find("unit") != -1:
-        logger.info("Skipping health check for unit tests")
-        return
+# No unit tests anymore - all tests are E2E
     
     # Run health check synchronously
     try:
@@ -166,93 +139,7 @@ async def redis_client() -> AsyncGenerator[aioredis.Redis, None]:
     await asyncio.sleep(0.1)  # Give time for connection to close properly
 
 
-@pytest.fixture
-def mock_openai_client():
-    """Mock OpenAI client for testing."""
-    mock = MagicMock()
-    mock.chat.completions.create = AsyncMock()
-    mock.audio.speech.create = AsyncMock()
-    return mock
-
-
-@pytest.fixture
-def mock_twilio_client():
-    """Mock Twilio client for testing."""
-    mock = MagicMock()
-    mock.messages.create = MagicMock()
-    mock.calls.create = MagicMock()
-    return mock
-
-
-@pytest.fixture
-def mock_deliverect_client():
-    """Mock Deliverect client for testing."""
-    mock = MagicMock()
-    mock.create_order = AsyncMock()
-    mock.get_order_status = AsyncMock()
-    mock.get_menu = AsyncMock()
-    return mock
-
-
-@pytest.fixture
-def sample_menu_item():
-    """Sample menu item for testing."""
-    return {
-        "id": 1,
-        "name": "California Roll",
-        "description": "Crab, avocado, and cucumber",
-        "price": 850,
-        "plu": "ROLL_001",
-        "category_id": 1,
-        "is_available": True
-    }
-
-
-@pytest.fixture
-def sample_order():
-    """Sample order for testing."""
-    return {
-        "id": 1,
-        "customer_phone": "+1234567890",
-        "order_type": "pickup",
-        "status": "pending",
-        "total_price": 2550,
-        "items": [
-            {
-                "menu_item_plu": "ROLL_001",
-                "quantity": 2,
-                "modifiers": []
-            },
-            {
-                "menu_item_plu": "ROLL_002",
-                "quantity": 1,
-                "modifiers": ["MOD_001"]
-            }
-        ]
-    }
-
-
-@pytest.fixture
-def sample_location():
-    """Sample location for testing."""
-    return {
-        "id": 1,
-        "name": "Red Bar Sushi - Main",
-        "deliverect_location_id": "test_location_123",
-        "deliverect_channel_link_id": "test_channel_123",
-        "is_active": True,
-        "settings": {
-            "business_hours": {
-                "monday": {"open": "11:00", "close": "22:00"},
-                "tuesday": {"open": "11:00", "close": "22:00"},
-                "wednesday": {"open": "11:00", "close": "22:00"},
-                "thursday": {"open": "11:00", "close": "22:00"},
-                "friday": {"open": "11:00", "close": "23:00"},
-                "saturday": {"open": "11:00", "close": "23:00"},
-                "sunday": {"open": "12:00", "close": "21:00"}
-            }
-        }
-    }
+# No mock fixtures - E2E tests use real services
 
 
 # Performance tracking
@@ -264,14 +151,10 @@ def track_test_duration(request):
     
     def finalizer():
         duration = time.time() - start_time
-        # Different thresholds for different test types
-        if "unit" in request.node.keywords and duration > 1:
-            logger.warning(f"Slow unit test: {request.node.nodeid} took {duration:.2f}s")
-        elif "integration" in request.node.keywords and duration > 5:
-            logger.warning(f"Slow integration test: {request.node.nodeid} took {duration:.2f}s")
-        elif "e2e" in request.node.keywords and duration > 10:
+        # Only E2E tests remain
+        if duration > 10:
             logger.warning(f"Slow e2e test: {request.node.nodeid} took {duration:.2f}s")
-        elif duration > 3:  # Default threshold
-            logger.warning(f"Slow test: {request.node.nodeid} took {duration:.2f}s")
+        else:
+            logger.info(f"E2E test: {request.node.nodeid} took {duration:.2f}s")
     
     request.addfinalizer(finalizer)

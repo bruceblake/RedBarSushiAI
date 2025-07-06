@@ -201,31 +201,6 @@ Examples:
 "I don't understand" -> REQUEST_ESCALATION
 """,
             
-            ConversationState.CANCELLATION_PENDING: """
-Allowed intents:
-- CONFIRM_CANCELLATION: User confirms they want to cancel
-- DECLINE_CANCELLATION: User decides not to cancel
-- YES: Affirmative response (maps to confirm)
-- NO: Negative response (maps to decline)
-
-Examples:
-"Yes, cancel it" -> CONFIRM_CANCELLATION
-"Yes" -> YES
-"No, keep my order" -> DECLINE_CANCELLATION
-"No" -> NO
-"Actually, don't cancel" -> DECLINE_CANCELLATION
-""",
-            
-            ConversationState.MENU_QUERY_SUBSTATE: """
-Allowed intents:
-- QUERY_COMPLETE: User is done asking menu questions
-- CONTINUE: User wants to continue with their previous task
-
-Examples:
-"OK thanks" -> QUERY_COMPLETE
-"That's all I needed to know" -> QUERY_COMPLETE
-"Let me continue ordering" -> CONTINUE
-"""
         }
         
         state_prompt = state_prompts.get(
@@ -279,12 +254,6 @@ Examples:
                 "CHOOSE_PICKUP": ConversationEvent.CHOOSE_PICKUP,
                 "PROVIDE_PAYMENT": ConversationEvent.PROVIDE_DELIVERY_INFO,  # Using delivery info for payment
                 "REQUEST_ESCALATION": ConversationEvent.REQUEST_ESCALATION
-            },
-            ConversationState.CANCELLATION_PENDING: {
-                "CONFIRM_CANCELLATION": ConversationEvent.CONFIRM_CANCELLATION,
-                "DECLINE_CANCELLATION": ConversationEvent.DECLINE_CANCELLATION,
-                "YES": ConversationEvent.CONFIRM_CANCELLATION,
-                "NO": ConversationEvent.DECLINE_CANCELLATION
             },
             ConversationState.MENU_QUERY_SUBSTATE: {
                 "QUERY_COMPLETE": ConversationEvent.MENU_QUERY_RESOLVED,

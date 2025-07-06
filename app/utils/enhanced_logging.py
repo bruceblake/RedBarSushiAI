@@ -130,6 +130,10 @@ def configure_logging(log_level: str = "INFO", use_json: bool = True):
         log_level: The logging level
         use_json: Whether to use JSON formatting
     """
+    # Normalize log level to uppercase
+    if isinstance(log_level, str):
+        log_level = log_level.upper()
+    
     # Configure root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)

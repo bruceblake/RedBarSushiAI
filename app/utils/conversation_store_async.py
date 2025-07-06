@@ -7,6 +7,7 @@ import json
 import logging
 import time
 import os
+from decimal import Decimal
 from typing import Dict, List, Any, Optional
 
 from app.redis_async import redis_get, redis_set, redis_delete, memory_cache_get, memory_cache_set
@@ -16,6 +17,15 @@ logger = logging.getLogger(__name__)
 
 # Default expiration time for conversations (30 minutes)
 DEFAULT_EXPIRATION = 1800
+
+def safe_json_dumps(obj: Any, **kwargs) -> str:
+    """JSON dumps with Decimal support."""
+    def decimal_default(o):
+        if isinstance(o, Decimal):
+            return float(o)
+        raise TypeError(f'Object of type {o.__class__.__name__} is not JSON serializable')
+    
+    return json.dumps(obj, default=decimal_default, **kwargs)
 
 
 class AsyncConversationStore:
@@ -123,7 +133,7 @@ class AsyncConversationStore:
             conversation_data["updated_at"] = time.time()
 
             # Try to save in Redis
-            serialized = json.dumps(conversation_data)
+            serialized = safe_json_dumps(conversation_data)
             redis_success = await redis_set(key, serialized, expiration)
             
             if not redis_success:

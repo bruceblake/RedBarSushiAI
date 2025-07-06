@@ -14,7 +14,7 @@ from app.agents.base_async import BaseAsyncAgent
 from app.agents.ai_mixin import AIIntelligenceMixin
 from app.config import settings
 from app.utils.response_cache import response_cache
-from app.utils.ai_cache import ai_cache
+from app.fsm.hsm_core import ConversationHSMStates, ConversationHSMEvents
 
 logger = logging.getLogger(__name__)
 
@@ -102,27 +102,44 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
             {
                 "type": "function",
                 "function": {
+                    "name": "get_items_by_category",
+                    "description": "Get all menu items in a specific category with names, prices, and descriptions",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "category_name": {
+                                "type": "string",
+                                "description": "Name of the category (e.g., 'Steak & Burgers', 'Pizzas')"
+                            }
+                        },
+                        "required": ["category_name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "add_to_cart",
-                    "description": "Add an item to the customer's order",
+                    "description": "Add an item to the customer's cart, including any special requests or modifiers.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "item_name": {
                                 "type": "string",
-                                "description": "The name of the menu item"
+                                "description": "Name of the item to add"
                             },
                             "quantity": {
                                 "type": "integer",
-                                "description": "Number of items to add",
+                                "description": "Quantity to add",
                                 "default": 1
                             },
                             "modifiers": {
                                 "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of modifiers (e.g., 'spicy', 'no wasabi')"
+                                "description": "A list of special requests or changes, like 'no onions', 'extra spicy', or 'dressing on the side'.",
+                                "items": {"type": "string"}
                             }
                         },
-                        "required": ["item_name"]
+                        "required": ["item_name", "quantity"]
                     }
                 }
             },
@@ -377,40 +394,6 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         logger.critical(f"_handle_greeting called with input: '{input_text}'")
         logger.critical("=" * 60)
         
-        # Try fast name detection first
-        fast_response = ai_cache.get_fast_response(input_text, "GREETING")
-        if fast_response:
-            # Extract name from response
-            import re
-            name_match = re.search(r"Nice to meet you, ([^!]+)!", fast_response)
-            if name_match:
-                name = name_match.group(1)
-                logger.critical(f"FAST NAME DETECTION: '{name}'")
-                logger.critical(f"Stream callback available: {stream_callback is not None}")
-                
-                # Update context and return fast response
-                self.context["customer_name"] = name
-                self.conversation_state = "MAIN_MENU"
-                
-                # If we have a stream callback, use it to send the response
-                if stream_callback:
-                    logger.critical(f"STREAMING fast name response: {fast_response}")
-                    await stream_callback(fast_response, True)
-                
-                return {
-                    "text": fast_response,
-                    "agent": self.name,
-                    "handled": True,
-                    "ai_generated": False,
-                    "actions": [{"type": "set_customer_name", "name": name}],
-                    "tool_calls": [{
-                        "function": {
-                            "name": "update_customer_info",
-                            "arguments": {"name": name}
-                        }
-                    }]
-                }
-        
         # No regex extraction - rely on AI only
         # extracted_name = self._extract_name_with_regex(input_text)
         # if extracted_name:
@@ -513,6 +496,8 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         #     return cached_response
         
         context = self.context.copy()
+        # Add conversation history to the context for AI processing
+        context["conversation_history"] = self.context.get("conversation_history", [])
         
         # If we just transitioned from greeting and got a name, acknowledge it
         if self.context.get("customer_name") and context.get("state_transition_occurred") and not self.context.get("name_acknowledged"):
@@ -554,22 +539,39 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
                 logger.info(f"Using fallback main menu response for {customer_name}")
         else:
             context["state_guidance"] = f"""
-        CRITICAL CONTEXT: You are in the ORDER TAKING phase. The greeting phase is COMPLETE.
+        CRITICAL CONTEXT: You are in the MAIN MENU phase after greeting is complete.
         
-        Customer name: {self.context.get('customer_name')} (ALREADY CONFIRMED - DO NOT UPDATE)
-        Current task: TAKE FOOD ORDER
-        
+        Customer name: {self.context.get('customer_name')}
         User input: "{input_text}"
         
-        PRIORITY ACTIONS:
-        1. If the input contains ANY food item names → Use add_to_cart tool
-        2. If the input asks about menu → Use lookup_menu_item or get_menu_categories
-        3. If the input requests human help → Use escalate_to_human
+        INTELLIGENT ANALYSIS REQUIRED:
+        
+        1. FIRST: Analyze if this is a NAME CORRECTION
+           - If the customer is correcting/updating their name, call update_customer_info tool
+           - Acknowledge the correction naturally and ask how you can help
+           - DO NOT process as a food order
+        
+        2. SECOND: If this is about FOOD/ORDERING
+           - Use add_to_cart tool for specific items
+           - Use menu tools for questions about items/categories
+        
+        3. THIRD: For other requests
+           - Answer questions helpfully
+           - Guide them toward ordering when appropriate
+        
+        Use your AI intelligence to determine the user's TRUE intent. Do not rely on keyword matching.
+        Be conversational and natural in your responses.
+        2. If the input asks about menu:
+           - For category questions (e.g., "steak and burgers", "pizzas") → Use get_items_by_category
+           - For specific item names (e.g., "california roll", "chicken teriyaki") → Use lookup_menu_item  
+           - For general menu overview → Use get_menu_categories
+        3. If the input wants to change/update name, phone, or order type → Use update_customer_info tool
+        4. If the input requests human help → Use escalate_to_human
         
         FORBIDDEN ACTIONS:
-        - DO NOT use update_customer_info tool unless user explicitly says "my name is actually..." or "please call me..."
-        - DO NOT ask for the customer's name again
+        - DO NOT ask for the customer's name again unless they request a change
         - DO NOT interpret food items as potential names
+        - Only use update_customer_info when customer explicitly wants to change their name, phone, or order type
         
         Common food items that are NOT names: California, Philadelphia, Boston, Alaska, Texas, Manhattan, Brooklyn, Virginia, Georgia, etc.
         
@@ -592,6 +594,13 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
             logger.critical(f"STREAMING main menu response: {response['text']}")
             await stream_callback(response['text'], True)
         
+        # Add AI response to conversation history
+        if response.get("text"):
+            self.context["conversation_history"].append({
+                "role": "assistant",
+                "content": response.get("text", "")
+            })
+        
         # Check if we should transition to ordering
         if any(action.get("type") == "cart_updated" for action in response.get("actions", [])):
             self.conversation_state = "ORDERING"
@@ -602,29 +611,160 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
     async def _handle_ordering(self, input_text: str, stream_callback: Optional[Any] = None) -> Dict[str, Any]:
         """Handle inputs in the ordering state using AI."""
         context = self.context.copy()
+        # Use AI to detect if user is indicating order completion - COMPLETELY DYNAMIC
+        completion_check_context = {
+            "conversation_state": "ORDERING", 
+            "customer_name": self.context.get('customer_name'),
+            "cart_items": self.context.get('order_items', []),
+            "conversation_history": self.context.get("conversation_history", [])
+        }
+        
+        completion_intent = await self.understand_intent(input_text, completion_check_context)
+        logger.critical(f"Completion intent check: {completion_intent}")
+        
+        # Use ONLY AI intelligence to determine completion - no hardcoded phrases
+        if completion_intent.get("intent") == "complete_order" and completion_intent.get("confidence", 0) > 0.6:
+            # Customer wants to complete their order
+            if len(self.context.get('order_items', [])) > 0:
+                # The AI's job is to ask for confirmation, NOT to change the state directly.
+                # The state will change to CONFIRMATION on the *next* user input (e.g., "yes, that's correct").
+                try:
+                    # Get cart data from multiple sources for confirmation
+                    cart_data = None
+                    
+                    # Try cart specialist first
+                    if "cart" in self.specialists:
+                        cart_result = await self.specialists["cart"].execute_tool("get_cart_summary", {})
+                        if cart_result.get("success"):
+                            cart_data = cart_result
+                    
+                    # Fallback to context data
+                    if not cart_data:
+                        cart_items = self.context.get('order_items', [])
+                        if cart_items:
+                            cart_data = {
+                                "success": True,
+                                "items": cart_items,
+                                "total_price": sum(item.get('price', 0) * item.get('quantity', 1) for item in cart_items)
+                            }
+                    
+                    # Generate cart summary for confirmation
+                    if cart_data and cart_data.get("success") and cart_data.get("items"):
+                        # Get simple cart summary
+                        items = cart_data.get("items", [])
+                        total = cart_data.get("total_price", 0)
+                        
+                        if items:
+                            item_list = []
+                            for item in items:
+                                name = item.get("name", "Unknown item")
+                                quantity = item.get("quantity", 1)
+                                if quantity > 1:
+                                    item_list.append(f"{quantity} {name}")
+                                else:
+                                    item_list.append(name)
+                            
+                            cart_summary = ", ".join(item_list)
+                            confirmation_text = f"Okay, I have: {cart_summary}. Does that sound right before we finalize everything?"
+                        else:
+                            confirmation_text = "It looks like there's nothing in your cart yet. What can I get started for you?"
+                    else:
+                        confirmation_text = "Let me confirm your order. What items did you want to order?"
+                        
+                except Exception as e:
+                    logger.error(f"Error generating confirmation: {e}")
+                    confirmation_text = "Let me confirm your order. Does everything sound correct?"
+
+                response = {
+                    "text": confirmation_text,
+                    "agent": self.name,
+                    "handled": True,
+                    # No state change action here. We wait for the user's reply.
+                    "actions": [] 
+                }
+            else:
+                # This part can remain the same
+                response = {
+                    "text": "It looks like there's nothing in your cart yet. What can I get started for you?",
+                    "agent": self.name,
+                    "handled": True,
+                    "actions": []
+                }
+            
+            return response
+        
+        # Check for item modification intent before AI processing
+        modification_intent = await self.understand_intent(input_text, context)
+        if modification_intent.get("intent") == "modify_order" and modification_intent.get("confidence", 0) > 0.7:
+            logger.info("Detected item modification intent")
+            self.conversation_state = ConversationHSMStates.ORDERING_ITEM_MODIFICATION
+            return await self._handle_item_modification()
+        
+        # Add conversation history to the context for AI processing
+        context["conversation_history"] = self.context.get("conversation_history", [])
         context["state_guidance"] = f"""
-        CRITICAL CONTEXT: You are in the ACTIVE ORDERING phase.
-        
-        Customer: {self.context.get('customer_name')} (name already confirmed)
-        Current cart: {self.context.get('order_items', [])}
-        
-        User input: "{input_text}"
-        
-        EXPECTED ACTIONS:
-        1. Food items mentioned → Use add_to_cart tool immediately
-        2. Quantity changes → Update cart accordingly
-        3. Menu questions → Use lookup_menu_item
-        4. "That's all"/"Done"/"Complete" → Move to order confirmation
-        
-        NEVER:
-        - Update customer name (it's already confirmed as {self.context.get('customer_name')})
-        - Treat food items as potential names
-        - Ask for customer name again
-        
-        Focus ONLY on order-related actions.
+        ORDERING MODE - Customer: {self.context.get('customer_name')}
+
+        Current cart: {len(self.context.get('order_items', []))} items
+        Last input: "{input_text}"
+
+        CRITICAL ORDER COMPLETION DETECTION:
+        When in ORDERING state with items in cart, be extremely sensitive to completion signals.
+        Users may indicate completion in many ways - your job is to intelligently detect when
+        they want to STOP ADDING and move to checkout/confirmation.
+
+        PRIORITY ANALYSIS:
+        1. Order completion signals (e.g., "that's all", "done", "finished", "that's it for me")
+        2. Additional item requests (e.g., "I also want a Coke")
+        3. Menu questions (e.g., "what kind of drinks do you have?")
+        4. Order modifications (e.g., "remove the fries")
+
+        CAUTION: Phrases like 'one moment', 'hang on', or questions about the menu are NOT completion signals. When in doubt, ask a clarifying question like, "Will there be anything else for you?" before assuming the order is complete.
+
+        Use AI intelligence to determine TRUE intent.
         """
         
         response = await self.process_with_ai(input_text, context)
+        
+        # --- PHASE 2 ENHANCEMENT: Check for state transitions based on tool results ---
+        # Analyze tool results from the AI response for state transitions
+        if response.get('tool_results'):
+            for tool_result in response['tool_results']:
+                tool_name = tool_result.get('tool', '')
+                result_data = tool_result.get('result', {})
+                
+                # Check for out-of-stock items from menu lookup
+                if tool_name == 'lookup_menu_item' and result_data.get('found'):
+                    item_data = result_data.get('item', {})
+                    
+                    # Check if item is snoozed/unavailable
+                    if item_data.get('snoozed') or not item_data.get('available', True):
+                        logger.info(f"Detected out-of-stock item: {item_data.get('name')}")
+                        self.context['item_out_of_stock'] = item_data
+                        self.conversation_state = ConversationHSMStates.ORDERING_OUT_OF_STOCK
+                        return await self._handle_out_of_stock()
+                    
+                    # Check for required customizations
+                    modifier_groups = result_data.get('modifier_groups', [])
+                    required_groups = [g for g in modifier_groups if g.get('required', False)]
+                    
+                    if required_groups:
+                        logger.info(f"Detected required customization for: {item_data.get('name')}")
+                        self.context['item_pending_customization'] = {
+                            'item': item_data,
+                            'modifier_groups': modifier_groups,
+                            'required_groups': required_groups
+                        }
+                        self.conversation_state = ConversationHSMStates.ORDERING_ITEM_CUSTOMIZATION
+                        return await self._handle_item_customization()
+                
+                # Check for successful cart additions that might trigger upselling
+                elif tool_name == 'add_to_cart' and result_data.get('success'):
+                    if self._should_trigger_upsell():
+                        logger.info("Triggering upsell suggestion")
+                        self.context['recent_cart_addition'] = result_data
+                        self.conversation_state = ConversationHSMStates.ORDERING_UPSELL_SUGGESTION
+                        return await self._handle_upsell_suggestion()
         
         # If AI failed, provide ordering fallback
         if response.get("text", "").startswith("[FrontlineVoiceAI] Processed:"):
@@ -640,19 +780,36 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
                 }
                 self.conversation_state = "VALIDATION"
             else:
-                # General ordering response
+                # General ordering response - get actual categories from database
+                try:
+                    if "menu" in self.specialists:
+                        categories_result = await self.specialists["menu"].execute_tool("list_categories", {})
+                        if categories_result.get("categories"):
+                            category_names = [cat["name"] for cat in categories_result["categories"][:3]]  # Get first 3
+                            categories_text = ", ".join(category_names)
+                            response_text = f"I understand you'd like to add that to your order. We have items from our {categories_text} sections, and many other options. Please specify which items you'd like."
+                        else:
+                            response_text = "I understand you'd like to add that to your order. Please specify which items you'd like from our menu."
+                    else:
+                        response_text = "I understand you'd like to add that to your order. Please specify which items you'd like from our menu."
+                except Exception:
+                    response_text = "I understand you'd like to add that to your order. Please specify which items you'd like from our menu."
+                
                 response = {
-                    "text": "I understand you'd like to add that to your order. In our system, we have California rolls, spicy tuna, salmon, and many other options. Please specify which items you'd like.",
+                    "text": response_text,
                     "agent": self.name,
                     "handled": True,
                     "actions": []
                 }
         
-        # Check if order is complete and ready for validation
-        elif "ready to checkout" in input_text.lower() or "that's all" in input_text.lower():
-            self.conversation_state = "VALIDATION"
-            response["actions"] = response.get("actions", [])
-            response["actions"].append({"type": "state_change", "state": "VALIDATION"})
+        # Note: Order completion is now handled at the beginning of this function
+        
+        # Add AI response to conversation history
+        if response.get("text"):
+            self.context["conversation_history"].append({
+                "role": "assistant",
+                "content": response.get("text", "")
+            })
         
         # Stream the response if we have a callback and response text
         if stream_callback and response.get("text"):
@@ -682,12 +839,127 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         return response
     
     async def _handle_confirmation(self, input_text: str, stream_callback: Optional[Any] = None) -> Dict[str, Any]:
-        """Handle inputs in the confirmation state using AI."""
+        """Handle inputs in the confirmation state using AI with validation."""
+        
+        # --- PHASE 3 ENHANCEMENT: Validate order before confirmation ---
+        try:
+            if "validation" in self.specialists:
+                logger.info("Running order validation before confirmation")
+                
+                # Get current cart for validation
+                cart_data = await self._get_cart_summary()
+                
+                # Validate the complete order
+                validation_result = await self.specialists["validation"].execute_tool(
+                    "validate_order_for_checkout",
+                    {"cart": cart_data}
+                )
+                
+                logger.info(f"Validation result: {validation_result}")
+                
+                # Check if order is invalid
+                if not validation_result.get("is_valid", True):
+                    issues = validation_result.get("issues", [])
+                    
+                    if issues:
+                        # Order is INVALID - address the first critical issue
+                        first_issue = issues[0]
+                        issue_type = first_issue.get("issue_type")
+                        
+                        logger.warning(f"Order validation failed: {issue_type}")
+                        
+                        # Handle different types of validation issues
+                        if issue_type == "MISSING_REQUIRED_MODIFIER":
+                            # Transition to customization to fix the missing modifier
+                            self.conversation_state = ConversationHSMStates.ORDERING_ITEM_CUSTOMIZATION
+                            
+                            # Store context for the customization handler
+                            item_plu = first_issue['context']['item_plu']
+                            group_plu = first_issue['context']['group_plu']
+                            
+                            # Get detailed item info for customization
+                            if "menu" in self.specialists:
+                                item_details = await self.specialists["menu"].execute_tool(
+                                    "get_item_details", 
+                                    {"item_plu": item_plu}
+                                )
+                                
+                                if item_details.get("found"):
+                                    self.context['item_pending_customization'] = {
+                                        'item': item_details['item'],
+                                        'modifier_groups': item_details['item']['modifier_groups'],
+                                        'required_groups': [g for g in item_details['item']['modifier_groups'] if g.get('required', False)]
+                                    }
+                            
+                            # Return the specific remediation prompt
+                            return {
+                                "text": first_issue.get('remediation_prompt', 'Please complete your order selection.'),
+                                "agent": self.name,
+                                "handled": True,
+                                "actions": [{"type": "state_change", "state": "ORDERING_ITEM_CUSTOMIZATION"}],
+                                "validation_issue": first_issue
+                            }
+                        
+                        elif issue_type == "ITEM_UNAVAILABLE":
+                            # Transition to out-of-stock handling
+                            self.conversation_state = ConversationHSMStates.ORDERING_OUT_OF_STOCK
+                            self.context['item_out_of_stock'] = {
+                                'name': first_issue.get('item_name'),
+                                'plu': first_issue['context']['item_plu']
+                            }
+                            
+                            return await self._handle_out_of_stock()
+                        
+                        elif issue_type == "TOO_MANY_MODIFIERS":
+                            # Handle over-selection
+                            return {
+                                "text": first_issue.get('remediation_prompt', 'Please adjust your selections.'),
+                                "agent": self.name,
+                                "handled": True,
+                                "actions": [{"type": "state_change", "state": "ORDERING"}],
+                                "validation_issue": first_issue
+                            }
+                        
+                        elif issue_type == "EMPTY_CART":
+                            # Cart is empty
+                            self.conversation_state = ConversationHSMStates.ORDERING
+                            return {
+                                "text": "It looks like your cart is empty. What would you like to order?",
+                                "agent": self.name,
+                                "handled": True,
+                                "actions": [{"type": "state_change", "state": "ORDERING"}]
+                            }
+                        
+                        else:
+                            # Generic validation failure
+                            return {
+                                "text": first_issue.get('remediation_prompt', 'There seems to be an issue with your order. Let me help you fix it.'),
+                                "agent": self.name,
+                                "handled": True,
+                                "validation_issue": first_issue
+                            }
+                
+                logger.info("Order validation passed - proceeding with confirmation")
+            
+        except Exception as e:
+            logger.error(f"Error during order validation: {e}")
+            # Continue with confirmation despite validation error
+        
+        # --- ORIGINAL CONFIRMATION LOGIC ---
+        # If validation passes, proceed with normal confirmation flow
         context = self.context.copy()
         context["state_guidance"] = """
-        The customer needs to confirm their order.
-        Summarize the order details and total.
-        Ask for final confirmation.
+        CONFIRMATION STATE - Final order review and confirmation.
+        
+        The order has passed validation and is ready for final confirmation.
+        
+        YOUR TASKS:
+        1. Summarize the order details clearly
+        2. Include total price if available
+        3. Ask for final confirmation ("Is this correct?" or "Shall I place this order?")
+        4. Be ready to process their confirmation or handle any last-minute changes
+        
+        Keep it concise but complete. This is the final checkpoint before order placement.
         """
         
         response = await self.process_with_ai(input_text, context)
@@ -695,8 +967,9 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         # Check if order is confirmed
         if any(action.get("type") == "order_confirmed" and action.get("confirmed") 
                for action in response.get("actions", [])):
-            self.conversation_state = "FULFILLMENT"
+            self.conversation_state = ConversationHSMStates.FULFILLMENT
             response["actions"].append({"type": "state_change", "state": "FULFILLMENT"})
+            logger.info("Order confirmed and moving to fulfillment")
         
         return response
     
@@ -721,6 +994,9 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
             
         elif tool_name == "get_menu_categories":
             return await self._get_menu_categories()
+            
+        elif tool_name == "get_items_by_category":
+            return await self._get_items_by_category(args.get("category_name", ""))
             
         elif tool_name == "add_to_cart":
             return await self._add_to_cart(
@@ -771,6 +1047,17 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         
         return {"categories": ["Appetizers", "Sushi Rolls", "Sashimi", "Beverages"]}
     
+    async def _get_items_by_category(self, category_name: str) -> Dict[str, Any]:
+        """Get menu items by category."""
+        if "menu" in self.specialists:
+            result = await self.specialists["menu"].execute_tool(
+                "get_items_by_category", 
+                {"category_name": category_name}
+            )
+            return result
+        
+        return {"items": [], "message": f"Items for category '{category_name}' not available"}
+    
     async def _add_to_cart(
         self, 
         item_name: str, 
@@ -819,11 +1106,19 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
                         if menu_lookup.get("found"):
                             plu = menu_lookup.get("plu")
                         else:
-                            # Fallback - shouldn't happen
-                            plu = "SUSHI001"
+                            # Item not found - return error instead of hardcoded fallback
+                            result = {
+                                "success": False,
+                                "message": f"I couldn't find '{item_name}' on our menu. Could you please check the name?"
+                            }
+                            return result
                     else:
-                        # No menu specialist available, use fallback
-                        plu = "SUSHI001"
+                        # No menu specialist available - return error instead of hardcoded fallback
+                        result = {
+                            "success": False,
+                            "message": "I'm having trouble accessing our menu right now. Please try again."
+                        }
+                        return result
                     
                     result = await self.specialists["cart"].execute_tool(
                         "add_item_to_cart",
@@ -937,3 +1232,202 @@ REMEMBER: Be conversational, accurate with menu/prices, use tools for everything
         order_summary += f". Your total is ${total_price:.2f}. Is this correct?"
         
         return order_summary
+    
+    # ============================================================================
+    # PHASE 2 ENHANCEMENT: New State Handler Methods
+    # ============================================================================
+    
+    async def _handle_out_of_stock(self) -> Dict[str, Any]:
+        """Handle the conversation when a requested item is unavailable."""
+        item = self.context.get('item_out_of_stock', {})
+        item_name = item.get('name', 'that item')
+        
+        logger.info(f"Handling out-of-stock state for: {item_name}")
+        
+        # Get alternatives from the menu agent
+        alternatives = []
+        try:
+            if "menu" in self.specialists:
+                # Get popular items as alternatives
+                alternatives_result = await self.specialists["menu"].execute_tool(
+                    "get_popular_items", 
+                    {"max_results": 3}
+                )
+                if alternatives_result.get("items"):
+                    alternatives = alternatives_result["items"][:2]  # Limit to 2 suggestions
+        except Exception as e:
+            logger.error(f"Error getting alternatives: {e}")
+        
+        context = self.context.copy()
+        context["state_guidance"] = f"""
+        CRITICAL: You are in the OUT_OF_STOCK state.
+        The user asked for '{item_name}', which is currently unavailable.
+        
+        YOUR TASKS:
+        1. Politely inform them it's not available right now
+        2. Suggest alternatives if available: {[alt.get('name') for alt in alternatives]}
+        3. Ask what they would like to do instead
+        4. Be empathetic and helpful
+        
+        Keep it conversational and focus on recovering the conversation smoothly.
+        """
+        
+        # Create input that triggers appropriate response
+        ai_input = f"The customer requested {item_name} but it's unavailable. Suggest alternatives and help them choose something else."
+        response = await self.process_with_ai(ai_input, context)
+        
+        # Transition back to ORDERING state
+        self.conversation_state = ConversationHSMStates.ORDERING
+        self.context.pop('item_out_of_stock', None)  # Clean up context
+        
+        return response
+    
+    async def _handle_item_customization(self) -> Dict[str, Any]:
+        """Guide the user through selecting required modifiers."""
+        pending_item_data = self.context.get('item_pending_customization', {})
+        item = pending_item_data.get('item', {})
+        required_groups = pending_item_data.get('required_groups', [])
+        
+        item_name = item.get('name', 'this item')
+        
+        logger.info(f"Handling item customization for: {item_name}")
+        
+        if not required_groups:
+            # No required customization, proceed normally
+            self.conversation_state = ConversationHSMStates.ORDERING
+            self.context.pop('item_pending_customization', None)
+            return {"text": f"Got it, I'll add {item_name} to your order.", "agent": self.name, "handled": True}
+        
+        # Get the first required modifier group
+        first_group = required_groups[0]
+        group_name = first_group.get('name', 'options')
+        min_selection = first_group.get('min_selection', 1)
+        max_selection = first_group.get('max_selection', 1)
+        
+        # Get the available modifiers for this group
+        modifiers = first_group.get('modifiers', [])
+        modifier_names = [mod.get('name') for mod in modifiers if mod.get('available', True)]
+        
+        context = self.context.copy()
+        context["state_guidance"] = f"""
+        CRITICAL: You are in the ITEM_CUSTOMIZATION state.
+        The user wants to order '{item_name}' but it requires customization.
+        
+        REQUIRED SELECTION:
+        - Group: {group_name}
+        - Available options: {modifier_names}
+        - Must select: {min_selection} to {max_selection} option(s)
+        
+        YOUR TASK:
+        Ask the user to choose from the available options. Make it clear what they need to select.
+        Be friendly and helpful. Example: "For the {item_name}, how would you like your {group_name}? You can choose from {', '.join(modifier_names[:3])}."
+        """
+        
+        ai_input = f"Ask the user to customize {item_name} by selecting {group_name} options."
+        response = await self.process_with_ai(ai_input, context)
+        
+        # Note: We stay in CUSTOMIZATION state until user responds with their choice
+        # The transition back will happen when we process their selection
+        
+        return response
+    
+    async def _handle_upsell_suggestion(self) -> Dict[str, Any]:
+        """Handle proactive upselling opportunities."""
+        recent_addition = self.context.get('recent_cart_addition', {})
+        
+        logger.info("Handling upsell suggestion")
+        
+        # Get upselling suggestions based on recent addition
+        upsell_items = []
+        try:
+            if "menu" in self.specialists:
+                # Get popular items as upsell candidates
+                upsell_result = await self.specialists["menu"].execute_tool(
+                    "get_popular_items",
+                    {"category": "Beverages", "max_results": 2}  # Focus on drinks as common upsells
+                )
+                if upsell_result.get("items"):
+                    upsell_items = upsell_result["items"]
+        except Exception as e:
+            logger.error(f"Error getting upsell items: {e}")
+        
+        context = self.context.copy()
+        context["state_guidance"] = f"""
+        CRITICAL: You are in the UPSELL_SUGGESTION state.
+        The user just added an item to their cart successfully.
+        
+        YOUR TASK:
+        Make a friendly, natural upselling suggestion. Options:
+        - Suggest a complementary item: {[item.get('name') for item in upsell_items]}
+        - Offer a combo or meal deal
+        - Suggest a popular addition
+        
+        Keep it brief and natural. Don't be pushy. Example: "Great choice! Would you like to add a drink with that?" or "That goes great with our [item name]. Interested?"
+        """
+        
+        ai_input = "Make a friendly upselling suggestion based on their recent order."
+        response = await self.process_with_ai(ai_input, context)
+        
+        # Transition back to ORDERING state after the suggestion
+        self.conversation_state = ConversationHSMStates.ORDERING
+        self.context.pop('recent_cart_addition', None)
+        
+        return response
+    
+    async def _handle_item_modification(self) -> Dict[str, Any]:
+        """Handle requests to modify items already in the cart."""
+        logger.info("Handling item modification request")
+        
+        # Get current cart summary
+        cart_summary = await self._get_cart_summary()
+        
+        context = self.context.copy()
+        context["state_guidance"] = f"""
+        CRITICAL: You are in the ITEM_MODIFICATION state.
+        The user wants to change something in their existing order.
+        
+        CURRENT CART: {cart_summary.get('items', [])}
+        
+        YOUR TASKS:
+        1. Understand exactly what they want to change
+        2. Use tools to modify the cart as requested
+        3. Confirm the change with the user
+        4. Ask if there's anything else they need
+        
+        Be helpful and make sure you understand their request clearly before making changes.
+        """
+        
+        # The AI will process their modification request and potentially call cart tools
+        response = await self.process_with_ai("Process the user's order modification request.", context)
+        
+        # Transition back to ORDERING state
+        self.conversation_state = ConversationHSMStates.ORDERING
+        
+        return response
+    
+    def _should_trigger_upsell(self) -> bool:
+        """
+        Determine if an upselling opportunity should be triggered.
+        This could be based on business logic, cart contents, or random chance.
+        """
+        # Simple logic: trigger upsell 30% of the time, but not if cart is already large
+        import random
+        
+        cart_items = self.context.get('order_items', [])
+        
+        # Don't upsell if cart already has many items
+        if len(cart_items) >= 3:
+            return False
+        
+        # Don't upsell too frequently (store in context to track)
+        recent_upsells = self.context.get('recent_upsells', 0)
+        if recent_upsells >= 1:
+            return False
+        
+        # 30% chance to trigger upsell
+        should_upsell = random.random() < 0.3
+        
+        if should_upsell:
+            self.context['recent_upsells'] = recent_upsells + 1
+        
+        return should_upsell

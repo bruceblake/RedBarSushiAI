@@ -145,6 +145,16 @@ class ConversationHSMStates:
     ORDERING_CART_REVIEW = "ACTIVE.ORDERING.CART_REVIEW"
     ORDERING_VALIDATION = "ACTIVE.ORDERING.VALIDATION"
     
+    # --- New Enhanced Ordering States (Phase 2) ---
+    # State for handling requests for unavailable/snoozed items
+    ORDERING_OUT_OF_STOCK = "ACTIVE.ORDERING.OUT_OF_STOCK"
+    
+    # State for proactive upselling or cross-selling
+    ORDERING_UPSELL_SUGGESTION = "ACTIVE.ORDERING.UPSELL_SUGGESTION"
+    
+    # State for modifying items already in the cart
+    ORDERING_ITEM_MODIFICATION = "ACTIVE.ORDERING.ITEM_MODIFICATION"
+    
     # CONFIRMATION substates
     CONFIRMATION_REVIEW = "ACTIVE.CONFIRMATION.REVIEW"
     CONFIRMATION_MODIFY = "ACTIVE.CONFIRMATION.MODIFY"
@@ -238,6 +248,9 @@ class ConversationHSMEvents:
     ESCALATE_DUE_TO_ERROR = "ESCALATE_DUE_TO_ERROR"
     FALLBACK_TO_MAIN_MENU = "FALLBACK_TO_MAIN_MENU"
     
+    # Human handoff events
+    REQUEST_HUMAN = "REQUEST_HUMAN"
+    
     # Navigation events
     GO_BACK = "GO_BACK"
     START_OVER = "START_OVER"
@@ -246,6 +259,28 @@ class ConversationHSMEvents:
     # Inquiry resolution
     INQUIRY_COMPLETE = "INQUIRY_COMPLETE"
     INQUIRY_RESOLVED = "INQUIRY_RESOLVED"
+    
+    # --- New Enhanced Ordering Events (Phase 2) ---
+    # Triggered when an item is found to be out of stock/snoozed
+    ITEM_OUT_OF_STOCK = "ITEM_OUT_OF_STOCK"
+    
+    # Triggered when customization is required for an item
+    REQUIRE_ITEM_CUSTOMIZATION = "REQUIRE_ITEM_CUSTOMIZATION"
+    
+    # Triggered when customization is completed
+    CUSTOMIZATION_COMPLETE = "CUSTOMIZATION_COMPLETE"
+    
+    # Triggered to offer upselling opportunities
+    TRIGGER_UPSELL = "TRIGGER_UPSELL"
+    
+    # Triggered when upselling is complete (accepted or declined)
+    UPSELL_COMPLETE = "UPSELL_COMPLETE"
+    
+    # Triggered when user wants to modify an existing cart item
+    MODIFY_CART_ITEM = "MODIFY_CART_ITEM"
+    
+    # Triggered when cart item modification is complete
+    ITEM_MODIFICATION_COMPLETE = "ITEM_MODIFICATION_COMPLETE"
 
 
 def create_conversation_hsm_states() -> Dict[str, HSMStateDefinition]:
@@ -338,6 +373,22 @@ def create_conversation_hsm_states() -> Dict[str, HSMStateDefinition]:
     
     states[ConversationHSMStates.ORDERING_VALIDATION] = HSMStateDefinition(
         name=ConversationHSMStates.ORDERING_VALIDATION,
+        parent_state_name=ConversationHSMStates.ORDERING
+    )
+    
+    # --- New Enhanced ORDERING substates (Phase 2) ---
+    states[ConversationHSMStates.ORDERING_OUT_OF_STOCK] = HSMStateDefinition(
+        name=ConversationHSMStates.ORDERING_OUT_OF_STOCK,
+        parent_state_name=ConversationHSMStates.ORDERING
+    )
+    
+    states[ConversationHSMStates.ORDERING_UPSELL_SUGGESTION] = HSMStateDefinition(
+        name=ConversationHSMStates.ORDERING_UPSELL_SUGGESTION,
+        parent_state_name=ConversationHSMStates.ORDERING
+    )
+    
+    states[ConversationHSMStates.ORDERING_ITEM_MODIFICATION] = HSMStateDefinition(
+        name=ConversationHSMStates.ORDERING_ITEM_MODIFICATION,
         parent_state_name=ConversationHSMStates.ORDERING
     )
     

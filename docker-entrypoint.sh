@@ -94,7 +94,7 @@ case "$APP_ROLE" in
         exec uvicorn app.main:app \
             --host="0.0.0.0" \
             --port="$PORT" \
-            --log-level="${LOG_LEVEL:-info}" \
+            --log-level="$(echo "${LOG_LEVEL:-info}" | tr '[:upper:]' '[:lower:]')" \
             ${RELOAD:+--reload}
         ;;
     

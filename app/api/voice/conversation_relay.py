@@ -123,6 +123,29 @@ class ConversationRelayHandler:
             )
             logger.info(f"[{self.call_sid}] Conversation initialized with orchestrator")
             
+            # Send initial greeting immediately after setup
+            initial_response = await self.orchestrator.process_voice_input(
+                self.call_sid,
+                "",  # Empty input for initial greeting
+                {
+                    "voice_mode": "conversation_relay",
+                    "session_id": self.session_id,
+                    "first_interaction": True,
+                    "skip_input_validation": True
+                }
+            )
+            
+            # Send the initial greeting to the customer
+            response_text = initial_response.get("text", "")
+            if response_text:
+                await self.send_text_response(response_text)
+                logger.info(f"[{self.call_sid}] Sent initial greeting: '{response_text[:100]}...'")
+            else:
+                # Fallback greeting if orchestrator doesn't provide one
+                fallback_greeting = "Hello and welcome to Red Bar Sushi! How can I help you today?"
+                await self.send_text_response(fallback_greeting)
+                logger.warning(f"[{self.call_sid}] Used fallback greeting")
+            
         except Exception as e:
             logger.error(f"[{self.call_sid}] Failed to initialize orchestrator: {e}", exc_info=True)
             # Send error response

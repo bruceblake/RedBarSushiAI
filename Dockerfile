@@ -54,8 +54,8 @@ RUN mkdir -p /app/logs /app/data /app/backups
 # Copy application code
 COPY . .
 
-# Make sure .env file exists (will be used for staging environment)
-RUN touch /app/.env
+# Make sure .env file exists only if it doesn't already exist
+RUN [ ! -f /app/.env ] && touch /app/.env || true
 
 # Ensure entrypoint is executable
 COPY docker-entrypoint.sh /docker-entrypoint.sh

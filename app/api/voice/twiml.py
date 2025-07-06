@@ -131,9 +131,6 @@ async def receive_call(request: Request) -> PlainTextResponse:
         # ConversationRelay uses direct HTTP webhooks, not WebSocket URLs
         logger.info(f"ConversationRelay will use host: {host} for webhook connections")
         
-        # Create welcome message based on environment
-        greeting_msg = f"Welcome to {environment_name} Red Bar Sushi AI!"
-        
         # Use ConversationRelay for AI-powered voice interactions
         logger.info(f"Using ConversationRelay voice handler for call {call_sid}")
         
@@ -151,12 +148,11 @@ async def receive_call(request: Request) -> PlainTextResponse:
         logger.info(f"WebSocket URL for ConversationRelay: {ws_url}")
         
         # Generate TwiML with <Connect><ConversationRelay>
+        # No welcomeGreeting - we'll handle greeting in conversation logic
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
         <ConversationRelay url="{ws_url}" 
-                          welcomeGreeting="{greeting_msg}" 
-                          welcomeGreetingInterruptible="any"
                           interruptible="any"
                           ttsProvider="ElevenLabs"
                           transcriptionProvider="Google"

@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - WE HAVE 2 ENVIRONMENTS: STAGING AND PRODUCTION. ALL ENVIRONMENTS ARE DEPLOYED USING RENDER WITH THEIR OWN ENVIRONMENT VARIABLES
 - NEVER create files unless absolutely necessary - ALWAYS prefer editing existing files
 - NEVER proactively create documentation files (*.md) or README files unless explicitly requested
+- **ABSOLUTELY NO HARDCODED LOGIC**: Never use hardcoded phrases, keywords, or string matching for intent detection, name parsing, or any business logic. All intelligence must be AI-driven using sophisticated system prompts and tool calling. The system should be dynamic and adaptable, not brittle.
 
 ## Common Development Commands
 
@@ -108,7 +109,7 @@ RedBarSushiAI is an AI-powered voice ordering system with a sophisticated multi-
 
 1. **Async-First Design**: All I/O operations use async/await for non-blocking execution
 2. **Dependency Injection**: FastAPI's dependency system for database sessions, Redis, and services
-3. **No Hardcoded Logic**: Uses LLM for intent detection instead of keyword matching
+3. **AI-Driven Intelligence**: All logic uses sophisticated AI prompts and tool calling - NO hardcoded phrases, keywords, or string matching allowed
 4. **Stateless Request Handling**: All state stored in Redis/PostgreSQL for horizontal scaling
 5. **AI-Only Menu Matching**: All menu item identification done through Menu Agent using AI
 
@@ -148,19 +149,26 @@ RedBarSushiAI is an AI-powered voice ordering system with a sophisticated multi-
    - Place new agents in `app/agents/`, utilities in `app/utils/`
    - Use type hints throughout for better IDE support
 
-2. **Error Handling**
+2. **AI-First Development**
+   - **NEVER** use hardcoded phrases, keywords, or string matching
+   - All business logic must use AI intelligence with sophisticated system prompts
+   - Use tool calling for all operations - let AI decide when to call tools
+   - Create dynamic, adaptable system prompts that guide AI behavior
+   - Trust AI intelligence over hardcoded rules
+
+3. **Error Handling**
    - Implement proper error boundaries in agents
    - Use specific exception types for different failures
    - Log errors with context (call_sid, order_id, etc.)
    - Graceful degradation for non-critical failures
 
-3. **Testing Strategy**
+4. **Testing Strategy**
    - Unit tests: Heavy mocking, test business logic
    - Integration tests: Test component interactions
    - E2E tests: Real service calls (staging only)
    - Always add tests for new features
 
-4. **Performance Considerations**
+5. **Performance Considerations**
    - Use connection pooling for database
    - Implement caching for frequently accessed data
    - Stream audio in small chunks (20ms)

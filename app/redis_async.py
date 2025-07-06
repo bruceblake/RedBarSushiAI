@@ -102,6 +102,7 @@ async def get_redis() -> aioredis.Redis:
 
 # Alias for backward compatibility
 get_redis_client = get_redis
+async_redis_client = get_redis  # Alias for backwards compatibility
 
 async def redis_get(key: str) -> Optional[bytes]:
     """

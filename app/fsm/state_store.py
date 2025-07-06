@@ -10,7 +10,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from app.utils.redis_async import async_redis_client
+from app.redis_async import get_redis
 from app.utils.enhanced_logging import get_logger
 
 logger = get_logger(__name__)
@@ -32,7 +32,6 @@ class HSMStateStore:
             key_prefix: Redis key prefix for state storage
         """
         self.key_prefix = key_prefix
-        self.redis = async_redis_client
     
     def _get_key(self, call_sid: str) -> str:
         """Generate Redis key for a conversation."""
@@ -53,8 +52,9 @@ class HSMStateStore:
             List of state names from root to current leaf state
         """
         try:
+            redis_client = await get_redis()
             key = self._get_key(call_sid)
-            data = await self.redis.get(key)
+            data = await redis_client.get(key)
             
             if data:
                 state_data = json.loads(data)
@@ -78,6 +78,7 @@ class HSMStateStore:
             state_path: List of state names from root to leaf
         """
         try:
+            redis_client = await get_redis()
             key = self._get_key(call_sid)
             state_data = {
                 "path": state_path,
@@ -85,7 +86,7 @@ class HSMStateStore:
                 "leaf_state": state_path[-1] if state_path else None
             }
             
-            await self.redis.set(key, json.dumps(state_data))
+            await redis_client.set(key, json.dumps(state_data))
             logger.info(f"[{call_sid}] Set state path: {state_path}")
             
             # Add to history
@@ -218,11 +219,12 @@ class HSMStateStore:
             call_sid: Conversation identifier
         """
         try:
+            redis_client = await get_redis()
             key = self._get_key(call_sid)
             history_key = self._get_history_key(call_sid)
             
-            await self.redis.delete(key)
-            await self.redis.delete(history_key)
+            await redis_client.delete(key)
+            await redis_client.delete(history_key)
             
             logger.info(f"[{call_sid}] Cleared state information")
             
@@ -238,6 +240,7 @@ class HSMStateStore:
             state_path: State path to record
         """
         try:
+            redis_client = await get_redis()
             history_key = self._get_history_key(call_sid)
             
             history_entry = {
@@ -247,11 +250,11 @@ class HSMStateStore:
             }
             
             # Add to a Redis list (keeping last 20 entries)
-            await self.redis.lpush(history_key, json.dumps(history_entry))
-            await self.redis.ltrim(history_key, 0, 19)
+            await redis_client.lpush(history_key, json.dumps(history_entry))
+            await redis_client.ltrim(history_key, 0, 19)
             
             # Set expiry on history (24 hours)
-            await self.redis.expire(history_key, 86400)
+            await redis_client.expire(history_key, 86400)
             
         except Exception as e:
             logger.error(f"[{call_sid}] Error adding to history: {e}")
@@ -268,8 +271,9 @@ class HSMStateStore:
             List of history entries (newest first)
         """
         try:
+            redis_client = await get_redis()
             history_key = self._get_history_key(call_sid)
-            history_data = await self.redis.lrange(history_key, 0, limit - 1)
+            history_data = await redis_client.lrange(history_key, 0, limit - 1)
             
             history = []
             for entry in history_data:

@@ -402,9 +402,6 @@ async def startup_event():
             logger.info("Menu cache warmed successfully")
             break
             
-        # Initialize AI response patterns
-        from app.utils.ai_cache_enhanced import ai_cache_enhanced
-        logger.info("AI response cache patterns initialized")
         
     except Exception as e:
         logger.error(f"Error initializing performance optimizations: {e}")

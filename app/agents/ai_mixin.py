@@ -14,10 +14,8 @@ from decimal import Decimal
 from typing import Dict, Any, List, Optional, Callable
 from app.config import settings
 from app.utils.openai_pool import get_openai_client
-from app.utils.ai_cache import ai_cache
 from app.utils.enhanced_logging import get_logger
 from app.utils.correlation_id import get_correlation_id
-from app.services.circuit_breaker import circuit_breakers, CircuitBreakerError
 
 logger = get_logger(__name__)
 
@@ -83,16 +81,6 @@ class AIIntelligenceMixin:
             }
         
         try:
-            # Check cache first
-            state = context.get("conversation_state", "")
-            cached_response = await ai_cache.get(input_text, state, context)
-            if cached_response:
-                logger.debug(f"Using cached AI response for: {input_text[:30]}...")
-                cached_response["agent"] = getattr(self, 'name', 'AI')
-                cached_response["handled"] = True
-                cached_response["ai_generated"] = True
-                cached_response["from_cache"] = True
-                return cached_response
             # Build conversation history
             messages = self._build_messages(input_text, context)
             
@@ -123,31 +111,17 @@ class AIIntelligenceMixin:
             # Track timing - rely on client's configured timeout
             start_time = time.time()
             try:
-                # Make OpenAI call with circuit breaker protection
-                response = await circuit_breakers.openai.async_call(
-                    client.chat.completions.create,
-                    **params
-                )
+                # Make OpenAI call
+                logger.debug(f"Making OpenAI call with params: {params}")
+                response = await client.chat.completions.create(**params)
+                logger.debug(f"OpenAI response type: {type(response)}")
+                
                 duration = time.time() - start_time
                 
                 if duration > 2.0:
                     logger.warning(f"Slow AI response: {duration:.2f}s for {self.name}")
                 else:
                     logger.debug(f"AI response time: {duration:.2f}s")
-            except CircuitBreakerError as e:
-                logger.warning(
-                    f"OpenAI circuit breaker open, using fallback",
-                    agent=self.name
-                )
-                # Return contextual fallback based on agent type
-                fallback_text = self._get_circuit_breaker_fallback(input_text, context)
-                return {
-                    "text": fallback_text,
-                    "agent": getattr(self, 'name', 'AI'),
-                    "handled": True,
-                    "actions": [],
-                    "circuit_breaker_fallback": True
-                }
             except Exception as e:
                 # Check if it's a timeout error from the OpenAI client
                 if "timeout" in str(e).lower():
@@ -168,8 +142,6 @@ class AIIntelligenceMixin:
             result = await self._process_ai_response(response, context)
             
             # Cache the result for future use
-            if result.get("text") and not result.get("error"):
-                await ai_cache.set(input_text, state, context, result)
             
             return result
             
@@ -216,9 +188,9 @@ class AIIntelligenceMixin:
         # Single system message
         messages.append({"role": "system", "content": "\n".join(system_parts)})
         
-        # Add only last 2 messages for context (not 5)
+        # Add last 4 messages for better context understanding (optimized)
         if context.get("conversation_history"):
-            for msg in context["conversation_history"][-2:]:
+            for msg in context["conversation_history"][-4:]:
                 messages.append({
                     "role": msg.get("role", "user"),
                     "content": msg.get("content", "")
@@ -235,6 +207,16 @@ class AIIntelligenceMixin:
         context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Process the AI API response."""
+        # Handle case where response might be a dict (fallback from circuit breaker)
+        if isinstance(response, dict):
+            logger.error(f"AI response is dict instead of OpenAI object: {response}")
+            return {
+                "text": response.get("text", f"[{getattr(self, 'name', 'AI')}] Processed: {context.get('input_text', '')}"),
+                "agent": getattr(self, 'name', 'AI'),
+                "handled": True,
+                "actions": []
+            }
+        
         message = response.choices[0].message
         
         # Log response quietly
@@ -312,10 +294,10 @@ class AIIntelligenceMixin:
         logger.critical(f"Getting final AI response after tools...")
         client = await self._get_ai_client()
         
-        # Use slightly higher tokens for tool responses
-        tool_response_max_tokens = 150
+        # Use slightly higher tokens for tool responses (optimized)
+        tool_response_max_tokens = 80
         if hasattr(self, '_default_max_tokens'):
-            tool_response_max_tokens = min(self._default_max_tokens, 150)
+            tool_response_max_tokens = min(self._default_max_tokens, 100)
         
         final_response = await client.chat.completions.create(
             model=self._model,
@@ -439,26 +421,48 @@ class AIIntelligenceMixin:
             Dict with intent, entities, and confidence
         """
         try:
+            # Build context-aware system prompt
+            current_state = context.get("conversation_state", "")
+            customer_name = context.get("customer_name", "")
+            cart_items = context.get("cart_items", [])
+            
+            system_content = f"""You are an intelligent intent classifier for a restaurant ordering system.
+            
+            CURRENT CONTEXT:
+            - Conversation state: {current_state}
+            - Customer name: {customer_name}
+            - Items in cart: {len(cart_items)} items
+            
+            Classify the user's intent into one of these categories:
+            - greeting: User is greeting or introducing themselves
+            - provide_name: User is providing their name
+            - menu_inquiry: User is asking about the menu or item details
+            - place_order: User wants to add specific items to their order
+            - modify_order: User wants to change quantities or remove items
+            - complete_order: User indicates they are finished ordering (e.g., "that's all", "done", "no more", "finished", etc.)
+            - confirm_order: User is confirming their final order for checkout
+            - cancel_order: User wants to cancel their entire order
+            - request_human: User wants to speak to a person, an operator, or a manager
+            - general_question: Other questions not related to ordering
+            
+            CRITICAL: If the user expresses frustration or explicitly asks to speak to a person (e.g., "let me talk to someone," "operator," "human"), you MUST classify the intent as request_human. This intent takes priority over all others.
+            
+            CRITICAL ORDER COMPLETION DETECTION:
+            When in ORDERING state with items in cart, be extremely sensitive to completion signals.
+            Users may indicate completion in many ways - your job is to intelligently detect when
+            they want to STOP ADDING and move to checkout/confirmation.
+            
+            Analyze the full conversational context, their tone, and the logical flow.
+            If they're responding to "Would you like anything else?" with negative responses,
+            this is almost always completion intent.
+            
+            Also extract any entities like names, menu items, quantities.
+            
+            Respond in JSON format: {{"intent": "...", "entities": {{}}, "confidence": 0.0-1.0}}
+            """
+            
             messages = [
-                {
-                    "role": "system",
-                    "content": """You are an intent classifier for a restaurant ordering system.
-                    Classify the user's intent into one of these categories:
-                    - greeting: User is greeting or introducing themselves
-                    - provide_name: User is providing their name
-                    - menu_inquiry: User is asking about the menu
-                    - place_order: User wants to order something
-                    - modify_order: User wants to change their order
-                    - confirm_order: User is confirming their order
-                    - cancel_order: User wants to cancel
-                    - request_human: User wants to speak to a person
-                    - general_question: Other questions
-                    
-                    Also extract any entities like names, menu items, quantities.
-                    
-                    Respond in JSON format: {"intent": "...", "entities": {...}, "confidence": 0.0-1.0}
-                    """
-                },
+                {"role": "system", "content": system_content},
                 {"role": "user", "content": input_text}
             ]
             
@@ -608,27 +612,3 @@ class AIIntelligenceMixin:
                 "error": True
             }
     
-    def _get_circuit_breaker_fallback(self, input_text: str, context: Dict[str, Any]) -> str:
-        """
-        Get contextual fallback response when circuit breaker is open.
-        
-        Args:
-            input_text: User's input
-            context: Current context
-            
-        Returns:
-            Appropriate fallback response
-        """
-        agent_name = getattr(self, 'name', 'AI').lower()
-        
-        # Agent-specific fallbacks
-        if 'menu' in agent_name:
-            return "I can help you with our menu. We have sushi rolls, nigiri, sashimi, and appetizers available."
-        elif 'cart' in agent_name:
-            return "I'll help you add that to your order. What would you like?"
-        elif 'frontline' in agent_name:
-            return "I'm here to help with your order. What can I get for you today?"
-        elif 'fulfillment' in agent_name:
-            return "I'll process your order right away. One moment please."
-        else:
-            return "I understand. Let me help you with that."

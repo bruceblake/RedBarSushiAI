@@ -106,7 +106,7 @@ class AsyncMenuMatcher:
     async def find_all_matching_items(
         self, 
         query: str, 
-        threshold: float = 0.5
+        threshold: float = 0.3
     ) -> List[Dict[str, Any]]:
         """
         Find all menu items matching a query with confidence scores.

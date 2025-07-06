@@ -115,10 +115,10 @@ class Settings(BaseSettings):
     STRIPE_API_KEY: Optional[str] = Field(None, env="STRIPE_API_KEY")
     STRIPE_WEBHOOK_SECRET: Optional[str] = Field(None, env="STRIPE_WEBHOOK_SECRET")
     
-    # Restaurant Configuration
-    RESTAURANT_NAME: str = Field("Restaurant", env="RESTAURANT_NAME")
-    RESTAURANT_TYPE: str = Field("restaurant", env="RESTAURANT_TYPE") 
-    RESTAURANT_GREETING_NAME: str = Field("assistant", env="RESTAURANT_GREETING_NAME")
+    # Restaurant Configuration  
+    RESTAURANT_NAME: str = Field("Red Bar Restaurant", env="RESTAURANT_NAME")
+    RESTAURANT_TYPE: str = Field("casual dining restaurant", env="RESTAURANT_TYPE") 
+    RESTAURANT_GREETING_NAME: str = Field("your AI assistant", env="RESTAURANT_GREETING_NAME")
     RESTAURANT_PHONE_GREETING: Optional[str] = Field(None, env="RESTAURANT_PHONE_GREETING")
     
     # Deliverect settings
@@ -136,9 +136,9 @@ class Settings(BaseSettings):
     USE_AI_AGENTS: bool = Field(True, env="USE_AI_AGENTS")
     
     # AI performance configuration
-    AI_MAX_TOKENS: int = Field(256, env="AI_MAX_TOKENS")  # Default for general use
-    FRONTEND_AGENT_MAX_TOKENS: int = Field(150, env="FRONTEND_AGENT_MAX_TOKENS")
-    CART_AGENT_MAX_TOKENS: int = Field(300, env="CART_AGENT_MAX_TOKENS")
+    AI_MAX_TOKENS: int = Field(128, env="AI_MAX_TOKENS")  # Default for general use (optimized)
+    FRONTEND_AGENT_MAX_TOKENS: int = Field(80, env="FRONTEND_AGENT_MAX_TOKENS")  # Optimized for speed
+    CART_AGENT_MAX_TOKENS: int = Field(150, env="CART_AGENT_MAX_TOKENS")  # Optimized
     
     # HTTP Connection Pool Settings
     HTTP_POOL_KEEPALIVE: int = Field(10, env="HTTP_POOL_KEEPALIVE")  # Keepalive connections
@@ -148,7 +148,7 @@ class Settings(BaseSettings):
     HTTP_CONNECT_TIMEOUT: float = Field(5.0, env="HTTP_CONNECT_TIMEOUT")  # Connection timeout
     HTTP_READ_TIMEOUT: float = Field(30.0, env="HTTP_READ_TIMEOUT")  # Read timeout
     HTTP_WRITE_TIMEOUT: float = Field(10.0, env="HTTP_WRITE_TIMEOUT")  # Write timeout
-    MENU_AGENT_MAX_TOKENS: int = Field(300, env="MENU_AGENT_MAX_TOKENS")
+    MENU_AGENT_MAX_TOKENS: int = Field(150, env="MENU_AGENT_MAX_TOKENS")  # Optimized
     
     # OpenAI client configuration
     DEFAULT_LLM_API_TIMEOUT: float = Field(10.0, env="DEFAULT_LLM_API_TIMEOUT")
@@ -220,14 +220,8 @@ except Exception as e:
     # Try to create settings with minimal config
     try:
         logger.critical("Attempting to create settings with minimal config")
-        settings = Settings(
-            SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
-            DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
-            BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
-            RESTAURANT_NAME=os.environ.get("RESTAURANT_NAME", "Restaurant"),
-            RESTAURANT_TYPE=os.environ.get("RESTAURANT_TYPE", "restaurant"),
-            RESTAURANT_GREETING_NAME=os.environ.get("RESTAURANT_GREETING_NAME", "assistant"),
-        )
+        # Create settings object that will load from .env file via Pydantic
+        settings = Settings()
         logger.info("Created settings with minimal config")
         
         # Log the OPENAI_API_KEY again
@@ -243,26 +237,8 @@ except Exception as e:
         raw_key = os.environ.get("OPENAI_API_KEY", "NO_KEY_FOUND")
         logger.critical(f"Raw OPENAI_API_KEY before full settings creation: '{raw_key}'")
         
-        settings = Settings(
-            SECRET_KEY=os.environ.get("APP_SECRET_KEY", "dev-secret-key"),
-            DATABASE_URL=os.environ.get("DATABASE_URL", "sqlite:///test.db"),
-            BASE_URL=os.environ.get("BASE_URL", "https://redbarsushiai-staging.onrender.com"),
-            OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY", None),  # No fallback - will fail if not set
-            RESTAURANT_NAME=os.environ.get("RESTAURANT_NAME", "Restaurant"),
-            RESTAURANT_TYPE=os.environ.get("RESTAURANT_TYPE", "restaurant"),
-            RESTAURANT_GREETING_NAME=os.environ.get("RESTAURANT_GREETING_NAME", "assistant"),
-            TWILIO_ACCOUNT_SID=os.environ.get("TWILIO_ACCOUNT_SID", None),
-            TWILIO_AUTH_TOKEN=os.environ.get("TWILIO_AUTH_TOKEN", None),
-            TWILIO_PHONE_NUMBER=os.environ.get("TWILIO_PHONE_NUMBER", None),
-            DELIVERECT_API_KEY=os.environ.get("DELIVERECT_API_KEY", None),
-            DELIVERECT_API_URL=os.environ.get("DELIVERECT_API_URL", "https://api.staging.deliverect.com/v2/orders"),
-            DELIVERECT_CLIENT_ID=os.environ.get("DELIVERECT_CLIENT_ID", None),
-            DELIVERECT_CLIENT_SECRET=os.environ.get("DELIVERECT_CLIENT_SECRET", None),
-            STRIPE_API_KEY=os.environ.get("STRIPE_API_KEY", None),
-            REDIS_URL=os.environ.get("REDIS_URL", None),
-            CELERY_BROKER_URL=os.environ.get("CELERY_BROKER_URL", None),
-            CELERY_RESULT_BACKEND=os.environ.get("CELERY_RESULT_BACKEND", None),
-        )
+        # Create settings object that will load from .env file via Pydantic
+        settings = Settings()
         logger.critical("Created settings with all fields")
         
         # Log the final result for OPENAI_API_KEY

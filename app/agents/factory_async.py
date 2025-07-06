@@ -7,8 +7,9 @@ import logging
 from typing import Dict, Any, Type, Optional
 
 from app.agents.base_async import BaseAsyncAgent
-from app.agents.menu_async import AsyncMenuAgent
 from app.agents.menu_async_enhanced import AsyncMenuAgentEnhanced
+# Legacy menu agent alias
+AsyncMenuAgent = AsyncMenuAgentEnhanced
 from app.agents.cart_async import AsyncCartAgent
 from app.agents.frontline_async_ai import AsyncFrontlineVoiceAgentAI
 # Legacy import removed - using AI version only
@@ -16,6 +17,7 @@ AsyncFrontlineVoiceAgent = AsyncFrontlineVoiceAgentAI  # Alias for backward comp
 from app.agents.guardrail_async import AsyncGuardrailAgent
 from app.agents.fulfillment_async import AsyncFulfillmentAgent
 from app.agents.escalation_async import AsyncEscalationAgent
+from app.agents.validation_async import AsyncValidationAgent
 from app.config import settings
 
 # Set up logging
@@ -53,6 +55,7 @@ class AsyncAgentFactory:
         self.register_agent_class("guardrail", AsyncGuardrailAgent)
         self.register_agent_class("fulfillment", AsyncFulfillmentAgent)
         self.register_agent_class("escalation", AsyncEscalationAgent)
+        self.register_agent_class("validation", AsyncValidationAgent)
     
     def register_agent_class(self, agent_type: str, agent_class: Type[BaseAsyncAgent]):
         """
@@ -127,10 +130,12 @@ class AsyncAgentFactory:
         # Create and register specialist agents
         menu_agent = await self.get_agent("menu", db=db)
         cart_agent = await self.get_agent("cart", db=db)
+        validation_agent = await self.get_agent("validation", db=db)
         
         # Register specialists with the frontline agent
         frontline_agent.register_specialist("menu", menu_agent)
         frontline_agent.register_specialist("cart", cart_agent)
+        frontline_agent.register_specialist("validation", validation_agent)
         
         # Add more specialists as needed
         # e.g., fulfillment_agent, guardrail_agent, escalation_agent

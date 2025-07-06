@@ -7,6 +7,7 @@ import asyncio
 import logging
 import json
 import time
+from decimal import Decimal
 from typing import Dict, List, Any, Optional, Union, Callable, Tuple, AsyncGenerator
 
 from app.agents.factory_async import async_agent_factory
@@ -27,6 +28,15 @@ from app.utils.enhanced_logging import get_logger
 from app.utils.correlation_id import set_correlation_id, get_correlation_id
 
 logger = get_logger(__name__)
+
+def safe_json_dumps(obj: Any, **kwargs) -> str:
+    """JSON dumps with Decimal support."""
+    def decimal_default(o):
+        if isinstance(o, Decimal):
+            return float(o)
+        raise TypeError(f'Object of type {o.__class__.__name__} is not JSON serializable')
+    
+    return json.dumps(obj, default=decimal_default, **kwargs)
 
 class AsyncAgentOrchestrator:
     """
@@ -224,7 +234,7 @@ class AsyncAgentOrchestrator:
         logger.critical(f"Agent processing complete:")
         logger.critical(f"  - Agent used: {agent.__class__.__name__}")
         logger.critical(f"  - Response text: '{response.get('text', '')}'")
-        logger.critical(f"  - Full response: {json.dumps(response, indent=2)}")
+        logger.critical(f"  - Full response: {safe_json_dumps(response, indent=2)}")
         
         duration = time.time() - start_time
         
@@ -234,8 +244,19 @@ class AsyncAgentOrchestrator:
         agent_name = response.get("agent", agent.__class__.__name__)
         actions = response.get("actions", [])
         
-        # Add the assistant response to conversation store
-        await self.conversation_store.add_message(call_sid, "assistant", response_text)
+        # Check for transfer call action and handle it
+        for action in actions:
+            if action.get("type") == "TRANSFER_CALL":
+                # This is where you would generate the TwiML for call transfer.
+                # The final response returned to the voice processing layer
+                # should contain the appropriate TwiML <Dial> verb.
+                # This example assumes you have a function to generate this.
+                response["twiML"] = self._generate_transfer_twiml(settings.HUMAN_HANDOFF_NUMBER)
+                # Mark that the call should end from the AI's perspective
+                response["end_call"] = True
+                logger.info(f"Call transfer initiated for {call_sid}")
+        
+        # Skip duplicate conversation store - agents handle this themselves
         
         # Update session state to match HSM state
         self.active_sessions[call_sid]["state"] = current_leaf
@@ -271,15 +292,9 @@ class AsyncAgentOrchestrator:
         context: Dict[str, Any]
     ) -> Tuple[Any, Dict[str, Any]]:
         """
-        Process the input with the appropriate agent based on HSM state.
-        
-        Args:
-            current_state: The current HSM leaf state
-            input_text: The text input from the user
-            context: Additional context
-            
-        Returns:
-            A tuple of (agent, response)
+        Select the appropriate agent based on HSM state. The Frontline agent
+        is the primary handler for the main conversation flow and will delegate
+        to specialists (Menu, Cart) via tool calls.
         """
         logger.critical("=" * 60)
         logger.critical("AGENT SELECTION LOGIC")
@@ -290,116 +305,46 @@ class AsyncAgentOrchestrator:
         # Clone context to avoid modifying it directly
         agent_context = context.copy()
         
-        # Select the appropriate agent based on HSM state
-        # Check for main states first, then specific substates
-        if current_state in [ConversationHSMStates.MAIN_MENU, ConversationHSMStates.GREETING]:
-            if context.get("requesting_menu_info", False):
-                # Use menu agent for menu inquiries
-                logger.critical(f"Selecting MENU AGENT (requesting_menu_info=True)")
-                agent = self.menu_agent
-                response = await agent.process_input(input_text, agent_context)
-            else:
-                # Use frontline agent for main menu and greeting
-                logger.critical(f"Selecting FRONTLINE AGENT for {current_state} state")
-                # Ensure the agent knows the current HSM state
-                agent_context["hsm_state"] = current_state
-                agent_context["state_transition_occurred"] = True
-                agent = self.frontline_agent
-                response = await agent.process_voice_input(input_text, agent_context)
-        
-        elif current_state.startswith("ACTIVE.ORDERING"):
-            # Use cart agent for order management
-            logger.info(f"Selecting CART AGENT for ORDERING state: {current_state}")
-            # Ensure cart agent has access to existing cart from context
-            existing_cart = context.get("cart", {"items": [], "total_price": 0})
-            agent_context["cart"] = existing_cart
-            logger.info(f"Passing existing cart to cart agent: {json.dumps(existing_cart, indent=2)}")
-            agent = self.cart_agent
-            response = await agent.process_input(input_text, agent_context)
-            logger.info(f"Cart agent response: {json.dumps(response, indent=2)}")
+        # Load conversation history from the conversation store
+        call_sid = context.get("call_sid")
+        if call_sid:
+            conversation = await self.conversation_store.get_conversation(call_sid)
+            conversation_history = []
             
-            # Update context with cart from agent conversation store - CRITICAL for persistence
-            call_sid = context.get("call_sid")
-            if call_sid:
-                conversation = await async_agents_conversation_store.get_conversation(call_sid)
-                cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
-                context["cart"] = cart  # Update the shared context
-                logger.critical(f"✅ Cart synchronized to context: {json.dumps(cart, indent=2)}")
-                
-                # Also update the response with the current cart
-                response["cart"] = cart
+            # Convert stored messages to conversation history format
+            for message in conversation.get("messages", []):
+                conversation_history.append({
+                    "role": message.get("role", "user"),
+                    "content": message.get("content", "")
+                })
             
-            # Check if order is complete and trigger HSM event
-            if response.get("cart_complete", False) or response.get("order_ready_for_validation", False):
-                complete_event = HSMEvent(ConversationHSMEvents.COMPLETE_ORDER, context)
-                await hsm_manager.handle_event(call_sid, complete_event, context)
-        
-        elif current_state == ConversationHSMStates.VALIDATION:
-            # Use guardrail agent for validation
-            logger.info(f"Selecting GUARDRAIL AGENT for VALIDATION state")
-            agent = self.guardrail_agent
-            response = await agent.process_input(input_text, agent_context)
-        
-        elif current_state.startswith("ACTIVE.CONFIRMATION"):
-            # Use frontline agent for confirmation
-            logger.info(f"Selecting FRONTLINE AGENT for CONFIRMATION state: {current_state}")
-            # Ensure frontline agent has the cart from context
-            agent_context["cart"] = context.get("cart", {"items": [], "total_price": 0})
-            agent = self.frontline_agent
-            response = await agent.process_voice_input(input_text, agent_context)
+            agent_context["conversation_history"] = conversation_history
+            logger.info(f"Loaded {len(conversation_history)} messages from conversation history")
             
-            # Check if order is confirmed or rejected and trigger HSM events
-            call_sid = context.get("call_sid")
-            if response.get("order_confirmed", False):
-                confirm_event = HSMEvent(ConversationHSMEvents.CONFIRM_ORDER, context)
-                await hsm_manager.handle_event(call_sid, confirm_event, context)
-            elif response.get("order_rejected", False):
-                reject_event = HSMEvent(ConversationHSMEvents.REJECT_ORDER, context)
-                await hsm_manager.handle_event(call_sid, reject_event, context)
+            # Also load any stored customer data
+            stored_context = conversation.get("context", {})
+            if stored_context.get("customer_name") and not agent_context.get("customer_name"):
+                agent_context["customer_name"] = stored_context["customer_name"]
+                logger.info(f"Loaded customer name from store: {stored_context['customer_name']}")
         
-        elif current_state.startswith("ACTIVE.FULFILLMENT"):
-            # Use fulfillment agent for order processing
-            logger.info(f"Selecting FULFILLMENT AGENT for FULFILLMENT state: {current_state}")
-            # Ensure fulfillment agent has the cart from context
-            agent_context["cart"] = context.get("cart", {"items": [], "total_price": 0})
-            agent = self.fulfillment_agent
-            response = await agent.process_input(input_text, agent_context)
-            
-            # Check if fulfillment is complete and trigger HSM event
-            if response.get("fulfillment_complete", False):
-                complete_event = HSMEvent(ConversationHSMEvents.COMPLETE_INTERACTION, context)
-                call_sid = context.get("call_sid")
-                await hsm_manager.handle_event(call_sid, complete_event, context)
-        
-        elif current_state == ConversationHSMStates.COMPLETION:
-            # Use frontline agent for completion
-            logger.info(f"Selecting FRONTLINE AGENT for COMPLETION state")
-            agent = self.frontline_agent
-            response = await agent.process_voice_input(input_text, agent_context)
-        
-        elif current_state == ConversationHSMStates.FOLLOW_UP:
-            # Use frontline agent for follow-up
-            logger.info(f"Selecting FRONTLINE AGENT for FOLLOW_UP state")
-            agent = self.frontline_agent
-            response = await agent.process_voice_input(input_text, agent_context)
-        
-        elif current_state == ConversationHSMStates.ESCALATION:
+        # Simplified agent selection logic - Frontline agent handles most states
+        # Specific agents can be selected for terminal or special states
+        if current_state == ConversationHSMStates.ESCALATION:
             # Use escalation agent for escalation
             logger.info(f"Selecting ESCALATION AGENT for ESCALATION state")
             agent = self.escalation_agent
             response = await agent.process_input(input_text, agent_context)
-        
-        elif current_state.startswith("ERROR_RECOVERY"):
-            # Use frontline agent for error recovery
-            logger.info(f"Selecting FRONTLINE AGENT for ERROR state: {current_state}")
+        else:
+            # Default to the Frontline agent for all other active states.
+            # It is responsible for orchestrating with specialists.
+            logger.info(f"Selecting FRONTLINE AGENT (default) for state: {current_state}")
+            # Ensure the agent knows the current HSM state
+            agent_context["hsm_state"] = current_state
+            agent_context["state_transition_occurred"] = True
             agent = self.frontline_agent
             response = await agent.process_voice_input(input_text, agent_context)
         
-        else:  # Default case
-            # Use frontline agent as default
-            logger.info(f"Selecting FRONTLINE AGENT as DEFAULT for state: {current_state}")
-            agent = self.frontline_agent
-            response = await agent.process_voice_input(input_text, agent_context)
+        # Skip conversation store saving here - agents handle it themselves to avoid duplication
         
         logger.info(f"Agent selection complete: {agent.__class__.__name__}")
         return agent, response
@@ -1034,12 +979,14 @@ class AsyncAgentOrchestrator:
             self.active_sessions[call_sid]["interruption_count"] = \
                 self.active_sessions[call_sid].get("interruption_count", 0) + 1
         
-        # Get FSM and update context
-        fsm = await self.get_fsm(call_sid)
-        fsm.update_context({
-            "user_interrupted": True,
-            "last_interruption_time": time.time()
-        })
+        # Get HSM and update context
+        try:
+            await hsm_manager.update_context(call_sid, {
+                "user_interrupted": True,
+                "last_interruption_time": time.time()
+            })
+        except Exception as e:
+            logger.warning(f"Could not update HSM context for interruption: {e}")
         
         # Signal frontline agent about interruption if available
         if self.frontline_agent and hasattr(self.frontline_agent, "handle_interruption"):
@@ -1053,6 +1000,33 @@ class AsyncAgentOrchestrator:
         )
         
         logger.info(f"Interruption handled for call {call_sid}")
+
+    def _generate_transfer_twiml(self, transfer_number: str) -> str:
+        """
+        Generate TwiML for call transfer to human support.
+        
+        Args:
+            transfer_number: The phone number to transfer to
+            
+        Returns:
+            TwiML string for call transfer
+        """
+        if hasattr(settings, 'HUMAN_HANDOFF_NUMBER') and settings.HUMAN_HANDOFF_NUMBER:
+            transfer_number = settings.HUMAN_HANDOFF_NUMBER
+        else:
+            # Fallback to a configured number or default
+            transfer_number = transfer_number or "+1234567890"  # Replace with actual number
+        
+        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say>Connecting you with a team member.</Say>
+    <Dial timeout="30" action="/voice/transfer-complete">
+        <Number>{transfer_number}</Number>
+    </Dial>
+    <Say>I'm sorry, but no one is available right now. Please try again later or leave a message.</Say>
+</Response>"""
+        
+        return twiml
 
 # Singleton instance for easy import
 async_agent_orchestrator = AsyncAgentOrchestrator()

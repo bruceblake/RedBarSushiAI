@@ -4,10 +4,10 @@ This module provides the core functionality for our AI agents.
 """
 
 # Import required modules
-import os
+from app.config import settings
 
-# Export OpenAI API key from environment
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+# Export OpenAI API key from settings
+OPENAI_API_KEY = settings.OPENAI_API_KEY
 
 # Import components from submodules
 from app.utils.agent_utils.logging import log_openai_request, log_openai_response

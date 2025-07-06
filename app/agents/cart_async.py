@@ -221,18 +221,22 @@ class AsyncCartAgent(BaseAsyncAgent, AIIntelligenceMixin):
         ]
         
         # Set agent instructions - OPTIMIZED AND DYNAMIC
-        self.instructions = """
-Cart specialist. Be FAST and ACCURATE.
+        self.instructions = f"""
+You are the cart manager for {settings.RESTAURANT_NAME}. Keep responses SHORT (1-2 sentences).
 
-For any order:
-1. lookup_menu_item(item_name="[item name]")
-2. add_item_to_cart(plu=result, quantity=[number])
-3. Confirm what was added
+Your job: Add items to cart accurately and quickly.
 
-For "that's all": get_current_cart() and confirm total.
-For menu questions: Direct them to specific items or categories.
+CRITICAL: You must identify and capture all item modifiers, customizations, or special instructions (e.g., 'no pickles', 'medium-rare', 'sauce on the side'). Pass these accurately to the add_to_cart tool.
 
-BE BRIEF. USE TOOLS. ADD TO CART.
+ALWAYS use the menu lookup tools to find exact items - NEVER guess or make up items.
+For any item the customer mentions, immediately look it up to get the correct PLU and pricing.
+
+When adding items:
+1. Look up the item to get PLU and price.
+2. Add to cart with correct details, including all modifiers.
+3. Confirm addition with price.
+
+Be quick, accurate, and concise. NO long explanations.
         """
         
         self.current_call_sid = None
@@ -398,13 +402,25 @@ BE BRIEF. USE TOOLS. ADD TO CART.
         
         # If no patterns found, try simpler approach
         if not item_patterns:
-            # Just look for item names without quantities
+            # Just look for item names without quantities using menu search
             possible_items = []
-            # Common menu items to look for
-            menu_keywords = ['california', 'spicy tuna', 'salmon', 'rainbow', 'dragon', 'philadelphia']
-            for keyword in menu_keywords:
-                if keyword in order_lower:
-                    possible_items.append((keyword, 1))
+            # Instead of hardcoded keywords, search for menu items in the order text
+            try:
+                if hasattr(self, 'menu_agent') and self.menu_agent:
+                    # Search for menu items that might match words in the order
+                    words = order_lower.split()
+                    for word in words:
+                        if len(word) > 3:  # Only search words longer than 3 characters
+                            search_result = await self.menu_agent.execute_tool("search_menu", {"keyword": word, "max_results": 1})
+                            if search_result.get("results"):
+                                item_name = search_result["results"][0]["name"]
+                                possible_items.append((item_name, 1))
+                else:
+                    # Fallback: delegate to menu specialist for parsing
+                    logger.info("No menu agent available, skipping automatic item detection")
+            except Exception as e:
+                logger.warning(f"Error searching menu for items: {e}")
+            
             item_patterns = possible_items
         
         # Track items we've already added to avoid duplicates
@@ -610,25 +626,20 @@ BE BRIEF. USE TOOLS. ADD TO CART.
             }
         
         # Check if disambiguation is needed
-        needs_disambig, disambig_type = disambiguation_detector.needs_disambiguation(
-            matches, item_name
-        )
+        needs_disambig = len(matches) > 1
+        disambig_type = "menu_item" if needs_disambig else None
         
         if needs_disambig:
-            # Create disambiguation context
-            context = disambiguation_detector.create_context(
-                matches, item_name, disambig_type
-            )
+            # Multiple matches found - create disambiguation options
+            options = []
+            for match in matches[:5]:  # Limit to 5 options
+                price = match.get("price", 0)
+                price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "Price unavailable"
+                options.append(f"{match['name']} ({price_str})")
             
-            # Store context for follow-up
-            self.disambiguation_context = context
+            clarification = f"I found multiple items that could match '{item_name}'. Did you mean: {', '.join(options)}?"
             
-            # Generate clarification question
-            clarification = disambiguation_resolver.generate_clarification(context)
-            
-            logger.info(
-                f"Disambiguation needed for '{item_name}' (type: {disambig_type.value}, candidates: {len(context.candidates)})"
-            )
+            logger.info(f"Disambiguation needed for '{item_name}' - found {len(matches)} candidates")
             
             return {
                 "found": False,
@@ -636,13 +647,13 @@ BE BRIEF. USE TOOLS. ADD TO CART.
                 "clarification_needed": clarification,
                 "candidates": [
                     {
-                        "name": c.display_name,
-                        "price": f"${c.price:.2f}",
-                        "category": c.category
+                        "name": match["name"],
+                        "price": f"${match.get('price', 0):.2f}",
+                        "category": match.get("category", "Unknown")
                     }
-                    for c in context.candidates
+                    for match in matches[:5]
                 ],
-                "disambiguation_type": disambig_type.value
+                "disambiguation_type": disambig_type
             }
         
         # Single best match found - use it
