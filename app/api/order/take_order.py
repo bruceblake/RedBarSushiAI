@@ -7,6 +7,7 @@ This module provides API endpoints for initial order taking and processing.
 import json
 import logging
 import re
+import time
 from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 
@@ -80,6 +81,7 @@ class VoiceOrderResponse(BaseModel):
     order_items: Optional[List[dict]] = Field(None, description="The parsed order items")
     needs_modifiers: Optional[bool] = Field(None, description="Whether modifiers are needed")
     busy_mode: Optional[bool] = Field(None, description="Whether the system is in busy mode")
+    success: Optional[bool] = Field(None, description="Whether the operation was successful")
 
 class ConstraintDetails(BaseModel):
     """Model for modifier constraint details"""
@@ -148,10 +150,10 @@ async def take_order(
             "busy_mode": True
         }
     
-    # Load menu and check availability - force refresh to ensure we have latest data
+    # Load menu and check availability
     try:
         # Using async version of load_menu_data
-        menu_data = await load_menu_data(db, force_refresh=True)
+        menu_data = await load_menu_data(db)
 
         # Debug logging to see if menu data is loaded correctly
         item_count = len(menu_data.get("items", []) or [])
@@ -238,17 +240,60 @@ async def take_order(
             "redirect_to": "/take_order"
         }
 
-    # Use the agent to analyze the order
-    from app.utils.agent_utils import analyze_user_input
-    analysis = analyze_user_input(user_resp)
-    intent = analysis.get("intent", "other")
-
-    # If we couldn't understand the order, ask again
-    if intent != "order_food" or not analysis.get("menu_items"):
+    # Use the AI agent orchestrator for intelligent processing
+    from app.utils.agent_orchestration_async import AsyncAgentOrchestrator
+    
+    try:
+        # Get call_sid for session identification
+        call_sid = request.call_sid or f"api_call_{int(time.time())}"
+        
+        # Initialize orchestrator with database session
+        orchestrator = AsyncAgentOrchestrator()
+        await orchestrator.initialize(db=db)
+        
+        # Process the input using AI agents
+        response = await orchestrator.process_voice_input(
+            call_sid,
+            user_resp,
+            {
+                "session_id": call_sid,
+                "voice_mode": "api_call"
+            }
+        )
+        
+        # Check if the AI agent successfully processed the order
+        response_text = response.get("text", "I'm processing your request...")
+        actions = response.get("actions", [])
+        
+        logger.info(f"DEBUG: Response text: {response_text}")
+        logger.info(f"DEBUG: Actions: {actions}")
+        
+        # Look for cart_updated actions to determine success
+        success = any(action.get("type") == "cart_updated" for action in actions)
+        logger.info(f"DEBUG: Success from cart_updated actions: {success}")
+        
+        # Also check if response indicates items were added to cart
+        if "added" in response_text.lower() and "cart" in response_text.lower():
+            success = True
+            logger.info(f"DEBUG: Success from text analysis: {success}")
+            
+        # Return the AI agent response
+        result = {
+            "message": response_text,
+            "redirect_to": "/take_order",
+            "order_items": response.get("order_items"),
+            "needs_modifiers": response.get("needs_modifiers"),
+            "busy_mode": False,
+            "success": success
+        }
+        logger.info(f"DEBUG: Final return result: {result}")
+        logger.info("DEBUG: About to return from orchestrator branch with SUCCESS field")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error processing with orchestrator: {e}")
         return {
-            "message": "I'm sorry, I couldn't understand your order. Please tell me again "
-                      "what items you'd like to order from our menu. For example, you can "
-                      "say 'I'd like a California roll and a spicy tuna roll'.",
+            "message": "I'm sorry, I encountered an error processing your request. Please try again.",
             "redirect_to": "/take_order"
         }
 
@@ -291,7 +336,7 @@ async def take_order(
     
     # Process and mark any unavailable items
     from app.utils.order_utils_async import mark_unavailable_items_async as mark_unavailable_items
-    available_items, unavailable_items = await mark_unavailable_items(order_items)
+    available_items, unavailable_items = await mark_unavailable_items(db, order_items)
 
     # Handle case where all items are unavailable
     if not available_items and unavailable_items:

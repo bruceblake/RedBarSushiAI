@@ -16,7 +16,7 @@ from app.schemas.menu import (
     MenuItemCreate, MenuItemUpdate, MenuItemResponse, 
     MenuItemListResponse, SnoozeRequest, SnoozeResponse
 )
-from app.db import (
+from app.db.crud_menu_async import (
     get_items, count_items, get_item, get_items_by_category,
     create_item, update_item, delete_item, snooze_item, unsnooze_item
 )
@@ -55,9 +55,36 @@ async def get_all_items(
             available_only=available_only
         )
         
+        # Create response items, handling category relationship carefully
+        response_items = []
+        for item in items:
+            try:
+                # Convert to dict and handle category separately
+                item_dict = {
+                    'id': item.id,
+                    'name': item.name,
+                    'description': item.description,
+                    'price': int(item.price * 100) if item.price else 0,  # Convert to cents
+                    'plu': item.plu,
+                    'category_id': item.category_id,
+                    'is_available': item.is_available,
+                    'image_url': item.image_url,
+                    'created_at': item.created_at,
+                    'updated_at': item.updated_at,
+                    'category': None  # Set to None to avoid greenlet issues
+                }
+                
+                # Create MenuItemResponse from dict
+                response_items.append(MenuItemResponse(**item_dict))
+            except Exception as e:
+                logger.error(f"Error processing item {item.id}: {e}")
+                continue
+        
         return MenuItemListResponse(
-            items=[MenuItemResponse.from_orm(item) for item in items],
-            total=total
+            items=response_items,
+            total=total,
+            page=skip // limit + 1,
+            per_page=limit
         )
     except Exception as e:
         logger.error(f"Error getting menu items: {e}")
@@ -87,7 +114,22 @@ async def get_item_by_id(
                 detail=f"Item with ID {item_id} not found"
             )
             
-        return MenuItemResponse.from_orm(item)
+        # Create response, handling category relationship carefully
+        item_dict = {
+            'id': item.id,
+            'name': item.name,
+            'description': item.description,
+            'price': item.price,
+            'plu': item.plu,
+            'category_id': item.category_id,
+            'is_available': item.is_available,
+            'image_url': item.image_url,
+            'created_at': item.created_at,
+            'updated_at': item.updated_at,
+            'category': None  # Set to None to avoid greenlet issues
+        }
+        
+        return MenuItemResponse(**item_dict)
     except HTTPException:
         raise
     except Exception as e:
@@ -119,9 +161,36 @@ async def get_items_in_category(
         )
         total = await count_items(db, category_id=category_id, available_only=available_only)
         
+        # Create response items, handling category relationship carefully
+        response_items = []
+        for item in items:
+            try:
+                # Convert to dict and handle category separately
+                item_dict = {
+                    'id': item.id,
+                    'name': item.name,
+                    'description': item.description,
+                    'price': int(item.price * 100) if item.price else 0,  # Convert to cents
+                    'plu': item.plu,
+                    'category_id': item.category_id,
+                    'is_available': item.is_available,
+                    'image_url': item.image_url,
+                    'created_at': item.created_at,
+                    'updated_at': item.updated_at,
+                    'category': None  # Set to None to avoid greenlet issues
+                }
+                
+                # Create MenuItemResponse from dict
+                response_items.append(MenuItemResponse(**item_dict))
+            except Exception as e:
+                logger.error(f"Error processing item {item.id}: {e}")
+                continue
+        
         return MenuItemListResponse(
-            items=[MenuItemResponse.from_orm(item) for item in items],
-            total=total
+            items=response_items,
+            total=total,
+            page=skip // limit + 1,
+            per_page=limit
         )
     except Exception as e:
         logger.error(f"Error getting menu items for category {category_id}: {e}")

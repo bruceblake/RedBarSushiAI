@@ -802,12 +802,12 @@ Be quick, accurate, and concise. NO long explanations.
             logger.info(f"Added new item to cart: {plu}")
         
         # Calculate total price (prices are already in dollars)
-        total_price = 0
+        total_price = 0.0
         for cart_item in cart["items"]:
-            item_price = cart_item.get("price", 0) * cart_item.get("quantity", 1)
+            item_price = float(cart_item.get("price", 0)) * cart_item.get("quantity", 1)
             # Add modifier prices
             for modifier in cart_item.get("modifiers", []):
-                item_price += modifier.get("price_change", 0) * modifier.get("quantity", 1)
+                item_price += float(modifier.get("price_change", 0)) * modifier.get("quantity", 1)
             total_price += item_price
         # Store total price in dollars
         cart["total_price"] = total_price

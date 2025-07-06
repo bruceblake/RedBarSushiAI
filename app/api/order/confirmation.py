@@ -23,7 +23,7 @@ from app.utils.helpers_async import commit_with_retry_async, log_info_async
 from app.utils.order_utils_async import build_order_description_async, calculate_bill_amount_async
 # Import from async deliverect module for FastAPI routes
 from app.utils.deliverect_async import build_deliverect_order, send_order_to_deliverect_async, generate_order_id
-from app.utils.agent_utils import OrderParsingAgent, get_order_modifications
+# Removed hardcoded agent_utils - using AI orchestrator instead
 
 # Configure logger
 logger = logging.getLogger(__name__)

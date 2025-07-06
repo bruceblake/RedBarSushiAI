@@ -7,6 +7,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: redbarsushi-app
+    env_file:
+      - .env
     ports:
       - "${APP_PORT:-8000}:8080"
     environment:
@@ -81,6 +83,8 @@ services:
       dockerfile: Dockerfile
     container_name: redbarsushi-celery
     command: celery -A celery_app_fastapi worker --loglevel=INFO
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/redbarsushi
       REDIS_URL: redis://redis:6379/0
@@ -88,7 +92,6 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       PYTHONPATH: /app
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-for-development}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
       FORCE_HEADLESS: "true"
     depends_on:
       postgres:

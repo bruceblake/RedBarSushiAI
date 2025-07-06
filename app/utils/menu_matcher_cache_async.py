@@ -65,13 +65,18 @@ class AsyncCachedMenuMatcher(BaseAsyncMenuMatcher):
             # Call parent implementation to load from DB
             success = await super().initialize()
             
-            if success and self.menu_data:
-                # Store in cache for next time
-                try:
-                    await cache_menu_data(self.menu_data, ttl=self.cache_ttl)
-                    logger.info(f"Stored menu data in cache")
-                except Exception as e:
-                    logger.error(f"Error storing menu data in cache: {e}")
+            if success:
+                # Load the menu data for caching
+                from app.utils.menu_utils_db_async import load_menu_data
+                self.menu_data = await load_menu_data(self.db, location_id=self.location_id)
+                
+                if self.menu_data:
+                    # Store in cache for next time
+                    try:
+                        await cache_menu_data(self.menu_data, ttl=self.cache_ttl)
+                        logger.info(f"Stored menu data in cache")
+                    except Exception as e:
+                        logger.error(f"Error storing menu data in cache: {e}")
             
             return success
         except Exception as e:

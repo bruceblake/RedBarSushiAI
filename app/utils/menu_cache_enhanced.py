@@ -57,10 +57,10 @@ class MenuCacheManager:
                 "description": item.description,
                 "price": float(item.price) if item.price else 0.0,
                 "category": item.category,
-                "subcategory": item.subcategory,
-                "available": item.available,
-                "position": item.position,
-                "modifiers": json.loads(item.modifiers) if item.modifiers else []
+                "category_id": item.category_id,
+                "is_available": item.is_available,
+                "order_index": item.order_index,
+                "modifier_groups": []  # Will be populated separately if needed
             }
             processed_items.append(item_dict)
         
@@ -113,10 +113,10 @@ class MenuCacheManager:
                 "description": item.description,
                 "price": float(item.price) if item.price else 0.0,
                 "category": item.category,
-                "subcategory": item.subcategory,
-                "available": item.available,
-                "position": item.position,
-                "modifiers": json.loads(item.modifiers) if item.modifiers else []
+                "category_id": item.category_id,
+                "is_available": item.is_available,
+                "order_index": item.order_index,
+                "modifier_groups": []  # Will be populated separately if needed
             }
             
             # Cache the item

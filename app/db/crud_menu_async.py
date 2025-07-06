@@ -399,13 +399,13 @@ async def get_items(
         skip: Number of records to skip
         limit: Maximum number of records to return
         category_id: Optional category ID to filter by
-        location_id: Optional location ID to filter by
+        location_id: Optional[str] = None,
         available_only: If True, only return available items
         
     Returns:
         List of MenuItem objects
     """
-    query = select(MenuItem).offset(skip).limit(limit).order_by(MenuItem.name)
+    query = select(MenuItem).options(selectinload(MenuItem.category)).offset(skip).limit(limit).order_by(MenuItem.name)
     
     # Add filters if provided
     if category_id:
@@ -487,6 +487,7 @@ async def get_items_by_category(
     """
     query = (
         select(MenuItem)
+        .options(selectinload(MenuItem.category))
         .where(MenuItem.category_id == category_id)
         .offset(skip)
         .limit(limit)
@@ -516,7 +517,7 @@ async def get_item(db: AsyncSession, item_id: str) -> Optional[MenuItem]:
     Returns:
         MenuItem object or None if not found
     """
-    query = select(MenuItem).where(MenuItem.id == item_id)
+    query = select(MenuItem).options(selectinload(MenuItem.category)).where(MenuItem.id == item_id)
     result = await db.execute(query)
     return result.scalar_one_or_none()
 

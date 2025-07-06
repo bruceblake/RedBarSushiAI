@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db_async import get_db
 from app.models.order_async import Order
 from app.utils.helpers_async import commit_with_retry_async, log_info_async
-from app.utils.agent_utils import OrderParsingAgent, get_order_modifications
+# Removed hardcoded agent_utils - using AI orchestrator instead
 # Use async versions of order utilities for FastAPI routes
 from app.utils.order_utils_async import (
     build_order_description_async,
@@ -98,11 +98,12 @@ async def modify_order(
         }
     
     # Parse the modification request
-    agent = OrderParsingAgent()
+    # agent = OrderParsingAgent()  # TODO: Replace with AI orchestrator
     
     try:
         # Get order modifications
-        modifications = get_order_modifications(user_resp, order_items)
+        # modifications = get_order_modifications(user_resp, order_items)  # TODO: Replace with AI orchestrator
+        modifications = []  # Temporary placeholder
         
         if not modifications:
             return {

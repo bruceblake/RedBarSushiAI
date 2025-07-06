@@ -183,6 +183,21 @@ class AsyncMenuDbStore:
             return None
             
         return modifier.to_dict()
+        
+    async def get_menu(self, db: AsyncSession, location_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get complete menu data including categories, items, modifiers, and variants.
+        
+        Args:
+            db: Database session
+            location_id: Optional location ID to filter by
+            
+        Returns:
+            Dictionary containing all menu data
+        """
+        from app.utils.menu_utils_db_async import load_menu_data
+        
+        return await load_menu_data(db, location_id=location_id)
 
 
 # Create a singleton instance for the async menu database store
