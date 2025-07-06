@@ -22,11 +22,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./run-docker-tests.sh unit          # Unit tests only
 ./run-docker-tests.sh integration   # Integration tests only  
 ./run-docker-tests.sh e2e          # E2E tests only
+./run-docker-tests.sh advanced     # Advanced E2E tests only
 
 # Run tests locally (faster for development)
 pytest tests/unit/ -v              # Unit tests
 pytest tests/integration/ -v       # Integration tests
 pytest tests/e2e/ -v              # E2E tests
+
+# Run advanced E2E tests (production-ready validation)
+pytest tests/e2e/test_advanced_*.py -v                    # All advanced tests
+pytest tests/e2e/test_advanced_conversational_fluidity.py # Conversational AI tests
+pytest tests/e2e/test_stress_load_concurrency.py          # Load and stress tests
+pytest tests/e2e/test_integration_failure_resiliency.py   # Failure recovery tests
+pytest tests/e2e/test_security_robustness.py              # Security tests
 
 # Run a single test file
 pytest tests/unit/test_agents.py -v
@@ -36,6 +44,12 @@ pytest tests/unit/test_agents.py::test_menu_agent -v
 
 # Run tests with coverage
 pytest tests/ --cov=app --cov-report=html
+
+# Run tests with performance monitoring
+pytest tests/e2e/test_stress_load_concurrency.py -v --benchmark-save=results
+
+# Run parallel tests for faster execution
+pytest tests/e2e/test_advanced_*.py -n auto
 ```
 
 ### Linting and Type Checking
