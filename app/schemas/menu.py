@@ -155,8 +155,11 @@ class MenuModifierBase(BaseModel):
     name: str
     description: Optional[str] = None
     price_change: int = 0  # Price change in cents
-    plu: str
+    plu: Optional[str] = None  # Changed to optional to match model
+    deliverect_modifier_id: Optional[str] = None  # Added missing field
+    location_id: Optional[str] = None  # Added missing field
     is_available: bool = True
+    properties: Optional[Dict[str, Any]] = None  # Added missing field
 
 
 class MenuModifierCreate(MenuModifierBase):
@@ -168,15 +171,23 @@ class MenuModifierUpdate(BaseModel):
     description: Optional[str] = None
     price_change: Optional[int] = None
     plu: Optional[str] = None
+    deliverect_modifier_id: Optional[str] = None  # Added missing field
+    location_id: Optional[str] = None  # Added missing field
     is_available: Optional[bool] = None
+    properties: Optional[Dict[str, Any]] = None  # Added missing field
 
 
 class MenuModifierGroupBase(BaseModel):
     name: str
     description: Optional[str] = None
     min_selection: int = 0
-    max_selection: Optional[int] = None
-    is_required: bool = False
+    max_selection: int = 0  # Changed to int to match model
+    multiMax: int = 0  # Added missing field to match model
+    plu: Optional[str] = None  # Added missing field
+    deliverect_group_id: Optional[str] = None  # Added missing field
+    location_id: Optional[str] = None  # Added missing field
+    is_variant_group: bool = False  # Added missing field
+    properties: Optional[Dict[str, Any]] = None  # Added missing field
 
 
 class MenuModifierGroupCreate(MenuModifierGroupBase):
@@ -188,7 +199,12 @@ class MenuModifierGroupUpdate(BaseModel):
     description: Optional[str] = None
     min_selection: Optional[int] = None
     max_selection: Optional[int] = None
-    is_required: Optional[bool] = None
+    multiMax: Optional[int] = None  # Added missing field
+    plu: Optional[str] = None  # Added missing field
+    deliverect_group_id: Optional[str] = None  # Added missing field
+    location_id: Optional[str] = None  # Added missing field
+    is_variant_group: Optional[bool] = None  # Added missing field
+    properties: Optional[Dict[str, Any]] = None  # Added missing field
 
 
 class MenuVariantBase(BaseModel):
