@@ -140,10 +140,21 @@ async def init_database() -> None:
         raise
 
 
+async def ensure_migrations() -> None:
+    """Ensure database migrations are run regardless of INITIALIZE_MENU_DATABASE setting."""
+    try:
+        logger.info("Force-running database migrations...")
+        await migrate_schema()
+        logger.info("Database migrations completed successfully")
+    except Exception as e:
+        logger.error(f"Failed to run migrations: {e}")
+        # Don't raise - continue startup
+
+
 async def migrate_schema() -> None:
     """Migrate database schema to fix column mismatches between SQL and models."""
     try:
-        logger.info("Running schema migrations...")
+        logger.info("🔄 Starting schema migrations...")
         
         async with engine.begin() as conn:
             # Migration 1: Add missing columns to menu_items
@@ -185,26 +196,35 @@ async def migrate_schema() -> None:
             
             # Execute migrations in order
             # Step 1: Add missing columns to menu_items
+            logger.info("📋 Step 1: Adding missing columns to menu_items...")
             for sql_statement in missing_columns_sql.split(';'):
                 if sql_statement.strip():
+                    logger.debug(f"Executing: {sql_statement.strip()}")
                     await conn.execute(text(sql_statement.strip()))
+            logger.info("✅ Step 1 completed")
             
             # Step 2: Add missing columns to modifier tables and categories
+            logger.info("📋 Step 2: Adding missing columns to modifier tables and categories...")
             for sql_statement in modifier_columns_sql.split(';'):
                 if sql_statement.strip():
+                    logger.debug(f"Executing: {sql_statement.strip()}")
                     await conn.execute(text(sql_statement.strip()))
+            logger.info("✅ Step 2 completed")
             
             # Step 3: Fix column sizes (ignore errors if columns don't exist yet)
+            logger.info("📋 Step 3: Fixing column sizes...")
             for sql_statement in column_size_fixes_sql.split(';'):
                 if sql_statement.strip():
                     try:
+                        logger.debug(f"Executing: {sql_statement.strip()}")
                         await conn.execute(text(sql_statement.strip()))
                     except Exception as e:
                         # Log but don't fail - column might not exist yet
                         logger.warning(f"Column size fix failed (may not exist): {e}")
+            logger.info("✅ Step 3 completed")
             
             await conn.commit()
-            logger.info("✅ Schema migrations completed successfully")
+            logger.info("🎉 Schema migrations completed successfully")
             
     except Exception as e:
         logger.error(f"Schema migration failed: {e}")

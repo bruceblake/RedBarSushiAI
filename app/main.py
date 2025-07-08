@@ -358,12 +358,15 @@ async def startup_event():
     
     # Initialize database
     try:
-        from app.db_async import init_database, verify_connection
+        from app.db_async import init_database, verify_connection, ensure_migrations
         
         # Check connection first
         is_connected = await verify_connection()
         if is_connected:
             logger.info("Database connection verified")
+            
+            # Always run migrations first
+            await ensure_migrations()
             
             # Initialize the database if needed
             if settings.INITIALIZE_MENU_DATABASE:
