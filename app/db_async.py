@@ -154,43 +154,53 @@ async def migrate_schema() -> None:
             ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS properties JSONB DEFAULT '{}';
             """
             
-            # Migration 2: Fix column size mismatches
-            column_size_fixes_sql = """
-            -- Fix column size mismatches to match SQLAlchemy models
-            DO $$
-            BEGIN
+            # Migration 2: Fix column size mismatches - use separate statements
+            column_size_fixes_sql = [
+                """
                 -- Fix deliverect_item_id column size
-                IF EXISTS (SELECT 1 FROM information_schema.columns 
-                          WHERE table_name = 'menu_items' AND column_name = 'deliverect_item_id' 
-                          AND character_maximum_length = 100) THEN
-                    ALTER TABLE menu_items ALTER COLUMN deliverect_item_id TYPE VARCHAR(255);
-                    RAISE NOTICE 'Fixed menu_items.deliverect_item_id column size';
-                END IF;
-                
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name = 'menu_items' AND column_name = 'deliverect_item_id' 
+                              AND character_maximum_length = 100) THEN
+                        ALTER TABLE menu_items ALTER COLUMN deliverect_item_id TYPE VARCHAR(255);
+                        RAISE NOTICE 'Fixed menu_items.deliverect_item_id column size';
+                    END IF;
+                END $$;
+                """,
+                """
                 -- Fix deliverect_group_id column size
-                IF EXISTS (SELECT 1 FROM information_schema.columns 
-                          WHERE table_name = 'menu_modifier_groups' AND column_name = 'deliverect_group_id' 
-                          AND character_maximum_length = 100) THEN
-                    ALTER TABLE menu_modifier_groups ALTER COLUMN deliverect_group_id TYPE VARCHAR(255);
-                    RAISE NOTICE 'Fixed menu_modifier_groups.deliverect_group_id column size';
-                END IF;
-                
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name = 'menu_modifier_groups' AND column_name = 'deliverect_group_id' 
+                              AND character_maximum_length = 100) THEN
+                        ALTER TABLE menu_modifier_groups ALTER COLUMN deliverect_group_id TYPE VARCHAR(255);
+                        RAISE NOTICE 'Fixed menu_modifier_groups.deliverect_group_id column size';
+                    END IF;
+                END $$;
+                """,
+                """
                 -- Fix deliverect_modifier_id column size
-                IF EXISTS (SELECT 1 FROM information_schema.columns 
-                          WHERE table_name = 'menu_modifiers' AND column_name = 'deliverect_modifier_id' 
-                          AND character_maximum_length = 100) THEN
-                    ALTER TABLE menu_modifiers ALTER COLUMN deliverect_modifier_id TYPE VARCHAR(255);
-                    RAISE NOTICE 'Fixed menu_modifiers.deliverect_modifier_id column size';
-                END IF;
-            END $$;
-            """
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name = 'menu_modifiers' AND column_name = 'deliverect_modifier_id' 
+                              AND character_maximum_length = 100) THEN
+                        ALTER TABLE menu_modifiers ALTER COLUMN deliverect_modifier_id TYPE VARCHAR(255);
+                        RAISE NOTICE 'Fixed menu_modifiers.deliverect_modifier_id column size';
+                    END IF;
+                END $$;
+                """
+            ]
             
             # Execute migrations
             for sql_statement in missing_columns_sql.split(';'):
                 if sql_statement.strip():
                     await conn.execute(text(sql_statement.strip()))
             
-            for sql_statement in column_size_fixes_sql.split(';'):
+            # Execute column size fixes (each item in the array is a complete DO block)
+            for sql_statement in column_size_fixes_sql:
                 if sql_statement.strip():
                     await conn.execute(text(sql_statement.strip()))
             
