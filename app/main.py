@@ -204,6 +204,96 @@ async def healthcheck() -> Dict[str, Any]:
     
     return health_info
 
+@app.get("/db-debug")
+async def database_debug() -> Dict[str, Any]:
+    """Debug endpoint to check database schema and migration status."""
+    try:
+        from app.db_async import verify_connection, engine
+        from sqlalchemy import text
+        
+        # Check connection
+        is_connected = await verify_connection()
+        
+        if not is_connected:
+            return {"error": "Database connection failed"}
+            
+        # Get table schema info
+        async with engine.begin() as conn:
+            # Check if tables exist
+            tables_result = await conn.execute(text("""
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name IN 
+                ('menu_items', 'menu_modifiers', 'menu_modifier_groups', 'menu_categories')
+                ORDER BY table_name
+            """))
+            tables = [row[0] for row in tables_result.fetchall()]
+            
+            # Check menu_items columns
+            menu_items_columns = []
+            if 'menu_items' in tables:
+                columns_result = await conn.execute(text("""
+                    SELECT column_name, data_type, character_maximum_length 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'menu_items' 
+                    ORDER BY column_name
+                """))
+                menu_items_columns = [
+                    {
+                        "name": row[0], 
+                        "type": row[1], 
+                        "max_length": row[2]
+                    } 
+                    for row in columns_result.fetchall()
+                ]
+            
+            # Check menu_modifiers columns  
+            menu_modifiers_columns = []
+            if 'menu_modifiers' in tables:
+                columns_result = await conn.execute(text("""
+                    SELECT column_name, data_type, character_maximum_length 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'menu_modifiers' 
+                    ORDER BY column_name
+                """))
+                menu_modifiers_columns = [
+                    {
+                        "name": row[0], 
+                        "type": row[1], 
+                        "max_length": row[2]
+                    } 
+                    for row in columns_result.fetchall()
+                ]
+                
+        return {
+            "database_connected": is_connected,
+            "tables_found": tables,
+            "menu_items_columns": menu_items_columns,
+            "menu_modifiers_columns": menu_modifiers_columns,
+            "missing_columns": {
+                "menu_items": [col for col in ["deliverect_item_id", "location_id", "order_index", "properties"] 
+                              if col not in [c["name"] for c in menu_items_columns]],
+                "menu_modifiers": [col for col in ["deliverect_modifier_id", "location_id", "properties"] 
+                                  if col not in [c["name"] for c in menu_modifiers_columns]]
+            }
+        }
+        
+    except Exception as e:
+        return {"error": f"Database debug failed: {e}"}
+
+@app.post("/run-migrations")
+async def run_migrations_manually() -> Dict[str, Any]:
+    """Manually trigger database migrations - for debugging only."""
+    try:
+        from app.db_async import migrate_schema
+        
+        # Run migrations
+        await migrate_schema()
+        
+        return {"success": True, "message": "Migrations completed successfully"}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Migration failed: {e}"}
+
 @app.get("/environment")
 async def environment_info() -> Dict[str, Any]:
     """Return detailed information about the environment."""
