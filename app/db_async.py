@@ -154,55 +154,54 @@ async def migrate_schema() -> None:
             ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS properties JSONB DEFAULT '{}';
             """
             
-            # Migration 2: Fix column size mismatches - use separate statements
-            column_size_fixes_sql = [
-                """
-                -- Fix deliverect_item_id column size
-                DO $$
-                BEGIN
-                    IF EXISTS (SELECT 1 FROM information_schema.columns 
-                              WHERE table_name = 'menu_items' AND column_name = 'deliverect_item_id' 
-                              AND character_maximum_length = 100) THEN
-                        ALTER TABLE menu_items ALTER COLUMN deliverect_item_id TYPE VARCHAR(255);
-                        RAISE NOTICE 'Fixed menu_items.deliverect_item_id column size';
-                    END IF;
-                END $$;
-                """,
-                """
-                -- Fix deliverect_group_id column size
-                DO $$
-                BEGIN
-                    IF EXISTS (SELECT 1 FROM information_schema.columns 
-                              WHERE table_name = 'menu_modifier_groups' AND column_name = 'deliverect_group_id' 
-                              AND character_maximum_length = 100) THEN
-                        ALTER TABLE menu_modifier_groups ALTER COLUMN deliverect_group_id TYPE VARCHAR(255);
-                        RAISE NOTICE 'Fixed menu_modifier_groups.deliverect_group_id column size';
-                    END IF;
-                END $$;
-                """,
-                """
-                -- Fix deliverect_modifier_id column size
-                DO $$
-                BEGIN
-                    IF EXISTS (SELECT 1 FROM information_schema.columns 
-                              WHERE table_name = 'menu_modifiers' AND column_name = 'deliverect_modifier_id' 
-                              AND character_maximum_length = 100) THEN
-                        ALTER TABLE menu_modifiers ALTER COLUMN deliverect_modifier_id TYPE VARCHAR(255);
-                        RAISE NOTICE 'Fixed menu_modifiers.deliverect_modifier_id column size';
-                    END IF;
-                END $$;
-                """
-            ]
+            # Migration 2: Add missing columns to modifier tables
+            modifier_columns_sql = """
+            -- Add missing columns to menu_modifiers
+            ALTER TABLE menu_modifiers ADD COLUMN IF NOT EXISTS deliverect_modifier_id VARCHAR(255);
+            ALTER TABLE menu_modifiers ADD COLUMN IF NOT EXISTS location_id VARCHAR(255);
+            ALTER TABLE menu_modifiers ADD COLUMN IF NOT EXISTS properties JSONB DEFAULT '{}';
             
-            # Execute migrations
+            -- Add missing columns to menu_modifier_groups  
+            ALTER TABLE menu_modifier_groups ADD COLUMN IF NOT EXISTS deliverect_group_id VARCHAR(255);
+            ALTER TABLE menu_modifier_groups ADD COLUMN IF NOT EXISTS plu VARCHAR(255);
+            ALTER TABLE menu_modifier_groups ADD COLUMN IF NOT EXISTS multiMax INTEGER DEFAULT 0;
+            ALTER TABLE menu_modifier_groups ADD COLUMN IF NOT EXISTS location_id VARCHAR(255);
+            ALTER TABLE menu_modifier_groups ADD COLUMN IF NOT EXISTS is_variant_group BOOLEAN DEFAULT false;
+            ALTER TABLE menu_modifier_groups ADD COLUMN IF NOT EXISTS properties JSONB DEFAULT '{}';
+            
+            -- Add missing columns to menu_categories
+            ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS deliverect_category_id VARCHAR(255);
+            ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS parent_id INTEGER;
+            """
+            
+            # Migration 3: Fix column sizes with simple ALTER statements
+            column_size_fixes_sql = """
+            -- Fix column sizes to match SQLAlchemy models
+            ALTER TABLE menu_items ALTER COLUMN deliverect_item_id TYPE VARCHAR(255);
+            ALTER TABLE menu_modifier_groups ALTER COLUMN deliverect_group_id TYPE VARCHAR(255);
+            ALTER TABLE menu_modifiers ALTER COLUMN deliverect_modifier_id TYPE VARCHAR(255);
+            ALTER TABLE menu_categories ALTER COLUMN deliverect_category_id TYPE VARCHAR(255);
+            """
+            
+            # Execute migrations in order
+            # Step 1: Add missing columns to menu_items
             for sql_statement in missing_columns_sql.split(';'):
                 if sql_statement.strip():
                     await conn.execute(text(sql_statement.strip()))
             
-            # Execute column size fixes (each item in the array is a complete DO block)
-            for sql_statement in column_size_fixes_sql:
+            # Step 2: Add missing columns to modifier tables and categories
+            for sql_statement in modifier_columns_sql.split(';'):
                 if sql_statement.strip():
                     await conn.execute(text(sql_statement.strip()))
+            
+            # Step 3: Fix column sizes (ignore errors if columns don't exist yet)
+            for sql_statement in column_size_fixes_sql.split(';'):
+                if sql_statement.strip():
+                    try:
+                        await conn.execute(text(sql_statement.strip()))
+                    except Exception as e:
+                        # Log but don't fail - column might not exist yet
+                        logger.warning(f"Column size fix failed (may not exist): {e}")
             
             await conn.commit()
             logger.info("✅ Schema migrations completed successfully")
