@@ -143,18 +143,19 @@ async def init_database() -> None:
 async def ensure_migrations() -> None:
     """Ensure database migrations are run regardless of INITIALIZE_MENU_DATABASE setting."""
     try:
-        logger.info("Force-running database migrations...")
+        logger.critical("🚀 FORCE-RUNNING DATABASE MIGRATIONS...")
         await migrate_schema()
-        logger.info("Database migrations completed successfully")
+        logger.critical("🎉 FORCE DATABASE MIGRATIONS COMPLETED SUCCESSFULLY")
     except Exception as e:
-        logger.error(f"Failed to run migrations: {e}")
+        logger.error(f"Failed to run migrations: {e}", exc_info=True)
         # Don't raise - continue startup
 
 
 async def migrate_schema() -> None:
     """Migrate database schema to fix column mismatches between SQL and models."""
     try:
-        logger.info("🔄 Starting schema migrations...")
+        logger.critical("🚀 MIGRATE_SCHEMA() FUNCTION CALLED!")
+        logger.critical("🔄 Starting schema migrations...")
         
         async with engine.begin() as conn:
             # Migration 1: Add missing columns to menu_items

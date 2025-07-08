@@ -360,22 +360,29 @@ async def startup_event():
     try:
         from app.db_async import init_database, verify_connection, ensure_migrations
         
+        logger.critical("🔍 Starting database initialization...")
+        
         # Check connection first
         is_connected = await verify_connection()
         if is_connected:
             logger.info("Database connection verified")
             
             # Always run migrations first
+            logger.critical("🔄 About to run ensure_migrations()...")
             await ensure_migrations()
+            logger.critical("✅ ensure_migrations() completed")
             
             # Initialize the database if needed
             if settings.INITIALIZE_MENU_DATABASE:
+                logger.critical(f"🔄 INITIALIZE_MENU_DATABASE is True, running init_database()...")
                 await init_database()
                 logger.info("Database initialized successfully")
+            else:
+                logger.critical(f"⚠️ INITIALIZE_MENU_DATABASE is False, skipping init_database()")
         else:
             logger.error("Database connection failed")
     except Exception as e:
-        logger.error(f"Error initializing database: {e}")
+        logger.error(f"Error initializing database: {e}", exc_info=True)
     
     # Initialize async agent orchestrator
     try:
