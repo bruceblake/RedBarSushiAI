@@ -131,9 +131,76 @@ async def init_database() -> None:
                 # In production, migrations should be used instead
                 await conn.run_sync(Base.metadata.create_all)
             logger.info("Database tables created successfully")
+        
+        # Always run schema migrations for production compatibility
+        await migrate_schema()
+        
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise
+
+
+async def migrate_schema() -> None:
+    """Migrate database schema to fix column mismatches between SQL and models."""
+    try:
+        logger.info("Running schema migrations...")
+        
+        async with engine.begin() as conn:
+            # Migration 1: Add missing columns to menu_items
+            missing_columns_sql = """
+            -- Add missing columns if they don't exist
+            ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS location_id VARCHAR(255);
+            ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0;
+            ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS properties JSONB DEFAULT '{}';
+            """
+            
+            # Migration 2: Fix column size mismatches
+            column_size_fixes_sql = """
+            -- Fix column size mismatches to match SQLAlchemy models
+            DO $$
+            BEGIN
+                -- Fix deliverect_item_id column size
+                IF EXISTS (SELECT 1 FROM information_schema.columns 
+                          WHERE table_name = 'menu_items' AND column_name = 'deliverect_item_id' 
+                          AND character_maximum_length = 100) THEN
+                    ALTER TABLE menu_items ALTER COLUMN deliverect_item_id TYPE VARCHAR(255);
+                    RAISE NOTICE 'Fixed menu_items.deliverect_item_id column size';
+                END IF;
+                
+                -- Fix deliverect_group_id column size
+                IF EXISTS (SELECT 1 FROM information_schema.columns 
+                          WHERE table_name = 'menu_modifier_groups' AND column_name = 'deliverect_group_id' 
+                          AND character_maximum_length = 100) THEN
+                    ALTER TABLE menu_modifier_groups ALTER COLUMN deliverect_group_id TYPE VARCHAR(255);
+                    RAISE NOTICE 'Fixed menu_modifier_groups.deliverect_group_id column size';
+                END IF;
+                
+                -- Fix deliverect_modifier_id column size
+                IF EXISTS (SELECT 1 FROM information_schema.columns 
+                          WHERE table_name = 'menu_modifiers' AND column_name = 'deliverect_modifier_id' 
+                          AND character_maximum_length = 100) THEN
+                    ALTER TABLE menu_modifiers ALTER COLUMN deliverect_modifier_id TYPE VARCHAR(255);
+                    RAISE NOTICE 'Fixed menu_modifiers.deliverect_modifier_id column size';
+                END IF;
+            END $$;
+            """
+            
+            # Execute migrations
+            for sql_statement in missing_columns_sql.split(';'):
+                if sql_statement.strip():
+                    await conn.execute(text(sql_statement.strip()))
+            
+            for sql_statement in column_size_fixes_sql.split(';'):
+                if sql_statement.strip():
+                    await conn.execute(text(sql_statement.strip()))
+            
+            await conn.commit()
+            logger.info("✅ Schema migrations completed successfully")
+            
+    except Exception as e:
+        logger.error(f"Schema migration failed: {e}")
+        # Don't raise - app should still start even if migrations fail
+        logger.warning("Continuing startup despite migration failure")
 
 # Helper function for graceful database connection handling
 async def ensure_fresh_session() -> AsyncSession:

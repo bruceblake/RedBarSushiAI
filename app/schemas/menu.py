@@ -94,8 +94,11 @@ class DeliverectMenu(BaseModel):
 class MenuCategoryBase(BaseModel):
     name: str
     description: Optional[str] = None
-    display_order: int = 0
-    is_available: bool = True
+    order_index: int = 0  # Changed from display_order to match model
+    deliverect_category_id: Optional[str] = None  # Added missing field
+    location_id: Optional[str] = None  # Added missing field
+    parent_id: Optional[int] = None  # Added missing field
+    properties: Optional[Dict[str, Any]] = None  # Added missing field
 
 
 class MenuCategoryCreate(MenuCategoryBase):
@@ -105,18 +108,27 @@ class MenuCategoryCreate(MenuCategoryBase):
 class MenuCategoryUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    display_order: Optional[int] = None
-    is_available: Optional[bool] = None
+    order_index: Optional[int] = None  # Changed from display_order
+    deliverect_category_id: Optional[str] = None  # Added missing field
+    location_id: Optional[str] = None  # Added missing field
+    parent_id: Optional[int] = None  # Added missing field
+    properties: Optional[Dict[str, Any]] = None  # Added missing field
 
 
 class MenuItemBase(BaseModel):
     name: str
     description: Optional[str] = None
-    price: int  # Price in cents
-    plu: str
-    category_id: int
+    price: int  # Price in cents  
+    plu: Optional[str] = None  # Changed to optional to match model
+    category_id: Optional[int] = None  # Changed to optional to match model
+    deliverect_item_id: Optional[str] = None  # Added missing field
+    location_id: Optional[str] = None  # Added missing field
     is_available: bool = True
+    is_combo: bool = False  # Added missing field
+    is_variant: bool = False  # Added missing field
     image_url: Optional[str] = None
+    order_index: int = 0  # Added missing field
+    properties: Optional[Dict[str, Any]] = None  # Added missing field
 
 
 class MenuItemCreate(MenuItemBase):
@@ -129,8 +141,14 @@ class MenuItemUpdate(BaseModel):
     price: Optional[int] = None
     plu: Optional[str] = None
     category_id: Optional[int] = None
+    deliverect_item_id: Optional[str] = None  # Added missing field
+    location_id: Optional[str] = None  # Added missing field
     is_available: Optional[bool] = None
+    is_combo: Optional[bool] = None  # Added missing field
+    is_variant: Optional[bool] = None  # Added missing field
     image_url: Optional[str] = None
+    order_index: Optional[int] = None  # Added missing field
+    properties: Optional[Dict[str, Any]] = None  # Added missing field
 
 
 class MenuModifierBase(BaseModel):

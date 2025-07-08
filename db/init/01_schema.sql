@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
     description TEXT,
     price NUMERIC(10, 2) NOT NULL,
     plu VARCHAR(50) UNIQUE,
-    deliverect_item_id VARCHAR(100),
+    deliverect_item_id VARCHAR(255),
     is_available BOOLEAN DEFAULT TRUE,
     is_combo BOOLEAN DEFAULT FALSE,
     is_variant BOOLEAN DEFAULT FALSE,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
 -- Menu Modifier Groups
 CREATE TABLE IF NOT EXISTS menu_modifier_groups (
     id SERIAL PRIMARY KEY,
-    deliverect_group_id VARCHAR(100),
+    deliverect_group_id VARCHAR(255),
     name VARCHAR(100) NOT NULL,
     min_selection INTEGER DEFAULT 0,
     max_selection INTEGER DEFAULT 1,
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS menu_modifiers (
     name VARCHAR(100) NOT NULL,
     price_change NUMERIC(10, 2) DEFAULT 0,
     plu VARCHAR(50) UNIQUE,
-    deliverect_modifier_id VARCHAR(100),
+    deliverect_modifier_id VARCHAR(255),
     is_available BOOLEAN DEFAULT TRUE,
     snoozed_until TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
