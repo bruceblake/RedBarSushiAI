@@ -154,7 +154,7 @@ class MenuItemUpdate(BaseModel):
 class MenuModifierBase(BaseModel):
     name: str
     description: Optional[str] = None
-    price_change: int = 0  # Price change in cents
+    price_change: float = 0.0  # Price change (can be decimal)
     plu: Optional[str] = None  # Changed to optional to match model
     deliverect_modifier_id: Optional[str] = None  # Added missing field
     location_id: Optional[str] = None  # Added missing field
@@ -169,7 +169,7 @@ class MenuModifierCreate(MenuModifierBase):
 class MenuModifierUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    price_change: Optional[int] = None
+    price_change: Optional[float] = None
     plu: Optional[str] = None
     deliverect_modifier_id: Optional[str] = None  # Added missing field
     location_id: Optional[str] = None  # Added missing field
