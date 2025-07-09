@@ -118,7 +118,7 @@ class MenuCategoryUpdate(BaseModel):
 class MenuItemBase(BaseModel):
     name: str
     description: Optional[str] = None
-    price: int  # Price in cents  
+    price: float  # Price (can be decimal)  
     plu: Optional[str] = None  # Changed to optional to match model
     category_id: Optional[int] = None  # Changed to optional to match model
     deliverect_item_id: Optional[str] = None  # Added missing field
@@ -138,7 +138,7 @@ class MenuItemCreate(MenuItemBase):
 class MenuItemUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    price: Optional[int] = None
+    price: Optional[float] = None
     plu: Optional[str] = None
     category_id: Optional[int] = None
     deliverect_item_id: Optional[str] = None  # Added missing field
