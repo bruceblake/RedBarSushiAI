@@ -581,7 +581,7 @@ Be quick, accurate, and concise. NO long explanations.
     
     async def _lookup_menu_item(self, item_name: str) -> Dict[str, Any]:
         """
-        Look up a menu item by name with disambiguation support.
+        Look up a menu item by name - delegate to Menu Agent for database access.
         
         Args:
             item_name: The name of the menu item to look up
@@ -607,104 +607,43 @@ Be quick, accurate, and concise. NO long explanations.
             self.db = async_session_factory()
             logger.info("Created new database session for cart agent")
         
-        # Use menu matcher to find all matching items
-        logger.critical(f"Getting menu matcher...")
-        from app.utils.menu_matcher_db_async import AsyncMenuMatcher
-        matcher = AsyncMenuMatcher(self.db)
-        await matcher.initialize()
+        # Delegate to Menu Agent for database lookup
+        from app.agents.menu_async_enhanced import AsyncMenuAgentEnhanced
+        menu_agent = AsyncMenuAgentEnhanced(db=self.db)
         
-        logger.critical(f"Finding all matches for: '{item_name}'")
-        matches = await matcher.find_all_matching_items(item_name, threshold=0.5)
-        logger.critical(f"Found {len(matches)} matches")
+        # Use Menu Agent's lookup method
+        result = await menu_agent._lookup_menu_item(item_name)
         
-        if not matches:
-            logger.info(f"Menu item not found: {item_name}")
+        # Convert Menu Agent result to Cart Agent format
+        if result.get("found"):
+            item = result.get("item", {})
             return {
-                "found": False,
-                "search_term": item_name,
-                "message": "This item doesn't appear to be on our menu."
+                "found": True,
+                "name": item.get("name", ""),
+                "plu": item.get("plu", ""),
+                "price": item.get("price_formatted", "$0.00"),
+                "price_cents": item.get("price", 0),
+                "description": item.get("description", ""),
+                "category": item.get("category", ""),
+                "is_available": item.get("is_available", True),
+                "modifiers": item.get("modifier_groups", [])
             }
-        
-        # Check if disambiguation is needed
-        needs_disambig = len(matches) > 1
-        disambig_type = "menu_item" if needs_disambig else None
-        
-        if needs_disambig:
-            # Multiple matches found - create disambiguation options
-            options = []
-            for match in matches[:5]:  # Limit to 5 options
-                price = match.get("price", 0)
-                price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "Price unavailable"
-                options.append(f"{match['name']} ({price_str})")
-            
-            clarification = f"I found multiple items that could match '{item_name}'. Did you mean: {', '.join(options)}?"
-            
-            logger.info(f"Disambiguation needed for '{item_name}' - found {len(matches)} candidates")
-            
+        elif result.get("needs_disambiguation"):
+            # Handle disambiguation from Menu Agent
             return {
                 "found": False,
                 "needs_disambiguation": True,
-                "clarification_needed": clarification,
-                "candidates": [
-                    {
-                        "name": match["name"],
-                        "price": f"${match.get('price', 0):.2f}",
-                        "category": match.get("category", "Unknown")
-                    }
-                    for match in matches[:5]
-                ],
-                "disambiguation_type": disambig_type
+                "clarification_needed": result.get("message", "Multiple items found. Please specify."),
+                "candidates": result.get("alternatives", []),
+                "disambiguation_type": "menu_item"
             }
-        
-        # Single best match found - use it
-        menu_item = matches[0]
-        score = menu_item.get("confidence", 0)
-        
-        # Format the price for display (price is already in dollars)
-        price = menu_item.get("price", 0)
-        price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "Price unavailable"
-        
-        # Check if the item is available
-        is_available = menu_item.get("available", True) and not menu_item.get("snoozed", False)
-        
-        # Get modifiers for this item
-        modifiers = []
-        for mod_group_id in menu_item.get("modifierGroups", []):
-            group = await async_menu_db_store.get_modifier_group(self.db, mod_group_id)
-            if group:
-                mod_list = []
-                for mod_id in group.get("modifierIds", []):
-                    modifier = await async_menu_db_store.get_modifier(self.db, mod_id)
-                    if modifier and modifier.get("available", True):
-                        mod_price = modifier.get("price", 0)
-                        mod_price_str = f"${mod_price:.2f}" if mod_price else ""
-                        mod_list.append({
-                            "name": modifier.get("name", ""),
-                            "plu": modifier.get("plu", ""),
-                            "price": mod_price_str,
-                            "price_cents": mod_price or 0
-                        })
-                
-                if mod_list:
-                    modifiers.append({
-                        "group_name": group.get("name", ""),
-                        "min_selection": group.get("minAllowed", 0),
-                        "max_selection": group.get("maxAllowed", 0),
-                        "modifiers": mod_list
-                    })
-        
-        # Return formatted item details
-        return {
-            "found": True,
-            "name": menu_item.get("name", ""),
-            "plu": menu_item.get("plu", ""),
-            "price": price_str,
-            "price_cents": price,
-            "description": menu_item.get("description", ""),
-            "category": menu_item.get("category", ""),
-            "is_available": is_available,
-            "modifiers": modifiers
-        }
+        else:
+            # No match found
+            return {
+                "found": False,
+                "search_term": item_name,
+                "message": result.get("message", "This item doesn't appear to be on our menu.")
+            }
     
     async def _add_item_to_cart(
         self, 
@@ -1144,35 +1083,32 @@ Be quick, accurate, and concise. NO long explanations.
         
         categories = category_map.get(suggestion_type, ["Popular"])
         
-        # Get suggested items from these categories
+        # Get suggested items from these categories using Menu Agent
         suggested_items = []
         
-        # Check what categories are already in the cart
-        cart_categories = set()
-        for item in current_cart.get("items", []):
-            # Get the item by PLU to find its category
-            db_item = await async_menu_db_store.get_item_by_plu(item.get("plu", ""), self.db)
-            if db_item:
-                cart_categories.add(db_item.get("category", ""))
+        # Get a fresh database session if we don't have one
+        if self.db is None:
+            from app.db_async import async_session_factory
+            self.db = async_session_factory()
+            logger.info("Created new database session for cart agent")
         
-        # Get items from related categories
-        for category in categories:
-            items = await async_menu_db_store.get_items_by_category(self.db, category)
-            # Only add available items
-            for item in items:
-                if item.get("available", True) and not item.get("snoozed", False):
-                    # Format price
-                    price = item.get("price", 0)
-                    price_str = f"${price/100:.2f}" if isinstance(price, (int, float)) else "Price unavailable"
-                    
-                    suggested_items.append({
-                        "name": item.get("name", ""),
-                        "plu": item.get("plu", ""),
-                        "price": price_str,
-                        "price_cents": price,
-                        "description": item.get("description", ""),
-                        "category": item.get("category", "")
-                    })
+        # Use Menu Agent to get popular items
+        from app.agents.menu_async_enhanced import AsyncMenuAgentEnhanced
+        menu_agent = AsyncMenuAgentEnhanced(db=self.db)
+        
+        # Get popular items from the relevant category
+        result = await menu_agent._get_popular_items(category=suggestion_type, max_results=5)
+        
+        if result.get("items"):
+            for item in result["items"]:
+                suggested_items.append({
+                    "name": item.get("name", ""),
+                    "plu": item.get("plu", ""),
+                    "price": item.get("price_formatted", "$0.00"),
+                    "price_cents": item.get("price", 0),
+                    "description": item.get("description", ""),
+                    "category": item.get("category", "")
+                })
         
         # Limit to 5 suggestions
         suggested_items = suggested_items[:5]

@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 
 from app.agents.base_async import BaseAsyncAgent
 from app.agents.ai_mixin import AIIntelligenceMixin
-from app.services.deliverect_service import deliverect_service
+from app.db.crud_menu_async import get_item_by_plu
 from app.utils.enhanced_logging import get_logger
 from app.config import settings
 
@@ -28,13 +28,14 @@ class AsyncValidationAgent(BaseAsyncAgent, AIIntelligenceMixin):
     - Provides specific remediation instructions
     """
     
-    def __init__(self, agent_id: Optional[str] = None, **kwargs):
+    def __init__(self, agent_id: Optional[str] = None, db=None, **kwargs):
         """Initialize the validation agent."""
         BaseAsyncAgent.__init__(self, agent_id=agent_id, name="ValidationAgent", **kwargs)
         AIIntelligenceMixin.__init__(self)
         
         # Set agent-specific max tokens
         self._default_max_tokens = getattr(settings, 'VALIDATION_AGENT_MAX_TOKENS', 128)
+        self.db = db
         
         self.instructions = f"""
         You are a validation specialist for {settings.RESTAURANT_NAME}. Your job is to analyze 
@@ -180,16 +181,21 @@ class AsyncValidationAgent(BaseAsyncAgent, AIIntelligenceMixin):
                 logger.warning(f"Item missing PLU: {item}")
                 continue
             
-            # Get product details from cache
+            # Get product details from database
             try:
-                product = await deliverect_service.get_cached_product(item_plu)
+                if not self.db:
+                    from app.db_async import async_session_factory
+                    self.db = async_session_factory()
+                    logger.info("Created new database session for validation agent")
+                
+                product = await get_item_by_plu(self.db, item_plu)
                 
                 if not product:
-                    logger.warning(f"Product not found in cache: {item_plu}")
+                    logger.warning(f"Product not found in database: {item_plu}")
                     continue
                 
                 # Check if item is available
-                if product.snoozed:
+                if not product.is_available or product.snoozed_until is not None:
                     issues.append({
                         "issue_type": "ITEM_UNAVAILABLE",
                         "item_name": item.get('name', product.name),
@@ -200,75 +206,79 @@ class AsyncValidationAgent(BaseAsyncAgent, AIIntelligenceMixin):
                     })
                     continue
                 
-                # Validate required modifiers
-                for group_plu in product.sub_products:
-                    group = await deliverect_service.get_cached_modifier_group(group_plu)
-                    
-                    if group and group.min_selection > 0:
-                        # Count selected modifiers from this group
-                        item_modifiers = item.get('modifiers', [])
-                        selected_count = 0
-                        
-                        for modifier in item_modifiers:
-                            modifier_plu = modifier.get('plu') if isinstance(modifier, dict) else modifier
-                            if modifier_plu in group.sub_products:
-                                selected_count += 1
-                        
-                        if selected_count < group.min_selection:
-                            # Get available modifier names for the prompt
-                            available_modifiers = []
-                            for mod_plu in group.sub_products[:3]:  # Limit to first 3 for readability
-                                modifier = await deliverect_service.get_cached_modifier(mod_plu)
-                                if modifier and not modifier.snoozed:
-                                    available_modifiers.append(modifier.name)
+                # Validate required modifiers using database relationships
+                if hasattr(product, 'modifier_groups'):
+                    for group in product.modifier_groups:
+                        if group.min_selection > 0:
+                            # Count selected modifiers from this group
+                            item_modifiers = item.get('modifiers', [])
+                            selected_count = 0
                             
-                            issues.append({
-                                "issue_type": "MISSING_REQUIRED_MODIFIER",
-                                "item_name": item.get('name', product.name),
-                                "item_index": item_index,
-                                "group_name": group.name,
-                                "required_count": group.min_selection,
-                                "selected_count": selected_count,
-                                "message": f"The item '{product.name}' is missing a required selection from '{group.name}'.",
-                                "remediation_prompt": f"For the '{product.name}', what would you like for the '{group.name}'? You can choose from: {', '.join(available_modifiers)}.",
-                                "available_options": available_modifiers,
-                                "context": {
-                                    "item_plu": item_plu,
-                                    "group_plu": group_plu,
-                                    "item_index": item_index
-                                }
-                            })
-                
-                # Check maximum modifier limits
-                for group_plu in product.sub_products:
-                    group = await deliverect_service.get_cached_modifier_group(group_plu)
-                    
-                    if group and group.max_selection > 0:
-                        # Count selected modifiers from this group
-                        item_modifiers = item.get('modifiers', [])
-                        selected_count = 0
+                            for modifier in item_modifiers:
+                                modifier_plu = modifier.get('plu') if isinstance(modifier, dict) else modifier
+                                # Check if this modifier belongs to the current group
+                                if hasattr(group, 'modifiers'):
+                                    for group_modifier in group.modifiers:
+                                        if group_modifier.plu == modifier_plu:
+                                            selected_count += 1
+                                            break
+                            
+                            if selected_count < group.min_selection:
+                                # Get available modifier names for the prompt
+                                available_modifiers = []
+                                if hasattr(group, 'modifiers'):
+                                    for mod in group.modifiers[:3]:  # Limit to first 3 for readability
+                                        if mod.is_available and mod.snoozed_until is None:
+                                            available_modifiers.append(mod.name)
+                                
+                                issues.append({
+                                    "issue_type": "MISSING_REQUIRED_MODIFIER",
+                                    "item_name": item.get('name', product.name),
+                                    "item_index": item_index,
+                                    "group_name": group.name,
+                                    "required_count": group.min_selection,
+                                    "selected_count": selected_count,
+                                    "message": f"The item '{product.name}' is missing a required selection from '{group.name}'.",
+                                    "remediation_prompt": f"For the '{product.name}', what would you like for the '{group.name}'? You can choose from: {', '.join(available_modifiers)}.",
+                                    "available_options": available_modifiers,
+                                    "context": {
+                                        "item_plu": item_plu,
+                                        "group_plu": group.plu,
+                                        "item_index": item_index
+                                    }
+                                })
                         
-                        for modifier in item_modifiers:
-                            modifier_plu = modifier.get('plu') if isinstance(modifier, dict) else modifier
-                            if modifier_plu in group.sub_products:
-                                selected_count += 1
-                        
-                        if selected_count > group.max_selection:
-                            issues.append({
-                                "issue_type": "TOO_MANY_MODIFIERS",
-                                "item_name": item.get('name', product.name),
-                                "item_index": item_index,
-                                "group_name": group.name,
-                                "max_allowed": group.max_selection,
-                                "selected_count": selected_count,
-                                "message": f"The item '{product.name}' has too many selections from '{group.name}' (max: {group.max_selection}).",
-                                "remediation_prompt": f"For the '{product.name}', please choose only {group.max_selection} option(s) from '{group.name}'.",
-                                "context": {
-                                    "item_plu": item_plu,
-                                    "group_plu": group_plu,
-                                    "item_index": item_index
-                                }
-                            })
+                        # Check maximum modifier limits
+                        if group.max_selection > 0:
+                            # Count selected modifiers from this group
+                            item_modifiers = item.get('modifiers', [])
+                            selected_count = 0
+                            
+                            for modifier in item_modifiers:
+                                modifier_plu = modifier.get('plu') if isinstance(modifier, dict) else modifier
+                                # Check if this modifier belongs to the current group
+                                if hasattr(group, 'modifiers'):
+                                    for group_modifier in group.modifiers:
+                                        if group_modifier.plu == modifier_plu:
+                                            selected_count += 1
+                                            break
+                            
+                            if selected_count > group.max_selection:
+                                issues.append({
+                                    "issue_type": "TOO_MANY_MODIFIERS",
+                                    "item_name": item.get('name', product.name),
+                                    "item_index": item_index,
+                                    "group_name": group.name,
+                                    "max_allowed": group.max_selection,
+                                    "selected_count": selected_count,
+                                    "message": f"The item '{product.name}' has too many selections from '{group.name}' (max: {group.max_selection}).",
+                                    "remediation_prompt": f"For the '{product.name}', please choose only {group.max_selection} option(s) from '{group.name}'.",
+                                    "context": {
+                                        "item_plu": item_plu,
+                                        "group_plu": group.plu,
+                                        "item_index": item_index
+                                    }
+                                })
                 
             except Exception as e:
                 logger.error(f"Error validating item {item_plu}: {e}")
@@ -326,7 +336,12 @@ class AsyncValidationAgent(BaseAsyncAgent, AIIntelligenceMixin):
                 item_plu = item.get('plu') or item.get('menu_item_plu')
                 
                 if item_plu:
-                    product = await deliverect_service.get_cached_product(item_plu)
+                    if not self.db:
+                        from app.db_async import async_session_factory
+                        self.db = async_session_factory()
+                        logger.info("Created new database session for validation agent")
+                    
+                    product = await get_item_by_plu(self.db, item_plu)
                     
                     if product and allergens:
                         # Check product tags for allergen indicators
