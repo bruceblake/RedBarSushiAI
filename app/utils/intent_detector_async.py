@@ -114,7 +114,7 @@ class AsyncIntentDetector:
             # Return None - no fallback logic as per requirement
             return None
     
-    def _build_system_prompt(self, current_state: ConversationState) -> str:
+    def _build_system_prompt(self, current_state: str) -> str:
         """Build state-specific system prompt for intent detection."""
         base_prompt = """You are an intent classifier for a restaurant phone ordering system.
 Analyze the user's message and return ONLY ONE of the allowed intents listed below.
