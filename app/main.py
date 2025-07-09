@@ -344,6 +344,24 @@ async def fix_schema_manually() -> Dict[str, Any]:
     except Exception as e:
         return {"success": False, "error": f"Schema fix failed: {e}"}
 
+@app.post("/create-missing-tables")
+async def create_missing_tables() -> Dict[str, Any]:
+    """Create any missing tables using SQLAlchemy metadata."""
+    try:
+        from app.db_async import engine, Base
+        
+        results = []
+        
+        # Force create all tables using SQLAlchemy metadata
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            results.append("✅ Created all tables from SQLAlchemy metadata")
+        
+        return {"success": True, "results": results}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Table creation failed: {e}"}
+
 @app.get("/environment")
 async def environment_info() -> Dict[str, Any]:
     """Return detailed information about the environment."""
