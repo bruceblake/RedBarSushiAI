@@ -64,6 +64,7 @@ class HSMManager:
         """Register all default HSM state handlers."""
         try:
             # Import all HSM handlers
+            from app.fsm.handlers.hsm_initial import InitialHSMHandler
             from app.fsm.handlers.hsm_greeting import GreetingHSMHandler
             from app.fsm.handlers.hsm_main_menu import MainMenuHSMHandler
             from app.fsm.handlers.hsm_ordering import (
@@ -93,6 +94,7 @@ class HSMManager:
             )
             
             # Register main state handlers
+            self.register_handler(ConversationHSMStates.INITIAL, InitialHSMHandler())
             self.register_handler(ConversationHSMStates.GREETING, GreetingHSMHandler())
             self.register_handler(ConversationHSMStates.MAIN_MENU, MainMenuHSMHandler())
             self.register_handler(ConversationHSMStates.COMPLETION, CompletionHandler())
