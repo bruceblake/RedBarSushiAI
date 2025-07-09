@@ -14,7 +14,7 @@ from app.agents.base_async import BaseAsyncAgent
 from app.agents.ai_mixin import AIIntelligenceMixin
 from app.config import settings
 from app.utils.response_cache import response_cache
-from app.fsm.hsm_core import ConversationHSMStates, ConversationHSMEvents
+from app.fsm.core import ConversationHSMStates, ConversationHSMEvents
 
 logger = logging.getLogger(__name__)
 
@@ -256,9 +256,9 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
             self.context["customer_name"] = context["customer_name"]
         
         # Check if FSM state transition occurred
-        if context.get("state_transition_occurred") and context.get("fsm_state"):
-            logger.critical(f"STATE TRANSITION DETECTED: Updating agent state to {context['fsm_state']}")
-            self.conversation_state = context["fsm_state"]
+        if context.get("state_transition_occurred") and context.get("hsm_state"):
+            logger.critical(f"STATE TRANSITION DETECTED: Updating agent state to {context['hsm_state']}")
+            self.conversation_state = context["hsm_state"]
             logger.critical(f"Agent conversation state updated to: {self.conversation_state}")
         
         # Handle first interaction - generate greeting WITHOUT AI for speed
@@ -506,46 +506,14 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
         # Add conversation history to the context for AI processing
         context["conversation_history"] = self.context.get("conversation_history", [])
         
-        # If we just transitioned from greeting and got a name, acknowledge it
-        if self.context.get("customer_name") and context.get("state_transition_occurred") and not self.context.get("name_acknowledged"):
-            context["state_guidance"] = f"""
-        You just got the customer's name ({self.context['customer_name']}) and transitioned to the main menu.
-        Acknowledge their name warmly and ask how you can help them today.
-        IMPORTANT: Use their name {self.context['customer_name']} in your response!
-        For example: "Nice to meet you, {self.context['customer_name']}! How can I help you today?"
-        """
-            
-            # Mark that we've acknowledged the name
+        # Skip the name acknowledgment logic - it's causing cached responses
+        # The name acknowledgment should happen in the greeting phase, not main menu
+        # Just set the flag to prevent future acknowledgments
+        if self.context.get("customer_name") and not self.context.get("name_acknowledged"):
             self.context["name_acknowledged"] = True
-            
-            # Try with AI first - use streaming for the greeting acknowledgment
-            if stream_callback:
-                # Send immediate acknowledgment while processing
-                immediate_ack = f"Nice to meet you, {self.context.get('customer_name', '')}!"
-                await stream_callback(immediate_ack, False)
-                
-                # Now get the full response
-                response = await self.process_with_ai(input_text, context)
-                
-                # Send the rest of the response
-                remaining_text = response.get("text", "").replace(immediate_ack, "").strip()
-                if remaining_text:
-                    await stream_callback(remaining_text, True)
-            else:
-                response = await self.process_with_ai(input_text, context)
-            
-            # If AI failed, provide a fallback response
-            if response.get("text", "").startswith("[FrontlineVoiceAI] Processed:"):
-                customer_name = self.context.get("customer_name", "friend")
-                response = {
-                    "text": f"Nice to meet you, {customer_name}! How can I help you today? Would you like to place an order, or do you have questions about our menu?",
-                    "agent": self.name,
-                    "handled": True,
-                    "actions": []
-                }
-                logger.info(f"Using fallback main menu response for {customer_name}")
-        else:
-            context["state_guidance"] = f"""
+        
+        # Process all main menu inputs the same way
+        context["state_guidance"] = f"""
         CRITICAL CONTEXT: You are in the MAIN MENU phase after greeting is complete.
         
         Customer name: {self.context.get('customer_name')}
@@ -585,17 +553,17 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
         
         If unsure whether something is a food item or name, ASSUME IT IS A FOOD ITEM in this state.
         """
-            response = await self.process_with_ai(input_text, context)
-            
-            # No fallback - AI is required
-            if response.get("text", "").startswith("[FrontlineVoiceAI] Processed:"):
-                logger.error("AI failed - OpenAI API is required")
-                response = {
-                    "text": "I apologize, but I'm having technical difficulties. Please try again later.",
-                    "agent": self.name,
-                    "handled": True,
-                    "actions": []
-                }
+        response = await self.process_with_ai(input_text, context)
+        
+        # No fallback - AI is required
+        if response.get("text", "").startswith("[FrontlineVoiceAI] Processed:"):
+            logger.error("AI failed - OpenAI API is required")
+            response = {
+                "text": "I apologize, but I'm having technical difficulties. Please try again later.",
+                "agent": self.name,
+                "handled": True,
+                "actions": []
+            }
         
         # Stream the response if we have a callback and response text
         if stream_callback and response.get("text"):

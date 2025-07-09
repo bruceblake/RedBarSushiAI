@@ -43,7 +43,7 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         self, 
         call_sid: str, 
         order_details: Dict[str, Any],
-        fsm_context_data: Dict[str, Any],
+        hsm_context_data: Dict[str, Any],
         db: Optional[AsyncSession] = None
     ) -> Dict[str, Any]:
         """
@@ -52,7 +52,7 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         Args:
             call_sid: The call session ID
             order_details: The validated order details to submit
-            fsm_context_data: The full FSM context
+            hsm_context_data: The full HSM context
             db: Database session
             
         Returns:
@@ -112,10 +112,10 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
                 )
                 
                 # Signal to FSM that order is submitted
-                fsm_context_data.get("call_specific_data", {})["next_fsm_event_name"] = "COMPLETE_INTERACTION"
-                fsm_context_data.get("call_specific_data", {})["order_id"] = order_id
-                fsm_context_data.get("call_specific_data", {})["deliverect_order_id"] = deliverect_id
-                fsm_context_data.get("call_specific_data", {})["estimated_time"] = estimated_time
+                hsm_context_data.get("call_specific_data", {})["next_hsm_event_name"] = "COMPLETE_INTERACTION"
+                hsm_context_data.get("call_specific_data", {})["order_id"] = order_id
+                hsm_context_data.get("call_specific_data", {})["deliverect_order_id"] = deliverect_id
+                hsm_context_data.get("call_specific_data", {})["estimated_time"] = estimated_time
                 
                 return {
                     "text": tts_response,
@@ -160,9 +160,9 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
                 )
                 
                 # Signal to FSM - still complete but with a flag
-                fsm_context_data.get("call_specific_data", {})["next_fsm_event_name"] = "COMPLETE_INTERACTION"
-                fsm_context_data.get("call_specific_data", {})["order_id"] = order_id
-                fsm_context_data.get("call_specific_data", {})["pos_submission_failed"] = True
+                hsm_context_data.get("call_specific_data", {})["next_hsm_event_name"] = "ERROR_OCCURRED"
+                hsm_context_data.get("call_specific_data", {})["order_id"] = order_id
+                hsm_context_data.get("call_specific_data", {})["pos_submission_failed"] = True
                 
                 return {
                     "text": tts_response,

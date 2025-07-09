@@ -37,7 +37,7 @@ class AsyncGuardrailAgent(BaseAsyncAgent):
         self, 
         call_sid: str, 
         order_details: Dict[str, Any],
-        fsm_context_data: Dict[str, Any]
+        hsm_context_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Validate an order against business rules and constraints.
@@ -45,7 +45,7 @@ class AsyncGuardrailAgent(BaseAsyncAgent):
         Args:
             call_sid: The call session ID
             order_details: The order details to validate
-            fsm_context_data: The full FSM context
+            hsm_context_data: The full HSM context
             
         Returns:
             Dict with validation results and next actions
@@ -85,11 +85,11 @@ class AsyncGuardrailAgent(BaseAsyncAgent):
         # Determine response based on validation
         if is_valid:
             tts_response = "Your order has been validated and looks good!"
-            # Signal to FSM that order is valid
-            fsm_context_data.get("call_specific_data", {})["next_fsm_event_name"] = "ORDER_VALID"
+            # Signal to HSM that order is valid
+            hsm_context_data.get("call_specific_data", {})["next_hsm_event_name"] = "ORDER_VALID"
         else:
             tts_response = f"There are some issues with your order: {'. '.join(validation_issues)}. Please revise your order."
-            fsm_context_data.get("call_specific_data", {})["next_fsm_event_name"] = "ORDER_INVALID"
+            hsm_context_data.get("call_specific_data", {})["next_hsm_event_name"] = "ORDER_INVALID"
         
         return {
             "text": tts_response,

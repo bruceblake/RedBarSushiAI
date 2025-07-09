@@ -7,7 +7,7 @@ This module contains the HSM handlers for all CONFIRMATION states and substates.
 import logging
 from typing import Dict, Any, Optional
 
-from app.fsm.hsm_core import HSMStateHandler, HSMEvent, ConversationHSMStates, ConversationHSMEvents
+from app.fsm.core import HSMStateHandler, HSMEvent, ConversationHSMStates, ConversationHSMEvents
 from app.utils.enhanced_logging import get_logger
 
 logger = get_logger(__name__)

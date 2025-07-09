@@ -13,8 +13,8 @@ from typing import Dict, List, Any, Optional, Union, Callable, Tuple, AsyncGener
 from app.agents.factory_async import async_agent_factory
 from app.utils.conversation_store_async import async_conversation_store
 from app.utils.conversation_store_async import async_agents_conversation_store
-from app.fsm.hsm_manager import hsm_manager
-from app.fsm.hsm_core import (
+from app.fsm.manager import hsm_manager
+from app.fsm.core import (
     ConversationHSMStates, ConversationHSMEvents, HSMEvent
 )
 from app.config import settings
@@ -244,7 +244,7 @@ class AsyncAgentOrchestrator:
         agent_name = response.get("agent", agent.__class__.__name__)
         actions = response.get("actions", [])
         
-        # Check for transfer call action and handle it
+        # Check for actions that should trigger HSM transitions
         for action in actions:
             if action.get("type") == "TRANSFER_CALL":
                 # This is where you would generate the TwiML for call transfer.
@@ -255,6 +255,15 @@ class AsyncAgentOrchestrator:
                 # Mark that the call should end from the AI's perspective
                 response["end_call"] = True
                 logger.info(f"Call transfer initiated for {call_sid}")
+            elif action.get("type") == "set_customer_name":
+                # Agent detected customer name - trigger HSM transition
+                logger.critical(f"Agent detected customer name: {action.get('name')}")
+                if current_leaf == ConversationHSMStates.GREETING:
+                    name_event = HSMEvent(ConversationHSMEvents.USER_PROVIDES_NAME, {"name": action.get("name")})
+                    new_leaf = await hsm_manager.handle_event(call_sid, name_event, context)
+                    if new_leaf:
+                        current_leaf = new_leaf
+                        logger.critical(f"HSM transitioned to {current_leaf} after customer name detection")
         
         # Skip duplicate conversation store - agents handle this themselves
         
@@ -362,68 +371,17 @@ class AsyncAgentOrchestrator:
             HSM event if detected, None otherwise
         """
         try:
-            # Use the existing intent detector to map to HSM events
+            # Use the intent detector which now works directly with HSM
             from app.utils.intent_detector_async import intent_detector
             
-            # Convert HSM state back to FSM-style for intent detector compatibility
-            # This is a temporary mapping until we update the intent detector
-            state_mapping = {
-                ConversationHSMStates.INITIAL: "INITIAL",
-                ConversationHSMStates.GREETING: "GREETING", 
-                ConversationHSMStates.MAIN_MENU: "MAIN_MENU",
-                ConversationHSMStates.ORDERING: "ORDERING",
-                ConversationHSMStates.VALIDATION: "VALIDATION",
-                ConversationHSMStates.CONFIRMATION: "CONFIRMATION",
-                ConversationHSMStates.FULFILLMENT: "FULFILLMENT",
-                ConversationHSMStates.COMPLETION: "COMPLETION",
-                ConversationHSMStates.FOLLOW_UP: "FOLLOW_UP",
-                ConversationHSMStates.ESCALATION: "ESCALATION"
-            }
-            
-            # Get base state for ordering substates
-            if current_state.startswith("ACTIVE.ORDERING"):
-                mapped_state = "ORDERING"
-            elif current_state.startswith("ACTIVE.CONFIRMATION"):
-                mapped_state = "CONFIRMATION"
-            elif current_state.startswith("ACTIVE.FULFILLMENT"):
-                mapped_state = "FULFILLMENT"
-            elif current_state.startswith("ERROR_RECOVERY"):
-                mapped_state = "ERROR"
-            else:
-                mapped_state = state_mapping.get(current_state, "MAIN_MENU")
-            
-            # Create a mock state object for the intent detector
-            from app.fsm.core import ConversationState
-            mock_state = getattr(ConversationState, mapped_state, ConversationState.MAIN_MENU)
-            
-            # Detect intent using existing intent detector
+            # Detect intent using the HSM-compatible intent detector
             detected_event = await intent_detector.detect_intent(
                 transcript=input_text,
-                current_state=mock_state,
+                current_state=current_state,
                 context=context
             )
             
-            if detected_event:
-                # Map FSM events to HSM events
-                event_mapping = {
-                    "START_CONVERSATION": ConversationHSMEvents.START_CONVERSATION,
-                    "USER_PROVIDES_NAME": ConversationHSMEvents.USER_PROVIDES_NAME,
-                    "REQUEST_MENU_INFO": ConversationHSMEvents.REQUEST_MENU_INFO,
-                    "START_ORDER": ConversationHSMEvents.START_ORDER,
-                    "ADD_ITEM": ConversationHSMEvents.ADD_ITEM,
-                    "COMPLETE_ORDER": ConversationHSMEvents.COMPLETE_ORDER,
-                    "CONFIRM_ORDER": ConversationHSMEvents.CONFIRM_ORDER,
-                    "REJECT_ORDER": ConversationHSMEvents.REJECT_ORDER,
-                    "COMPLETE_INTERACTION": ConversationHSMEvents.COMPLETE_INTERACTION,
-                    "REQUEST_ESCALATION": ConversationHSMEvents.REQUEST_ESCALATION,
-                    "ERROR_OCCURRED": ConversationHSMEvents.ERROR_OCCURRED,
-                    "USER_REQUESTS_CANCELLATION": ConversationHSMEvents.USER_REQUESTS_CANCELLATION
-                }
-                
-                hsm_event_name = event_mapping.get(detected_event.name, detected_event.name)
-                return HSMEvent(hsm_event_name, context)
-            
-            return None
+            return detected_event
             
         except Exception as e:
             logger.error(f"Error detecting HSM event: {e}", exc_info=True)

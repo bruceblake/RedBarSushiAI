@@ -7,7 +7,7 @@ and its substates: BROWSING, MENU_INQUIRY, ITEM_CUSTOMIZATION, CART_REVIEW.
 
 from typing import Dict, Any, Optional
 
-from app.fsm.hsm_core import HSMStateHandler, HSMEvent, ConversationHSMStates
+from app.fsm.core import HSMStateHandler, HSMEvent, ConversationHSMStates
 from app.utils.enhanced_logging import get_logger
 
 logger = get_logger(__name__)
@@ -242,5 +242,101 @@ class OrderingCartReviewHandler(HSMStateHandler):
             else:
                 logger.warning("Cannot checkout with empty cart")
                 return None
+        
+        return None
+
+
+class OrderingValidationHandler(HSMStateHandler):
+    """Handler for ORDERING.VALIDATION substate."""
+    
+    def __init__(self):
+        super().__init__(ConversationHSMStates.ORDERING_VALIDATION)
+    
+    async def on_enter(self, context: Dict[str, Any], event: Optional[HSMEvent] = None) -> None:
+        """User is validating items in cart."""
+        await super().on_enter(context, event)
+        logger.info("Validating cart items for availability and pricing")
+    
+    async def handle_event(self, event: HSMEvent, context: Dict[str, Any]) -> Optional[str]:
+        """Handle validation events."""
+        if event.name == "ORDER_VALID":
+            # Validation passed - proceed to checkout
+            return ConversationHSMStates.ORDERING_CART_REVIEW
+        
+        elif event.name == "ORDER_INVALID":
+            # Validation failed - return to browsing
+            return ConversationHSMStates.ORDERING_BROWSING
+        
+        return None
+
+
+class OrderingOutOfStockHandler(HSMStateHandler):
+    """Handler for ORDERING.OUT_OF_STOCK substate."""
+    
+    def __init__(self):
+        super().__init__(ConversationHSMStates.ORDERING_OUT_OF_STOCK)
+    
+    async def on_enter(self, context: Dict[str, Any], event: Optional[HSMEvent] = None) -> None:
+        """Handle out of stock scenarios."""
+        await super().on_enter(context, event)
+        logger.info("Handling out of stock item request")
+    
+    async def handle_event(self, event: HSMEvent, context: Dict[str, Any]) -> Optional[str]:
+        """Handle out of stock events."""
+        if event.name == "SELECT_ALTERNATIVE":
+            # User selected alternative item
+            return ConversationHSMStates.ORDERING_ITEM_CUSTOMIZATION
+        
+        elif event.name == "CONTINUE_BROWSING":
+            # User wants to continue browsing
+            return ConversationHSMStates.ORDERING_BROWSING
+        
+        return None
+
+
+class OrderingUpsellSuggestionHandler(HSMStateHandler):
+    """Handler for ORDERING.UPSELL_SUGGESTION substate."""
+    
+    def __init__(self):
+        super().__init__(ConversationHSMStates.ORDERING_UPSELL_SUGGESTION)
+    
+    async def on_enter(self, context: Dict[str, Any], event: Optional[HSMEvent] = None) -> None:
+        """Present upsell suggestions."""
+        await super().on_enter(context, event)
+        logger.info("Presenting upsell suggestions")
+    
+    async def handle_event(self, event: HSMEvent, context: Dict[str, Any]) -> Optional[str]:
+        """Handle upsell events."""
+        if event.name == "ACCEPT_UPSELL":
+            # User accepted upsell
+            return ConversationHSMStates.ORDERING_ITEM_CUSTOMIZATION
+        
+        elif event.name == "DECLINE_UPSELL":
+            # User declined upsell
+            return ConversationHSMStates.ORDERING_CART_REVIEW
+        
+        return None
+
+
+class OrderingItemModificationHandler(HSMStateHandler):
+    """Handler for ORDERING.ITEM_MODIFICATION substate."""
+    
+    def __init__(self):
+        super().__init__(ConversationHSMStates.ORDERING_ITEM_MODIFICATION)
+    
+    async def on_enter(self, context: Dict[str, Any], event: Optional[HSMEvent] = None) -> None:
+        """Handle item modification for existing cart items."""
+        await super().on_enter(context, event)
+        logger.info("Modifying existing cart item")
+    
+    async def handle_event(self, event: HSMEvent, context: Dict[str, Any]) -> Optional[str]:
+        """Handle item modification events."""
+        if event.name == "CONFIRM_MODIFICATION":
+            # Modification confirmed
+            return ConversationHSMStates.ORDERING_CART_REVIEW
+        
+        elif event.name == "CANCEL_MODIFICATION":
+            # Modification cancelled
+            return ConversationHSMStates.ORDERING_CART_REVIEW
         
         return None

@@ -60,10 +60,10 @@ class AsyncEscalationAgent(BaseAsyncAgent):
         # Simulate escalation outcome
         tts_response = "I'll connect you with a staff member who can assist you further. Please hold while I transfer your call."
         
-        # Update FSM context
+        # Update HSM context
         if "call_specific_data" in context and isinstance(context["call_specific_data"], dict):
             context["call_specific_data"]["escalation_reason"] = reason
-            context["call_specific_data"]["next_fsm_event_name"] = "ESCALATION_INITIATED"
+            context["call_specific_data"]["next_hsm_event_name"] = "REQUEST_ESCALATION"
         
         return {
             "text": tts_response,

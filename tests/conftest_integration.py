@@ -205,11 +205,11 @@ def mock_deliverect_service():
 
 
 @pytest.fixture
-async def mock_fsm_manager(mock_redis):
-    """Create a mock FSM manager."""
-    from app.utils.fsm_async import AsyncFSMManager
+async def mock_hsm_manager(mock_redis):
+    """Create a mock HSM manager."""
+    from app.fsm.manager import HSMManager
     
-    manager = AsyncFSMManager(redis_client=mock_redis)
+    manager = HSMManager()
     return manager
 
 

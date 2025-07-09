@@ -10,7 +10,7 @@ import logging
 from typing import Dict, List, Any, Optional, Set, Tuple
 from collections import defaultdict
 
-from app.fsm.hsm_core import (
+from app.fsm.core import (
     HSMStateDefinition, HSMEvent, HSMStateHandler, HSMTransition,
     HSMTransitionType, ConversationHSMStates, create_conversation_hsm_states
 )
@@ -64,29 +64,34 @@ class HSMManager:
         """Register all default HSM state handlers."""
         try:
             # Import all HSM handlers
-            from app.fsm.handlers.hsm_initial import InitialHSMHandler
-            from app.fsm.handlers.hsm_greeting import GreetingHSMHandler
-            from app.fsm.handlers.hsm_main_menu import MainMenuHSMHandler
-            from app.fsm.handlers.hsm_ordering import (
+            from app.fsm.handlers.initial import InitialHSMHandler
+            from app.fsm.handlers.greeting import GreetingHSMHandler
+            from app.fsm.handlers.main_menu import MainMenuHSMHandler
+            from app.fsm.handlers.validation import ValidationHSMHandler
+            from app.fsm.handlers.follow_up import FollowUpHSMHandler
+            from app.fsm.handlers.escalation import EscalationHSMHandler
+            from app.fsm.handlers.ordering import (
                 OrderingSuperStateHandler, OrderingBrowsingHandler,
                 OrderingMenuInquiryHandler, OrderingItemCustomizationHandler,
-                OrderingCartReviewHandler
+                OrderingCartReviewHandler, OrderingValidationHandler,
+                OrderingOutOfStockHandler, OrderingUpsellSuggestionHandler,
+                OrderingItemModificationHandler
             )
-            from app.fsm.handlers.hsm_confirmation import (
+            from app.fsm.handlers.confirmation import (
                 ConfirmationSuperStateHandler, ConfirmationReviewHandler,
                 ConfirmationModifyHandler, ConfirmationPaymentHandler,
                 ConfirmationDeliveryHandler
             )
-            from app.fsm.handlers.hsm_fulfillment import (
+            from app.fsm.handlers.fulfillment import (
                 FulfillmentSuperStateHandler, FulfillmentProcessingHandler,
                 FulfillmentTrackingHandler, FulfillmentDeliveryHandler
             )
-            from app.fsm.handlers.hsm_completion import CompletionHandler
-            from app.fsm.handlers.hsm_error_recovery import (
+            from app.fsm.handlers.completion import CompletionHandler
+            from app.fsm.handlers.error_recovery import (
                 ErrorRecoverySuperStateHandler, ErrorRetryHandler,
                 ErrorFallbackHandler, ErrorEscalationHandler
             )
-            from app.fsm.handlers.hsm_global import (
+            from app.fsm.handlers.global_handlers import (
                 GlobalInquirySuperStateHandler, InquiryMenuHandler,
                 InquiryHoursHandler, InquiryLocationHandler, InquiryPoliciesHandler,
                 GlobalHelpHandler, GlobalCancellationSuperStateHandler,
@@ -97,6 +102,9 @@ class HSMManager:
             self.register_handler(ConversationHSMStates.INITIAL, InitialHSMHandler())
             self.register_handler(ConversationHSMStates.GREETING, GreetingHSMHandler())
             self.register_handler(ConversationHSMStates.MAIN_MENU, MainMenuHSMHandler())
+            self.register_handler(ConversationHSMStates.VALIDATION, ValidationHSMHandler())
+            self.register_handler(ConversationHSMStates.FOLLOW_UP, FollowUpHSMHandler())
+            self.register_handler(ConversationHSMStates.ESCALATION, EscalationHSMHandler())
             self.register_handler(ConversationHSMStates.COMPLETION, CompletionHandler())
             
             # Register ordering handlers
@@ -105,6 +113,10 @@ class HSMManager:
             self.register_handler(ConversationHSMStates.ORDERING_MENU_INQUIRY, OrderingMenuInquiryHandler())
             self.register_handler(ConversationHSMStates.ORDERING_ITEM_CUSTOMIZATION, OrderingItemCustomizationHandler())
             self.register_handler(ConversationHSMStates.ORDERING_CART_REVIEW, OrderingCartReviewHandler())
+            self.register_handler(ConversationHSMStates.ORDERING_VALIDATION, OrderingValidationHandler())
+            self.register_handler(ConversationHSMStates.ORDERING_OUT_OF_STOCK, OrderingOutOfStockHandler())
+            self.register_handler(ConversationHSMStates.ORDERING_UPSELL_SUGGESTION, OrderingUpsellSuggestionHandler())
+            self.register_handler(ConversationHSMStates.ORDERING_ITEM_MODIFICATION, OrderingItemModificationHandler())
             
             # Register confirmation handlers
             self.register_handler(ConversationHSMStates.CONFIRMATION, ConfirmationSuperStateHandler())
