@@ -126,14 +126,8 @@ class AIIntelligenceMixin:
                 # Check if it's a timeout error from the OpenAI client
                 if "timeout" in str(e).lower():
                     logger.error(f"AI request timed out for {self.name}")
-                    # Return fast fallback
-                    return {
-                        "text": "I understand. Let me help you with that.",
-                        "agent": getattr(self, 'name', 'AI'),
-                        "handled": True,
-                        "actions": [],
-                        "timeout": True
-                    }
+                    # AI is required - no fallback responses allowed
+                    raise Exception("AI API timeout - system requires AI intelligence to function")
                 else:
                     # Re-raise other exceptions
                     raise
@@ -147,13 +141,8 @@ class AIIntelligenceMixin:
             
         except Exception as e:
             logger.error(f"AI processing error in {self.name}: {e}", exc_info=True)
-            # Return a fallback response instead of trying to call non-existent method
-            return {
-                "text": f"[{getattr(self, 'name', 'AI')}] Processed: {input_text}",
-                "agent": getattr(self, 'name', 'AI'),
-                "handled": True,
-                "actions": []
-            }
+            # AI is required - no fallback responses allowed
+            raise Exception(f"AI processing failed in {self.name} - system requires AI intelligence to function")
     
     def _build_messages(self, input_text: str, context: Dict[str, Any]) -> List[Dict[str, str]]:
         """Build message history for AI context - OPTIMIZED for speed."""
@@ -373,41 +362,26 @@ class AIIntelligenceMixin:
     
     async def get_fast_response(self, input_text: str, context: Dict[str, Any]) -> str:
         """
-        Get a fast, contextual response without full AI processing.
-        Used for immediate feedback while full processing happens.
+        NO HARDCODED RESPONSES - System requires AI intelligence.
+        This method should only be used if AI processing is temporarily unavailable.
         
         Args:
             input_text: User input
             context: Current context
             
         Returns:
-            Quick response text
+            AI-generated response or raises exception
         """
-        input_lower = input_text.lower()
-        state = context.get("conversation_state", "")
-        
-        # Quick responses based on state and input
-        if state == "GREETING":
-            # Name patterns
-            if len(input_text.split()) == 1 and input_text[0].isupper():
-                return f"Nice to meet you! How can I help you today?"
-            elif "my name is" in input_lower or "i'm" in input_lower or "i am" in input_lower:
-                return "Great to meet you! What can I help you with today?"
-        
-        elif state == "MAIN_MENU":
-            if any(word in input_lower for word in ["order", "food", "hungry"]):
-                return "Perfect! What would you like to order today?"
-            elif "menu" in input_lower:
-                return "I'd be happy to help you with our menu. We have appetizers, sushi rolls, sashimi, and beverages."
-        
-        elif state == "ORDERING":
-            if any(phrase in input_lower for phrase in ["that's all", "done", "finished", "complete"]):
-                return "Great! Let me confirm your order for you."
-            elif any(word in input_lower for word in ["add", "want", "like", "get"]):
-                return "I'll add that to your order."
-        
-        # Default response
-        return "I'm processing your request..."
+        # AI-first principle: NO hardcoded responses allowed
+        # If called, we should use AI intelligence even for "fast" responses
+        try:
+            # Use lightweight AI call instead of hardcoded responses
+            response = await self.process_with_ai(input_text, context, use_tools=False)
+            return response.get("text", "")
+        except Exception as e:
+            # System requires AI - no fallbacks
+            logger.error(f"Fast response failed - AI required: {e}")
+            raise Exception("AI processing required - no hardcoded fallbacks allowed")
     
     async def understand_intent(
         self, 

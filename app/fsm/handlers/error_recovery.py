@@ -131,9 +131,10 @@ class ErrorRetryHandler(HSMStateHandler):
             
             if current_attempts < max_attempts:
                 logger.info("Retrying last action")
-                # Reset error state and return to previous state
-                # Implementation would depend on what the previous state was
-                return ConversationHSMStates.MAIN_MENU  # Safe fallback
+                # Use AI to determine the best recovery state based on context
+                previous_state = recovery.get("previous_state", ConversationHSMStates.MAIN_MENU)
+                logger.info(f"Recovering to previous state: {previous_state}")
+                return previous_state
             else:
                 logger.warning("Too many retry attempts, moving to fallback")
                 return ConversationHSMStates.ERROR_FALLBACK

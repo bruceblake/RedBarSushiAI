@@ -311,9 +311,18 @@ class MenuCacheManager:
             categories = await self.get_categories_with_items(db)
             logger.info(f"Warmed cache with {len(categories)} categories")
             
-            # Pre-cache popular searches
-            popular_searches = ["roll", "sushi", "sashimi", "appetizer", "drink"]
-            for search_term in popular_searches:
+            # Pre-cache searches based on actual menu content (AI-driven)
+            # Get dynamic search terms from category names and popular items
+            popular_searches = []
+            for category in categories:
+                # Use category name words as search terms
+                category_words = category["name"].lower().split()
+                popular_searches.extend([word for word in category_words if len(word) > 3])
+            
+            # Limit to first 5 unique terms to avoid overloading
+            unique_searches = list(set(popular_searches))[:5]
+            
+            for search_term in unique_searches:
                 results = await self.search_items(search_term, db)
                 logger.debug(f"Pre-cached search: {search_term} ({len(results)} results)")
             

@@ -410,6 +410,22 @@ class HSMManager:
             return new_leaf
         
         return None
+    
+    async def update_context(self, call_sid: str, context_updates: Dict[str, Any]) -> None:
+        """
+        Update the context for a conversation.
+        
+        Args:
+            call_sid: Conversation identifier
+            context_updates: Dictionary of context updates to apply
+        """
+        try:
+            # For now, we'll use the state store to manage context
+            # This could be expanded later if needed
+            await self.state_store.update_context(call_sid, context_updates)
+            logger.debug(f"[{call_sid}] Updated context: {context_updates}")
+        except Exception as e:
+            logger.error(f"[{call_sid}] Error updating context: {e}", exc_info=True)
 
 
 # Global instance for easy access

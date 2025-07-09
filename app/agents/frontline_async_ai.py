@@ -66,9 +66,14 @@ KEY TASKS:
 CRITICAL TOOL USAGE RULES:
 - When a customer mentions ANY food item, you MUST use the add_to_cart tool
 - NEVER say you've added items without actually calling the add_to_cart tool
-- If customer says "I need two Cheeseburgers", you MUST call add_to_cart with item_name="Cheeseburger" and quantity=2
+- If customer requests multiple items, you MUST call add_to_cart with exact item_name and quantity
 - ALWAYS use tools for menu lookups and cart operations
 - Do NOT give conversational responses about adding items without using tools
+
+CATEGORY NAME RULES:
+- ALWAYS call get_menu_categories FIRST to get exact category names
+- Use the EXACT category names returned from the database
+- When calling get_items_by_category, copy category names exactly as returned
 
 REMEMBER: Use tools for every menu and cart operation. No exceptions.
 """
@@ -116,7 +121,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
                         "properties": {
                             "category_name": {
                                 "type": "string",
-                                "description": "Name of the category (e.g., 'Steak & Burgers', 'Pizzas')"
+                                "description": "Name of the category - IMPORTANT: Use exact category names from get_menu_categories"
                             }
                         },
                         "required": ["category_name"]
@@ -266,18 +271,16 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
             logger.info("FIRST INTERACTION DETECTED - Generating fast greeting")
             
             # Use dynamic greeting for instant response
-            if settings.RESTAURANT_PHONE_GREETING:
-                greeting_text = settings.RESTAURANT_PHONE_GREETING
-            else:
-                greeting_text = f"Hello! Welcome to {settings.RESTAURANT_NAME}. I'm {settings.RESTAURANT_GREETING_NAME}, and I'll be helping you today. What's your name?"
-            
-            response = {
-                "text": greeting_text,
-                "agent": self.name,
-                "handled": True,
-                "ai_generated": False,
-                "actions": []
+            # Use AI to generate personalized greeting based on restaurant config
+            greeting_context = {
+                "restaurant_name": settings.RESTAURANT_NAME,
+                "assistant_name": settings.RESTAURANT_GREETING_NAME,
+                "conversation_state": "GREETING",
+                "custom_greeting": settings.RESTAURANT_PHONE_GREETING if settings.RESTAURANT_PHONE_GREETING else None
             }
+            
+            response = await self.process_with_ai("Generate initial greeting", greeting_context)
+            response["ai_generated"] = True  # Ensure it's marked as AI-generated
             
             # Initialize conversation history with greeting
             self.context["conversation_history"] = [{
@@ -414,7 +417,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
         
         If you detect a name, you MUST:
         1. IMMEDIATELY call the update_customer_info tool with {{"name": "detected_name"}}
-        2. THEN respond with "Nice to meet you, [name]! How can I help you today?"
+        2. THEN respond with a personalized AI-generated greeting using the customer's name
         
         Common name patterns to look for:
         - Single word like "Bruce" → extract "Bruce" and call update_customer_info({{"name": "Bruce"}})
@@ -538,8 +541,8 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
         Use your AI intelligence to determine the user's TRUE intent. Do not rely on keyword matching.
         Be conversational and natural in your responses.
         2. If the input asks about menu:
-           - For category questions (e.g., "steak and burgers", "pizzas") → Use get_items_by_category
-           - For specific item names (e.g., "california roll", "chicken teriyaki") → Use lookup_menu_item  
+           - For category questions → Use get_items_by_category with exact category names
+           - For specific item names → Use lookup_menu_item with customer's exact words
            - For general menu overview → Use get_menu_categories
         3. If the input wants to change/update name, phone, or order type → Use update_customer_info tool
         4. If the input requests human help → Use escalate_to_human
@@ -549,21 +552,15 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
         - DO NOT interpret food items as potential names
         - Only use update_customer_info when customer explicitly wants to change their name, phone, or order type
         
-        Common food items that are NOT names: California, Philadelphia, Boston, Alaska, Texas, Manhattan, Brooklyn, Virginia, Georgia, etc.
-        
-        If unsure whether something is a food item or name, ASSUME IT IS A FOOD ITEM in this state.
+        Use AI intelligence to distinguish between customer names and food items based on context.
+        When in doubt, ask clarifying questions rather than making assumptions.
         """
         response = await self.process_with_ai(input_text, context)
         
         # No fallback - AI is required
         if response.get("text", "").startswith("[FrontlineVoiceAI] Processed:"):
             logger.error("AI failed - OpenAI API is required")
-            response = {
-                "text": "I apologize, but I'm having technical difficulties. Please try again later.",
-                "agent": self.name,
-                "handled": True,
-                "actions": []
-            }
+            raise Exception("AI processing failed - system requires AI intelligence to function")
         
         # Stream the response if we have a callback and response text
         if stream_callback and response.get("text"):
@@ -686,8 +683,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
 
         MANDATORY TOOL USAGE FOR ORDERS:
         - If customer mentions ANY food item for ordering, you MUST use add_to_cart tool
-        - Examples: "I need Cheeseburger" → MUST call add_to_cart with item_name="Cheeseburger", quantity=1
-        - Examples: "Two pizzas please" → MUST call add_to_cart with item_name="pizza", quantity=2  
+        - ALWAYS use exact item names and quantities from customer's request
         - NEVER respond with "I've added..." without actually using the add_to_cart tool
         - Every order item REQUIRES a tool call
 
@@ -1020,7 +1016,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
         }
     
     async def _get_menu_categories(self) -> Dict[str, Any]:
-        """Get menu categories."""
+        """Get menu categories from database - NO hardcoded fallbacks."""
         if "menu" in self.specialists:
             result = await self.specialists["menu"].execute_tool(
                 "list_categories", 
@@ -1028,7 +1024,8 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
             )
             return result
         
-        return {"categories": ["Appetizers", "Sushi Rolls", "Sashimi", "Beverages"]}
+        # No hardcoded fallbacks - system requires dynamic menu data
+        raise Exception("Menu specialist required - no hardcoded menu categories allowed")
     
     async def _get_items_by_category(self, category_name: str) -> Dict[str, Any]:
         """Get menu items by category."""
@@ -1096,11 +1093,8 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
                             }
                             return result
                     else:
-                        # No menu specialist available - return error instead of hardcoded fallback
-                        result = {
-                            "success": False,
-                            "message": "I'm having trouble accessing our menu right now. Please try again."
-                        }
+                        # No menu specialist available - system requires specialists
+                        raise Exception("Menu specialist required - system cannot function without specialist access")
                         return result
                     
                     result = await self.specialists["cart"].execute_tool(

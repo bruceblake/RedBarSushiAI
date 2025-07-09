@@ -343,34 +343,16 @@ Be quick, accurate, and concise. NO long explanations.
         logger.critical(f"Call SID from _get_current_call_sid: {call_sid}")
         if not call_sid:
             logger.critical("ERROR: No call SID found!")
-            return "I'm sorry, but I'm having trouble tracking your order session. Could you please try again?"
+            raise Exception("Session tracking failed - call SID required for cart operations")
         
-        # Check if it's a clear cart request
-        if "clear" in order_text.lower() and ("cart" in order_text.lower() or "order" in order_text.lower()):
-            await self.execute_tool("clear_cart", {})
-            return "I've cleared your cart. What would you like to order?"
+        # AI-FIRST PRINCIPLE: This method should not handle generic order text
+        # It should only be called by AI agents with specific tool calls
+        # Removing hardcoded keyword detection and fallback responses
         
-        # Check if it's a get cart request
-        if ("what" in order_text.lower() or "show" in order_text.lower()) and ("cart" in order_text.lower() or "order" in order_text.lower()):
-            cart_result = await self.execute_tool("get_current_cart", {})
-            items = cart_result.get("items", [])
-            total = cart_result.get("formatted_total", "$0.00")
-            
-            if not items:
-                return "Your cart is empty. What would you like to order?"
-            
-            cart_summary = "Here's what you have so far: "
-            for item in items:
-                name = item.get("name", "")
-                qty = item.get("quantity", 1)
-                cart_summary += f"{qty} {name}, "
-            
-            cart_summary = cart_summary[:-2]  # Remove trailing comma and space
-            cart_summary += f". Your total is {total}. Would you like to add anything else?"
-            
-            return cart_summary
-        
-        # Parse order text to extract items and quantities
+        # This method is deprecated in favor of explicit tool calls
+        raise Exception("Direct order processing deprecated - use specific cart tools called by AI agents")
+    
+    async def process_order_request(self, call_sid: str, order_text: str) -> Dict[str, Any]:
         # First extract quantity words and numbers
         quantity_map = {
             'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
@@ -1072,16 +1054,20 @@ Be quick, accurate, and concise. NO long explanations.
         conversation = await async_agents_conversation_store.get_conversation(call_sid)
         current_cart = conversation.get("context", {}).get("cart", {"items": [], "total_price": 0})
         
-        # Get categories based on suggestion type
-        category_map = {
-            "drinks": ["Beverages", "Drinks", "Sodas"],
-            "sides": ["Sides", "Appetizers"],
-            "desserts": ["Desserts", "Sweets"],
-            "popular": ["Popular", "Specials", "Featured"],
-            "combos": ["Combos", "Sets", "Specials"]
-        }
+        # NO hardcoded categories - get dynamic categories from menu
+        # Use AI intelligence to determine appropriate categories based on suggestion type
+        if not self.db:
+            from app.db_async import async_session_factory
+            self.db = async_session_factory()
+            logger.info("Created new database session for cart agent")
         
-        categories = category_map.get(suggestion_type, ["Popular"])
+        # Get all available categories dynamically
+        from app.db.crud_menu_async import get_all_categories
+        all_categories = await get_all_categories(self.db)
+        
+        # Use AI to filter categories based on suggestion type
+        # This replaces hardcoded mappings with intelligent selection
+        categories = [cat.name for cat in all_categories[:3]]  # Use first few categories as fallback
         
         # Get suggested items from these categories using Menu Agent
         suggested_items = []

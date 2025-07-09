@@ -177,7 +177,7 @@ IMPORTANT RULES:
                         "properties": {
                             "category": {
                                 "type": "string",
-                                "description": "Optional category to filter by (e.g. 'Appetizers', 'Sushi Rolls')"
+                                "description": "Optional category to filter by - use exact category names from database"
                             },
                             "max_results": {
                                 "type": "integer",
@@ -612,26 +612,48 @@ IMPORTANT RULES:
             return {"categories": [], "error": str(e)}
     
     async def _get_items_by_category(self, category_name: str) -> Dict[str, Any]:
-        """Get items in a specific category."""
+        """Get items in a specific category with fuzzy matching."""
         if not self.db:
             from app.db_async import async_session_factory
             self.db = async_session_factory()
             logger.info("Created new database session for menu agent")
         
         try:
-            # First find the category
+            # First find the category with fuzzy matching
             categories = await get_all_categories(self.db)
             category = None
             
+            # Try exact match first
             for cat in categories:
                 if cat.name.lower() == category_name.lower():
                     category = cat
                     break
             
+            # If no exact match, try fuzzy matching
             if not category:
+                from difflib import SequenceMatcher
+                best_match = None
+                best_ratio = 0.0
+                
+                for cat in categories:
+                    # Normalize for better matching
+                    cat_normalized = cat.name.lower().replace("&", "and").replace("-", " ").strip()
+                    search_normalized = category_name.lower().replace("&", "and").replace("-", " ").strip()
+                    
+                    ratio = SequenceMatcher(None, cat_normalized, search_normalized).ratio()
+                    if ratio > best_ratio and ratio > 0.7:  # 70% similarity threshold
+                        best_ratio = ratio
+                        best_match = cat
+                
+                if best_match:
+                    category = best_match
+                    logger.info(f"Fuzzy matched '{category_name}' to '{category.name}' (similarity: {best_ratio:.2f})")
+            
+            if not category:
+                available_categories = [cat.name for cat in categories]
                 return {
                     "items": [],
-                    "error": f"Category '{category_name}' not found"
+                    "error": f"Category '{category_name}' not found. Available categories: {', '.join(available_categories)}"
                 }
             
             # Get items in the category

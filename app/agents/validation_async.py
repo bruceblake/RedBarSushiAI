@@ -201,7 +201,7 @@ class AsyncValidationAgent(BaseAsyncAgent, AIIntelligenceMixin):
                         "item_name": item.get('name', product.name),
                         "item_index": item_index,
                         "message": f"The item '{product.name}' is currently unavailable.",
-                        "remediation_prompt": f"I'm sorry, '{product.name}' is not available right now. Would you like to choose something else?",
+                        "remediation_prompt": f"Item '{product.name}' is unavailable - AI will generate appropriate response",
                         "context": {"item_plu": item_plu}
                     })
                     continue
