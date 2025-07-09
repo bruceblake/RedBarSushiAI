@@ -30,6 +30,12 @@ async def process_deliverect_menu_async(menu_data: Dict[str, Any]) -> Dict[str, 
         Processed menu data in internal format
     """
     logger.info("Processing Deliverect menu data")
+    logger.info(f"Menu data keys: {list(menu_data.keys())}")
+    
+    # Validate basic structure
+    if not isinstance(menu_data, dict):
+        logger.error("Menu data is not a dictionary")
+        raise ValueError("Menu data must be a dictionary")
     
     processed = {
         "items": [],
@@ -59,9 +65,16 @@ async def process_deliverect_menu_async(menu_data: Dict[str, Any]) -> Dict[str, 
         for modifier_id, modifier in menu_data["modifiers"].items():
             # Check if this is actually a modifier (productType = 2)
             if modifier.get("productType") == 2:
+                # Convert price from cents to dollars (Deliverect sends in cents)
+                raw_price = modifier.get("price", 0)
+                if isinstance(raw_price, (int, float)):
+                    price_change = float(raw_price) / 100  # Always convert from cents
+                else:
+                    price_change = 0.0
+                
                 modifier_map[modifier_id] = {
                     "name": modifier.get("name", ""),
-                    "price_change": float(modifier.get("price", 0)) / 100,  # Convert cents to dollars
+                    "price_change": price_change,
                     "plu": modifier.get("plu", ""),
                     "deliverect_modifier_id": modifier.get("_id", modifier_id),
                     "is_available": modifier.get("visible", True) and not modifier.get("snoozed", False)
@@ -106,7 +119,7 @@ async def process_deliverect_menu_async(menu_data: Dict[str, Any]) -> Dict[str, 
             # Find which categories this product belongs to
             product_categories = []
             for cat in processed["categories"]:
-                if product_id in cat["sub_products"]:
+                if product_id in cat.get("sub_products", []):
                     product_categories.append({
                         "name": cat["name"],
                         "id": cat["deliverect_category_id"]
@@ -119,10 +132,17 @@ async def process_deliverect_menu_async(menu_data: Dict[str, Any]) -> Dict[str, 
                 category_name = product_categories[0]["name"]
                 category_id = product_categories[0]["id"]
             
+            # Convert price from cents to dollars (Deliverect sends in cents)
+            raw_price = product.get("price", 0)
+            if isinstance(raw_price, (int, float)):
+                price_dollars = float(raw_price) / 100  # Always convert from cents
+            else:
+                price_dollars = 0.0
+            
             item_data = {
                 "name": product.get("name", ""),
                 "description": product.get("description", ""),
-                "price": float(product.get("price", 0)) / 100,  # Convert cents to dollars
+                "price": price_dollars,
                 "plu": product.get("plu", ""),
                 "reference_id": product.get("referenceId", ""),  # Original PLU if different
                 "deliverect_item_id": product.get("_id", product_id),

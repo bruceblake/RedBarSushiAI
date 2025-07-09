@@ -128,8 +128,9 @@ async def clear_cached_menu_matcher():
         # Clear the Redis cache
         await clear_menu_cache()
         
-        # Clear memory cache
-        menu_cache.clear_all()
+        # Clear memory cache using the cache service
+        from app.utils.menu_cache_enhanced import invalidate_menu_cache
+        await invalidate_menu_cache()
         
         logger.info("Cleared all menu caches successfully")
     except Exception as e:

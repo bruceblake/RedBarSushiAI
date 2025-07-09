@@ -4,6 +4,7 @@ Deliverect menu webhook endpoints.
 This module handles menu updates from Deliverect.
 """
 
+import json
 import logging
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status, Response, Body
