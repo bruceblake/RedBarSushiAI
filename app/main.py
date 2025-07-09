@@ -294,6 +294,56 @@ async def run_migrations_manually() -> Dict[str, Any]:
     except Exception as e:
         return {"success": False, "error": f"Migration failed: {e}"}
 
+@app.post("/fix-schema")
+async def fix_schema_manually() -> Dict[str, Any]:
+    """Manually fix the specific missing columns."""
+    try:
+        from app.db_async import engine
+        from sqlalchemy import text
+        
+        results = []
+        
+        async with engine.begin() as conn:
+            # Add missing columns one by one with specific error handling
+            missing_columns = [
+                ("menu_items", "deliverect_item_id", "VARCHAR(255)"),
+                ("menu_items", "order_index", "INTEGER DEFAULT 0"),
+                ("menu_items", "category_id", "INTEGER"),
+                ("menu_items", "is_available", "BOOLEAN DEFAULT true"),
+                ("menu_items", "is_combo", "BOOLEAN DEFAULT false"),
+                ("menu_items", "image_url", "VARCHAR(1024)"),
+                ("menu_modifiers", "deliverect_modifier_id", "VARCHAR(255)"),
+                ("menu_modifiers", "plu", "VARCHAR(255)"),
+                ("menu_modifiers", "price_change", "NUMERIC(10, 2) DEFAULT 0"),
+                ("menu_modifiers", "is_available", "BOOLEAN DEFAULT true"),
+                ("menu_modifiers", "snoozed_until", "TIMESTAMP"),
+                ("menu_modifier_groups", "deliverect_group_id", "VARCHAR(255)"),
+                ("menu_modifier_groups", "plu", "VARCHAR(255)"),
+                ("menu_modifier_groups", "min_selection", "INTEGER DEFAULT 0"),
+                ("menu_modifier_groups", "max_selection", "INTEGER DEFAULT 0"),
+                ("menu_modifier_groups", "multiMax", "INTEGER DEFAULT 0"),
+                ("menu_modifier_groups", "is_variant_group", "BOOLEAN DEFAULT false"),
+                ("menu_modifier_groups", "snoozed_until", "TIMESTAMP"),
+                ("menu_categories", "deliverect_category_id", "VARCHAR(255)"),
+                ("menu_categories", "order_index", "INTEGER DEFAULT 0"),
+                ("menu_categories", "parent_id", "INTEGER"),
+            ]
+            
+            for table, column, column_type in missing_columns:
+                try:
+                    sql = f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {column_type}"
+                    await conn.execute(text(sql))
+                    results.append(f"✅ Added {table}.{column}")
+                except Exception as e:
+                    results.append(f"❌ Failed to add {table}.{column}: {e}")
+            
+            await conn.commit()
+        
+        return {"success": True, "results": results}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Schema fix failed: {e}"}
+
 @app.get("/environment")
 async def environment_info() -> Dict[str, Any]:
     """Return detailed information about the environment."""
