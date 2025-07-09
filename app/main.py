@@ -361,6 +361,83 @@ async def create_missing_tables() -> Dict[str, Any]:
     except Exception as e:
         return {"success": False, "error": f"Table creation failed: {e}"}
 
+@app.post("/create-modifier-groups-table")
+async def create_modifier_groups_table() -> Dict[str, Any]:
+    """Manually create the menu_modifier_groups table with SQL."""
+    try:
+        from app.db_async import engine
+        from sqlalchemy import text
+        
+        results = []
+        
+        async with engine.begin() as conn:
+            # Create menu_modifier_groups table
+            create_table_sql = text("""
+            CREATE TABLE IF NOT EXISTS menu_modifier_groups (
+                id SERIAL PRIMARY KEY,
+                deliverect_group_id VARCHAR(255),
+                name VARCHAR(255) NOT NULL,
+                min_selection INTEGER DEFAULT 0,
+                max_selection INTEGER DEFAULT 0,
+                multiMax INTEGER DEFAULT 0,
+                plu VARCHAR(255),
+                location_id VARCHAR(255),
+                is_variant_group BOOLEAN DEFAULT false,
+                properties JSONB DEFAULT '{}',
+                snoozed_until TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            
+            await conn.execute(create_table_sql)
+            results.append("✅ Created menu_modifier_groups table")
+            
+            # Create association tables
+            create_group_modifier_sql = text("""
+            CREATE TABLE IF NOT EXISTS group_modifier (
+                modifier_group_id INTEGER REFERENCES menu_modifier_groups(id),
+                menu_modifier_id INTEGER REFERENCES menu_modifiers(id),
+                PRIMARY KEY (modifier_group_id, menu_modifier_id)
+            )
+            """)
+            
+            await conn.execute(create_group_modifier_sql)
+            results.append("✅ Created group_modifier association table")
+            
+            create_item_modifier_group_sql = text("""
+            CREATE TABLE IF NOT EXISTS item_modifier_group (
+                menu_item_id INTEGER REFERENCES menu_items(id),
+                modifier_group_id INTEGER REFERENCES menu_modifier_groups(id),
+                PRIMARY KEY (menu_item_id, modifier_group_id)
+            )
+            """)
+            
+            await conn.execute(create_item_modifier_group_sql)
+            results.append("✅ Created item_modifier_group association table")
+            
+            # Create menu_name_variants table
+            create_variants_sql = text("""
+            CREATE TABLE IF NOT EXISTS menu_name_variants (
+                id SERIAL PRIMARY KEY,
+                variant_phrase VARCHAR(255) NOT NULL,
+                canonical_name VARCHAR(255) NOT NULL,
+                target_plu VARCHAR(255) NOT NULL,
+                score FLOAT DEFAULT 1.0,
+                properties JSONB DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            
+            await conn.execute(create_variants_sql)
+            results.append("✅ Created menu_name_variants table")
+        
+        return {"success": True, "results": results}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Table creation failed: {e}"}
+
 @app.get("/environment")
 async def environment_info() -> Dict[str, Any]:
     """Return detailed information about the environment."""
