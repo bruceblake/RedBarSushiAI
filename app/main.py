@@ -222,8 +222,7 @@ async def database_debug() -> Dict[str, Any]:
             # Check if tables exist
             tables_result = await conn.execute(text("""
                 SELECT table_name FROM information_schema.tables 
-                WHERE table_schema = 'public' AND table_name IN 
-                ('menu_items', 'menu_modifiers', 'menu_modifier_groups', 'menu_categories')
+                WHERE table_schema = 'public' AND table_name LIKE 'menu%'
                 ORDER BY table_name
             """))
             tables = [row[0] for row in tables_result.fetchall()]
