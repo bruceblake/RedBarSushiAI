@@ -225,7 +225,7 @@ class AsyncAgentOrchestrator:
             await hsm_manager.handle_event(call_sid, error_event, context)
             # Return error response
             return {
-                "text": "I'm sorry, I encountered an error processing your request. Please try again or ask for assistance.",
+                "text": "System error occurred - AI will generate appropriate response",
                 "handled": True,
                 "agent": "ErrorHandler",
                 "error": str(e),
@@ -490,7 +490,7 @@ class AsyncAgentOrchestrator:
                 await hsm_manager.handle_event(call_sid, error_event, context)
                 # Return error response
                 return {
-                    "text": "I'm sorry, I encountered an error processing your request. Please try again or ask for assistance.",
+                    "text": "System error occurred - AI will generate appropriate response",
                     "handled": True,
                     "agent": "ErrorHandler",
                     "error": str(e),

@@ -63,7 +63,7 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         # Validate order has items
         if not order_details.get("items"):
             return {
-                "text": "I'm sorry, I cannot submit an empty order. Please add some items first.",
+                "text": "Empty order submission not allowed - AI will generate appropriate response",
                 "success": False,
                 "errors": ["Cannot submit an empty order"],
                 "handled": True,

@@ -282,6 +282,9 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
             response = await self.process_with_ai("Generate initial greeting", greeting_context)
             response["ai_generated"] = True  # Ensure it's marked as AI-generated
             
+            # Get the AI-generated greeting text
+            greeting_text = response.get("text", "Hello! Welcome to our restaurant.")
+            
             # Initialize conversation history with greeting
             self.context["conversation_history"] = [{
                 "role": "assistant",
@@ -290,7 +293,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions.
             
             self.conversation_state = "GREETING"
             logger.info(f"Conversation state set to: {self.conversation_state}")
-            logger.info(f"Returning fast greeting: {greeting_text}")
+            logger.info(f"Returning AI-generated greeting: {greeting_text}")
             return response
         
         # Add to conversation history

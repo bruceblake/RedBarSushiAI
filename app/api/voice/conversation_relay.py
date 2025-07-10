@@ -149,9 +149,8 @@ class ConversationRelayHandler:
         except Exception as e:
             logger.error(f"[{self.call_sid}] Failed to initialize orchestrator: {e}", exc_info=True)
             # Send error response
-            await self.send_text_response(
-                "I'm sorry, I'm having trouble connecting to our system. Please try again later."
-            )
+            # AI is required - don't send hardcoded error messages
+            logger.critical(f"[{self.call_sid}] System initialization failed - cannot continue without AI")
     
     async def handle_prompt_message(self, message: Dict[str, Any]) -> None:
         """Handle user speech transcripts from ConversationRelay."""
