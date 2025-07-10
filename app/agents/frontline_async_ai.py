@@ -350,7 +350,9 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
                 response = await self.process_with_ai_streaming(input_text, context, use_tools=False, callback=stream_callback)
             else:
                 response = await self.process_with_ai(input_text, context)
-            logger.info(f"AI response: {json.dumps(response, indent=2)}")
+            # Use safe JSON serialization for logging
+            from app.utils.agent_orchestration_async import safe_json_dumps
+            logger.info(f"AI response: {safe_json_dumps(response, indent=2)}")
             
             # Add response to conversation history
             self.context["conversation_history"].append({

@@ -20,6 +20,7 @@ from app.db_async import get_db
 from app.models.order_async import Order, OrderItem
 from app.utils.helpers_async import commit_with_retry_async, log_info_async
 from app.utils.menu_utils_db_async import load_menu_data  # Using async version
+from app.config import settings
 # from app.utils.agent_utils import OrderParsingAgent  # TODO: Create async version if needed
 # NOTE: Temporarily disabled - using async agents instead
 
@@ -142,13 +143,30 @@ async def take_order(
     """
     # Check if we're in busy mode
     if BUSY_MODE_ACTIVE:
-        return {
-            "message": "We're currently busy and not accepting new orders right now. "
-                      "Press 1 to get menu information, press 2 to leave your name and "
-                      "number for a callback, or press 3 to end the call.",
-            "redirect_to": "/handle_busy_options",
-            "busy_mode": True
-        }
+        # Use AI to generate busy mode response
+        from app.agents.ai_mixin import AIIntelligenceMixin
+        ai_mixin = AIIntelligenceMixin()
+        
+        try:
+            busy_context = {
+                "restaurant_name": getattr(settings, 'RESTAURANT_NAME', 'our restaurant'),
+                "mode": "busy"
+            }
+            
+            busy_response = await ai_mixin.process_with_ai(
+                "Generate busy mode message with options for customer",
+                busy_context
+            )
+            
+            return {
+                "message": busy_response.get("text", "Currently busy, please try again later"),
+                "redirect_to": "/handle_busy_options",
+                "busy_mode": True
+            }
+        except Exception as e:
+            logger.error(f"Error generating busy mode response: {e}")
+            # If AI fails, we still need to handle busy mode
+            raise Exception("AI required for busy mode handling")
     
     # Load menu and check availability
     try:
@@ -208,37 +226,83 @@ async def take_order(
         # If still no items, return appropriate message
         if not available_items:
             logger.warning("No available items found - menu unavailable")
-            return {
-                "message": "I'm sorry, our menu is currently unavailable. "
-                          "Press 1 to speak with a team member about our daily specials, "
-                          "press 2 to leave your contact information for when our menu is back online, "
-                          "or press 3 to end the call.",
-                "redirect_to": "/handle_menu_unavailable"
-            }
+            # Use AI to generate menu unavailable response
+            from app.agents.ai_mixin import AIIntelligenceMixin
+            ai_mixin = AIIntelligenceMixin()
+            
+            try:
+                unavailable_context = {
+                    "restaurant_name": getattr(settings, 'RESTAURANT_NAME', 'our restaurant'),
+                    "issue": "menu_unavailable"
+                }
+                
+                unavailable_response = await ai_mixin.process_with_ai(
+                    "Generate menu unavailable message with customer options",
+                    unavailable_context
+                )
+                
+                return {
+                    "message": unavailable_response.get("text", "Menu currently unavailable"),
+                    "redirect_to": "/handle_menu_unavailable"
+                }
+            except Exception as e:
+                logger.error(f"Error generating menu unavailable response: {e}")
+                raise Exception("AI required for menu unavailable handling")
 
     except Exception as e:
         logger.error(f"Error loading menu: {e}")
-        return {
-            "message": "I'm sorry, we're experiencing technical difficulties. "
-                      "Press 1 to speak with a team member who can take your order manually, "
-                      "press 2 to leave your contact information for a callback, "
-                      "or press 3 to end the call.",
-            "redirect_to": "/handle_technical_difficulties"
-        }
+        # Use AI to generate technical difficulties response
+        from app.agents.ai_mixin import AIIntelligenceMixin
+        ai_mixin = AIIntelligenceMixin()
+        
+        try:
+            tech_context = {
+                "restaurant_name": getattr(settings, 'RESTAURANT_NAME', 'our restaurant'),
+                "issue": "technical_difficulties",
+                "error_type": "menu_loading_failed"
+            }
+            
+            tech_response = await ai_mixin.process_with_ai(
+                "Generate technical difficulties message with customer options",
+                tech_context
+            )
+            
+            return {
+                "message": tech_response.get("text", "Technical difficulties occurred"),
+                "redirect_to": "/handle_technical_difficulties"
+            }
+        except Exception as ai_error:
+            logger.error(f"Error generating tech difficulties response: {ai_error}")
+            # If AI fails, we must raise the original exception
+            raise e
 
     # Get the user's speech
     user_resp = request.speech_result.strip()
     
     # Check if the user was silent or speech wasn't captured
     if not user_resp:
-        # In FastAPI, we would handle session data differently
-        # For now, returning response with guidance
-        return {
-            "message": "I'm waiting for your order. Please tell me what sushi items "
-                      "you'd like to order. For example, you can say 'I'd like two "
-                      "California rolls and one spicy tuna roll'.",
-            "redirect_to": "/take_order"
-        }
+        # Use AI to generate silence handling response
+        from app.agents.ai_mixin import AIIntelligenceMixin
+        ai_mixin = AIIntelligenceMixin()
+        
+        try:
+            silence_context = {
+                "restaurant_name": getattr(settings, 'RESTAURANT_NAME', 'our restaurant'),
+                "situation": "no_speech_detected"
+            }
+            
+            silence_response = await ai_mixin.process_with_ai(
+                "Generate helpful response when no speech is detected during ordering",
+                silence_context
+            )
+            
+            return {
+                "message": silence_response.get("text", "Please tell me your order"),
+                "redirect_to": "/take_order"
+            }
+        except Exception as e:
+            logger.error(f"Error generating silence response: {e}")
+            raise Exception("AI required for silence handling")
 
     # Use the AI agent orchestrator for intelligent processing
     from app.utils.agent_orchestration_async import AsyncAgentOrchestrator
@@ -292,10 +356,30 @@ async def take_order(
         
     except Exception as e:
         logger.error(f"Error processing with orchestrator: {e}")
-        return {
-            "message": "I'm sorry, I encountered an error processing your request. Please try again.",
-            "redirect_to": "/take_order"
-        }
+        # Use AI to generate error response instead of hardcoded message
+        from app.agents.ai_mixin import AIIntelligenceMixin
+        ai_mixin = AIIntelligenceMixin()
+        
+        try:
+            error_context = {
+                "error_type": "orchestrator_processing_error",
+                "user_input": user_resp,
+                "call_sid": call_sid
+            }
+            
+            error_response = await ai_mixin.process_with_ai(
+                "Generate customer-friendly error recovery message for order processing failure",
+                error_context
+            )
+            
+            return {
+                "message": error_response.get("text", "Processing error occurred"),
+                "redirect_to": "/take_order",
+                "success": False
+            }
+        except:
+            # If even AI fails, we must raise the original exception
+            raise e
 
     # Create an order parsing agent
     agent = OrderParsingAgent()

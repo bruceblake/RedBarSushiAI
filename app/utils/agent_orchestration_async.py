@@ -223,14 +223,36 @@ class AsyncAgentOrchestrator:
             # Transition to ERROR state
             error_event = HSMEvent(ConversationHSMEvents.ERROR_OCCURRED, {"error": str(e)})
             await hsm_manager.handle_event(call_sid, error_event, context)
-            # Return error response
-            return {
-                "text": "System error occurred - AI will generate appropriate response",
-                "handled": True,
-                "agent": "ErrorHandler",
-                "error": str(e),
-                "state": ConversationHSMStates.ERROR_RECOVERY
-            }
+            
+            # Use AI to generate error response instead of hardcoded message
+            try:
+                from app.agents.ai_mixin import AIIntelligenceMixin
+                ai_mixin = AIIntelligenceMixin()
+                
+                error_context = {
+                    "error_type": "agent_processing_error",
+                    "original_error": str(e),
+                    "call_sid": call_sid,
+                    "input_text": input_text
+                }
+                
+                error_response = await ai_mixin.process_with_ai(
+                    "Generate customer-friendly error recovery message for agent processing failure",
+                    error_context
+                )
+                
+                return {
+                    "text": error_response.get("text", "Processing error occurred"),
+                    "handled": True,
+                    "agent": "ErrorHandler",
+                    "error": str(e),
+                    "state": ConversationHSMStates.ERROR_RECOVERY,
+                    "ai_generated": True
+                }
+            except Exception as ai_error:
+                logger.error(f"AI error response generation failed: {ai_error}")
+                # If AI fails, we must raise the original exception
+                raise e
         logger.critical(f"Agent processing complete:")
         logger.critical(f"  - Agent used: {agent.__class__.__name__}")
         logger.critical(f"  - Response text: '{response.get('text', '')}'")
