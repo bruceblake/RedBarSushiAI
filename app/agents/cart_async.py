@@ -555,6 +555,21 @@ Be quick, accurate, and concise. NO long explanations.
         validated_modifiers = []
         if modifiers:
             for mod in modifiers:
+                # Handle both string modifiers and object modifiers
+                if isinstance(mod, str):
+                    # Plain text modifier (like "medium rare")
+                    # For now, add as special instruction since we don't have PLU mapping
+                    validated_modifiers.append({
+                        "plu": None,
+                        "name": mod,
+                        "price": 0.0,
+                        "quantity": 1,
+                        "type": "special_instruction"
+                    })
+                    logger.info(f"Added text modifier as special instruction: {mod}")
+                    continue
+                
+                # Object modifier with PLU
                 mod_plu = mod.get("plu")
                 mod_quantity = mod.get("quantity", 1)
                 

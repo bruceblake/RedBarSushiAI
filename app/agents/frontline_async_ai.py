@@ -15,6 +15,7 @@ from app.agents.ai_mixin import AIIntelligenceMixin
 from app.config import settings
 from app.utils.response_cache import response_cache
 from app.fsm.core import ConversationHSMStates, ConversationHSMEvents
+from app.utils.json_utils import safe_json_dumps
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +257,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
         logger.critical(f"FRONTLINE AGENT: process_voice_input called")
         logger.critical(f"Input text: '{input_text}'")
         logger.critical(f"Input length: {len(input_text)} chars")
-        logger.critical(f"Context received: {json.dumps(context, indent=2)}")
+        logger.critical(f"Context received: {safe_json_dumps(context, indent=2)}")
         logger.critical(f"Current agent conversation state: {self.conversation_state}")
         logger.critical("★" * 80)
         
@@ -322,7 +323,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
         logger.info(f"  - Conversation state: {self.conversation_state}")
         logger.info(f"  - Customer name: {context['customer_name']}")
         logger.info(f"  - Cart items: {context['cart_items']}")
-        logger.info(f"  - Full context: {json.dumps(context, indent=2)}")
+        logger.info(f"  - Full context: {safe_json_dumps(context, indent=2)}")
         
         # Route to appropriate handler based on state
         logger.critical(f"Routing to handler for state: {self.conversation_state}")
@@ -350,8 +351,6 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
                 response = await self.process_with_ai_streaming(input_text, context, use_tools=False, callback=stream_callback)
             else:
                 response = await self.process_with_ai(input_text, context)
-            # Use safe JSON serialization for logging
-            from app.utils.agent_orchestration_async import safe_json_dumps
             logger.info(f"AI response: {safe_json_dumps(response, indent=2)}")
             
             # Add response to conversation history
@@ -377,7 +376,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
         """Update agent state based on actions from AI response."""
         logger.info(f"_update_state_from_actions called with {len(actions)} actions")
         for action in actions:
-            logger.info(f"Processing action: {json.dumps(action, indent=2)}")
+            logger.info(f"Processing action: {safe_json_dumps(action, indent=2)}")
             action_type = action.get("type")
             
             if action_type == "set_customer_name":
@@ -446,7 +445,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
         
         logger.critical(f"Calling process_with_ai with greeting context...")
         response = await self.process_with_ai(input_text, context)
-        logger.critical(f"AI response for greeting: {json.dumps(response, indent=2)}")
+        logger.critical(f"AI response for greeting: {safe_json_dumps(response, indent=2)}")
         
         # No fallback - AI is required
         if response.get("text", "").startswith("[FrontlineVoiceAI] Processed:"):
@@ -457,7 +456,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
         if response.get("tool_calls"):
             logger.critical(f"Tool calls detected: {len(response.get('tool_calls', []))} calls")
             for tool_call in response["tool_calls"]:
-                logger.critical(f"Processing tool call: {json.dumps(tool_call, indent=2)}")
+                logger.critical(f"Processing tool call: {safe_json_dumps(tool_call, indent=2)}")
                 if tool_call.get("function", {}).get("name") == "update_customer_info":
                     args = tool_call.get("function", {}).get("arguments", {})
                     if isinstance(args, str):
@@ -978,7 +977,7 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
         """
         logger.critical("=" * 60)
         logger.critical(f"EXECUTE TOOL: {tool_name}")
-        logger.critical(f"Arguments: {json.dumps(args, indent=2)}")
+        logger.critical(f"Arguments: {safe_json_dumps(args, indent=2)}")
         logger.critical("=" * 60)
         
         if tool_name == "lookup_menu_item":
@@ -1151,18 +1150,18 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
     
     async def _update_customer_info(self, info: Dict[str, Any]) -> Dict[str, Any]:
         """Update customer information."""
-        logger.critical(f"_update_customer_info called with: {json.dumps(info, indent=2)}")
+        logger.critical(f"_update_customer_info called with: {safe_json_dumps(info, indent=2)}")
         
         if info.get("name"):
             self.context["customer_name"] = info["name"]
             logger.critical(f"✓ Customer name updated to: {info['name']}")
-            logger.critical(f"Current context after name update: {json.dumps(self.context, indent=2)}")
+            logger.critical(f"Current context after name update: {safe_json_dumps(self.context, indent=2)}")
         if info.get("order_type"):
             self.context["order_type"] = info["order_type"]
             logger.critical(f"✓ Order type updated to: {info['order_type']}")
         
         result = {"success": True, "updated": list(info.keys())}
-        logger.critical(f"Update result: {json.dumps(result, indent=2)}")
+        logger.critical(f"Update result: {safe_json_dumps(result, indent=2)}")
         return result
     
     async def _get_cart_summary(self) -> Dict[str, Any]:

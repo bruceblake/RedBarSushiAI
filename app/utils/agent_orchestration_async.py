@@ -22,6 +22,7 @@ from app.utils.global_commands import (
     GlobalCommand, global_command_detector, global_command_context
 )
 from app.utils.intent_detector_async import intent_detector
+from app.utils.json_utils import safe_json_dumps
 
 # Set up logging
 from app.utils.enhanced_logging import get_logger
@@ -29,14 +30,7 @@ from app.utils.correlation_id import set_correlation_id, get_correlation_id
 
 logger = get_logger(__name__)
 
-def safe_json_dumps(obj: Any, **kwargs) -> str:
-    """JSON dumps with Decimal support."""
-    def decimal_default(o):
-        if isinstance(o, Decimal):
-            return float(o)
-        raise TypeError(f'Object of type {o.__class__.__name__} is not JSON serializable')
-    
-    return json.dumps(obj, default=decimal_default, **kwargs)
+# safe_json_dumps moved to app.utils.json_utils to avoid circular imports
 
 class AsyncAgentOrchestrator:
     """
