@@ -305,18 +305,17 @@ async def take_order(
             raise Exception("AI required for silence handling")
 
     # Use the AI agent orchestrator for intelligent processing
-    from app.utils.agent_orchestration_async import AsyncAgentOrchestrator
+    from app.utils.agent_orchestration_async import async_agent_orchestrator
     
     try:
         # Get call_sid for session identification
         call_sid = request.call_sid or f"api_call_{int(time.time())}"
         
-        # Initialize orchestrator with database session
-        orchestrator = AsyncAgentOrchestrator()
-        await orchestrator.initialize(db=db)
+        # Initialize orchestrator with database session (singleton instance)
+        await async_agent_orchestrator.initialize(db=db)
         
         # Process the input using AI agents
-        response = await orchestrator.process_voice_input(
+        response = await async_agent_orchestrator.process_voice_input(
             call_sid,
             user_resp,
             {

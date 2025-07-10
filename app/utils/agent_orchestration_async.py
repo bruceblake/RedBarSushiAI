@@ -694,10 +694,10 @@ class AsyncAgentOrchestrator:
         set_correlation_id(call_sid)
         
         logger.info("★" * 80, call_sid=call_sid)
-        logger.info("ORCHESTRATOR: start_new_conversation called", call_sid=call_sid)
-        logger.info(f"Call SID: {call_sid}", call_sid=call_sid)
-        logger.info(f"Initial context: {json.dumps(context, indent=2)}", call_sid=call_sid)
-        logger.info(f"Correlation ID: {get_correlation_id()}", call_sid=call_sid)
+        logger.info(f"[call_sid] ORCHESTRATOR: start_new_conversation called")
+        logger.info(f"[call_sid] Call SID: {call_sid}")
+        logger.info(f"[call_sid] Initial context: {json.dumps(context, indent=2)}")
+        logger.info(f"[call_sid] Correlation ID: {get_correlation_id()}")
         logger.info("★" * 80, call_sid=call_sid)
         if not self.frontline_agent:
             # Get a database session for initialization
@@ -836,7 +836,7 @@ class AsyncAgentOrchestrator:
                     break
             
             if last_assistant_msg:
-                logger.info(f"Repeating last message", call_sid=call_sid)
+                logger.info(f"[call_sid] Repeating last message")
                 return {
                     "text": last_assistant_msg,
                     "handled": True,
@@ -851,7 +851,7 @@ class AsyncAgentOrchestrator:
                 }
         
         elif command == GlobalCommand.START_OVER:
-            logger.info(f"Starting over conversation", call_sid=call_sid)
+            logger.info(f"[call_sid] Starting over conversation")
             
             # Clear conversation history except system messages
             await self.conversation_store.delete_conversation(call_sid)
@@ -924,7 +924,7 @@ class AsyncAgentOrchestrator:
                         }
                         
                 except Exception as e:
-                    logger.error(f"Error going back to previous state: {e}", call_sid=call_sid)
+                    logger.error(f"[call_sid] Error going back to previous state: {e}")
             
             # No previous state to go back to
             return {

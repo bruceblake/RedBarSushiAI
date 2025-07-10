@@ -117,9 +117,7 @@ class GlobalCommandDetector:
                     confidence = min(0.9 + (match_ratio * 0.1), 1.0)
                     
                     logger.info(
-                        f"Detected global command: {command.value}",
-                        input=input_text,
-                        confidence=confidence
+                        f"Detected global command: {command.value} for input '{input_text}' with confidence {confidence}"
                     )
                     return command, confidence
         

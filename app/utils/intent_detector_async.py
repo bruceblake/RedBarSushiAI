@@ -52,9 +52,7 @@ class AsyncIntentDetector:
             global_event = self._map_global_command_to_event(global_cmd)
             if global_event:
                 logger.info(
-                    f"Global command detected: {global_cmd.value}",
-                    event=global_event.name,
-                    confidence=confidence
+                    f"Global command detected: {global_cmd.value} -> event: {global_event.name} (confidence: {confidence})"
                 )
                 return global_event
             

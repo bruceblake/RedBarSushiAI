@@ -52,6 +52,9 @@ class OrderingSuperStateHandler(HSMStateHandler):
         
         These are events that can be handled regardless of which substate we're in.
         """
+        # Import here to avoid circular imports
+        from app.fsm.core import ConversationHSMEvents
+        
         # Global commands that work from any ORDERING substate
         if event.name == "CLEAR_CART":
             context["cart"]["items"] = []
@@ -71,6 +74,11 @@ class OrderingSuperStateHandler(HSMStateHandler):
             else:
                 logger.warning("Cannot checkout with empty cart")
                 return None
+        
+        elif event.name == ConversationHSMEvents.USER_REQUESTS_CANCELLATION:
+            # User wants to cancel their order - transition to GLOBAL_CANCELLATION
+            logger.info("User requesting order cancellation from ORDERING state, transitioning to GLOBAL_CANCELLATION")
+            return ConversationHSMStates.GLOBAL_CANCELLATION
         
         # Not handled at this level, will bubble down to substates
         return None
