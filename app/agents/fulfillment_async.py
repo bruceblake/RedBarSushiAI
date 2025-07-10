@@ -62,13 +62,8 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         
         # Validate order has items
         if not order_details.get("items"):
-            return {
-                "text": "Empty order submission not allowed - AI will generate appropriate response",
-                "success": False,
-                "errors": ["Cannot submit an empty order"],
-                "handled": True,
-                "agent": self.agent_name
-            }
+            # AI must handle empty order scenarios - no hardcoded responses
+            raise Exception("Empty order detected - AI intelligence required for handling")
         
         # Get or create order ID
         order_id = order_details.get("id", f"ORD-{call_sid[-8:]}")
@@ -105,11 +100,23 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
                 deliverect_id = submission_result.get("deliverect_order_id", "")
                 estimated_time = order_details.get("estimated_time", 20)
                 
-                tts_response = (
-                    f"Great! Your order has been successfully submitted to our kitchen. "
-                    f"Your order number is {order_id} and it will be ready in approximately "
-                    f"{estimated_time} minutes. We'll start preparing it right away!"
+                # Use AI to generate success response
+                from app.agents.ai_mixin import AIIntelligenceMixin
+                ai_mixin = AIIntelligenceMixin()
+                
+                success_context = {
+                    "order_id": order_id,
+                    "estimated_time": estimated_time,
+                    "deliverect_id": deliverect_id,
+                    "restaurant_name": getattr(settings, 'RESTAURANT_NAME', 'our restaurant')
+                }
+                
+                success_response = await ai_mixin.process_with_ai(
+                    "Generate order success confirmation message",
+                    success_context
                 )
+                
+                tts_response = success_response.get("text", f"Order {order_id} submitted successfully")
                 
                 # Signal to FSM that order is submitted
                 hsm_context_data.get("call_specific_data", {})["next_hsm_event_name"] = "COMPLETE_INTERACTION"
@@ -152,12 +159,19 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
                     except Exception as e:
                         logger.error(f"Failed to queue notification: {e}")
                 
-                # Provide non-alarming message to customer
-                tts_response = (
-                    "Your order details have been received, and we'll start preparing it shortly. "
-                    "You'll receive a confirmation text message once it's fully processed with our kitchen. "
-                    "Thanks for your order!"
+                # Use AI to generate failure handling response
+                failure_context = {
+                    "order_id": order_id,
+                    "submission_error": submission_result.get("error", "Unknown error"),
+                    "restaurant_name": getattr(settings, 'RESTAURANT_NAME', 'our restaurant')
+                }
+                
+                failure_response = await ai_mixin.process_with_ai(
+                    "Generate order submission failure customer message (non-alarming)",
+                    failure_context
                 )
+                
+                tts_response = failure_response.get("text", f"Order {order_id} received, processing shortly")
                 
                 # Signal to FSM - still complete but with a flag
                 hsm_context_data.get("call_specific_data", {})["next_hsm_event_name"] = "ERROR_OCCURRED"
@@ -178,11 +192,22 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         except Exception as e:
             logger.error(f"Unexpected error during order submission: {e}", exc_info=True)
             
-            # Non-alarming fallback message
-            tts_response = (
-                "Your order has been received and we'll process it right away. "
-                "You should receive a confirmation shortly. Thank you!"
-            )
+            # Use AI for exception handling response
+            exception_context = {
+                "order_id": order_id,
+                "error_type": "system_exception",
+                "restaurant_name": getattr(settings, 'RESTAURANT_NAME', 'our restaurant')
+            }
+            
+            try:
+                exception_response = await ai_mixin.process_with_ai(
+                    "Generate system exception customer message (non-alarming)",
+                    exception_context
+                )
+                tts_response = exception_response.get("text", f"Order {order_id} received, processing")
+            except:
+                # If even AI fails, we must raise the original exception
+                raise e
             
             return {
                 "text": tts_response,

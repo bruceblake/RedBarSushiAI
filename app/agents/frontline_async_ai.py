@@ -70,12 +70,20 @@ CRITICAL TOOL USAGE RULES:
 - ALWAYS use tools for menu lookups and cart operations
 - Do NOT give conversational responses about adding items without using tools
 
+CATEGORY INQUIRY RULES:
+- When customer asks about a category (like "drinks", "food", "appetizers"), you MUST:
+  1. First call get_menu_categories to get exact category names
+  2. Then IMMEDIATELY call get_items_by_category with the exact category name
+  3. Present the actual items with names and prices
+- NEVER just say "let me get that for you" without actually calling the tools
+- ALWAYS follow through and show the actual menu items
+
 CATEGORY NAME RULES:
 - ALWAYS call get_menu_categories FIRST to get exact category names
 - Use the EXACT category names returned from the database
 - When calling get_items_by_category, copy category names exactly as returned
 
-REMEMBER: Use tools for every menu and cart operation. No exceptions.
+REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS follow through with actual data.
 """
         
         # We'll update instructions dynamically based on state

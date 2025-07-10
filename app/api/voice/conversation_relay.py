@@ -141,10 +141,9 @@ class ConversationRelayHandler:
                 await self.send_text_response(response_text)
                 logger.info(f"[{self.call_sid}] Sent initial greeting: '{response_text[:100]}...'")
             else:
-                # Fallback greeting if orchestrator doesn't provide one
-                fallback_greeting = "Hello and welcome to Red Bar Sushi! How can I help you today?"
-                await self.send_text_response(fallback_greeting)
-                logger.warning(f"[{self.call_sid}] Used fallback greeting")
+                # AI is required for all responses - no fallback allowed
+                logger.critical(f"[{self.call_sid}] No AI response available - system requires AI intelligence")
+                raise Exception("AI response required for system operation")
             
         except Exception as e:
             logger.error(f"[{self.call_sid}] Failed to initialize orchestrator: {e}", exc_info=True)
@@ -166,9 +165,8 @@ class ConversationRelayHandler:
         
         if not self.orchestrator:
             logger.error(f"[{self.call_sid}] No orchestrator available")
-            await self.send_text_response(
-                "I'm sorry, I'm not ready to process your request yet."
-            )
+            # AI is required - cannot provide fallback responses
+            raise Exception("Orchestrator required for AI-driven responses")
             return
         
         try:
@@ -188,9 +186,8 @@ class ConversationRelayHandler:
                 await self.send_text_response(response_text)
             else:
                 logger.warning(f"[{self.call_sid}] No response text from orchestrator")
-                await self.send_text_response(
-                    "I'm sorry, I didn't catch that. Could you repeat your request?"
-                )
+                # AI is required - no fallback responses allowed
+                raise Exception("AI response required - no fallback available")
                 
             # Handle any special actions
             actions = response.get("actions", [])
@@ -202,9 +199,8 @@ class ConversationRelayHandler:
                     
         except Exception as e:
             logger.error(f"[{self.call_sid}] Error processing transcript: {e}", exc_info=True)
-            await self.send_text_response(
-                "I'm sorry, I encountered an error processing your request. Please try again."
-            )
+            # AI is required for all error recovery - no hardcoded fallbacks
+            raise e
     
     async def handle_dtmf_message(self, message: Dict[str, Any]) -> None:
         """Handle DTMF input from ConversationRelay."""
