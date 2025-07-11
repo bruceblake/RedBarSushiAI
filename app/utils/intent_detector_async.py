@@ -45,8 +45,8 @@ class AsyncIntentDetector:
         if not transcript.strip():
             return None
             
-        # First check for global commands
-        global_cmd, confidence = global_command_detector.detect_command(transcript)
+        # First check for global commands using AI
+        global_cmd, confidence = await global_command_detector.detect_command(transcript)
         if global_cmd != GlobalCommand.NONE and confidence >= 0.8:
             # Map global commands to events
             global_event = self._map_global_command_to_event(global_cmd)

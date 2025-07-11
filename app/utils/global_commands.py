@@ -1,11 +1,10 @@
 """
-Global command detection and handling utilities.
+AI-driven global command detection and handling utilities.
 
 This module provides functionality for detecting and handling global commands
-that work across all conversation states (e.g., "repeat that", "start over").
+that work across all conversation states using AI intelligence instead of hardcoded patterns.
 """
 
-import re
 import logging
 from typing import Dict, Any, Optional, List, Tuple
 from enum import Enum
@@ -26,74 +25,15 @@ class GlobalCommand(Enum):
 
 
 class GlobalCommandDetector:
-    """Detects global commands in user input."""
-    
-    # Command patterns mapped to their command type
-    COMMAND_PATTERNS = {
-        GlobalCommand.REPEAT: [
-            r"\b(repeat|say)\s+(that|it)\s*(again)?\b",
-            r"\bwhat\s+did\s+you\s+(just\s+)?say\b",
-            r"\b(can|could)\s+you\s+(please\s+)?repeat\b",
-            r"\b(say|tell)\s+(that|it)\s+(again|once\s+more)\b",
-            r"\bpardon(\s+me)?\b",
-            r"\bcome\s+again\b",
-            r"\bone\s+more\s+time\b",
-            r"\bdidn'?t\s+(quite\s+)?(catch|hear|get)\s+that\b"
-        ],
-        GlobalCommand.START_OVER: [
-            r"\bstart\s+over\b",
-            r"\b(begin|start)\s+(again|fresh|from\s+the\s+beginning)\b",
-            r"\blet'?s\s+start\s+(over|fresh|again)\b",
-            r"\breset\b",
-            r"\b(restart|redo)\s+(the\s+)?(order|conversation)\b",
-            r"\bscratch\s+that\s+start\s+over\b",
-            r"\bcancel\s+everything\s+and\s+start\s+(over|again)\b"
-        ],
-        GlobalCommand.GO_BACK: [
-            r"\bgo\s+back\b",
-            r"\b(previous|last)\s+(step|screen|menu)\b",
-            r"\bundo\s+(that|the\s+last)\b",
-            r"\btake\s+me\s+back\b",
-            r"\bback\s+up\b",
-            r"\blet'?s\s+go\s+back\b",
-            r"\breturn\s+to\s+(the\s+)?(previous|last)\b",
-            r"\bchange\s+my\s+mind\b"
-        ],
-        GlobalCommand.HELP: [
-            r"\bhelp\s*(me)?\b",
-            r"\bwhat\s+can\s+(i|you)\s+do\b",
-            r"\bi'?m\s+(confused|lost|stuck)\b",
-            r"\bwhat\s+are\s+my\s+options\b",
-            r"\bshow\s+me\s+(the\s+)?options\b",
-            r"\bi\s+need\s+(help|assistance)\b",
-            r"\bhow\s+do\s+i\b",
-            r"\bwhat\s+do\s+i\s+do\s+(now|next)\b"
-        ],
-        GlobalCommand.CANCEL: [
-            r"\bcancel\s*(everything|all|order)?\b",
-            r"\bstop\s*(everything|the\s+order)?\b",
-            r"\bend\s+(the\s+)?(call|conversation)\b",
-            r"\bnevermind\b",
-            r"\bforget\s+(it|everything|the\s+order)\b",
-            r"\bi\s+don'?t\s+want\s+(to\s+order\s+)?anything\b",
-            r"\bhang\s+up\b",
-            r"\bgoodbye\b"
-        ]
-    }
+    """AI-driven global command detection for restaurant interactions."""
     
     def __init__(self):
-        """Initialize the global command detector."""
-        # Compile regex patterns for efficiency
-        self.compiled_patterns = {}
-        for command, patterns in self.COMMAND_PATTERNS.items():
-            self.compiled_patterns[command] = [
-                re.compile(pattern, re.IGNORECASE) 
-                for pattern in patterns
-            ]
+        """Initialize the AI-driven global command detector."""
+        pass
     
-    def detect_command(self, input_text: str) -> Tuple[GlobalCommand, float]:
+    async def detect_command(self, input_text: str) -> Tuple[GlobalCommand, float]:
         """
-        Detect if the input contains a global command.
+        Use AI to detect global commands in user input.
         
         Args:
             input_text: The user's input text
@@ -104,85 +44,170 @@ class GlobalCommandDetector:
         if not input_text:
             return GlobalCommand.NONE, 0.0
         
-        # Clean the input
-        cleaned_input = input_text.strip().lower()
-        
-        # Check each command type
-        for command, patterns in self.compiled_patterns.items():
-            for pattern in patterns:
-                if pattern.search(cleaned_input):
-                    # Calculate confidence based on how much of the input matches
-                    match = pattern.search(cleaned_input)
-                    match_ratio = len(match.group()) / len(cleaned_input)
-                    confidence = min(0.9 + (match_ratio * 0.1), 1.0)
-                    
-                    logger.info(
-                        f"Detected global command: {command.value} for input '{input_text}' with confidence {confidence}"
-                    )
-                    return command, confidence
-        
-        return GlobalCommand.NONE, 0.0
-    
-    def is_global_command(self, input_text: str, threshold: float = 0.8) -> bool:
-        """
-        Check if the input is a global command with sufficient confidence.
-        
-        Args:
-            input_text: The user's input text
-            threshold: Minimum confidence threshold
+        try:
+            from openai import AsyncOpenAI
+            from app.config import settings
             
-        Returns:
-            True if a global command was detected above threshold
-        """
-        command, confidence = self.detect_command(input_text)
-        return command != GlobalCommand.NONE and confidence >= threshold
+            client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """You are a global command detector for restaurant phone ordering.
+
+Analyze the user's input and determine if they're requesting a global system action.
+
+Return ONLY a JSON object with:
+{"command": "COMMAND_NAME", "confidence": 0.0-1.0}
+
+Available commands:
+- REPEAT: Asking to repeat/clarify what was just said
+- START_OVER: Wanting to restart the entire order/conversation
+- GO_BACK: Wanting to undo or return to previous step
+- HELP: Asking for help or options
+- CANCEL: Wanting to cancel/end the call/order
+- NONE: Regular ordering conversation (not a global command)
+
+Examples:
+- "Can you repeat that?" → {"command": "REPEAT", "confidence": 0.95}
+- "Let's start over" → {"command": "START_OVER", "confidence": 0.9}
+- "I want a burger" → {"command": "NONE", "confidence": 0.0}
+- "Cancel everything" → {"command": "CANCEL", "confidence": 0.95}
+- "What are my options?" → {"command": "HELP", "confidence": 0.85}
+- "Go back" → {"command": "GO_BACK", "confidence": 0.9}"""
+                    },
+                    {
+                        "role": "user",
+                        "content": input_text
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=50
+            )
+            
+            result_text = response.choices[0].message.content.strip()
+            
+            # Parse JSON response
+            import json
+            result = json.loads(result_text)
+            
+            command_str = result.get("command", "NONE")
+            confidence = result.get("confidence", 0.0)
+            
+            # Convert string to GlobalCommand enum
+            try:
+                command = GlobalCommand(command_str)
+            except ValueError:
+                command = GlobalCommand.NONE
+                confidence = 0.0
+            
+            if command != GlobalCommand.NONE:
+                logger.info(f"AI detected global command: '{command.value}' (confidence: {confidence:.2f}) from input: '{input_text}'")
+            
+            return command, confidence
+            
+        except Exception as e:
+            logger.error(f"Error in AI global command detection: {e}")
+            # Conservative fallback - if AI fails, assume no global command
+            return GlobalCommand.NONE, 0.0
 
 
 class GlobalCommandContext:
-    """Manages context needed for global command execution."""
+    """AI-driven context for global command execution."""
     
     def __init__(self):
-        """Initialize command context."""
-        self.last_response: Optional[str] = None
-        self.last_response_time: Optional[float] = None
-        self.state_history: List[str] = []
-        self.context_history: List[Dict[str, Any]] = []
-        self.max_history_size = 10
+        """Initialize the global command context."""
+        pass
     
-    def update_last_response(self, response: str, timestamp: float):
-        """Update the last response for repeat functionality."""
-        self.last_response = response
-        self.last_response_time = timestamp
-    
-    def push_state(self, state: str, context: Dict[str, Any]):
-        """Push a state onto the history stack."""
-        self.state_history.append(state)
-        self.context_history.append(context.copy())
+    async def execute_command(
+        self, 
+        command: GlobalCommand, 
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Execute a global command using AI intelligence.
         
-        # Limit history size
-        if len(self.state_history) > self.max_history_size:
-            self.state_history.pop(0)
-            self.context_history.pop(0)
-    
-    def pop_state(self) -> Optional[Tuple[str, Dict[str, Any]]]:
-        """Pop the previous state from history."""
-        if len(self.state_history) > 1:  # Keep at least one state
-            # Remove current state
-            self.state_history.pop()
-            self.context_history.pop()
+        Args:
+            command: The global command to execute
+            context: Current conversation context
             
-            # Return previous state
-            return self.state_history[-1], self.context_history[-1]
-        return None
+        Returns:
+            Dictionary with execution result and AI-generated response
+        """
+        try:
+            from openai import AsyncOpenAI
+            from app.config import settings
+            
+            client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            # Build context-aware prompt for command execution
+            command_prompts = {
+                GlobalCommand.REPEAT: "Generate a response that repeats the last system message in a natural way",
+                GlobalCommand.START_OVER: "Generate a response that restarts the ordering conversation from the beginning",
+                GlobalCommand.GO_BACK: "Generate a response that takes the customer back to the previous step",
+                GlobalCommand.HELP: "Generate a helpful response that explains available options to the customer",
+                GlobalCommand.CANCEL: "Generate a polite response that confirms order cancellation and offers alternatives"
+            }
+            
+            if command not in command_prompts:
+                return {"success": False, "message": "Unknown command"}
+            
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"""You are handling a global command for a restaurant ordering system.
+
+Command: {command.value}
+Task: {command_prompts[command]}
+
+Context: {context}
+
+Generate a natural, helpful response that appropriately handles this command.
+Keep responses concise and friendly."""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Execute {command.value} command"
+                    }
+                ],
+                temperature=0.3,
+                max_tokens=150
+            )
+            
+            response_text = response.choices[0].message.content.strip()
+            
+            return {
+                "success": True,
+                "command": command.value,
+                "message": response_text,
+                "action": self._get_command_action(command)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error executing global command {command}: {e}")
+            return {
+                "success": False,
+                "command": command.value,
+                "message": "I'm sorry, I had trouble processing that request. Please try again.",
+                "error": str(e)
+            }
     
-    def clear_history(self):
-        """Clear state history (for start over)."""
-        self.state_history.clear()
-        self.context_history.clear()
-        self.last_response = None
-        self.last_response_time = None
+    def _get_command_action(self, command: GlobalCommand) -> str:
+        """Get the system action for a command."""
+        action_map = {
+            GlobalCommand.REPEAT: "repeat_last_message",
+            GlobalCommand.START_OVER: "restart_conversation",
+            GlobalCommand.GO_BACK: "go_to_previous_step",
+            GlobalCommand.HELP: "show_help_options", 
+            GlobalCommand.CANCEL: "cancel_order"
+        }
+        return action_map.get(command, "none")
 
 
-# Singleton instances
+# Singleton instances for backward compatibility
 global_command_detector = GlobalCommandDetector()
 global_command_context = GlobalCommandContext()

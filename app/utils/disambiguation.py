@@ -109,7 +109,7 @@ class DisambiguationHelper:
             options=options
         )
     
-    def create_quantity_disambiguation(
+    async def create_quantity_disambiguation(
         self,
         ambiguous_quantity: str
     ) -> DisambiguationResult:
@@ -122,35 +122,10 @@ class DisambiguationHelper:
         Returns:
             DisambiguationResult with resolved or disambiguation options
         """
-        # Common quantity mappings
-        quantity_mappings = {
-            'one': 1, 'a': 1, 'an': 1, 'single': 1,
-            'two': 2, 'couple': 2, 'pair': 2,
-            'three': 3, 'few': 3,
-            'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
-            'dozen': 12, 'half dozen': 6
-        }
+        # Use AI to parse quantity expressions instead of hardcoded mappings
+        quantity = await _ai_parse_quantity(ambiguous_quantity)
         
-        # Try to parse as number
-        try:
-            quantity = int(ambiguous_quantity)
-            if 1 <= quantity <= 99:  # Reasonable quantity range
-                option = DisambiguationOption(
-                    id=str(quantity),
-                    display_name=str(quantity),
-                    context={'quantity': quantity}
-                )
-                return DisambiguationResult(
-                    resolved=True,
-                    selected_option=option
-                )
-        except ValueError:
-            pass
-        
-        # Try word mappings
-        normalized = ambiguous_quantity.lower().strip()
-        if normalized in quantity_mappings:
-            quantity = quantity_mappings[normalized]
+        if quantity and 1 <= quantity <= 99:
             option = DisambiguationOption(
                 id=str(quantity),
                 display_name=str(quantity),
@@ -397,3 +372,73 @@ async def disambiguation_resolver(
             resolved=False,
             error_message=f"Could not resolve disambiguation for '{context.original_input}'"
         )
+
+
+async def _ai_parse_quantity(quantity_text: str) -> Optional[int]:
+    """
+    Use AI to parse quantity expressions into numbers.
+    
+    Args:
+        quantity_text: Text representation of quantity
+        
+    Returns:
+        Parsed quantity as integer, or None if couldn't parse
+    """
+    try:
+        from openai import AsyncOpenAI
+        from app.config import settings
+        
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """You are a quantity parser for restaurant orders.
+
+Parse text representations of quantities into numbers.
+
+Return ONLY a JSON object with:
+{"quantity": number_or_null}
+
+Examples:
+- "one" → {"quantity": 1}
+- "a couple" → {"quantity": 2}
+- "few" → {"quantity": 3}
+- "dozen" → {"quantity": 12}
+- "half dozen" → {"quantity": 6}
+- "5" → {"quantity": 5}
+- "twenty" → {"quantity": 20}
+- "some" → {"quantity": null}
+
+Rules:
+- Return null for vague quantities like "some", "many", "lots"
+- Return reasonable numbers (1-99) for restaurant orders
+- Handle common words like "couple", "few", "dozen"
+- Parse both spelled-out and numeric quantities"""
+                },
+                {
+                    "role": "user",
+                    "content": quantity_text
+                }
+            ],
+            temperature=0.1,
+            max_tokens=30
+        )
+        
+        result_text = response.choices[0].message.content.strip()
+        
+        # Parse JSON response
+        import json
+        result = json.loads(result_text)
+        
+        return result.get("quantity")
+        
+    except Exception as e:
+        logger.error(f"Error parsing quantity with AI: {e}")
+        # Try basic numeric parsing as fallback
+        try:
+            return int(quantity_text)
+        except ValueError:
+            return None

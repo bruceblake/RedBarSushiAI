@@ -1420,3 +1420,67 @@ async def search_menu_items(db: AsyncSession, query: str, limit: int = 10) -> Li
     except Exception as e:
         logger.error(f"Error searching menu items: {e}")
         return []
+
+
+async def get_item_by_name_with_modifiers(db: AsyncSession, item_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Get a menu item by name with all its modifier groups and modifiers.
+    
+    Args:
+        db: Database session
+        item_name: Name of the menu item
+        
+    Returns:
+        Dictionary with item details and modifier groups, or None if not found
+    """
+    try:
+        # Query for the item with eager loading of modifier relationships
+        stmt = select(MenuItem).options(
+            selectinload(MenuItem.modifier_groups).selectinload(MenuModifierGroup.modifiers)
+        ).where(MenuItem.name.ilike(f"%{item_name}%"))
+        
+        result = await db.execute(stmt)
+        item = result.scalars().first()
+        
+        if not item:
+            return None
+        
+        # Convert to dictionary with modifier groups
+        item_dict = {
+            "id": item.id,
+            "name": item.name,
+            "description": item.description,
+            "price": float(item.price) if item.price else 0.0,
+            "plu": item.plu,
+            "is_available": item.is_available,
+            "modifier_groups": []
+        }
+        
+        # Add modifier groups
+        for group in item.modifier_groups:
+            group_dict = {
+                "id": group.id,
+                "name": group.name,
+                "required": group.required,
+                "min_selection": group.min_selection,
+                "max_selection": group.max_selection,
+                "modifiers": []
+            }
+            
+            # Add modifiers in the group
+            for modifier in group.modifiers:
+                modifier_dict = {
+                    "id": modifier.id,
+                    "name": modifier.name,
+                    "price": float(modifier.price) if modifier.price else 0.0,
+                    "plu": modifier.plu
+                }
+                group_dict["modifiers"].append(modifier_dict)
+            
+            item_dict["modifier_groups"].append(group_dict)
+        
+        return item_dict
+        
+    except Exception as e:
+        logger.error(f"Error getting item with modifiers: {e}")
+        return None

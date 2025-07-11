@@ -769,41 +769,17 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
                         self.conversation_state = ConversationHSMStates.ORDERING_UPSELL_SUGGESTION
                         return await self._handle_upsell_suggestion()
         
-        # If AI failed, provide ordering fallback
+        # NO FALLBACK LOGIC - AI is required for all processing
+        # If AI fails, we should handle it gracefully but not with hardcoded patterns
         if response.get("text", "").startswith("[FrontlineVoiceAI] Processed:"):
-            text_lower = input_text.lower()
-            
-            # Check if customer is done ordering
-            if any(phrase in text_lower for phrase in ["that's all", "done", "ready", "checkout", "complete", "finished"]):
-                response = {
-                    "text": "Great! Let me confirm your order. You've ordered: (Order details would be shown here). Is this correct?",
-                    "agent": self.name,
-                    "handled": True,
-                    "actions": []
-                }
-                self.conversation_state = "VALIDATION"
-            else:
-                # General ordering response - get actual categories from database
-                try:
-                    if "menu" in self.specialists:
-                        categories_result = await self.specialists["menu"].execute_tool("list_categories", {})
-                        if categories_result.get("categories"):
-                            category_names = [cat["name"] for cat in categories_result["categories"][:3]]  # Get first 3
-                            categories_text = ", ".join(category_names)
-                            response_text = f"I understand you'd like to add that to your order. We have items from our {categories_text} sections, and many other options. Please specify which items you'd like."
-                        else:
-                            response_text = "I understand you'd like to add that to your order. Please specify which items you'd like from our menu."
-                    else:
-                        response_text = "I understand you'd like to add that to your order. Please specify which items you'd like from our menu."
-                except Exception:
-                    response_text = "I understand you'd like to add that to your order. Please specify which items you'd like from our menu."
-                
-                response = {
-                    "text": response_text,
-                    "agent": self.name,
-                    "handled": True,
-                    "actions": []
-                }
+            # AI failure - return error instead of hardcoded fallback
+            response = {
+                "text": "I'm having trouble understanding. Could you please rephrase your request?",
+                "agent": self.name,
+                "handled": False,
+                "actions": [],
+                "error": "AI processing failed - no hardcoded fallbacks allowed"
+            }
         
         # Note: Order completion is now handled at the beginning of this function
         

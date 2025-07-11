@@ -96,35 +96,113 @@ class ConstraintDetails(BaseModel):
 # Helper Functions
 # =====================
 
-async def check_for_missing_modifiers(order_items: List[dict]) -> tuple:
+async def check_for_missing_modifiers(order_items: List[dict], db: AsyncSession = None) -> tuple:
     """
-    Check if any items are missing required modifiers.
+    Check if any items are missing required modifiers based on actual menu data.
     
     Args:
         order_items: List of order items to check
+        db: Database session
     
     Returns:
         Tuple of (items_needing_modifiers, constraint_details)
     """
-    items_needing_modifiers = []
-    constraint_details = {}
-    
-    # TODO: Replace with async agent implementation
-    # For now, return empty results
-    return [], {}
+    try:
+        from app.db.crud_menu_async import get_item_by_name_with_modifiers
+        
+        if not order_items or not db:
+            return [], {}
+        
+        items_needing_modifiers = []
+        constraint_details = {}
+        
+        for item in order_items:
+            item_name = item.get("name", "")
+            if not item_name:
+                continue
+            
+            # Get actual menu item with modifiers from database
+            menu_item = await get_item_by_name_with_modifiers(db, item_name)
+            
+            if not menu_item:
+                continue
+            
+            # Check for required modifier groups from actual menu data
+            modifier_groups = menu_item.get("modifier_groups", [])
+            required_groups = [g for g in modifier_groups if g.get("required", False)]
+            
+            if required_groups:
+                # Check if item has selections for all required groups
+                item_modifiers = item.get("modifiers", [])
+                item_modifier_groups = {mod.get("group_name") for mod in item_modifiers if mod.get("group_name")}
+                
+                missing_groups = []
+                for req_group in required_groups:
+                    group_name = req_group.get("name", "")
+                    if group_name not in item_modifier_groups:
+                        missing_groups.append(req_group)
+                
+                if missing_groups:
+                    items_needing_modifiers.append(item)
+                    constraint_details[item_name] = {
+                        "missing_required_groups": missing_groups,
+                        "all_modifier_groups": modifier_groups
+                    }
+        
+        return items_needing_modifiers, constraint_details
+        
+    except Exception as e:
+        logger.error(f"Error checking modifiers from menu database: {e}")
+        # Conservative approach - assume no modifiers needed if database check fails
+        return [], {}
 
-async def custom_suggest_modifiers(item_name: str) -> str:
+async def custom_suggest_modifiers(item_name: str, db: AsyncSession = None) -> str:
     """
-    Generate custom modifier suggestions for an item.
+    Get actual modifier suggestions from the menu database for the specific item.
     
     Args:
         item_name: Name of the item to suggest modifiers for
+        db: Database session
         
     Returns:
-        String with the suggestions
+        Modifier suggestions based on actual menu data
     """
-    # TODO: Replace with async agent implementation
-    return f"Would you like any modifications to your {item_name}?"
+    try:
+        # Get actual modifiers from the menu database
+        from app.db.crud_menu_async import get_item_by_name_with_modifiers
+        
+        if not db:
+            return f"Would you like any modifications to your {item_name}?"
+        
+        # Get the actual menu item with its modifier groups
+        item_data = await get_item_by_name_with_modifiers(db, item_name)
+        
+        if not item_data or not item_data.get("modifier_groups"):
+            return f"Your {item_name} is ready as-is. Anything else I can help you with?"
+        
+        # Build modifier suggestions from actual menu data
+        modifier_groups = item_data.get("modifier_groups", [])
+        suggestions = []
+        
+        for group in modifier_groups[:3]:  # Limit to first 3 groups
+            group_name = group.get("name", "")
+            modifiers = group.get("modifiers", [])
+            
+            if modifiers:
+                modifier_names = [mod.get("name") for mod in modifiers[:3]]  # First 3 modifiers
+                if modifier_names:
+                    modifier_text = ", ".join(modifier_names)
+                    suggestions.append(f"{group_name}: {modifier_text}")
+        
+        if suggestions:
+            suggestions_text = "; ".join(suggestions)
+            return f"For your {item_name}, we have these options: {suggestions_text}. Would you like any of these?"
+        else:
+            return f"Your {item_name} comes standard. Would you like anything else?"
+        
+    except Exception as e:
+        logger.error(f"Error getting actual modifiers from menu: {e}")
+        return f"Would you like any modifications to your {item_name}?"
 
 # =====================
 # API Routes
