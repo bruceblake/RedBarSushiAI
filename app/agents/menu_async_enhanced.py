@@ -368,35 +368,8 @@ IMPORTANT RULES:
                 item_name_lower = item.name.lower()
                 normalized_item = normalize_for_matching(item_name_lower)
                 
-                # Calculate different types of matching scores using both original and normalized text
-                exact_match = 1.0 if search_term == item_name_lower or normalized_search == normalized_item else 0.0
-                contains_match = 0.8 if search_term in item_name_lower or normalized_search in normalized_item else 0.0
-                reverse_contains = 0.7 if item_name_lower in search_term or normalized_item in normalized_search else 0.0
-                
-                # Word-level matching for better semantic accuracy
-                search_words = set(normalized_search.split())
-                item_words = set(normalized_item.split())
-                
-                # Calculate word overlap
-                common_words = search_words.intersection(item_words)
-                word_overlap_score = len(common_words) / max(len(search_words), 1) if search_words else 0.0
-                
-                # Use difflib for sequence matching BUT only if word overlap is reasonable
-                sequence_similarity = difflib.SequenceMatcher(None, normalized_search, normalized_item).ratio()
-                
-                # Penalize pure sequence similarity when there's no meaningful word overlap
-                # This prevents "classic burger" from matching "chicken burger" just due to character similarity
-                if word_overlap_score < 0.5 and sequence_similarity < 0.8:
-                    sequence_similarity *= 0.3  # Heavy penalty for misleading matches
-                
-                # Calculate final confidence score (weighted combination)
-                confidence = max(
-                    exact_match,
-                    contains_match,
-                    reverse_contains,
-                    word_overlap_score * 0.9,  # High weight for word-level matching
-                    sequence_similarity * 0.6  # Reduced weight for sequence matching
-                )
+                # Use AI to determine menu item matching instead of hardcoded algorithms
+                confidence = await self._ai_match_menu_item(search_term, item_name, item.get('description', ''))
                 
                 # Only include matches above threshold
                 if confidence >= 0.4:
@@ -1105,3 +1078,69 @@ IMPORTANT RULES:
         except Exception as e:
             logger.error(f"Error checking item availability from database: {e}")
             return {"error": str(e)}
+    
+    async def _ai_match_menu_item(self, search_term: str, item_name: str, item_description: str) -> float:
+        """
+        Use AI to determine how well a search term matches a menu item.
+        
+        Args:
+            search_term: What the customer said they want
+            item_name: Name of the menu item
+            item_description: Description of the menu item
+            
+        Returns:
+            Confidence score from 0.0 to 1.0
+        """
+        try:
+            client = await self._get_ai_client()
+            
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """You are a menu matching specialist for a restaurant. 
+                        
+Analyze how well a customer's request matches a specific menu item and return a confidence score.
+
+Return ONLY a JSON object with:
+{"confidence": 0.0-1.0, "reasoning": "brief explanation"}
+
+Guidelines:
+- 1.0: Perfect/exact match (e.g., "burger" → "Cheeseburger")  
+- 0.8-0.9: Very close match (e.g., "chicken sandwich" → "Chicken Burger")
+- 0.6-0.7: Good semantic match (e.g., "steak" → "Delicious Steak Frites")
+- 0.4-0.5: Possible match (e.g., "meat" → "Cheeseburger")
+- 0.0-0.3: Poor/no match (e.g., "ice cream" → "Burger")
+
+Consider:
+- Exact name matches
+- Semantic similarity (burger/sandwich)
+- Ingredient overlap
+- Item descriptions
+- Common nicknames/abbreviations"""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Customer wants: '{search_term}'\nMenu item: '{item_name}'\nDescription: '{item_description}'"
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=100
+            )
+            
+            result_text = response.choices[0].message.content.strip()
+            
+            # Parse JSON response
+            import json
+            result = json.loads(result_text)
+            
+            confidence = result.get("confidence", 0.0)
+            logger.debug(f"AI match: '{search_term}' → '{item_name}' = {confidence}")
+            
+            return max(0.0, min(1.0, confidence))  # Ensure 0.0-1.0 range
+            
+        except Exception as e:
+            logger.error(f"Error in AI menu matching: {e}")
+            # Conservative fallback - if AI fails, don't match
+            return 0.0
