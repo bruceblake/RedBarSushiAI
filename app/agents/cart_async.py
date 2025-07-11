@@ -485,6 +485,7 @@ Be quick, accurate, and concise. NO long explanations.
                 "name": item.get("name", ""),
                 "plu": item.get("plu", ""),
                 "price": item.get("price_formatted", "$0.00"),
+                "price_numeric": item.get("price", 0),  # Add numeric price for cart calculations
                 "price_cents": item.get("price", 0),
                 "description": item.get("description", ""),
                 "category": item.get("category", ""),
@@ -580,18 +581,28 @@ Be quick, accurate, and concise. NO long explanations.
                     continue
                 
                 # Add to validated modifiers
+                # modifier is from async_menu_db_store.get_modifier_by_plu() which returns model.to_dict()
+                # The price_change field contains the numeric value from the database
+                modifier_price = float(modifier.get("price_change", 0))
+                logger.info(f"Retrieved modifier {mod_plu}: name='{modifier.get('name')}', price_change={modifier_price}")
+                
                 validated_modifiers.append({
                     "plu": mod_plu,
                     "name": modifier.get("name", ""),
                     "quantity": mod_quantity,
-                    "price_change": modifier.get("price", 0)
+                    "price_change": modifier_price
                 })
         
         # Create the new item entry
+        # item is from async_menu_db_store.get_item_by_plu() which returns model.to_dict()
+        # The price field contains the numeric value from the database
+        item_price = float(item.get("price", 0))  # Ensure price is float for calculations
+        logger.critical(f"Retrieved item {plu}: name='{item.get('name')}', price={item_price}")
+        
         new_item = {
             "plu": plu,
             "name": item.get("name", ""),
-            "price": item.get("price", 0),
+            "price": item_price,  # Use numeric price from database
             "quantity": quantity,
             "modifiers": validated_modifiers,
             "special_instructions": special_instructions
