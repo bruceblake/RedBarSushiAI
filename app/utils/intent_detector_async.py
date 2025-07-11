@@ -334,7 +334,7 @@ Examples:
         Returns:
             Tuple of (command, confidence)
         """
-        return global_command_detector.detect_command(transcript)
+        return await global_command_detector.detect_command(transcript)
 
 async def detect_confirmation_intent(transcript: str) -> Dict[str, Any]:
     """

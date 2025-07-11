@@ -21,8 +21,7 @@ from app.models.order_async import Order, OrderItem
 from app.utils.helpers_async import commit_with_retry_async, log_info_async
 from app.utils.menu_utils_db_async import load_menu_data  # Using async version
 from app.config import settings
-# from app.utils.agent_utils import OrderParsingAgent  # TODO: Create async version if needed
-# NOTE: Temporarily disabled - using async agents instead
+# NOTE: Using async AI orchestrator instead of legacy agent utils
 
 # Configure logger
 logger = logging.getLogger(__name__)

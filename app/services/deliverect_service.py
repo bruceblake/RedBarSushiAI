@@ -55,7 +55,7 @@ class DeliverectService:
         """
         try:
             # Get location details
-            stmt = select(Location).limit(1)  # TODO: Support multiple locations
+            stmt = select(Location).limit(1)  # Currently single location - multi-location is future feature
             result = await db.execute(stmt)
             location = result.scalar_one_or_none()
             
@@ -369,14 +369,26 @@ class DeliverectService:
                 "items": []
             }
             
-            # Add items
+            # Add items with modifier support
             for item in order.items:
+                # Extract modifiers from item
+                modifiers = []
+                if hasattr(item, 'modifiers') and item.modifiers:
+                    for modifier in item.modifiers:
+                        if hasattr(modifier, 'plu') and modifier.plu:
+                            modifiers.append({
+                                "plu": modifier.plu,
+                                "name": modifier.name,
+                                "price": float(modifier.price or 0),
+                                "quantity": modifier.quantity or 1
+                            })
+                
                 order_data["items"].append({
                     "plu": item.menu_item_plu,
                     "name": item.name,
                     "price": float(item.price),
                     "quantity": item.quantity,
-                    "modifiers": []  # TODO: Add modifier support
+                    "modifiers": modifiers
                 })
             
             deliverect_payload = build_deliverect_order(order_data)
@@ -454,7 +466,7 @@ class DeliverectService:
             Tuple of (success, response_data, status_code)
         """
         # Get location details
-        stmt = select(Location).limit(1)  # TODO: Support multiple locations
+        stmt = select(Location).limit(1)  # Currently single location - multi-location is future feature
         result = await db.execute(stmt)
         location = result.scalar_one_or_none()
         

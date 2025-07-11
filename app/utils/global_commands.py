@@ -119,7 +119,13 @@ class GlobalCommandContext:
     
     def __init__(self):
         """Initialize the global command context."""
-        pass
+        self.last_response = None
+        self.last_response_time = None
+    
+    def update_last_response(self, response_text: str, timestamp: float):
+        """Update the last response for potential REPEAT commands."""
+        self.last_response = response_text
+        self.last_response_time = timestamp
     
     async def execute_command(
         self, 

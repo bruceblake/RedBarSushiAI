@@ -97,15 +97,29 @@ async def modify_order(
             "modifications_applied": False
         }
     
-    # Parse the modification request
-    # agent = OrderParsingAgent()  # TODO: Replace with AI orchestrator
-    
+    # Parse the modification request using AI orchestrator
     try:
-        # Get order modifications
-        # modifications = get_order_modifications(user_resp, order_items)  # TODO: Replace with AI orchestrator
-        modifications = []  # Temporary placeholder
+        from app.utils.agent_orchestration_async import async_agent_orchestrator
         
-        if not modifications:
+        # Initialize orchestrator with database session
+        await async_agent_orchestrator.initialize(db=db)
+        
+        # Process the modification request using AI
+        response = await async_agent_orchestrator.process_voice_input(
+            call_sid,
+            user_resp,
+            {
+                "session_id": call_sid,
+                "modification_mode": True,
+                "existing_order": order_items
+            }
+        )
+        
+        # Check if modifications were successful
+        modifications = response.get("actions", [])
+        modifications_applied = any(action.get("type") == "cart_updated" for action in modifications)
+        
+        if not modifications_applied:
             return {
                 "message": "I'm sorry, I couldn't understand the modifications you want to make. Could you please try again with specific changes? For example, 'remove the California roll' or 'add one more spicy tuna roll'.",
                 "redirect_to": "/new_modify_order",
