@@ -65,11 +65,18 @@ KEY TASKS:
 4. Keep responses short (1-2 sentences)
 
 CRITICAL TOOL USAGE RULES:
-- When a customer mentions ANY food item, you MUST use the add_to_cart tool
+- When a customer WANTS TO ORDER a food item, you MUST use the add_to_cart tool
+- NEVER add items if customer says "no", "that's all", "I'm done", "nothing else", or similar completion phrases
 - NEVER say you've added items without actually calling the add_to_cart tool
 - If customer requests multiple items, you MUST call add_to_cart with exact item_name and quantity
 - ALWAYS use tools for menu lookups and cart operations
 - Do NOT give conversational responses about adding items without using tools
+
+ORDER COMPLETION DETECTION:
+- If customer says "no", "that's all", "I'm done", "nothing else", "that's it" → CALL proceed_to_checkout tool with ready_for_checkout: true
+- If customer asks "what do you have" about an item → provide information, do NOT add to cart
+- Only add to cart when customer clearly WANTS TO ORDER something
+- When order is complete, ALWAYS call proceed_to_checkout tool instead of adding more items
 
 CATEGORY INQUIRY RULES:
 - When customer asks about a category (like "drinks", "food", "appetizers"), you MUST:
@@ -197,6 +204,23 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
                     "parameters": {
                         "type": "object",
                         "properties": {}
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "proceed_to_checkout",
+                    "description": "Proceed to checkout when customer is done ordering",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "ready_for_checkout": {
+                                "type": "boolean",
+                                "description": "Whether the customer is ready for checkout"
+                            }
+                        },
+                        "required": ["ready_for_checkout"]
                     }
                 }
             },
@@ -1002,6 +1026,9 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
         elif tool_name == "get_cart_summary":
             return await self._get_cart_summary()
             
+        elif tool_name == "proceed_to_checkout":
+            return await self._proceed_to_checkout(args)
+            
         elif tool_name == "confirm_order":
             return {"confirmed": args.get("confirmed", False)}
             
@@ -1182,6 +1209,28 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
             "items": items,
             "count": len(items),
             "total": 0  # Would need pricing info
+        }
+    
+    async def _proceed_to_checkout(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Proceed to checkout when customer is done ordering."""
+        ready_for_checkout = args.get("ready_for_checkout", False)
+        logger.critical(f"_proceed_to_checkout called with ready_for_checkout: {ready_for_checkout}")
+        
+        if ready_for_checkout:
+            # Transition to validation/confirmation state
+            self.conversation_state = "VALIDATION"
+            logger.critical(f"✓ State changed from {self.conversation_state} to VALIDATION")
+            
+            return {
+                "success": True,
+                "message": "Proceeding to checkout",
+                "next_state": "VALIDATION",
+                "action": "proceed_to_checkout"
+            }
+        
+        return {
+            "success": False,
+            "message": "Customer not ready for checkout"
         }
     
     # _get_fallback_response method removed - AI is required

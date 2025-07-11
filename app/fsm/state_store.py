@@ -288,6 +288,63 @@ class HSMStateStore:
             logger.error(f"[{call_sid}] Error retrieving history: {e}")
             return []
     
+    async def update_context(self, call_sid: str, context_data: Dict[str, Any]) -> None:
+        """
+        Update context data for the HSM state.
+        
+        Args:
+            call_sid: Conversation identifier
+            context_data: Context data to update
+        """
+        try:
+            redis_client = await get_redis()
+            key = self._get_key(call_sid)
+            
+            # Get existing state data
+            existing_data = await redis_client.get(key)
+            if existing_data:
+                state_data = json.loads(existing_data)
+            else:
+                state_data = {"path": [], "updated_at": datetime.utcnow().isoformat()}
+            
+            # Update context
+            if "context" not in state_data:
+                state_data["context"] = {}
+            state_data["context"].update(context_data)
+            state_data["updated_at"] = datetime.utcnow().isoformat()
+            
+            # Save updated state
+            await redis_client.set(key, json.dumps(state_data))
+            logger.debug(f"[{call_sid}] Updated context: {context_data}")
+            
+        except Exception as e:
+            logger.error(f"[{call_sid}] Error updating context: {e}")
+    
+    async def get_context(self, call_sid: str) -> Dict[str, Any]:
+        """
+        Get context data for the HSM state.
+        
+        Args:
+            call_sid: Conversation identifier
+            
+        Returns:
+            Context data dictionary
+        """
+        try:
+            redis_client = await get_redis()
+            key = self._get_key(call_sid)
+            data = await redis_client.get(key)
+            
+            if data:
+                state_data = json.loads(data)
+                return state_data.get("context", {})
+            else:
+                return {}
+                
+        except Exception as e:
+            logger.error(f"[{call_sid}] Error retrieving context: {e}")
+            return {}
+
     async def initialize_hsm(self, call_sid: str, initial_state_name: str) -> None:
         """
         Initialize the HSM for a new conversation.

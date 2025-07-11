@@ -707,6 +707,10 @@ async def create_name_variants(db, menu_item: MenuItem, product_data: Dict[str, 
     if "poke" in name:
         variants.extend(["poki", "pokey"])
     
+    # Special case: map common burger variants to the closest actual item
+    if name.lower() == "cheeseburger":
+        variants.extend(["classic burger", "regular burger", "plain burger", "basic burger", "beef burger"])
+    
     # Create variant records
     for i, variant in enumerate(set(variants)):  # Remove duplicates
         if variant and variant != name:

@@ -273,15 +273,27 @@ class AsyncAgentOrchestrator:
                 logger.info(f"Call transfer initiated for {call_sid}")
             elif action.get("type") == "set_customer_name":
                 # Agent detected customer name - trigger HSM transition
-                logger.critical(f"Agent detected customer name: {action.get('name')}")
+                customer_name = action.get("name")
+                logger.critical(f"Agent detected customer name: {customer_name}")
+                
+                # CRITICAL FIX: Save customer name to conversation store
+                try:
+                    await self.conversation_store.update_conversation(
+                        call_sid, 
+                        {"context": {"customer_name": customer_name}}
+                    )
+                    logger.critical(f"✅ Customer name '{customer_name}' saved to conversation store")
+                except Exception as e:
+                    logger.error(f"❌ Failed to save customer name to conversation store: {e}")
+                
                 if current_leaf == ConversationHSMStates.GREETING:
-                    name_event = HSMEvent(ConversationHSMEvents.USER_PROVIDES_NAME, {"name": action.get("name")})
+                    name_event = HSMEvent(ConversationHSMEvents.USER_PROVIDES_NAME, {"name": customer_name})
                     new_leaf = await hsm_manager.handle_event(call_sid, name_event, context)
                     if new_leaf:
                         current_leaf = new_leaf
                         logger.critical(f"HSM transitioned to {current_leaf} after customer name detection")
         
-        # Skip duplicate conversation store - agents handle this themselves
+        # Customer name persistence is now handled above when set_customer_name action is detected
         
         # Update session state to match HSM state
         self.active_sessions[call_sid]["state"] = current_leaf

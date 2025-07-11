@@ -318,6 +318,26 @@ IMPORTANT RULES:
             if not items:
                 return {"found": False, "error": "No menu items found in database"}
             
+            # First check name variants for exact matches
+            from app.models.menu_async import MenuNameVariant
+            from sqlalchemy import select
+            
+            variant_result = await self.db.execute(
+                select(MenuNameVariant).filter(
+                    MenuNameVariant.variant_phrase.ilike(f"%{item_name.lower().strip()}%")
+                )
+            )
+            variants = variant_result.scalars().all()
+            
+            # If we find a name variant match, look up the canonical item
+            if variants:
+                for variant in variants:
+                    # Find the item by canonical name
+                    for item in items:
+                        if item.name.lower() == variant.canonical_name.lower():
+                            logger.info(f"Found variant match: '{item_name}' → '{variant.canonical_name}' (score: {variant.score})")
+                            return await self._format_menu_result(item, confidence=variant.score)
+            
             # Perform fuzzy matching with confidence scores
             matches = []
             search_term = item_name.lower().strip()
@@ -336,15 +356,29 @@ IMPORTANT RULES:
                 contains_match = 0.8 if search_term in item_name_lower or normalized_search in normalized_item else 0.0
                 reverse_contains = 0.7 if item_name_lower in search_term or normalized_item in normalized_search else 0.0
                 
-                # Use difflib for sequence matching on normalized text (better for punctuation differences)
+                # Word-level matching for better semantic accuracy
+                search_words = set(normalized_search.split())
+                item_words = set(normalized_item.split())
+                
+                # Calculate word overlap
+                common_words = search_words.intersection(item_words)
+                word_overlap_score = len(common_words) / max(len(search_words), 1) if search_words else 0.0
+                
+                # Use difflib for sequence matching BUT only if word overlap is reasonable
                 sequence_similarity = difflib.SequenceMatcher(None, normalized_search, normalized_item).ratio()
+                
+                # Penalize pure sequence similarity when there's no meaningful word overlap
+                # This prevents "classic burger" from matching "chicken burger" just due to character similarity
+                if word_overlap_score < 0.5 and sequence_similarity < 0.8:
+                    sequence_similarity *= 0.3  # Heavy penalty for misleading matches
                 
                 # Calculate final confidence score (weighted combination)
                 confidence = max(
                     exact_match,
                     contains_match,
                     reverse_contains,
-                    sequence_similarity * 0.7  # Increased weight for sequence matching with normalization
+                    word_overlap_score * 0.9,  # High weight for word-level matching
+                    sequence_similarity * 0.6  # Reduced weight for sequence matching
                 )
                 
                 # Only include matches above threshold
@@ -454,6 +488,60 @@ IMPORTANT RULES:
         except Exception as e:
             logger.error(f"Error in database menu lookup: {e}")
             return {"found": False, "error": str(e)}
+    
+    async def _format_menu_result(self, item: Any, confidence: float = 1.0) -> Dict[str, Any]:
+        """Format a menu item into the standard result format."""
+        try:
+            # Get modifier groups and modifiers for this item
+            modifier_groups = []
+            if hasattr(item, 'modifier_groups'):
+                for group in item.modifier_groups:
+                    group_data = {
+                        "id": group.id,
+                        "name": group.name,
+                        "plu": group.plu,
+                        "min_selection": group.min_selection,
+                        "max_selection": group.max_selection,
+                        "multiMax": group.multiMax,
+                        "is_variant_group": group.is_variant_group,
+                        "modifiers": []
+                    }
+                    
+                    # Get modifiers in this group
+                    if hasattr(group, 'modifiers'):
+                        for modifier in group.modifiers:
+                            group_data["modifiers"].append({
+                                "id": modifier.id,
+                                "name": modifier.name,
+                                "plu": modifier.plu,
+                                "price_change": float(modifier.price_change),
+                                "price_formatted": f"${modifier.price_change:.2f}" if modifier.price_change > 0 else "No charge",
+                                "is_available": modifier.is_available,
+                                "snoozed": modifier.snoozed_until is not None
+                            })
+                    
+                    modifier_groups.append(group_data)
+            
+            return {
+                "found": True,
+                "confidence": confidence,
+                "item": {
+                    "id": item.id,
+                    "name": item.name,
+                    "plu": item.plu,
+                    "price": float(item.price),
+                    "price_formatted": f"${item.price:.2f}",
+                    "description": item.description,
+                    "category": item.category.name if item.category else "Unknown",
+                    "is_available": item.is_available,
+                    "modifier_groups": modifier_groups
+                },
+                "has_required_modifiers": any(g["min_selection"] > 0 for g in modifier_groups),
+                "message": f"Found {item.name} with {confidence:.1%} confidence"
+            }
+        except Exception as e:
+            logger.error(f"Error formatting menu result: {e}")
+            return {"found": False, "error": f"Error formatting result: {str(e)}"}
     
     async def _generate_alternatives_db(self, search_term: str, items: List[Any]) -> Dict[str, Any]:
         """Generate alternative suggestions when no good matches are found (database version)."""

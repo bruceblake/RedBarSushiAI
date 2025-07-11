@@ -257,6 +257,10 @@ class MenuModifier(BaseModel):
     def to_dict(self):
         result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         
+        # Convert Decimal price_change to float for JSON serialization and calculations
+        if 'price_change' in result and result['price_change'] is not None:
+            result['price_change'] = float(result['price_change'])
+        
         # Sanitize properties
         if hasattr(self, 'properties'):
             result['properties'] = sanitize_properties(self.properties)
@@ -311,6 +315,10 @@ class MenuItem(BaseModel):
     
     def to_dict(self):
         result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        
+        # Convert Decimal price to float for JSON serialization and calculations
+        if 'price' in result and result['price'] is not None:
+            result['price'] = float(result['price'])
         
         # Don't access relationships to avoid lazy loading issues
         # Category name can be added later if needed
