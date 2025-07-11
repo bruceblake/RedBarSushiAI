@@ -188,7 +188,7 @@ async def submit_order_to_deliverect(db: AsyncSession, order_details: Dict) -> D
         )
         
         # Send to Deliverect
-        deliverect_response = await send_order_to_deliverect(deliverect_payload)
+        deliverect_response = await send_order_to_deliverect_async(deliverect_payload)
         
         # Get Deliverect order ID
         deliverect_order_id = deliverect_response.get("id")
@@ -285,7 +285,7 @@ async def confirm_initial_order(
         }
     
     # Build order description for the message
-    order_description = build_order_description(order_details["items"])
+    order_description = await build_order_description_async(order_details["items"])
     
     # Return success response
     return {
@@ -336,7 +336,7 @@ async def confirm_modified_order(
     # If modified items are provided, update the order
     if request.modified_items:
         # Calculate bill amount
-        calculate_bill_amount(request.modified_items)
+        await calculate_bill_amount_async(request.modified_items)
         total_price = sum(item.get("price", 0) * item.get("quantity", 1) for item in request.modified_items)
         
         # Update order items
@@ -401,7 +401,7 @@ async def confirm_modified_order(
         }
     
     # Build order description for the message
-    order_description = build_order_description(order_details["items"])
+    order_description = await build_order_description_async(order_details["items"])
     
     # Return success response
     return {

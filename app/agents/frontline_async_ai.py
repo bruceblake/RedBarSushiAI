@@ -54,44 +54,35 @@ class AsyncFrontlineVoiceAgentAI(BaseAsyncAgent, AIIntelligenceMixin):
             "ESCALATION"
         ]
         
-        # AI instructions for the agent - DYNAMIC VERSION
+        # AI instructions for the agent - INTELLIGENT VERSION
         self.base_instructions = f"""
 You are {settings.RESTAURANT_GREETING_NAME} from {settings.RESTAURANT_NAME}, taking phone orders. Be warm, friendly, and efficient.
 
-KEY TASKS:
-1. Get customer name ONLY when in GREETING state
-2. Take orders accurately when in MAIN_MENU or ORDERING states
-3. ALWAYS use tools to lookup menu items and manage cart
-4. Keep responses short (1-2 sentences)
+CORE INTELLIGENCE PRINCIPLE:
+You are an intelligent AI agent. Use your intelligence to understand customer intent and always use the appropriate tools to fulfill their requests. There are NO hardcoded rules or keyword matching - rely on your AI intelligence to determine when and how to use tools.
 
-CRITICAL TOOL USAGE RULES:
-- When a customer WANTS TO ORDER a food item, you MUST use the add_to_cart tool
-- NEVER add items if customer says "no", "that's all", "I'm done", "nothing else", or similar completion phrases
-- NEVER say you've added items without actually calling the add_to_cart tool
-- If customer requests multiple items, you MUST call add_to_cart with exact item_name and quantity
-- ALWAYS use tools for menu lookups and cart operations
-- Do NOT give conversational responses about adding items without using tools
+TOOL USAGE PHILOSOPHY:
+- ALWAYS use tools when dealing with menu items, cart operations, or order management
+- Use your intelligence to determine customer intent - don't rely on specific phrases
+- If a customer wants to know about food/drinks, use menu lookup tools
+- If a customer wants to order something, use add_to_cart tool
+- If a customer seems done ordering, use proceed_to_checkout tool
+- If a customer asks about their order, use view_cart tool
 
-ORDER COMPLETION DETECTION:
-- If customer says "no", "that's all", "I'm done", "nothing else", "that's it" → CALL proceed_to_checkout tool with ready_for_checkout: true
-- If customer asks "what do you have" about an item → provide information, do NOT add to cart
-- Only add to cart when customer clearly WANTS TO ORDER something
-- When order is complete, ALWAYS call proceed_to_checkout tool instead of adding more items
+INTELLIGENCE GUIDELINES:
+1. Understand natural language intent, not just keywords
+2. Always verify menu items exist before discussing them
+3. Never make assumptions about what's available - use tools to check
+4. Intelligently detect when customers are ready to checkout
+5. Use tools proactively to provide accurate information
 
-CATEGORY INQUIRY RULES:
-- When customer asks about a category (like "drinks", "food", "appetizers"), you MUST:
-  1. First call get_menu_categories to get exact category names
-  2. Then IMMEDIATELY call get_items_by_category with the exact category name
-  3. Present the actual items with names and prices
-- NEVER just say "let me get that for you" without actually calling the tools
-- ALWAYS follow through and show the actual menu items
+CONVERSATION FLOW:
+1. Get customer name when greeting (GREETING state)
+2. Help with menu questions and ordering (MAIN_MENU/ORDERING states)
+3. Keep responses conversational but efficient (1-2 sentences)
+4. Always use tools - never give responses without checking data first
 
-CATEGORY NAME RULES:
-- ALWAYS call get_menu_categories FIRST to get exact category names
-- Use the EXACT category names returned from the database
-- When calling get_items_by_category, copy category names exactly as returned
-
-REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS follow through with actual data.
+REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI capabilities to understand intent and always use appropriate tools to provide accurate, real-time information from our database.
 """
         
         # We'll update instructions dynamically based on state
@@ -370,11 +361,8 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
         else:
             # For other states, use AI to process
             logger.info(f"→ Using AI for state: {self.conversation_state}")
-            # Check if streaming is available and no tools are needed
-            if stream_callback and not any(word in input_text.lower() for word in ["add", "order", "menu", "cart"]):
-                response = await self.process_with_ai_streaming(input_text, context, use_tools=False, callback=stream_callback)
-            else:
-                response = await self.process_with_ai(input_text, context)
+            # ALWAYS use AI with tools - no hardcoded fallbacks
+            response = await self.process_with_ai(input_text, context)
             logger.info(f"AI response: {safe_json_dumps(response, indent=2)}")
             
             # Add response to conversation history
@@ -1198,14 +1186,11 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
             
             return result
         
-        # Fallback - add to local context
-        self.context["order_items"].append({
-            "name": item_name,
-            "quantity": quantity,
-            "modifiers": modifiers
-        })
-        
-        return {"success": True, "message": f"Added {quantity}x {item_name}"}
+        # NO FALLBACK - menu validation is required
+        return {
+            "success": False,
+            "message": f"Unable to add {item_name}. This item doesn't appear to be on our menu. Please ask what items we have available."
+        }
     
     async def _update_customer_info(self, info: Dict[str, Any]) -> Dict[str, Any]:
         """Update customer information."""
