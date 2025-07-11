@@ -265,7 +265,7 @@ class AsyncAgentOrchestrator:
                 # The final response returned to the voice processing layer
                 # should contain the appropriate TwiML <Dial> verb.
                 # This example assumes you have a function to generate this.
-                response["twiML"] = self._generate_transfer_twiml(settings.HUMAN_HANDOFF_NUMBER)
+                response["twiML"] = self._generate_transfer_twiml(getattr(settings, 'HUMAN_HANDOFF_NUMBER', None))
                 # Mark that the call should end from the AI's perspective
                 response["end_call"] = True
                 logger.info(f"Call transfer initiated for {call_sid}")

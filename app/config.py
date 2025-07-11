@@ -110,6 +110,7 @@ class Settings(BaseSettings):
     TWILIO_ACCOUNT_SID: Optional[str] = Field(None, env="TWILIO_ACCOUNT_SID")
     TWILIO_AUTH_TOKEN: Optional[str] = Field(None, env="TWILIO_AUTH_TOKEN")
     TWILIO_PHONE_NUMBER: Optional[str] = Field(None, env="TWILIO_PHONE_NUMBER")
+    HUMAN_HANDOFF_NUMBER: Optional[str] = Field(None, env="HUMAN_HANDOFF_NUMBER")
     
     # Stripe settings (if used)
     STRIPE_API_KEY: Optional[str] = Field(None, env="STRIPE_API_KEY")
