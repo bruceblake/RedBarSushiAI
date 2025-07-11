@@ -33,12 +33,12 @@ async def test_price_fix():
             await asyncio.sleep(1)
             
             # Now try to order
-            print("🧪 Testing price fix by adding Cheeseburger to cart...\n")
+            print("🧪 Testing menu mapping fix by ordering classic burger...\n")
             
             response = await client.post(
                 "http://localhost:8080/order/take_order",
                 json={
-                    "speech_result": "I want a cheeseburger",
+                    "speech_result": "I want a classic burger",
                     "call_sid": test_call_sid
                 },
                 timeout=15.0

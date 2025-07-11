@@ -311,9 +311,26 @@ IMPORTANT RULES:
             logger.info("Created new database session for menu agent")
         
         try:
-            # Get all available menu items from database
-            from app.db.crud_menu_async import get_all_menu_items
-            items = await get_all_menu_items(self.db)
+            # Check cache first to reduce duplicate database calls
+            cache_key = "all_menu_items"
+            import time
+            current_time = time.time()
+            
+            if (cache_key in self._menu_cache and 
+                current_time - self._menu_cache[cache_key]["timestamp"] < self._cache_ttl):
+                items = self._menu_cache[cache_key]["data"]
+                logger.debug("Using cached menu items")
+            else:
+                # Get all available menu items from database
+                from app.db.crud_menu_async import get_all_menu_items
+                items = await get_all_menu_items(self.db)
+                
+                # Cache the results
+                self._menu_cache[cache_key] = {
+                    "data": items,
+                    "timestamp": current_time
+                }
+                logger.debug("Cached menu items for future use")
             
             if not items:
                 return {"found": False, "error": "No menu items found in database"}
