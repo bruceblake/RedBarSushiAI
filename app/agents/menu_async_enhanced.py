@@ -289,194 +289,55 @@ IMPORTANT RULES:
     
     async def _lookup_menu_item(self, item_name: str) -> Dict[str, Any]:
         """
-        Enhanced menu item lookup using database directly with fuzzy matching and confidence scores.
-        Returns structured MenuLookupResult format for better AI understanding.
+        Use AI intelligence to search for menu items using database tools.
         """
-        def normalize_for_matching(text: str) -> str:
-            """Normalize text for better fuzzy matching by handling common variations."""
-            import re
-            normalized = text.lower().strip()
-            # Replace hyphens and underscores with spaces
-            normalized = re.sub(r'[-_]+', ' ', normalized)
-            # Remove extra whitespace
-            normalized = re.sub(r'\s+', ' ', normalized)
-            return normalized
-            
         if not item_name.strip():
             return {"found": False, "error": "Item name cannot be empty"}
         
-        if not self.db:
-            from app.db_async import async_session_factory
-            self.db = async_session_factory()
-            logger.info("Created new database session for menu agent")
-        
         try:
-            # Check cache first to reduce duplicate database calls
-            cache_key = "all_menu_items"
-            import time
-            current_time = time.time()
+            # Use AI to intelligently search the database
+            context = {
+                "customer_request": item_name.strip(),
+                "search_type": "menu_lookup"
+            }
             
-            if (cache_key in self._menu_cache and 
-                current_time - self._menu_cache[cache_key]["timestamp"] < self._cache_ttl):
-                items = self._menu_cache[cache_key]["data"]
-                logger.debug("Using cached menu items")
-            else:
-                # Get all available menu items from database
-                from app.db.crud_menu_async import get_all_menu_items
-                items = await get_all_menu_items(self.db)
-                
-                # Cache the results
-                self._menu_cache[cache_key] = {
-                    "data": items,
-                    "timestamp": current_time
-                }
-                logger.debug("Cached menu items for future use")
-            
-            if not items:
-                return {"found": False, "error": "No menu items found in database"}
-            
-            # First check name variants for exact matches
-            from app.models.menu_async import MenuNameVariant
-            from sqlalchemy import select
-            
-            variant_result = await self.db.execute(
-                select(MenuNameVariant).filter(
-                    MenuNameVariant.variant_phrase.ilike(f"%{item_name.lower().strip()}%")
-                )
+            # Let AI decide how to search using available tools
+            response = await self.process_with_ai(
+                f"Find menu items matching: {item_name}",
+                context,
+                use_tools=True
             )
-            variants = variant_result.scalars().all()
             
-            # If we find a name variant match, look up the canonical item
-            if variants:
-                for variant in variants:
-                    # Find the item by canonical name
-                    for item in items:
-                        if item.name.lower() == variant.canonical_name.lower():
-                            logger.info(f"Found variant match: '{item_name}' → '{variant.canonical_name}' (score: {variant.score})")
-                            return await self._format_menu_result(item, confidence=variant.score)
+            # If AI found something via tools, return it
+            if response.get("tool_results"):
+                for tool_result in response["tool_results"]:
+                    if tool_result["tool"] == "search_menu" and tool_result["result"].get("results"):
+                        results = tool_result["result"]["results"]
+                        if results:
+                            best_match = results[0]  # AI should have ordered by relevance
+                            return {
+                                "found": True,
+                                "confidence": 0.9,  # High confidence since AI selected it
+                                "item": {
+                                    "name": best_match["name"],
+                                    "plu": best_match["plu"],
+                                    "price": float(best_match["price"].replace("$", "")),
+                                    "price_formatted": best_match["price"],
+                                    "description": best_match.get("description", ""),
+                                    "category": best_match.get("category", "Unknown"),
+                                    "is_available": best_match.get("available", True)
+                                }
+                            }
             
-            # Perform fuzzy matching with confidence scores
-            matches = []
-            search_term = item_name.lower().strip()
-            normalized_search = normalize_for_matching(search_term)
-            
-            for item in items:
-                # Skip unavailable items unless explicitly requested
-                if not item.is_available:
-                    continue
-                    
-                item_name_lower = item.name.lower()
-                normalized_item = normalize_for_matching(item_name_lower)
-                
-                # Use AI to determine menu item matching instead of hardcoded algorithms
-                confidence = await self._ai_match_menu_item(search_term, item.name, item.description or '')
-                
-                # Only include matches above threshold
-                if confidence >= 0.4:
-                    matches.append({
-                        'item': item,
-                        'confidence': confidence
-                    })
-            
-            # Sort by confidence score (highest first)
-            matches.sort(key=lambda x: x['confidence'], reverse=True)
-            
-            if not matches:
-                # Try alternative search with lower threshold or suggest alternatives
-                return await self._generate_alternatives_db(search_term, items)
-            
-            # Get the best match
-            best_match = matches[0]
-            best_item = best_match['item']
-            confidence = best_match['confidence']
-            
-            # Get modifier groups and modifiers for this item
-            modifier_groups = []
-            if hasattr(best_item, 'modifier_groups'):
-                for group in best_item.modifier_groups:
-                    group_data = {
-                        "id": group.id,
-                        "name": group.name,
-                        "plu": group.plu,
-                        "min_selection": group.min_selection,
-                        "max_selection": group.max_selection,
-                        "multiMax": group.multiMax,
-                        "is_variant_group": group.is_variant_group,
-                        "modifiers": []
-                    }
-                    
-                    # Get modifiers in this group
-                    if hasattr(group, 'modifiers'):
-                        for modifier in group.modifiers:
-                            group_data["modifiers"].append({
-                                "id": modifier.id,
-                                "name": modifier.name,
-                                "plu": modifier.plu,
-                                "price_change": float(modifier.price_change),
-                                "price_formatted": f"${modifier.price_change:.2f}" if modifier.price_change > 0 else "No charge",
-                                "is_available": modifier.is_available,
-                                "snoozed": modifier.snoozed_until is not None
-                            })
-                    
-                    modifier_groups.append(group_data)
-            
-            # Check if disambiguation is needed (multiple high-confidence matches)
-            high_confidence_matches = [m for m in matches if m['confidence'] >= 0.7]
-            if len(high_confidence_matches) > 1 and confidence < 0.9:
-                # Multiple good matches - offer disambiguation
-                alternatives = []
-                for match in high_confidence_matches[:4]:  # Limit to 4 options
-                    item = match['item']
-                    alternatives.append({
-                        "id": item.id,
-                        "name": item.name,
-                        "plu": item.plu,
-                        "price": float(item.price),
-                        "price_formatted": f"${item.price:.2f}",
-                        "description": item.description,
-                        "category": item.category.name if item.category else "Unknown"
-                    })
-                
-                return {
-                    "found": True,
-                    "confidence": confidence,
-                    "item": {
-                        "id": best_item.id,
-                        "name": best_item.name,
-                        "plu": best_item.plu,
-                        "price": float(best_item.price),
-                        "price_formatted": f"${best_item.price:.2f}",
-                        "description": best_item.description,
-                        "category": best_item.category.name if best_item.category else "Unknown",
-                        "is_available": best_item.is_available,
-                        "modifier_groups": modifier_groups
-                    },
-                    "needs_disambiguation": True,
-                    "alternatives": alternatives,
-                    "has_required_modifiers": any(g["min_selection"] > 0 for g in modifier_groups)
-                }
-            
-            # Single clear match - return full structured result
+            # If no results from tools, return not found
             return {
-                "found": True,
-                "confidence": confidence,
-                "item": {
-                    "id": best_item.id,
-                    "name": best_item.name,
-                    "plu": best_item.plu,
-                    "price": float(best_item.price),
-                    "price_formatted": f"${best_item.price:.2f}",
-                    "description": best_item.description,
-                    "category": best_item.category.name if best_item.category else "Unknown",
-                    "is_available": best_item.is_available,
-                    "modifier_groups": modifier_groups
-                },
-                "has_required_modifiers": any(g["min_selection"] > 0 for g in modifier_groups),
-                "message": f"Found {best_item.name} with {confidence:.1%} confidence"
+                "found": False, 
+                "message": f"I couldn't find '{item_name}' on our menu. Would you like me to suggest some alternatives?",
+                "ai_response": response.get("text", "")
             }
             
         except Exception as e:
-            logger.error(f"Error in database menu lookup: {e}")
+            logger.error(f"Error in AI menu lookup for '{item_name}': {e}")
             return {"found": False, "error": str(e)}
     
     async def _format_menu_result(self, item: Any, confidence: float = 1.0) -> Dict[str, Any]:
@@ -1144,3 +1005,62 @@ Consider:
             logger.error(f"Error in AI menu matching: {e}")
             # Conservative fallback - if AI fails, don't match
             return 0.0
+    
+    def _fast_fuzzy_match(self, search_term: str, item_name: str, item_description: str) -> float:
+        """
+        Fast fuzzy matching for menu items using string similarity.
+        
+        Args:
+            search_term: What the customer said they want
+            item_name: Name of the menu item  
+            item_description: Description of the menu item
+            
+        Returns:
+            Confidence score from 0.0 to 1.0
+        """
+        search_lower = search_term.lower().strip()
+        name_lower = item_name.lower().strip()
+        desc_lower = (item_description or '').lower().strip()
+        
+        # Exact match gets highest score
+        if search_lower == name_lower:
+            return 1.0
+            
+        # Check if search term is contained in name
+        if search_lower in name_lower:
+            return 0.9
+            
+        # Check if name is contained in search term (for phrases like "chicken burger")
+        if name_lower in search_lower:
+            return 0.8
+            
+        # Use difflib for fuzzy matching
+        from difflib import SequenceMatcher
+        
+        # Name similarity
+        name_similarity = SequenceMatcher(None, search_lower, name_lower).ratio()
+        
+        # Check word overlap
+        search_words = set(search_lower.split())
+        name_words = set(name_lower.split())
+        desc_words = set(desc_lower.split()) if desc_lower else set()
+        
+        # Calculate word overlap scores
+        if name_words:
+            name_overlap = len(search_words & name_words) / len(search_words | name_words)
+        else:
+            name_overlap = 0.0
+            
+        if desc_words:
+            desc_overlap = len(search_words & desc_words) / len(search_words | desc_words)
+        else:
+            desc_overlap = 0.0
+        
+        # Combine scores (prioritize name over description)
+        combined_score = max(
+            name_similarity * 0.8,
+            name_overlap * 0.7,
+            desc_overlap * 0.4
+        )
+        
+        return min(1.0, combined_score)
