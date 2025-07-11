@@ -157,9 +157,7 @@ class AsyncAgentOrchestrator:
             global_cmd, confidence = await intent_detector.detect_global_command(input_text)
             if global_cmd != GlobalCommand.NONE and confidence >= 0.8:
                 logger.info(
-                    f"Global command detected: {global_cmd.value}",
-                    call_sid=call_sid,
-                    confidence=confidence
+                    f"Global command detected: {global_cmd.value} (confidence: {confidence})"
                 )
                 
                 # Handle special global commands that don't map to events
