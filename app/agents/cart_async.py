@@ -289,29 +289,8 @@ Be quick, accurate, and concise. NO long explanations.
         without actually processing the order.
         """
         
-        # Check if order is ready for validation FIRST
-        order_ready = False
-        input_lower = input_text.lower()
-        completion_phrases = ["that's all", "done", "ready", "checkout", "complete", "finished", "that's it", "that is it", "i'm done", "nothing else"]
-        
-        if any(phrase in input_lower for phrase in completion_phrases):
-            order_ready = True
-            # For completion phrases, respond quickly without AI if cart has items
-            if current_cart.get("items"):
-                items_text = ", ".join([f"{item['quantity']} {item['name']}" for item in current_cart["items"]])
-                total = current_cart.get("total_price", 0)
-                response = {
-                    "text": f"Perfect! Your order includes: {items_text}. Total: ${total:.2f}. Let me confirm all the details.",
-                    "agent": self.name,
-                    "handled": True,
-                    "ai_generated": False
-                }
-            else:
-                # Use AI only if cart is empty
-                response = await self.process_with_ai(input_text, context)
-        else:
-            # Process with AI for ordering
-            response = await self.process_with_ai(input_text, context)
+        # ALWAYS use AI intelligence - no hardcoded patterns
+        response = await self.process_with_ai(input_text, context)
         
         # Get updated cart after any processing
         conversation = await async_agents_conversation_store.get_conversation(call_sid) if call_sid else {"context": {}}

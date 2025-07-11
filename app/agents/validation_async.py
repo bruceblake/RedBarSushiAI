@@ -347,20 +347,18 @@ class AsyncValidationAgent(BaseAsyncAgent, AIIntelligenceMixin):
                         # Check product tags for allergen indicators
                         # This would need a mapping of product_tags to allergens
                         # For now, we'll do a simple name-based check
-                        item_name_lower = product.name.lower()
+                        # Use AI to detect allergen conflicts instead of hardcoded keywords
+                        conflict_result = await self._ai_detect_allergen_conflict(
+                            product.name, product.description or "", allergens
+                        )
                         
-                        for allergen in allergens:
-                            allergen_lower = allergen.lower()
-                            
-                            # Simple keyword matching (would be more sophisticated in production)
-                            if (allergen_lower in ['nuts', 'peanuts'] and any(word in item_name_lower for word in ['peanut', 'almond', 'walnut'])) or \
-                               (allergen_lower in ['dairy', 'milk'] and any(word in item_name_lower for word in ['cheese', 'cream', 'milk'])) or \
-                               (allergen_lower == 'gluten' and any(word in item_name_lower for word in ['bread', 'noodle', 'tempura'])):
-                                
+                        if conflict_result.get("has_conflicts"):
+                            for conflict in conflict_result.get("conflicts", []):
                                 conflicts.append({
                                     "item_name": product.name,
-                                    "allergen": allergen,
-                                    "warning": f"'{product.name}' may contain {allergen}. Please verify with staff."
+                                    "allergen": conflict["allergen"],
+                                    "warning": conflict["warning"],
+                                    "confidence": conflict.get("confidence", 0.0)
                                 })
         
         except Exception as e:
@@ -371,3 +369,70 @@ class AsyncValidationAgent(BaseAsyncAgent, AIIntelligenceMixin):
             "conflicts": conflicts,
             "allergens_checked": allergens or []
         }
+    
+    async def _ai_detect_allergen_conflict(self, item_name: str, item_description: str, allergens: List[str]) -> Dict[str, Any]:
+        """
+        Use AI to detect allergen conflicts in menu items.
+        
+        Args:
+            item_name: Name of the menu item
+            item_description: Description of the menu item
+            allergens: List of allergens to check against
+            
+        Returns:
+            Dict with conflict information
+        """
+        from openai import AsyncOpenAI
+        
+        try:
+            client = await self._get_ai_client()
+            
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """You are an allergen detection specialist for a restaurant. 
+                        
+Analyze the menu item name and description to determine if it likely contains any of the specified allergens.
+
+Return ONLY a JSON object with:
+{
+  "has_conflicts": true/false,
+  "conflicts": [
+    {
+      "allergen": "allergen_name",
+      "warning": "descriptive warning message",
+      "confidence": 0.0-1.0
+    }
+  ]
+}
+
+Be conservative - if there's any reasonable chance an item contains an allergen, flag it.
+
+Examples:
+- "Cheeseburger" + ["dairy"] → has_conflicts: true (contains cheese)
+- "Chicken Sate" + ["nuts"] → has_conflicts: true (peanut sauce common)
+- "Egg Noodles" + ["gluten"] → has_conflicts: true (wheat-based noodles)
+- "White Rice" + ["nuts"] → has_conflicts: false (plain rice)"""
+                    },
+                    {
+                        "role": "user", 
+                        "content": f"Item: {item_name}\nDescription: {item_description}\nCheck for allergens: {', '.join(allergens)}"
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=200
+            )
+            
+            result_text = response.choices[0].message.content.strip()
+            
+            # Parse JSON response
+            import json
+            result = json.loads(result_text)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in AI allergen detection: {e}")
+            return {"has_conflicts": False, "conflicts": []}

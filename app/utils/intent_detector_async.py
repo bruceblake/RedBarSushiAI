@@ -336,6 +336,65 @@ Examples:
         """
         return global_command_detector.detect_command(transcript)
 
+async def detect_confirmation_intent(transcript: str) -> Dict[str, Any]:
+    """
+    Detect confirmation intent using AI intelligence.
+    
+    Args:
+        transcript: User's spoken text
+        
+    Returns:
+        Dict with 'confirmed' boolean and 'confidence' float
+    """
+    if not transcript.strip():
+        return {"confirmed": False, "confidence": 0.0}
+    
+    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """You are a confirmation intent detector for restaurant orders. 
+                    
+Analyze the user's response and determine if they are confirming their order or not.
+
+Return ONLY a JSON object with:
+{"confirmed": true/false, "confidence": 0.0-1.0}
+
+Examples:
+- "Yes, that's right" → {"confirmed": true, "confidence": 0.95}
+- "No, I want to change it" → {"confirmed": false, "confidence": 0.9}
+- "Sounds good" → {"confirmed": true, "confidence": 0.85}
+- "Wait, actually..." → {"confirmed": false, "confidence": 0.8}
+- "Hmm, maybe" → {"confirmed": false, "confidence": 0.3}"""
+                },
+                {
+                    "role": "user",
+                    "content": transcript
+                }
+            ],
+            temperature=0.1,
+            max_tokens=50
+        )
+        
+        result_text = response.choices[0].message.content.strip()
+        
+        # Parse JSON response
+        import json
+        result = json.loads(result_text)
+        
+        return {
+            "confirmed": result.get("confirmed", False),
+            "confidence": result.get("confidence", 0.0)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error detecting confirmation intent: {e}")
+        return {"confirmed": False, "confidence": 0.0}
+
 # Singleton instance
 intent_detector = AsyncIntentDetector()
 

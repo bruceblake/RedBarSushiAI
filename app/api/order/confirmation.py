@@ -67,7 +67,7 @@ class ModifiedConfirmationRequest(ConfirmationRequest):
 
 async def user_confirmed(speech_result: str, dtmf_digits: str) -> bool:
     """
-    Determine if the user confirmed the order based on speech or DTMF input.
+    Determine if the user confirmed the order using AI intelligence.
     
     Args:
         speech_result: The transcribed speech from the user
@@ -80,37 +80,20 @@ async def user_confirmed(speech_result: str, dtmf_digits: str) -> bool:
     if dtmf_digits:
         return dtmf_digits == "1"  # 1 for yes, 2 for no
     
-    # Check speech
+    # Check speech using AI intelligence
     if not speech_result:
         return False
     
-    speech_lower = speech_result.lower()
+    # Use AI to determine confirmation intent
+    from app.utils.intent_detector_async import detect_confirmation_intent
     
-    # Look for clear affirmative phrases
-    affirmative = [
-        "yes", "yeah", "yep", "correct", "right", "confirm", "confirmed",
-        "that's right", "that's correct", "looks good", "sounds good",
-        "approve", "good", "perfect", "okay", "ok", "sure", "absolutely"
-    ]
-    
-    # Check for affirmative phrases
-    for phrase in affirmative:
-        if phrase in speech_lower:
-            return True
-    
-    # If we didn't find an affirmative, check for negatives
-    negative = [
-        "no", "nope", "not", "incorrect", "wrong", "don't", "do not",
-        "cancel", "change", "modify", "different", "wait", "stop"
-    ]
-    
-    # Check for negative phrases
-    for phrase in negative:
-        if phrase in speech_lower:
-            return False
-    
-    # If neither clear yes nor clear no, default to asking again
-    return False
+    try:
+        intent_result = await detect_confirmation_intent(speech_result)
+        return intent_result.get("confirmed", False)
+    except Exception as e:
+        logger.error(f"Error detecting confirmation intent: {e}")
+        # Conservative fallback - require explicit confirmation
+        return False
 
 async def retrieve_order_details(db: AsyncSession, order_id: str) -> Optional[Dict]:
     """
