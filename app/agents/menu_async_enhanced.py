@@ -620,12 +620,13 @@ IMPORTANT RULES:
     
     async def _search_menu(self, keyword: str, max_results: int = 5) -> Dict[str, Any]:
         """Search menu items by keyword."""
-        if not self.db:
-            return {"results": [], "error": "Database not available"}
-        
         try:
-            # Use the search function
-            items = await search_menu_items(self.db, keyword, limit=max_results)
+            if not self.db:
+                from app.db_async import async_session_factory
+                async with async_session_factory() as session:
+                    items = await search_menu_items(session, keyword, limit=max_results)
+            else:
+                items = await search_menu_items(self.db, keyword, limit=max_results)
             
             return {
                 "keyword": keyword,

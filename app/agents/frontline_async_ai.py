@@ -64,7 +64,7 @@ You are an intelligent AI agent. Use your intelligence to understand customer in
 TOOL USAGE PHILOSOPHY:
 - ALWAYS use tools when dealing with menu items, cart operations, or order management
 - Use your intelligence to determine customer intent - don't rely on specific phrases
-- If a customer wants to know about menu items, use menu lookup tools
+- If a customer wants to know about menu items, use ask_menu_specialist tool
 - If a customer wants to order something, use add_to_cart tool
 - If a customer seems done ordering, use proceed_to_checkout tool
 - If a customer asks about their order, use view_cart tool
@@ -109,45 +109,17 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
             {
                 "type": "function",
                 "function": {
-                    "name": "lookup_menu_item",
-                    "description": "Look up information about a specific menu item",
+                    "name": "ask_menu_specialist",
+                    "description": "Ask the menu specialist about menu items, categories, or any menu-related questions",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "item_name": {
+                            "question": {
                                 "type": "string",
-                                "description": "The name of the menu item to look up"
+                                "description": "The menu question to ask the specialist"
                             }
                         },
-                        "required": ["item_name"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_menu_categories",
-                    "description": "Get list of available menu categories",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {}
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_items_by_category",
-                    "description": "Get all menu items in a specific category with names, prices, and descriptions",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "category_name": {
-                                "type": "string",
-                                "description": "Name of the category - IMPORTANT: Use exact category names from get_menu_categories"
-                            }
-                        },
-                        "required": ["category_name"]
+                        "required": ["question"]
                     }
                 }
             },
@@ -958,14 +930,8 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
         logger.critical(f"Arguments: {safe_json_dumps(args, indent=2)}")
         logger.critical("=" * 60)
         
-        if tool_name == "lookup_menu_item":
-            return await self._lookup_menu_item(args.get("item_name", ""))
-            
-        elif tool_name == "get_menu_categories":
-            return await self._get_menu_categories()
-            
-        elif tool_name == "get_items_by_category":
-            return await self._get_items_by_category(args.get("category_name", ""))
+        if tool_name == "ask_menu_specialist":
+            return await self._ask_menu_specialist(args.get("question", ""))
             
         elif tool_name == "add_to_cart":
             return await self._add_to_cart(
@@ -992,44 +958,35 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
         else:
             return {"error": f"Unknown tool: {tool_name}"}
     
-    async def _lookup_menu_item(self, item_name: str) -> Dict[str, Any]:
-        """Look up menu item information."""
-        # Delegate to menu specialist if available
-        if "menu" in self.specialists:
-            result = await self.specialists["menu"].execute_tool(
-                "lookup_menu_item", 
-                {"item_name": item_name}
+    async def _ask_menu_specialist(self, question: str) -> Dict[str, Any]:
+        """Delegate menu questions to the Menu Agent."""
+        try:
+            # Import menu agent factory here to avoid circular imports
+            from app.agents.factory_async import async_agent_factory
+            
+            # Get a fresh menu agent instance with database session
+            menu_agent = await async_agent_factory.get_agent("menu", db=getattr(self, '_db_session', None))
+            
+            # Let the menu agent handle the question intelligently
+            response = await menu_agent.process_with_ai(
+                question,
+                {"request_type": "menu_inquiry"},
+                use_tools=True
             )
-            return result
-        
-        # Fallback response
-        return {
-            "found": False,
-            "message": "Menu lookup not available"
-        }
-    
-    async def _get_menu_categories(self) -> Dict[str, Any]:
-        """Get menu categories from database - NO hardcoded fallbacks."""
-        if "menu" in self.specialists:
-            result = await self.specialists["menu"].execute_tool(
-                "list_categories", 
-                {}
-            )
-            return result
-        
-        # No hardcoded fallbacks - system requires dynamic menu data
-        raise Exception("Menu specialist required - no hardcoded menu categories allowed")
-    
-    async def _get_items_by_category(self, category_name: str) -> Dict[str, Any]:
-        """Get menu items by category."""
-        if "menu" in self.specialists:
-            result = await self.specialists["menu"].execute_tool(
-                "get_items_by_category", 
-                {"category_name": category_name}
-            )
-            return result
-        
-        return {"items": [], "message": f"Items for category '{category_name}' not available"}
+            
+            # Return the response from the menu specialist
+            return {
+                "success": True,
+                "response": response.get("text", ""),
+                "tool_results": response.get("tool_results", [])
+            }
+            
+        except Exception as e:
+            logger.error(f"Error asking menu specialist: {e}")
+            return {
+                "success": False,
+                "error": f"Menu specialist unavailable: {str(e)}"
+            }
     
     async def _add_to_cart(
         self, 
