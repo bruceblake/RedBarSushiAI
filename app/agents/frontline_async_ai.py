@@ -1086,27 +1086,55 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
         """Add item to cart."""
         # Delegate to cart specialist if available
         if "cart" in self.specialists:
-            # First, update the cart specialist's context with our call_sid
-            if hasattr(self.specialists["cart"], "update_context"):
-                self.specialists["cart"].update_context({"call_sid": self.context.get("call_sid")})
+            # Get call_sid from context for cart operations
+            call_sid = self.context.get("call_sid")
             
             # First, we need to look up the item to get its PLU
             # The cart agent's add_item_to_cart requires a PLU, not item name
-            lookup_result = await self.specialists["cart"].execute_tool(
-                "lookup_menu_item",
-                {"item_name": item_name}
-            )
+            # Pass call_sid in the execution context
+            if hasattr(self.specialists["cart"], "execute_tool_with_context"):
+                lookup_result = await self.specialists["cart"].execute_tool_with_context(
+                    "lookup_menu_item",
+                    {"item_name": item_name},
+                    {"call_sid": call_sid}
+                )
+            else:
+                # Set the call_sid on the cart agent directly
+                if hasattr(self.specialists["cart"], "set_current_call"):
+                    self.specialists["cart"].set_current_call(call_sid)
+                
+                lookup_result = await self.specialists["cart"].execute_tool(
+                    "lookup_menu_item",
+                    {"item_name": item_name}
+                )
             
             if lookup_result.get("found"):
-                # Now add to cart with the PLU
-                result = await self.specialists["cart"].execute_tool(
-                    "add_item_to_cart",
-                    {
-                        "plu": lookup_result.get("plu"),
-                        "quantity": quantity,
-                        "modifiers": modifiers
+                # Extract PLU from the item data structure
+                plu = None
+                if "item" in lookup_result and "plu" in lookup_result["item"]:
+                    plu = lookup_result["item"]["plu"]
+                elif "plu" in lookup_result:
+                    plu = lookup_result["plu"]
+                
+                if plu:
+                    # Now add to cart with the PLU
+                    # Make sure cart agent has the call_sid context
+                    if hasattr(self.specialists["cart"], "set_current_call"):
+                        self.specialists["cart"].set_current_call(call_sid)
+                    
+                    result = await self.specialists["cart"].execute_tool(
+                        "add_item_to_cart",
+                        {
+                            "plu": plu,
+                            "quantity": quantity,
+                            "modifiers": modifiers
+                        }
+                    )
+                else:
+                    result = {
+                        "success": False,
+                        "message": f"Could not get PLU for '{item_name}'"
                     }
-                )
             elif lookup_result.get("needs_disambiguation"):
                 # Handle disambiguation - for duplicate items, just pick the first
                 logger.info(f"Disambiguation needed for '{item_name}', auto-selecting first match")
@@ -1123,7 +1151,11 @@ REMEMBER: Use tools for every menu and cart operation. No exceptions. ALWAYS fol
                             {"item_name": item_name}
                         )
                         if menu_lookup.get("found"):
-                            plu = menu_lookup.get("plu")
+                            # Extract PLU from menu lookup result
+                            if "item" in menu_lookup and "plu" in menu_lookup["item"]:
+                                plu = menu_lookup["item"]["plu"]
+                            elif "plu" in menu_lookup:
+                                plu = menu_lookup["plu"]
                         else:
                             # Item not found - return error instead of hardcoded fallback
                             result = {

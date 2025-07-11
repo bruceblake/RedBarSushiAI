@@ -205,12 +205,12 @@ async def take_order(
 
         if not available_items:
             # Try to process the menu directly - it might be in Deliverect format
-            from app.utils.menu_utils_db import process_deliverect_menu
+            from app.utils.deliverect.menu_async import process_deliverect_menu_async
 
             if "categories" in menu_data:
                 logger.info("Attempting to process Deliverect format directly")
                 try:
-                    menu_data = process_deliverect_menu(menu_data)
+                    menu_data = await process_deliverect_menu_async(menu_data)
                     # Try again with the processed data
                     available_items = [
                         item
