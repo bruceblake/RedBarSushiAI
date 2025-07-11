@@ -199,8 +199,7 @@ class AsyncCartAgent(BaseAsyncAgent, AIIntelligenceMixin):
                         "properties": {
                             "suggestion_type": {
                                 "type": "string",
-                                "description": "The type of suggestion to make",
-                                "enum": ["drinks", "sides", "desserts", "popular", "combos"]
+                                "description": "Type of suggestions to make (e.g., 'popular', 'complementary', 'category-based')"
                             }
                         },
                         "required": ["suggestion_type"]
@@ -226,7 +225,7 @@ You are the cart manager for {settings.RESTAURANT_NAME}. Keep responses SHORT (1
 
 Your job: Add items to cart accurately and quickly.
 
-CRITICAL: You must identify and capture all item modifiers, customizations, or special instructions (e.g., 'no pickles', 'medium-rare', 'sauce on the side'). Pass these accurately to the add_to_cart tool.
+CRITICAL: You must identify and capture all item modifiers, customizations, or special instructions mentioned by the customer. Pass these accurately to the add_to_cart tool.
 
 ALWAYS use the menu lookup tools to find exact items - NEVER guess or make up items.
 For any item the customer mentions, immediately look it up to get the correct PLU and pricing.

@@ -411,10 +411,10 @@ Return ONLY a JSON object with:
 Be conservative - if there's any reasonable chance an item contains an allergen, flag it.
 
 Examples:
-- "Cheeseburger" + ["dairy"] → has_conflicts: true (contains cheese)
-- "Chicken Sate" + ["nuts"] → has_conflicts: true (peanut sauce common)
-- "Egg Noodles" + ["gluten"] → has_conflicts: true (wheat-based noodles)
-- "White Rice" + ["nuts"] → has_conflicts: false (plain rice)"""
+- Items with cheese ingredients + ["dairy"] → has_conflicts: true
+- Items with nut-based sauces + ["nuts"] → has_conflicts: true  
+- Wheat-based items + ["gluten"] → has_conflicts: true
+- Plain ingredients without allergens + allergen list → has_conflicts: false"""
                     },
                     {
                         "role": "user", 

@@ -64,10 +64,17 @@ You are an intelligent AI agent. Use your intelligence to understand customer in
 TOOL USAGE PHILOSOPHY:
 - ALWAYS use tools when dealing with menu items, cart operations, or order management
 - Use your intelligence to determine customer intent - don't rely on specific phrases
-- If a customer wants to know about food/drinks, use menu lookup tools
+- If a customer wants to know about menu items, use menu lookup tools
 - If a customer wants to order something, use add_to_cart tool
 - If a customer seems done ordering, use proceed_to_checkout tool
 - If a customer asks about their order, use view_cart tool
+
+CRITICAL RULE: NEVER promise to check something without actually doing it immediately. If you say "let me check" or "let me look that up", you MUST call the appropriate tool in the SAME response.
+
+INTELLIGENCE PATTERN: When customers ask about food/menu items:
+1. Use your intelligence to determine what they want to know
+2. Use the appropriate tools to get that information immediately
+3. Always complete the action you promise - never leave promises unfulfilled
 
 INTELLIGENCE GUIDELINES:
 1. Understand natural language intent, not just keywords
@@ -75,12 +82,15 @@ INTELLIGENCE GUIDELINES:
 3. Never make assumptions about what's available - use tools to check
 4. Intelligently detect when customers are ready to checkout
 5. Use tools proactively to provide accurate information
+6. If you mention checking something, do it immediately with tools
+7. Complete actions fully - don't leave promises unfulfilled
 
 CONVERSATION FLOW:
 1. Get customer name when greeting (GREETING state)
 2. Help with menu questions and ordering (MAIN_MENU/ORDERING states)
 3. Keep responses conversational but efficient (1-2 sentences)
 4. Always use tools - never give responses without checking data first
+5. Complete all promised actions in the same response
 
 REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI capabilities to understand intent and always use appropriate tools to provide accurate, real-time information from our database.
 """
@@ -154,7 +164,7 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
                             },
                             "modifiers": {
                                 "type": "array",
-                                "description": "A list of special requests or changes, like 'no onions', 'extra spicy', or 'dressing on the side'.",
+                                "description": "A list of special requests or customizations for the item",
                                 "items": {"type": "string"}
                             }
                         },
@@ -554,7 +564,7 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
            - DO NOT process as a food order
         
         2. SECOND: If this is about FOOD/ORDERING
-           - MANDATORY: Use add_to_cart tool for ANY item ordering (e.g., "I want pizza" → add_to_cart)
+           - MANDATORY: Use add_to_cart tool for ANY item ordering
            - MANDATORY: Use menu tools for questions about items/categories
            - NEVER say you've added items without calling add_to_cart tool
         
@@ -719,7 +729,7 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
         PRIORITY ANALYSIS:
         1. Order completion signals (e.g., "that's all", "done", "finished", "that's it for me")
         2. Additional item requests (e.g., "I also want a Coke") → USE add_to_cart TOOL
-        3. Menu questions (e.g., "what kind of drinks do you have?")
+        3. Menu questions (asking about available items or categories)
         4. Order modifications (e.g., "remove the fries")
 
         CAUTION: Phrases like 'one moment', 'hang on', or questions about the menu are NOT completion signals. When in doubt, ask a clarifying question like, "Will there be anything else for you?" before assuming the order is complete.
@@ -1372,11 +1382,17 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
         upsell_items = []
         try:
             if "menu" in self.specialists:
-                # Get popular items as upsell candidates
-                upsell_result = await self.specialists["menu"].execute_tool(
-                    "get_popular_items",
-                    {"category": "Beverages", "max_results": 2}  # Focus on drinks as common upsells
-                )
+                # Get categories to find upsell candidates
+                categories_result = await self.specialists["menu"].execute_tool("get_menu_categories", {})
+                categories = categories_result.get("categories", [])
+                
+                # Use AI to intelligently select appropriate upsell category
+                if categories:
+                    # For now, get popular items from any category as upsell candidates
+                    upsell_result = await self.specialists["menu"].execute_tool(
+                        "get_popular_items",
+                        {"max_results": 2}  # Let AI decide appropriate upsells
+                    )
                 if upsell_result.get("items"):
                     upsell_items = upsell_result["items"]
         except Exception as e:
@@ -1393,7 +1409,7 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
         - Offer a combo or meal deal
         - Suggest a popular addition
         
-        Keep it brief and natural. Don't be pushy. Example: "Great choice! Would you like to add a drink with that?" or "That goes great with our [item name]. Interested?"
+        Keep it brief and natural. Don't be pushy. Use your intelligence to suggest appropriate complementary items based on what's available in our menu.
         """
         
         ai_input = "Make a friendly upselling suggestion based on their recent order."

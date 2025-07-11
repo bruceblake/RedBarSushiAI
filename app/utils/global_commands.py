@@ -73,7 +73,7 @@ Available commands:
 Examples:
 - "Can you repeat that?" → {"command": "REPEAT", "confidence": 0.95}
 - "Let's start over" → {"command": "START_OVER", "confidence": 0.9}
-- "I want a burger" → {"command": "NONE", "confidence": 0.0}
+- "I want food" → {"command": "NONE", "confidence": 0.0}
 - "Cancel everything" → {"command": "CANCEL", "confidence": 0.95}
 - "What are my options?" → {"command": "HELP", "confidence": 0.85}
 - "Go back" → {"command": "GO_BACK", "confidence": 0.9}"""

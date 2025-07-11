@@ -369,7 +369,7 @@ IMPORTANT RULES:
                 normalized_item = normalize_for_matching(item_name_lower)
                 
                 # Use AI to determine menu item matching instead of hardcoded algorithms
-                confidence = await self._ai_match_menu_item(search_term, item_name, item.get('description', ''))
+                confidence = await self._ai_match_menu_item(search_term, item.name, item.description or '')
                 
                 # Only include matches above threshold
                 if confidence >= 0.4:
@@ -1107,15 +1107,15 @@ Return ONLY a JSON object with:
 {"confidence": 0.0-1.0, "reasoning": "brief explanation"}
 
 Guidelines:
-- 1.0: Perfect/exact match (e.g., "burger" → "Cheeseburger")  
-- 0.8-0.9: Very close match (e.g., "chicken sandwich" → "Chicken Burger")
-- 0.6-0.7: Good semantic match (e.g., "steak" → "Delicious Steak Frites")
-- 0.4-0.5: Possible match (e.g., "meat" → "Cheeseburger")
-- 0.0-0.3: Poor/no match (e.g., "ice cream" → "Burger")
+- 1.0: Perfect/exact match (search term appears in item name)
+- 0.8-0.9: Very close match (very similar names or synonyms)
+- 0.6-0.7: Good semantic match (related food types)
+- 0.4-0.5: Possible match (some ingredient or category overlap)
+- 0.0-0.3: Poor/no match (unrelated items)
 
 Consider:
 - Exact name matches
-- Semantic similarity (burger/sandwich)
+- Semantic similarity between food types
 - Ingredient overlap
 - Item descriptions
 - Common nicknames/abbreviations"""
