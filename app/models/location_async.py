@@ -5,7 +5,7 @@ Location model for storing location-specific data.
 from datetime import datetime
 from typing import Optional, List
 
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, Boolean, Integer
 from sqlalchemy.orm import relationship
 
 from app.db_async import Base
@@ -24,7 +24,12 @@ class Location(Base, TimestampMixin):
     status = Column(String(20), default="inactive")  # registered, active, inactive
     webhook_base = Column(String(255), nullable=True)
     api_key = Column(String(255), nullable=True)
-    # tax_rate removed temporarily to match existing schema
+    
+    # Deliverect integration fields
+    deliverect_channel_link_id = Column(String(100), nullable=True)
+    deliverect_channel_name = Column(String(100), nullable=True)
+    is_busy = Column(Boolean, default=False)
+    prep_time_minutes = Column(Integer, default=15)
 
     def __repr__(self):
         return f"<Location {self.id} - {self.name} - {self.status}>"

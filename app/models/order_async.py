@@ -6,7 +6,7 @@ This module provides SQLAlchemy 2.0 async models for orders.
 
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, Boolean, Numeric
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, Boolean, Numeric, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
@@ -36,6 +36,14 @@ class Order(Base, TimestampMixin):
     placed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     estimated_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     delivery_address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Deliverect integration fields
+    deliverect_order_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    last_status_update: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    pos_receipt_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    status_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    courier_info: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    payment_info: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     
     # Relationship to order items
     items: Mapped[List["OrderItem"]] = relationship(

@@ -428,3 +428,133 @@ async def update_contact_request_status(
     query = select(ContactRequest).where(ContactRequest.id == request_id)
     result = await db.execute(query)
     return result.scalar_one_or_none()
+
+
+async def get_order_by_channel_id(
+    db: AsyncSession,
+    channel_order_id: str
+) -> Optional[Order]:
+    """
+    Get order by Deliverect channel order ID.
+    
+    Args:
+        db: Database session
+        channel_order_id: Channel order ID
+        
+    Returns:
+        Order object or None if not found
+    """
+    try:
+        stmt = select(Order).where(Order.deliverect_channel_order_id == channel_order_id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+    except Exception as e:
+        logger.error(f"Error getting order by channel ID {channel_order_id}: {e}")
+        return None
+
+
+async def update_order_deliverect_status(
+    db: AsyncSession,
+    order_id: str,
+    deliverect_order_id: str,
+    status: int,
+    timestamp: str,
+    receipt_id: Optional[str] = None,
+    reason: Optional[str] = None
+) -> bool:
+    """
+    Update order status from Deliverect webhook.
+    
+    Args:
+        db: Database session
+        order_id: Deliverect order ID
+        deliverect_order_id: Deliverect order ID
+        status: Status code
+        timestamp: Status timestamp
+        receipt_id: POS receipt ID
+        reason: Reason for status change
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        stmt = (
+            update(Order)
+            .where(Order.deliverect_channel_order_id == order_id)
+            .values(
+                status=status,
+                deliverect_order_id=deliverect_order_id,
+                last_status_update=datetime.fromisoformat(timestamp.replace('Z', '+00:00')),
+                pos_receipt_id=receipt_id,
+                status_reason=reason
+            )
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        return result.rowcount > 0
+    except Exception as e:
+        logger.error(f"Error updating order Deliverect status: {e}")
+        await db.rollback()
+        return False
+
+
+async def update_order_courier_info(
+    db: AsyncSession,
+    channel_order_id: str,
+    courier_data: Dict[str, Any]
+) -> bool:
+    """
+    Update order courier information.
+    
+    Args:
+        db: Database session
+        channel_order_id: Channel order ID
+        courier_data: Courier information
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        stmt = (
+            update(Order)
+            .where(Order.deliverect_channel_order_id == channel_order_id)
+            .values(courier_info=courier_data)
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        return result.rowcount > 0
+    except Exception as e:
+        logger.error(f"Error updating order courier info: {e}")
+        await db.rollback()
+        return False
+
+
+async def update_order_payment_info(
+    db: AsyncSession,
+    channel_order_id: str,
+    payment_data: Dict[str, Any]
+) -> bool:
+    """
+    Update order payment information.
+    
+    Args:
+        db: Database session
+        channel_order_id: Channel order ID
+        payment_data: Payment information
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        stmt = (
+            update(Order)
+            .where(Order.deliverect_channel_order_id == channel_order_id)
+            .values(payment_info=payment_data)
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        return result.rowcount > 0
+    except Exception as e:
+        logger.error(f"Error updating order payment info: {e}")
+        await db.rollback()
+        return False

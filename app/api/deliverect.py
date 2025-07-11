@@ -69,20 +69,29 @@ async def register_channel(
             base_url = public_webhook_url.rstrip('/')
             logger.info(f"Using PUBLIC_WEBHOOK_URL: {base_url}")
         
-        # Store the registration details in database if needed
-        # TODO: Implement database storage for channel registrations
+        # Store the registration details in database
+        from app.db.crud_location_async import create_or_update_location, update_location_status
         
         if request.status == "register":
             logger.info(f"Registering new channel: {request.channelLinkName}")
-            # TODO: Create channel record in database
+            # Create or update channel record in database
+            await create_or_update_location(
+                db=db,
+                location_id=request.locationId,
+                channel_link_id=request.channelLinkId,
+                channel_link_name=request.channelLinkName,
+                status="registered"
+            )
             
         elif request.status == "active":
             logger.info(f"Activating channel: {request.channelLinkId}")
-            # TODO: Update channel status to active
+            # Update channel status to active
+            await update_location_status(db, request.channelLinkId, "active")
             
         elif request.status == "inactive":
             logger.info(f"Deactivating channel: {request.channelLinkId}")
-            # TODO: Update channel status to inactive
+            # Update channel status to inactive
+            await update_location_status(db, request.channelLinkId, "inactive")
             
         else:
             logger.warning(f"Unknown registration status: {request.status}")

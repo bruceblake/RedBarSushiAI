@@ -149,98 +149,62 @@ Current conversation state: {state}
         state_prompts = {
             "GREETING": """
 Allowed intents:
-- USER_PROVIDES_NAME: User is giving their name or responding to name request
-- START_ORDER: User wants to skip giving name and proceed to ordering
-- REQUEST_ESCALATION: User is confused or asking for help
+- USER_PROVIDES_NAME: User is providing their name in response to greeting
+- START_ORDER: User wants to skip name and proceed directly to ordering
+- REQUEST_ESCALATION: User is confused or requesting help
 
-IMPORTANT: If user mentions ordering or menu in GREETING state, still return USER_PROVIDES_NAME if no name is detected, or START_ORDER if they're trying to proceed without giving name.
-
-Examples:
-"John" -> USER_PROVIDES_NAME
-"My name is Sarah" -> USER_PROVIDES_NAME  
-"I don't want to give my name" -> START_ORDER
-"Can I order?" -> START_ORDER
-"What do you have?" -> START_ORDER
-"What?" -> REQUEST_ESCALATION
+Use AI intelligence to analyze if the user is giving their name or trying to proceed with ordering.
 """,
             
             "MAIN_MENU": """
 Allowed intents:
-- START_ORDER: User wants to place an order or add items
-- REQUEST_MENU_INFO: User wants to know about menu/items/prices
-- REQUEST_ESCALATION: User wants to speak to a person or needs help
-- REQUEST_FOLLOW_UP: User has a question not covered above
+- START_ORDER: User wants to place an order or add items to cart
+- REQUEST_MENU_INFO: User wants information about menu items, categories, or prices
+- REQUEST_ESCALATION: User wants to speak to a human or needs assistance
+- REQUEST_FOLLOW_UP: User has questions or is asking for clarification about something
 
-Examples:
-"I'd like to order something" -> START_ORDER
-"Can I get two items" -> START_ORDER
-"What do you have on the menu?" -> REQUEST_MENU_INFO
-"Are you open now?" -> REQUEST_FOLLOW_UP
-"I need to speak to someone" -> REQUEST_ESCALATION
-"Do you deliver?" -> REQUEST_FOLLOW_UP
+Use AI intelligence to determine user intent from context and conversational flow.
 """,
             
             "ORDERING": """
 Allowed intents:
 - ADD_ITEM: User is adding items to their order
-- REMOVE_ITEM: User wants to remove something
-- MODIFY_ITEM: User wants to change something (quantity, preparation)
+- REMOVE_ITEM: User wants to remove something from order
+- MODIFY_ITEM: User wants to change quantity, preparation, or modifiers
 - REQUEST_MENU_INFO: User asking about menu items while ordering
-- COMPLETE_ORDER: User is done ordering
-- USER_REQUESTS_CANCELLATION: User wants to cancel everything
+- COMPLETE_ORDER: User indicates they are finished ordering
+- USER_REQUESTS_CANCELLATION: User wants to cancel the entire order
 
-Examples:
-"Add an item" -> ADD_ITEM
-"Remove that item" -> REMOVE_ITEM
-"Make that 3 instead" -> MODIFY_ITEM
-"What comes with that?" -> REQUEST_MENU_INFO
-"That's all for now" -> COMPLETE_ORDER
-"Never mind, cancel everything" -> USER_REQUESTS_CANCELLATION
-"Actually, maybe I should cancel" -> USER_REQUESTS_CANCELLATION
-"I want to cancel my order" -> USER_REQUESTS_CANCELLATION
+Use AI intelligence to understand ordering intent from natural language.
 """,
             
             "VALIDATION": """
 Allowed intents:
-- ORDER_VALID: User confirms the order is correct
-- ORDER_INVALID: User wants to modify something
-- REQUEST_ESCALATION: User needs assistance
+- ORDER_VALID: User confirms the order is correct as stated
+- ORDER_INVALID: User wants to modify, change, or correct something
+- REQUEST_ESCALATION: User needs assistance or clarification
 
-Examples:
-"Yes that's correct" -> ORDER_VALID
-"Actually can you change..." -> ORDER_INVALID
-"Can you repeat that?" -> ORDER_INVALID
-"No, cancel it" -> ORDER_INVALID
-"Can I add one more thing?" -> ORDER_INVALID
-"I forgot to order something" -> ORDER_INVALID
+Use AI intelligence to determine if user is confirming or requesting changes.
 """,
             
             "CONFIRMATION": """
 Allowed intents:
-- CONFIRM_ORDER: User confirms and wants to proceed
-- MODIFY_ORDER: User wants to change something
-- REJECT_ORDER: User wants to cancel
+- CONFIRM_ORDER: User confirms order and wants to proceed to fulfillment
+- MODIFY_ORDER: User wants to make changes before finalizing
+- REJECT_ORDER: User wants to cancel the order
 - REQUEST_ESCALATION: User has questions or needs help
 
-Examples:
-"Yes, place the order" -> CONFIRM_ORDER
-"Actually can I add one more thing" -> MODIFY_ORDER
-"Cancel the order" -> REJECT_ORDER
-"How long will it take?" -> REQUEST_ESCALATION
+Use AI intelligence to understand final confirmation intent.
 """,
             
             "FULFILLMENT": """
 Allowed intents:
-- PROVIDE_DELIVERY_INFO: User providing delivery information
-- CHOOSE_PICKUP: User wants pickup instead
-- COMPLETE_INTERACTION: User is satisfied with service
-- REQUEST_ESCALATION: User needs assistance
+- PROVIDE_DELIVERY_INFO: User providing delivery address or information
+- CHOOSE_PICKUP: User selecting pickup instead of delivery
+- COMPLETE_INTERACTION: User is satisfied and ready to end conversation
+- REQUEST_ESCALATION: User needs assistance with fulfillment
 
-Examples:
-"123 Main Street" -> PROVIDE_DELIVERY_INFO
-"I'll pick it up" -> CHOOSE_PICKUP
-"I'll pay with card" -> PROVIDE_PAYMENT
-"I don't understand" -> REQUEST_ESCALATION
+Use AI intelligence to understand fulfillment and completion intent.
 """,
             
         }
