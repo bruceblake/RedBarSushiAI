@@ -156,9 +156,54 @@ class ConversationRelayHandler:
         transcript = message.get("voicePrompt", "")
         is_partial = message.get("partial", False)
         
-        # Only process final transcripts, ignore partial ones for now
+        # Check if we should process partial transcript for high-confidence simple intents
         if is_partial:
             logger.debug(f"[{self.call_sid}] Partial transcript: '{transcript}'")
+            
+            # Try to process partial transcript with enhanced end-of-speech detection
+            try:
+                from app.utils.partial_transcript_processor import process_partial_transcript_with_delay
+                
+                # Get current conversation context
+                context = await self._get_conversation_context()
+                
+                # Use enhanced processing with configurable delay and end-of-speech detection
+                intent, confidence, response_data = await process_partial_transcript_with_delay(transcript, context)
+                
+                # Only process if the enhanced method returns a result
+                # (meaning it passed end-of-speech detection and delay requirements)
+                if intent and confidence >= 0.9:
+                    logger.info(f"[{self.call_sid}] Processing delayed partial transcript - Intent: {intent.value}, Confidence: {confidence:.2f}")
+                    
+                    # Generate immediate response for simple intent
+                    if response_data and response_data.get("response_text"):
+                        await self.send_text_response(response_data["response_text"])
+                        
+                        # If this requires a state transition, we still need to wait for final transcript
+                        if not response_data.get("triggers_state_transition", False):
+                            logger.info(f"[{self.call_sid}] Partial intent processed without state transition")
+                            return
+                else:
+                    # Log when partial processing is delayed or prevented
+                    logger.debug(f"[{self.call_sid}] Partial transcript not processed immediately - may be incomplete speech")
+                
+            except Exception as e:
+                logger.warning(f"[{self.call_sid}] Enhanced partial transcript processing failed: {e}")
+                
+                # Fallback to legacy processing for backward compatibility
+                try:
+                    from app.utils.partial_transcript_processor import process_partial_transcript
+                    context = await self._get_conversation_context()
+                    intent, confidence, response_data = process_partial_transcript(transcript, context)
+                    
+                    if intent and confidence >= 0.9:
+                        logger.info(f"[{self.call_sid}] Fallback partial processing - Intent: {intent.value}")
+                        if response_data and response_data.get("response_text"):
+                            await self.send_text_response(response_data["response_text"])
+                except Exception as fallback_error:
+                    logger.warning(f"[{self.call_sid}] Fallback partial processing also failed: {fallback_error}")
+            
+            # Always return for partial transcripts - wait for final
             return
         
         logger.info(f"[{self.call_sid}] Final transcript received: '{transcript}'")
@@ -253,6 +298,40 @@ class ConversationRelayHandler:
         elif debug_type == "tokensPlayed":
             logger.info(f"[{self.call_sid}] TTS tokens played: {debug_data}")
     
+    async def _get_conversation_context(self) -> Dict[str, Any]:
+        """
+        Get current conversation context for partial transcript processing.
+        
+        Returns:
+            Dictionary containing conversation context
+        """
+        context = {
+            "call_sid": self.call_sid,
+            "session_id": self.session_id,
+            "hsm_state": "unknown"
+        }
+        
+        # Try to get HSM state from orchestrator
+        if self.orchestrator:
+            try:
+                # Get current HSM state
+                from app.fsm.manager import async_hsm_manager
+                current_states = await async_hsm_manager.get_current_states(self.call_sid)
+                if current_states:
+                    context["hsm_state"] = current_states[-1]  # Get leaf state
+                    
+                # Get conversation history if needed
+                if hasattr(self.orchestrator, 'conversation_store'):
+                    conversation = await self.orchestrator.conversation_store.get_conversation(self.call_sid)
+                    if conversation:
+                        context["conversation_history"] = conversation.get("messages", [])
+                        context["customer_name"] = conversation.get("context", {}).get("customer_name")
+                        
+            except Exception as e:
+                logger.debug(f"[{self.call_sid}] Could not get full context: {e}")
+        
+        return context
+    
     async def run(self):
         """Main event loop for handling ConversationRelay messages."""
         self.is_running = True
@@ -293,6 +372,15 @@ class ConversationRelayHandler:
                     await self.orchestrator.cleanup_inactive_sessions(max_idle_time=0)  # Immediate cleanup
                 except Exception as e:
                     logger.error(f"[{self.call_sid}] Error during orchestrator cleanup: {e}")
+            
+            # Clean up any pending partial transcripts
+            try:
+                from app.utils.partial_transcript_processor import get_partial_processor
+                processor = get_partial_processor()
+                processor.cancel_pending_transcript(self.call_sid)
+                logger.debug(f"[{self.call_sid}] Cleaned up pending partial transcripts")
+            except Exception as e:
+                logger.warning(f"[{self.call_sid}] Error cleaning up partial transcripts: {e}")
                     
             logger.info(f"[{self.call_sid}] ConversationRelayHandler finished")
 

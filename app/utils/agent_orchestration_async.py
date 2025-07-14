@@ -23,6 +23,8 @@ from app.utils.global_commands import (
 )
 from app.utils.intent_detector_async import intent_detector
 from app.utils.json_utils import safe_json_dumps
+from app.utils.metrics_logger import log_response_latency, log_hsm_state_transition, log_intent_confidence
+from app.services.alerting import alert_high_latency, alert_low_confidence_pattern
 
 # Set up logging
 from app.utils.enhanced_logging import get_logger
@@ -155,7 +157,8 @@ class AsyncAgentOrchestrator:
         # Check for global commands first (but not on first interaction)
         if not context.get("first_interaction") and input_text.strip():
             global_cmd, confidence = await intent_detector.detect_global_command(input_text)
-            if global_cmd != GlobalCommand.NONE and confidence >= 0.8:
+            threshold = settings.GLOBAL_COMMAND_CONFIDENCE_THRESHOLD
+            if global_cmd != GlobalCommand.NONE and confidence >= threshold:
                 logger.info(
                     f"Global command detected: {global_cmd.value} (confidence: {confidence})"
                 )
@@ -171,6 +174,16 @@ class AsyncAgentOrchestrator:
                         global_command_context.update_last_response(response["text"], time.time())
                         
                         return response
+            
+            # Check for enhanced go back intent (go back to specific state)
+            go_back_intent = await intent_detector.detect_go_back_intent(input_text)
+            if go_back_intent and go_back_intent.get("confidence", 0.0) >= threshold:
+                logger.info(f"Enhanced go back intent detected: {go_back_intent}")
+                response = await self._handle_enhanced_go_back(go_back_intent, call_sid, context)
+                if response:
+                    # Add response to conversation store
+                    await self.conversation_store.add_message(call_sid, "assistant", response["text"])
+                    return response
         
         # Process the transcript with the HSM
         start_time = time.time()
@@ -251,6 +264,29 @@ class AsyncAgentOrchestrator:
         logger.critical(f"  - Full response: {safe_json_dumps(response, indent=2)}")
         
         duration = time.time() - start_time
+        duration_ms = duration * 1000
+        
+        # Log performance metrics
+        log_response_latency(
+            latency_ms=duration_ms,
+            agent_type=agent.__class__.__name__,
+            call_sid=call_sid,
+            state=current_leaf,
+            input_length=len(input_text)
+        )
+        
+        # Check for high latency and alert if needed
+        if duration_ms > settings.HIGH_LATENCY_THRESHOLD_MS:
+            asyncio.create_task(alert_high_latency(
+                latency_ms=duration_ms,
+                threshold_ms=settings.HIGH_LATENCY_THRESHOLD_MS,
+                metadata={
+                    "agent_type": agent.__class__.__name__,
+                    "state": current_leaf,
+                    "input_length": len(input_text)
+                },
+                call_sid=call_sid
+            ))
         
         # Extract information from response
         response_text = response.get("text", "")
@@ -269,6 +305,15 @@ class AsyncAgentOrchestrator:
                 # Mark that the call should end from the AI's perspective
                 response["end_call"] = True
                 logger.info(f"Call transfer initiated for {call_sid}")
+            elif action.get("type") == "TRIGGER_STATIC_FALLBACK":
+                # Circuit breaker is open - switch to static fallback mode
+                logger.critical(f"🚨 TRIGGERING STATIC FALLBACK MODE for call {call_sid}")
+                from app.utils.static_fallback import generate_fallback_response
+                fallback_twiml = generate_fallback_response()
+                response["twiML"] = fallback_twiml
+                response["fallback_mode"] = True
+                response["end_ai_session"] = True
+                logger.critical(f"✅ Static fallback TwiML generated for {call_sid}")
             elif action.get("type") == "set_customer_name":
                 # Agent detected customer name - trigger HSM transition
                 customer_name = action.get("name")
@@ -944,6 +989,111 @@ class AsyncAgentOrchestrator:
             }
         
         return None
+    
+    async def _handle_enhanced_go_back(
+        self,
+        go_back_intent: Dict[str, Any],
+        call_sid: str,
+        context: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Handle enhanced go back intent with state-specific navigation.
+        
+        Args:
+            go_back_intent: Detected go back intent data
+            call_sid: The call session ID
+            context: Conversation context
+            
+        Returns:
+            Response dict or None
+        """
+        intent_type = go_back_intent.get("intent")
+        target_state = go_back_intent.get("target_state")
+        steps = go_back_intent.get("steps")
+        
+        logger.info(f"[{call_sid}] Enhanced go back: {intent_type}, target: {target_state}, steps: {steps}")
+        
+        try:
+            if intent_type == "GO_BACK_TO_STATE" and target_state:
+                # Map user-friendly state names to HSM states
+                state_mapping = {
+                    "ORDERING": ConversationHSMStates.ORDERING,
+                    "MAIN_MENU": ConversationHSMStates.MAIN_MENU,
+                    "GREETING": ConversationHSMStates.GREETING
+                }
+                
+                hsm_target_state = state_mapping.get(target_state)
+                if not hsm_target_state:
+                    return {
+                        "text": f"I'm not sure where '{target_state}' is. How can I help you?",
+                        "handled": True,
+                        "agent": "EnhancedRecovery"
+                    }
+                
+                # Use HSM enhanced recovery
+                new_leaf = await hsm_manager.go_back_to_state(call_sid, hsm_target_state, context)
+                
+                if new_leaf:
+                    # Generate appropriate response for the state we went back to
+                    response_text = self._generate_go_back_response(hsm_target_state, context)
+                    
+                    return {
+                        "text": response_text,
+                        "handled": True,
+                        "agent": "EnhancedRecovery",
+                        "new_state": new_leaf,
+                        "recovery_type": "go_back_to_state"
+                    }
+                else:
+                    return {
+                        "text": f"I couldn't go back to {target_state}. Let me help you from here.",
+                        "handled": True,
+                        "agent": "EnhancedRecovery"
+                    }
+            
+            elif intent_type == "GO_BACK_STEPS" and steps:
+                # Use HSM step-based recovery
+                new_leaf = await hsm_manager.go_back_steps(call_sid, steps, context)
+                
+                if new_leaf:
+                    # Generate appropriate response
+                    response_text = f"Okay, I've taken you back {steps} step{'s' if steps != 1 else ''}. How can I help you now?"
+                    
+                    return {
+                        "text": response_text,
+                        "handled": True,
+                        "agent": "EnhancedRecovery",
+                        "new_state": new_leaf,
+                        "recovery_type": "go_back_steps",
+                        "steps_back": steps
+                    }
+                else:
+                    return {
+                        "text": f"I couldn't go back {steps} steps. Let me help you from here.",
+                        "handled": True,
+                        "agent": "EnhancedRecovery"
+                    }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"[{call_sid}] Error in enhanced go back: {e}")
+            return {
+                "text": "Sorry, I had trouble going back. How can I help you?",
+                "handled": True,
+                "agent": "EnhancedRecovery",
+                "error": str(e)
+            }
+    
+    def _generate_go_back_response(self, target_state: str, context: Dict[str, Any]) -> str:
+        """Generate appropriate response for going back to a specific state."""
+        state_responses = {
+            ConversationHSMStates.ORDERING: "Great! Let's continue with your order. What would you like to add?",
+            ConversationHSMStates.MAIN_MENU: "Perfect! We're back at the main menu. How can I help you today?",
+            ConversationHSMStates.GREETING: "Let's start over! Welcome to our restaurant. What can I help you with?"
+        }
+        
+        return state_responses.get(target_state, "Okay, let's continue from here. How can I help you?")
     
     async def handle_interruption(self, call_sid: str):
         """

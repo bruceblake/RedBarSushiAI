@@ -14,6 +14,8 @@ from app.utils.enhanced_logging import get_logger
 from app.utils.global_commands import (
     GlobalCommand, global_command_detector, global_command_context
 )
+from app.utils.metrics_logger import log_intent_confidence
+from app.services.alerting import alert_low_confidence_pattern
 
 logger = get_logger(__name__)
 
@@ -47,7 +49,32 @@ class AsyncIntentDetector:
             
         # First check for global commands using AI
         global_cmd, confidence = await global_command_detector.detect_command(transcript)
-        if global_cmd != GlobalCommand.NONE and confidence >= 0.8:
+        threshold = settings.GLOBAL_COMMAND_CONFIDENCE_THRESHOLD
+        
+        # Log global command confidence for monitoring
+        if global_cmd != GlobalCommand.NONE:
+            log_intent_confidence(
+                confidence=confidence,
+                intent=f"global_command_{global_cmd.value}",
+                call_sid=context.get("call_sid"),
+                state=current_state
+            )
+            
+            # Alert on low confidence patterns
+            if confidence < settings.LOW_CONFIDENCE_ALERT_THRESHOLD:
+                import asyncio
+                asyncio.create_task(alert_low_confidence_pattern(
+                    confidence=confidence,
+                    threshold=settings.LOW_CONFIDENCE_ALERT_THRESHOLD,
+                    metadata={
+                        "intent": f"global_command_{global_cmd.value}",
+                        "state": current_state,
+                        "transcript": transcript[:100]  # Truncate for privacy
+                    },
+                    call_sid=context.get("call_sid")
+                ))
+        
+        if global_cmd != GlobalCommand.NONE and confidence >= threshold:
             # Map global commands to events
             global_event = self._map_global_command_to_event(global_cmd)
             if global_event:
@@ -284,6 +311,71 @@ Use AI intelligence to understand fulfillment and completion intent.
         if event_name:
             return HSMEvent(event_name, {})
         return None
+    
+    async def detect_go_back_intent(self, transcript: str) -> Optional[Dict[str, Any]]:
+        """
+        Detect enhanced go back intent with target state extraction.
+        
+        Args:
+            transcript: User's spoken text
+            
+        Returns:
+            Dict with go_back info or None if not detected
+        """
+        if not transcript.strip():
+            return None
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """You are analyzing user input for enhanced navigation commands in a restaurant ordering system.
+
+Detect if the user wants to go back to a specific state or step. Analyze these patterns:
+1. "go back to ordering" → target specific state
+2. "go back 2 steps" → target number of steps  
+3. "return to main menu" → target specific state
+4. "take me back to the beginning" → target specific state
+
+Return ONLY a JSON object:
+{
+  "intent": "GO_BACK_TO_STATE" | "GO_BACK_STEPS" | "NONE",
+  "target_state": "ORDERING" | "MAIN_MENU" | "GREETING" | null,
+  "steps": number | null,
+  "confidence": 0.0-1.0
+}
+
+State mappings:
+- "ordering", "order", "items" → "ORDERING"
+- "main menu", "menu", "beginning", "start" → "MAIN_MENU"
+- "greeting", "introduction" → "GREETING"
+- Numbers like "2", "two", "three" → steps count"""
+                    },
+                    {
+                        "role": "user",
+                        "content": transcript
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=100
+            )
+            
+            result_text = response.choices[0].message.content.strip()
+            
+            # Parse JSON response
+            import json
+            result = json.loads(result_text)
+            
+            if result.get("intent") == "NONE":
+                return None
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error detecting go back intent: {e}")
+            return None
     
     async def detect_global_command(
         self, 

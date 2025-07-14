@@ -141,6 +141,35 @@ class Settings(BaseSettings):
     FRONTEND_AGENT_MAX_TOKENS: int = Field(80, env="FRONTEND_AGENT_MAX_TOKENS")  # Optimized for speed
     CART_AGENT_MAX_TOKENS: int = Field(150, env="CART_AGENT_MAX_TOKENS")  # Optimized
     
+    # Confidence threshold configuration
+    GLOBAL_COMMAND_CONFIDENCE_THRESHOLD: float = Field(0.8, env="GLOBAL_COMMAND_CONFIDENCE_THRESHOLD")  # Global commands
+    ORDER_COMPLETION_CONFIDENCE_THRESHOLD: float = Field(0.6, env="ORDER_COMPLETION_CONFIDENCE_THRESHOLD")  # Order completion intent
+    ORDER_MODIFICATION_CONFIDENCE_THRESHOLD: float = Field(0.7, env="ORDER_MODIFICATION_CONFIDENCE_THRESHOLD")  # Order modifications
+    MENU_SEARCH_CONFIDENCE_THRESHOLD: float = Field(0.3, env="MENU_SEARCH_CONFIDENCE_THRESHOLD")  # Menu item matching
+    PARTIAL_TRANSCRIPT_CONFIDENCE_THRESHOLD: float = Field(0.9, env="PARTIAL_TRANSCRIPT_CONFIDENCE_THRESHOLD")  # Partial transcript processing
+    PARTIAL_TRANSCRIPT_DELAY_MS: int = Field(300, env="PARTIAL_TRANSCRIPT_DELAY_MS")  # Delay before processing partial transcript
+    PARTIAL_TRANSCRIPT_END_OF_SPEECH_THRESHOLD: float = Field(0.8, env="PARTIAL_TRANSCRIPT_END_OF_SPEECH_THRESHOLD")  # End-of-speech detection threshold
+    
+    # Circuit breaker configuration
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = Field(5, env="CIRCUIT_BREAKER_FAILURE_THRESHOLD")  # Failures before opening
+    CIRCUIT_BREAKER_RECOVERY_TIMEOUT: int = Field(60, env="CIRCUIT_BREAKER_RECOVERY_TIMEOUT")  # Seconds before retry
+    CIRCUIT_BREAKER_SUCCESS_THRESHOLD: int = Field(2, env="CIRCUIT_BREAKER_SUCCESS_THRESHOLD")  # Successes to close
+    
+    # Alerting and monitoring configuration
+    ALERT_EMAIL_ENABLED: bool = Field(False, env="ALERT_EMAIL_ENABLED")  # Enable email alerts
+    ALERT_SMTP_HOST: str = Field("smtp.gmail.com", env="ALERT_SMTP_HOST")  # SMTP server
+    ALERT_SMTP_PORT: int = Field(587, env="ALERT_SMTP_PORT")  # SMTP port
+    ALERT_SMTP_USER: Optional[str] = Field(None, env="ALERT_SMTP_USER")  # SMTP username
+    ALERT_SMTP_PASSWORD: Optional[str] = Field(None, env="ALERT_SMTP_PASSWORD")  # SMTP password
+    ALERT_FROM_EMAIL: str = Field("alerts@redbarsushi.com", env="ALERT_FROM_EMAIL")  # From email
+    ALERT_TO_EMAILS: Optional[str] = Field(None, env="ALERT_TO_EMAILS")  # Comma-separated recipient emails
+    ALERT_WEBHOOK_URL: Optional[str] = Field(None, env="ALERT_WEBHOOK_URL")  # Webhook URL for alerts
+    ALERT_WEBHOOK_SECRET: Optional[str] = Field(None, env="ALERT_WEBHOOK_SECRET")  # Webhook secret
+    
+    # Performance monitoring thresholds
+    HIGH_LATENCY_THRESHOLD_MS: int = Field(5000, env="HIGH_LATENCY_THRESHOLD_MS")  # High latency alert threshold
+    LOW_CONFIDENCE_ALERT_THRESHOLD: float = Field(0.3, env="LOW_CONFIDENCE_ALERT_THRESHOLD")  # Low confidence pattern alert
+    
     # HTTP Connection Pool Settings
     HTTP_POOL_KEEPALIVE: int = Field(10, env="HTTP_POOL_KEEPALIVE")  # Keepalive connections
     HTTP_POOL_MAX_CONNECTIONS: int = Field(100, env="HTTP_POOL_MAX_CONNECTIONS")  # Max connections

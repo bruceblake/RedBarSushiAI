@@ -489,6 +489,22 @@ try:
 except ImportError as e:
     logger.error(f"Failed to import ConversationRelay WebSocket router: {e}")
 
+# Import and register voice fallback router for static fallback mode
+try:
+    from app.api.voice.fallback import router as fallback_router
+    app.include_router(fallback_router)
+    logger.info("Successfully registered voice fallback router for static mode")
+except ImportError as e:
+    logger.error(f"Failed to import voice fallback router: {e}")
+
+# Import and register monitoring router for observability
+try:
+    from app.api.monitoring import router as monitoring_router
+    app.include_router(monitoring_router)
+    logger.info("Successfully registered monitoring router for observability")
+except ImportError as e:
+    logger.error(f"Failed to import monitoring router: {e}")
+
 # Add the /routes endpoint AFTER including the API router
 # This ensures it can see all routes including the ones from api_router
 @app.get("/routes", include_in_schema=False)

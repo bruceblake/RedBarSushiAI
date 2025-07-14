@@ -16,6 +16,8 @@ from app.config import settings
 from app.utils.openai_pool import get_openai_client
 from app.utils.enhanced_logging import get_logger
 from app.utils.correlation_id import get_correlation_id
+from app.services.circuit_breaker import protected_openai_call, CircuitBreakerError
+from app.utils.static_fallback import generate_fallback_response
 
 logger = get_logger(__name__)
 
@@ -111,9 +113,13 @@ class AIIntelligenceMixin:
             # Track timing - rely on client's configured timeout
             start_time = time.time()
             try:
-                # Make OpenAI call
+                # Make OpenAI call with circuit breaker protection
                 logger.debug(f"Making OpenAI call with params: {params}")
-                response = await client.chat.completions.create(**params)
+                
+                async def make_openai_call():
+                    return await client.chat.completions.create(**params)
+                
+                response = await protected_openai_call(make_openai_call)
                 logger.debug(f"OpenAI response type: {type(response)}")
                 
                 duration = time.time() - start_time
@@ -122,11 +128,22 @@ class AIIntelligenceMixin:
                     logger.warning(f"Slow AI response: {duration:.2f}s for {self.name}")
                 else:
                     logger.debug(f"AI response time: {duration:.2f}s")
+                    
+            except CircuitBreakerError as e:
+                logger.critical(f"Circuit breaker OPEN - triggering static fallback mode: {e}")
+                # Return static fallback response
+                return {
+                    "text": "I apologize, but our AI system is temporarily unavailable. Please hold while I connect you with our staff, or you can leave a message.",
+                    "agent": getattr(self, 'name', 'AI-Fallback'),
+                    "handled": True,
+                    "actions": [{"type": "TRIGGER_STATIC_FALLBACK"}],
+                    "fallback_mode": True
+                }
             except Exception as e:
                 # Check if it's a timeout error from the OpenAI client
                 if "timeout" in str(e).lower():
                     logger.error(f"AI request timed out for {self.name}")
-                    # AI is required - no fallback responses allowed
+                    # Circuit breaker will handle repeated timeouts
                     raise Exception("AI API timeout - system requires AI intelligence to function")
                 else:
                     # Re-raise other exceptions

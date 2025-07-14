@@ -65,7 +65,7 @@ TOOL USAGE PHILOSOPHY:
 - ALWAYS use tools when dealing with menu items, cart operations, or order management
 - Use your intelligence to determine customer intent - don't rely on specific phrases
 - If a customer wants to know about menu items, use ask_menu_specialist tool
-- If a customer wants to order something, use add_to_cart tool
+- If a customer wants to order something, use add_to_cart tool (optimized for fast resolution)
 - If a customer seems done ordering, use proceed_to_checkout tool
 - If a customer asks about their order, use view_cart tool
 
@@ -127,7 +127,7 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
                 "type": "function",
                 "function": {
                     "name": "add_to_cart",
-                    "description": "Add an item to the customer's cart, including any special requests or modifiers.",
+                    "description": "Add an item to the customer's cart using optimized direct menu resolution. This tool efficiently resolves the item name to PLU via Menu Agent, then adds to cart.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -994,126 +994,99 @@ REMEMBER: You are an intelligent agent, not a rule-following bot. Use your AI ca
         quantity: int, 
         modifiers: List[str]
     ) -> Dict[str, Any]:
-        """Add item to cart."""
-        # Delegate to cart specialist if available
-        if "cart" in self.specialists:
-            # Get call_sid from context for cart operations
-            call_sid = self.context.get("call_sid")
+        """
+        Add item to cart using optimized resolve-then-add pattern.
+        
+        This optimization eliminates the Frontline -> Cart -> Menu delegation chain
+        by having Frontline directly resolve the item with Menu Agent first,
+        then calling Cart Agent with the validated PLU.
+        """
+        # Get call_sid from context for cart operations
+        call_sid = self.context.get("call_sid")
+        
+        # OPTIMIZATION: Direct Menu Agent resolution to get PLU
+        # This eliminates the Cart -> Menu delegation hop
+        if "menu" not in self.specialists:
+            return {
+                "success": False,
+                "error": "Menu specialist not available",
+                "item_name": item_name
+            }
+        
+        try:
+            # Step 1: Resolve item name to PLU using Menu Agent directly
+            logger.debug(f"[{call_sid}] OPTIMIZED: Resolving '{item_name}' directly via Menu Agent")
             
-            # First, we need to look up the item to get its PLU
-            # The cart agent's add_item_to_cart requires a PLU, not item name
-            # Pass call_sid in the execution context
-            if hasattr(self.specialists["cart"], "execute_tool_with_context"):
-                lookup_result = await self.specialists["cart"].execute_tool_with_context(
-                    "lookup_menu_item",
-                    {"item_name": item_name},
-                    {"call_sid": call_sid}
-                )
-            else:
-                # Set the call_sid on the cart agent directly
-                if hasattr(self.specialists["cart"], "set_current_call"):
-                    self.specialists["cart"].set_current_call(call_sid)
-                
-                lookup_result = await self.specialists["cart"].execute_tool(
-                    "lookup_menu_item",
-                    {"item_name": item_name}
-                )
+            # Set context for menu agent
+            if hasattr(self.specialists["menu"], "set_current_call"):
+                self.specialists["menu"].set_current_call(call_sid)
             
-            if lookup_result.get("found"):
-                # Extract PLU from the item data structure
-                plu = None
-                if "item" in lookup_result and "plu" in lookup_result["item"]:
-                    plu = lookup_result["item"]["plu"]
-                elif "plu" in lookup_result:
-                    plu = lookup_result["plu"]
-                
-                if plu:
-                    # Now add to cart with the PLU
-                    # Make sure cart agent has the call_sid context
-                    if hasattr(self.specialists["cart"], "set_current_call"):
-                        self.specialists["cart"].set_current_call(call_sid)
-                    
-                    result = await self.specialists["cart"].execute_tool(
-                        "add_item_to_cart",
-                        {
-                            "plu": plu,
-                            "quantity": quantity,
-                            "modifiers": modifiers
-                        }
-                    )
-                else:
-                    result = {
-                        "success": False,
-                        "message": f"Could not get PLU for '{item_name}'"
-                    }
-            elif lookup_result.get("needs_disambiguation"):
-                # Handle disambiguation - for duplicate items, just pick the first
-                logger.info(f"Disambiguation needed for '{item_name}', auto-selecting first match")
-                
-                # Get the first candidate's PLU from the disambiguation result
-                candidates = lookup_result.get("candidates", [])
-                if candidates and len(candidates) > 0:
-                    # Extract PLU from the first candidate
-                    # The candidates don't directly have PLU, so we need to look it up differently
-                    # For now, let's do another lookup with the menu specialist
-                    if "menu" in self.specialists:
-                        menu_lookup = await self.specialists["menu"].execute_tool(
-                            "lookup_menu_item",
-                            {"item_name": item_name}
-                        )
-                        if menu_lookup.get("found"):
-                            # Extract PLU from menu lookup result
-                            if "item" in menu_lookup and "plu" in menu_lookup["item"]:
-                                plu = menu_lookup["item"]["plu"]
-                            elif "plu" in menu_lookup:
-                                plu = menu_lookup["plu"]
-                        else:
-                            # Item not found - return error instead of hardcoded fallback
-                            result = {
-                                "success": False,
-                                "message": f"I couldn't find '{item_name}' on our menu. Could you please check the name?"
-                            }
-                            return result
-                    else:
-                        # No menu specialist available - system requires specialists
-                        raise Exception("Menu specialist required - system cannot function without specialist access")
-                        return result
-                    
-                    result = await self.specialists["cart"].execute_tool(
-                        "add_item_to_cart",
-                        {
-                            "plu": plu,
-                            "quantity": quantity,
-                            "modifiers": modifiers
-                        }
-                    )
-                else:
-                    result = {
-                        "success": False,
-                        "message": f"I couldn't find '{item_name}' on our menu. Could you please check the name?"
-                    }
-            else:
-                # Item not found
-                result = {
+            menu_lookup_result = await self.specialists["menu"].execute_tool(
+                "lookup_menu_item",
+                {"item_name": item_name}
+            )
+            
+            if not menu_lookup_result.get("found", False):
+                return {
                     "success": False,
-                    "message": f"I couldn't find '{item_name}' on our menu. Could you please check the name?"
+                    "error": f"Item '{item_name}' not found on menu",
+                    "item_name": item_name,
+                    "suggestion": menu_lookup_result.get("suggestion", "Please try a different item")
                 }
             
-            # Update local context
-            if result.get("success"):
-                self.context["order_items"].append({
-                    "name": item_name,
-                    "quantity": quantity,
-                    "modifiers": modifiers
-                })
+            # Extract PLU and item details from menu response
+            item_data = menu_lookup_result.get("item", {})
+            item_plu = item_data.get("plu")
             
-            return result
-        
-        # NO FALLBACK - menu validation is required
-        return {
-            "success": False,
-            "message": f"Unable to add {item_name}. This item doesn't appear to be on our menu. Please ask what items we have available."
-        }
+            if not item_plu:
+                return {
+                    "success": False,
+                    "error": f"No PLU found for item '{item_name}'",
+                    "item_name": item_name
+                }
+            
+            logger.debug(f"[{call_sid}] OPTIMIZED: Resolved '{item_name}' to PLU '{item_plu}'")
+            
+            # Step 2: Add to cart using validated PLU (direct Cart Agent call)
+            if "cart" not in self.specialists:
+                return {
+                    "success": False,
+                    "error": "Cart specialist not available",
+                    "item_name": item_name
+                }
+            
+            # Set context for cart agent
+            if hasattr(self.specialists["cart"], "set_current_call"):
+                self.specialists["cart"].set_current_call(call_sid)
+            
+            cart_result = await self.specialists["cart"].execute_tool(
+                "add_item_to_cart",
+                {
+                    "plu": item_plu,
+                    "quantity": quantity,
+                    "modifiers": modifiers,
+                    "special_instructions": ""
+                }
+            )
+            
+            logger.debug(f"[{call_sid}] OPTIMIZED: Added item to cart - {cart_result}")
+            
+            return {
+                "success": True,
+                "item_added": item_data.get("name", item_name),
+                "quantity": quantity,
+                "plu": item_plu,
+                "cart_total": cart_result.get("cart_total", "unknown"),
+                "optimization": "direct_resolution"  # Flag to track optimization usage
+            }
+            
+        except Exception as e:
+            logger.error(f"[{call_sid}] OPTIMIZED add_to_cart failed: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to add item: {str(e)}",
+                "item_name": item_name
+            }
     
     async def _update_customer_info(self, info: Dict[str, Any]) -> Dict[str, Any]:
         """Update customer information."""

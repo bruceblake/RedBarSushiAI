@@ -253,6 +253,7 @@ class ConversationHSMEvents:
     
     # Navigation events
     GO_BACK = "GO_BACK"
+    GO_BACK_TO_STATE = "GO_BACK_TO_STATE"
     START_OVER = "START_OVER"
     REPEAT = "REPEAT"
     

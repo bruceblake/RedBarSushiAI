@@ -426,6 +426,101 @@ class HSMManager:
             logger.debug(f"[{call_sid}] Updated context: {context_updates}")
         except Exception as e:
             logger.error(f"[{call_sid}] Error updating context: {e}", exc_info=True)
+    
+    async def go_back_to_state(self, call_sid: str, target_state: str, context: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """
+        Enhanced recovery: go back to a specific parent state in the state stack.
+        
+        This implements multi-level rollback support for commands like:
+        - "go back to ordering"
+        - "go back 2 steps"
+        - "return to main menu"
+        
+        Args:
+            call_sid: Conversation identifier
+            target_state: Target state to return to
+            context: Optional conversation context
+            
+        Returns:
+            New leaf state name after recovery, or None if failed
+        """
+        context = context or {}
+        current_path = await self.state_store.get_current_state_path(call_sid)
+        
+        if not current_path:
+            logger.warning(f"[{call_sid}] No current state path for recovery")
+            return None
+        
+        # Find target state in current path
+        target_index = -1
+        for i, state in enumerate(current_path):
+            if state == target_state or state.endswith(f".{target_state}"):
+                target_index = i
+                break
+        
+        if target_index == -1:
+            # Target state not in current path, check if it's a valid parent state
+            target_state_def = self.states.get(target_state)
+            if not target_state_def:
+                logger.error(f"[{call_sid}] Invalid target state for recovery: {target_state}")
+                return None
+            
+            # Transition to the target state directly
+            logger.info(f"[{call_sid}] Enhanced recovery: transitioning directly to {target_state}")
+            event = HSMEvent("GO_BACK_TO_STATE", {"target_state": target_state})
+            await self._transition_to(call_sid, target_state, event, context)
+            return await self.state_store.get_leaf_state(call_sid)
+        
+        # Target state is in current path - pop back to it
+        states_to_exit = current_path[target_index + 1:]
+        
+        logger.info(f"[{call_sid}] Enhanced recovery: going back {len(states_to_exit)} levels to {target_state}")
+        
+        # Exit states from leaf back to target
+        for state_name in reversed(states_to_exit):
+            event = HSMEvent("GO_BACK_TO_STATE", {"target_state": target_state})
+            await self._exit_state(call_sid, state_name, event, context)
+        
+        # Update state path
+        new_path = current_path[:target_index + 1]
+        await self.state_store.set_state_path(call_sid, new_path)
+        
+        # If target state has an initial substate, enter it
+        target_state_def = self.states.get(target_state)
+        if target_state_def and target_state_def.initial_substate_name:
+            event = HSMEvent("GO_BACK_TO_STATE", {"target_state": target_state})
+            await self._enter_initial_substates(call_sid, target_state_def.initial_substate_name, event, context)
+        
+        final_leaf = await self.state_store.get_leaf_state(call_sid)
+        logger.info(f"[{call_sid}] Enhanced recovery completed: now in {final_leaf}")
+        
+        return final_leaf
+    
+    async def go_back_steps(self, call_sid: str, steps: int, context: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """
+        Go back a specific number of steps in the state hierarchy.
+        
+        Args:
+            call_sid: Conversation identifier
+            steps: Number of levels to go back
+            context: Optional conversation context
+            
+        Returns:
+            New leaf state name after going back, or None if failed
+        """
+        context = context or {}
+        current_path = await self.state_store.get_current_state_path(call_sid)
+        
+        if not current_path or steps <= 0:
+            return None
+        
+        # Calculate target index
+        target_index = max(0, len(current_path) - steps - 1)
+        target_state = current_path[target_index]
+        
+        logger.info(f"[{call_sid}] Going back {steps} steps to {target_state}")
+        
+        return await self.go_back_to_state(call_sid, target_state, context)
 
 
 # Global instance for easy access
