@@ -49,6 +49,9 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         """
         Submit an order to Deliverect and process confirmation.
         
+        This method is protected by a distributed lock to prevent race conditions
+        during order submission (e.g., cancellation requests during submission).
+        
         Args:
             call_sid: The call session ID
             order_details: The validated order details to submit
@@ -58,6 +61,8 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         Returns:
             Dict with submission results and next actions
         """
+        from app.utils.distributed_lock import OrderSubmissionLock, DistributedLockTimeout
+        
         logger.info(f"[{call_sid}] AsyncFulfillmentAgent: Submitting order: {order_details}")
         
         # Validate order has items
@@ -68,6 +73,58 @@ class AsyncFulfillmentAgent(BaseAsyncAgent):
         # Get or create order ID
         order_id = order_details.get("id", f"ORD-{call_sid[-8:]}")
         
+        # Use distributed lock to prevent race conditions during order submission
+        try:
+            async with OrderSubmissionLock.acquire_order_lock(call_sid) as lock:
+                logger.info(f"[{call_sid}] Acquired order submission lock")
+                
+                # Check for cancellation before proceeding
+                if await OrderSubmissionLock.check_order_cancellation(call_sid):
+                    logger.warning(f"[{call_sid}] Order cancellation detected during submission")
+                    return {
+                        "success": False,
+                        "error": "Order was cancelled",
+                        "cancelled": True,
+                        "handled": True,
+                        "agent": self.agent_name
+                    }
+                
+                # Proceed with protected order submission
+                return await self._submit_order_protected(
+                    call_sid, order_details, hsm_context_data, db, order_id
+                )
+                
+        except DistributedLockTimeout:
+            logger.error(f"[{call_sid}] Could not acquire order submission lock - another operation in progress")
+            return {
+                "success": False,
+                "error": "Order submission already in progress",
+                "retry_suggested": True,
+                "handled": True,
+                "agent": self.agent_name
+            }
+    
+    async def _submit_order_protected(
+        self,
+        call_sid: str,
+        order_details: Dict[str, Any],
+        hsm_context_data: Dict[str, Any],
+        db: Optional[AsyncSession],
+        order_id: str
+    ) -> Dict[str, Any]:
+        """
+        Protected order submission logic (called within distributed lock).
+        
+        Args:
+            call_sid: The call session ID
+            order_details: The validated order details to submit
+            hsm_context_data: The full HSM context
+            db: Database session
+            order_id: Generated order ID
+            
+        Returns:
+            Dict with submission results and next actions
+        """
         try:
             # Create DeliverectService instance
             deliverect_service = DeliverectService()

@@ -44,20 +44,24 @@ celery.conf.update(
     broker_connection_retry=True,  # Retry on connection failure
     broker_connection_max_retries=3,  # Max retries
     result_backend_pool_limit=10,  # Result backend pool size
-    
-    # Beat schedule (if using celery beat)
-    beat_schedule={
-        # Add periodic tasks here if needed
-        # 'example-task': {
-        #     'task': 'app.tasks.example_task',
-        #     'schedule': 300.0,  # Every 5 minutes
-        # },
-    }
 )
 
+# Configure beat schedule separately after basic configuration
+celery.conf.beat_schedule = {
+    'daily-menu-reconciliation': {
+        'task': 'app.tasks.menu_reconciliation.daily_menu_reconciliation',
+        'schedule': 86400.0,  # Every 24 hours (daily) at startup time
+    },
+    'weekly-menu-health-check': {
+        'task': 'app.tasks.menu_reconciliation.weekly_menu_health_check', 
+        'schedule': 604800.0,  # Every 7 days (weekly)
+    },
+}
+
+print(f"✅ Celery beat schedule configured: {list(celery.conf.beat_schedule.keys())}")
+
 # Auto-discover tasks from the app package
-# Commented out for now - will enable when app structure is ready
-# celery.autodiscover_tasks(['app'])
+celery.autodiscover_tasks(['app.tasks'])
 
 # Simple test task
 @celery.task

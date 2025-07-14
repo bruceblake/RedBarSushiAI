@@ -21,10 +21,10 @@ except ImportError:
 
 # Try to import Celery, fall back to direct execution if not available
 try:
-    from celery import current_app as celery_app
+    from celery_app_fastapi import celery
     def task(name: str = None, **kwargs):
         """Real Celery task decorator."""
-        return celery_app.task(name=name, **kwargs)
+        return celery.task(name=name, **kwargs)
 except ImportError:
     logger.warning("Celery not available - tasks will execute synchronously")
     def task(name: str = None, **kwargs):

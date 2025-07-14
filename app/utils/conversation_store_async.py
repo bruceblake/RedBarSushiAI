@@ -116,7 +116,10 @@ class AsyncConversationStore:
         expiration: int = DEFAULT_EXPIRATION,
     ) -> bool:
         """
-        Save conversation data to Redis with expiration.
+        Save conversation data to Redis with robust error handling.
+        
+        This method now raises RedisSaveError when Redis operations fail,
+        allowing calling code to handle split-brain scenarios appropriately.
 
         Args:
             session_id: The unique identifier for the conversation
@@ -124,7 +127,10 @@ class AsyncConversationStore:
             expiration: Time in seconds until the data expires (default 30 minutes)
 
         Returns:
-            bool: True if successful, False otherwise
+            bool: True if successful
+            
+        Raises:
+            RedisSaveError: If conversation cannot be saved to Redis
         """
         key = f"conv:{session_id}"
 
@@ -132,25 +138,40 @@ class AsyncConversationStore:
             # Ensure updated_at is current
             conversation_data["updated_at"] = time.time()
 
-            # Try to save in Redis
+            # Try to save in Redis - this is now REQUIRED
             serialized = safe_json_dumps(conversation_data)
             redis_success = await redis_set(key, serialized, expiration)
             
             if not redis_success:
-                # Fallback to in-memory store
-                memory_cache_set(key, conversation_data)
+                # Redis save failed - this is now an error condition
+                from app.exceptions.conversation_exceptions import RedisSaveError
+                error_msg = f"Failed to save conversation {session_id} to Redis"
+                logger.error(error_msg)
+                raise RedisSaveError(
+                    error_msg, 
+                    call_sid=session_id, 
+                    operation="save_conversation"
+                )
 
+            # Success - also update memory cache for fast access
+            memory_cache_set(key, conversation_data)
+            logger.debug(f"Successfully saved conversation {session_id} to Redis and memory")
             return True
 
         except Exception as e:
-            logger.error(f"Error saving conversation {session_id}: {str(e)}")
-            # Try in-memory as last resort
-            try:
-                memory_cache_set(key, conversation_data)
-                return True
-            except Exception as mem_error:
-                logger.error(f"Memory cache fallback failed for {session_id}: {str(mem_error)}")
-                return False
+            # Check if this is already a RedisSaveError
+            from app.exceptions.conversation_exceptions import RedisSaveError
+            if isinstance(e, RedisSaveError):
+                raise  # Re-raise Redis save errors
+            
+            # Unexpected error during save operation
+            error_msg = f"Unexpected error saving conversation {session_id}: {str(e)}"
+            logger.error(error_msg)
+            raise RedisSaveError(
+                error_msg,
+                call_sid=session_id,
+                operation="save_conversation"
+            )
 
     async def update_conversation(
         self,

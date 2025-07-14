@@ -73,24 +73,45 @@ class DeliverectService:
             channel_name = location.deliverect_channel_name or settings.DELIVERECT_CHANNEL_NAME
             menu_url = f"{self.base_url}/{channel_name}/menu/{location.deliverect_channel_link_id}"
             
-            # Make request using shared HTTP pool
-            client = get_http_client('deliverect')
-            response = await client.get(
-                menu_url,
-                headers={
-                    "Authorization": f"Bearer {token_response['token']}",
-                    "Content-Type": "application/json"
-                },
-                timeout=self.timeout
+            # Make request using enhanced retry logic
+            from app.utils.retry_strategies import retry_with_exponential_backoff, RetryConfig, DeliverectRateLimitError
+            
+            async def make_menu_request():
+                client = get_http_client('deliverect')
+                response = await client.get(
+                    menu_url,
+                    headers={
+                        "Authorization": f"Bearer {token_response['token']}",
+                        "Content-Type": "application/json"
+                    },
+                    timeout=self.timeout
+                )
+                
+                if response.status_code == 200:
+                    menu_data = response.json()
+                    logger.info(f"Successfully fetched menu with {len(menu_data.get('products', {}))} products")
+                    return menu_data
+                elif response.status_code == 429:
+                    # Rate limited by Deliverect
+                    logger.warning(f"Deliverect rate limit hit for menu fetch")
+                    raise DeliverectRateLimitError(f"Rate limited: {response.status_code}")
+                else:
+                    logger.error(f"Failed to fetch menu: HTTP {response.status_code}")
+                    response.raise_for_status()  # Will raise HTTPStatusError for retry logic
+            
+            # Configure retry specifically for Deliverect API
+            retry_config = RetryConfig(
+                max_attempts=3,
+                base_delay=2.0,     # Longer base delay for external API
+                max_delay=30.0,     # Shorter max delay
+                exponential_base=2.0,
+                jitter_factor=0.2   # More jitter for external API
             )
             
-            if response.status_code == 200:
-                menu_data = response.json()
-                logger.info(f"Successfully fetched menu with {len(menu_data.get('products', {}))} products")
-                return menu_data
-            else:
-                logger.error(f"Failed to fetch menu: HTTP {response.status_code}")
-                return None
+            return await retry_with_exponential_backoff(
+                make_menu_request,
+                config=retry_config
+            )
                 
         except Exception as e:
             logger.error(f"Error fetching full menu: {e}")

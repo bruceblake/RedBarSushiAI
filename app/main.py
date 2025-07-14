@@ -505,6 +505,14 @@ try:
 except ImportError as e:
     logger.error(f"Failed to import monitoring router: {e}")
 
+# Import and register granular webhooks router for precise cache invalidation
+try:
+    from app.api.deliverect_granular_webhooks import router as granular_webhooks_router
+    app.include_router(granular_webhooks_router)
+    logger.info("Successfully registered granular webhooks router for cache invalidation")
+except ImportError as e:
+    logger.error(f"Failed to import granular webhooks router: {e}")
+
 # Add the /routes endpoint AFTER including the API router
 # This ensures it can see all routes including the ones from api_router
 @app.get("/routes", include_in_schema=False)

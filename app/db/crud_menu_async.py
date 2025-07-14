@@ -426,6 +426,112 @@ async def get_items(
     result = await db.execute(query)
     return list(result.scalars().all())
 
+async def update_item_price(plu: str, new_price: float, db: AsyncSession) -> bool:
+    """
+    Update the price of a specific menu item by PLU.
+    
+    Args:
+        plu: Product Lookup Unit identifier
+        new_price: New price in dollars
+        db: Database session
+        
+    Returns:
+        True if update successful, False otherwise
+    """
+    try:
+        # Update item price
+        stmt = (
+            update(MenuItem)
+            .where(MenuItem.plu == plu)
+            .values(price=new_price)
+        )
+        
+        result = await db.execute(stmt)
+        await db.commit()
+        
+        if result.rowcount > 0:
+            logger.info(f"Updated price for PLU {plu} to ${new_price:.2f}")
+            return True
+        else:
+            logger.warning(f"No item found with PLU {plu} for price update")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error updating price for PLU {plu}: {e}")
+        await db.rollback()
+        return False
+
+async def update_item_availability(plu: str, is_available: bool, db: AsyncSession) -> bool:
+    """
+    Update the availability status of a specific menu item by PLU.
+    
+    Args:
+        plu: Product Lookup Unit identifier
+        is_available: New availability status
+        db: Database session
+        
+    Returns:
+        True if update successful, False otherwise
+    """
+    try:
+        # Update item availability
+        stmt = (
+            update(MenuItem)
+            .where(MenuItem.plu == plu)
+            .values(is_available=is_available)
+        )
+        
+        result = await db.execute(stmt)
+        await db.commit()
+        
+        if result.rowcount > 0:
+            logger.info(f"Updated availability for PLU {plu} to {is_available}")
+            return True
+        else:
+            logger.warning(f"No item found with PLU {plu} for availability update")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error updating availability for PLU {plu}: {e}")
+        await db.rollback()
+        return False
+
+async def update_item_snooze(plu: str, snoozed_until: Optional[datetime], db: AsyncSession) -> bool:
+    """
+    Update the snooze status of a specific menu item by PLU.
+    
+    Args:
+        plu: Product Lookup Unit identifier
+        snoozed_until: When snooze expires (None to unsnooze)
+        db: Database session
+        
+    Returns:
+        True if update successful, False otherwise
+    """
+    try:
+        # Update item snooze status
+        stmt = (
+            update(MenuItem)
+            .where(MenuItem.plu == plu)
+            .values(snoozed_until=snoozed_until)
+        )
+        
+        result = await db.execute(stmt)
+        await db.commit()
+        
+        if result.rowcount > 0:
+            snooze_msg = f"until {snoozed_until}" if snoozed_until else "removed"
+            logger.info(f"Updated snooze for PLU {plu}: {snooze_msg}")
+            return True
+        else:
+            logger.warning(f"No item found with PLU {plu} for snooze update")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error updating snooze for PLU {plu}: {e}")
+        await db.rollback()
+        return False
+
 async def count_items(
     db: AsyncSession,
     category_id: Optional[str] = None,

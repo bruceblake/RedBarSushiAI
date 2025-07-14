@@ -108,16 +108,19 @@ class AIIntelligenceMixin:
             # Make AI API call (reduced logging for speed)
             logger.debug(f"AI call: {params['model']}, {len(params['messages'])} msgs")
             
-            client = await self._get_ai_client()
+            # Use enhanced OpenAI client with 429 handling
+            from app.utils.enhanced_openai_client import get_enhanced_openai_client
+            
+            client = await get_enhanced_openai_client()
             
             # Track timing - rely on client's configured timeout
             start_time = time.time()
             try:
-                # Make OpenAI call with circuit breaker protection
+                # Make OpenAI call with enhanced retry logic and circuit breaker protection
                 logger.debug(f"Making OpenAI call with params: {params}")
                 
                 async def make_openai_call():
-                    return await client.chat.completions.create(**params)
+                    return await client.chat_completions_create(**params)
                 
                 response = await protected_openai_call(make_openai_call)
                 logger.debug(f"OpenAI response type: {type(response)}")

@@ -343,8 +343,8 @@ class PartialTranscriptProcessor:
         
         # Boost confidence for exact matches or very short transcripts
         # that match common responses
-        if transcript in ['yes', 'no', 'okay', 'thanks', 'help', 'cancel']:
-            pattern_confidence = min(1.0, pattern_confidence + 0.3)
+        if transcript in ['yes', 'no', 'okay', 'ok', 'thanks', 'help', 'cancel', 'yeah', 'yep', 'sure', 'nope']:
+            pattern_confidence = min(1.0, pattern_confidence + 0.8)  # Large boost for exact matches
         
         # Reduce confidence for very long transcripts (likely incomplete thoughts)
         if len(transcript) > 50:

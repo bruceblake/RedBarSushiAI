@@ -10,7 +10,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Dict, Any
 
-from app.agents.frontline_async_ai import FrontlineAsyncAgent
+from app.agents.frontline_async_ai import AsyncFrontlineVoiceAgentAI
 from app.config import settings
 
 
@@ -21,7 +21,7 @@ class TestFrontlineAgentToolDelegation:
     async def frontline_agent(self):
         """Create a Frontline Agent instance for testing."""
         with patch('app.agents.frontline_async_ai.AsyncOpenAI'):
-            agent = FrontlineAsyncAgent()
+            agent = AsyncFrontlineVoiceAgentAI()
             # Mock the required agents
             agent.menu_agent = AsyncMock()
             agent.cart_agent = AsyncMock()
