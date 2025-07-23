@@ -70,6 +70,7 @@ asyncpg==0.29.0  # Async PostgreSQL driver
 psycopg2-binary==2.9.9  # PostgreSQL database adapter (sync)
 starlette==0.46.0
 stripe==11.6.0
+tenacity==9.0.0
 tqdm==4.67.1
 twilio==9.4.6
 types-requests==2.32.0.20250306
